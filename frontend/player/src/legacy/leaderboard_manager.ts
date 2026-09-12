@@ -1,6 +1,6 @@
 // @ts-nocheck
 // This legacy-compatible module is compiled as an isolated browser bundle.
-import { safeInlineJson, safeInlineString } from '../player_security';
+import { safeImageUrl, safeInlineJson, safeInlineString } from '../player_security';
 import { toUserMessage } from '../player_notifications';
 /**
  * Leaderboard Manager for 云音
@@ -21,6 +21,7 @@ window.LeaderboardManager = (function () {
         total: 0,
         limit: 100,          // 后端一页加载数量限制
         loading: false,
+        pageTransitioning: false,
     };
 
     let initialized = false;
@@ -182,9 +183,20 @@ window.LeaderboardManager = (function () {
         `).join('');
     }
 
-    function renderSongs(songs) {
+    function renderSongs(songs, direction = '') {
         const container = document.getElementById('lb-songs-list');
         if (!container) return;
+        if (direction) {
+            container.dataset.pageDirection = direction > 0 ? 'next' : 'prev';
+            container.classList.remove('leaderboard-page-changing');
+            void container.offsetWidth;
+            container.classList.add('leaderboard-page-changing');
+            window.setTimeout(() => container.classList.remove('leaderboard-page-changing'), 360);
+            document.querySelectorAll('#lb-btn-prev, #lb-btn-next').forEach(button => {
+                button.classList.add('is-page-changing');
+                window.setTimeout(() => button.classList.remove('is-page-changing'), 220);
+            });
+        }
 
         if (!songs || songs.length === 0) {
             container.innerHTML = state.currentBangid
@@ -227,7 +239,7 @@ window.LeaderboardManager = (function () {
             const rank = index + 1;
             const rankClass = rank <= 3 ? 'text-emerald-600 dark:text-emerald-500 font-black text-base' : 'text-gray-400 font-mono text-xs';
 
-            const imgUrl = window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg || '/music/assets/yun-yin.png');
+            const imgUrl = safeImageUrl(window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg));
 
             return `
             <div id="lb-row-${index}" role="button" tabindex="0" aria-label="${window.batchMode ? `${selectionLabel} ${song.name || '未命名歌曲'}` : `播放 ${song.name || '未命名歌曲'}`}" ${selectionAttributes}
@@ -390,7 +402,7 @@ window.LeaderboardManager = (function () {
     }
 
     function changePage(delta) {
-        if (state.loading) return;
+        if (state.loading || state.pageTransitioning || !delta) return;
 
         const displayList = window.ListSearch && window.ListSearch.state && window.ListSearch.state.active && window.ListSearch.state.id === 'leaderboard'
             ? window.ListSearch.getDisplayList(state.songs)
@@ -402,24 +414,29 @@ window.LeaderboardManager = (function () {
 
         const nextLocal = state.localPage + delta;
 
+        const canChangeLocal = nextLocal >= 1 && nextLocal <= totalPages;
+        const canLoadMore = delta > 0 && nextLocal > totalPages && state.songs.length >= state.limit * state.page;
+        if (!canChangeLocal && !canLoadMore) return;
+        state.pageTransitioning = true;
+
         if (delta > 0 && nextLocal > totalPages) {
             // 需要向后端加载更多
-            const canLoadMore = state.songs.length >= state.limit * state.page;
             if (canLoadMore) {
                 loadSongs(state.currentBangid, state.source, state.page + 1).then(() => {
                     state.localPage++; // 加载完后，本地页码加1
-                    renderSongs(state.songs); // 刷新视图
+                    renderSongs(state.songs, delta); // 刷新视图
                     renderPagination();       // 刷新底部页码标示
                     updateSongCountAfterLoad();
                     document.getElementById('lb-songs-container') && document.getElementById('lb-songs-container').scrollTo({ top: 0, behavior: 'smooth' });
-                });
+                }).finally(() => window.setTimeout(() => { state.pageTransitioning = false; }, 360));
             }
         } else if (nextLocal >= 1 && nextLocal <= totalPages) {
             // 本地直接翻页面
             state.localPage = nextLocal;
-            renderSongs(state.songs);
+            renderSongs(state.songs, delta);
             renderPagination();
             document.getElementById('lb-songs-container') && document.getElementById('lb-songs-container').scrollTo({ top: 0, behavior: 'smooth' });
+            window.setTimeout(() => { state.pageTransitioning = false; }, 360);
         }
     }
 

@@ -1,5 +1,6 @@
 import {
     escapeHtmlText,
+    safeImageUrl,
     safeInlineJson,
     safeInlineString,
 } from '../player_security';
@@ -707,56 +708,8 @@ async function changePlaybackQuality(quality) {
  * @param {boolean} isLoading 是否显示加载/缓冲动画
  */
 function setPlayerStatus(status, isPlaying = null, isLoading = false) {
-    const statusEl = document.getElementById('player-status');
-    if (!statusEl) return;
-
-    // 如果指定了加载状态，自动应用跳动动画
-    if (isLoading && typeof status === 'string') {
-        statusEl.innerHTML = `<span class="animate-loading-dots">${escapeHtmlText(status)}<span>.</span><span>.</span><span>.</span></span>`;
-        return;
-    }
-
-    // 处理其他固定文本状态
-    if (typeof status === 'string' && (status.includes('请点击') || status.includes('即将跳过'))) {
-        // [Fix] 如果音频已经在播放，忽略“请点击”提示，直接落入下方获取实时状态逻辑，避免 UI 冲突
-        if (status.includes('请点击') && audio && !audio.paused) {
-            // Fall through to show real playStatus
-        } else {
-            statusEl.innerText = status;
-            return;
-        }
-    }
-
-    // 构建状态文本
-    let statusText = '';
-
-    // 确定播放状态
-    if (isPlaying === null) {
-        // 从 audio 元素获取当前状态
-        isPlaying = !audio.paused;
-    }
-
-    const playStatus = isPlaying ? '播放中' : '暂停中';
-
-
-    // 获取音质显示名称
-    const qualityName = state.currentQuality ? window.QualityManager.getQualityDisplayName(state.currentQuality) : '';
-
-    // 组合状态文本
-    if (qualityName) {
-        statusText = `${playStatus} (${qualityName})`;
-    } else {
-        statusText = playStatus;
-    }
-
-    // 根据链接来源添加提示
-    if (state.currentSourceType === 'cache') {
-        statusText += ' 【缓存链接】';
-    } else if (state.currentSourceType === 'server_cache') {
-        statusText += ' 【服务器缓存】';
-    }
-
-    statusEl.innerText = statusText;
+    // 播放状态已经由播放/暂停按钮和进度条表达，不再占用底栏歌曲信息空间。
+    return;
 }
 
 
@@ -895,8 +848,9 @@ window.updatePlaylist = updatePlaylist;
 window.setImg = (id, src) => {
     const el = document.getElementById(id);
     if (el) {
+        const resolvedSrc = src ? safeImageUrl(src) : '';
         // 如果是从占位图切换到真实图片，保留滤镜直到加载完成
-        if (el.src.includes('yun-yin.png') && src && !src.includes('yun-yin.png')) {
+        if (el.src.includes('yun-yin.png') && resolvedSrc && !resolvedSrc.includes('yun-yin.png')) {
             el.classList.add('is-placeholder');
             const handleLoad = () => {
                 el.classList.remove('is-placeholder');
@@ -905,15 +859,15 @@ window.setImg = (id, src) => {
             };
             el.addEventListener('load', handleLoad);
             el.addEventListener('error', handleLoad);
-        } else if (src && src.includes('yun-yin.png')) {
+        } else if (resolvedSrc && resolvedSrc.includes('yun-yin.png')) {
             el.classList.add('is-placeholder');
         } else {
             el.classList.remove('is-placeholder');
         }
 
-        if (src) el.src = src;
+        if (resolvedSrc) el.src = resolvedSrc;
         el.onerror = () => {
-            el.src = '/music/assets/yun-yin.png';
+            if (!el.src.includes('yun-yin.png')) el.src = '/music/assets/yun-yin.png';
             el.classList.add('is-placeholder');
         };
     }
@@ -1074,7 +1028,7 @@ function updatePlayerInfo(song, actualQuality) {
     // 触发滚动检测
     applyMarqueeChecks();
 
-    const imgUrl = getImgUrl(song);
+    const imgUrl = safeImageUrl(getImgUrl(song));
 
     setImg('player-cover', imgUrl);
     setImg('sidebar-cover', imgUrl);

@@ -86,7 +86,7 @@ export function initUsersFeature(context: AdminFeatureContext) {
         }
 
         container.innerHTML = `
-            <div class="user-selection-grid fade-in">
+            <div class="user-selection-grid user-selection-grid--${type} fade-in">
                 ${app.allUsers.map(user => {
                     const isPublic = user.name === '_open';
                     const displayName = isPublic ? '公开用户 (_open)' : app.escapeHtml(user.name);

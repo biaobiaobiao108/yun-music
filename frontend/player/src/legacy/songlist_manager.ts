@@ -3,6 +3,7 @@
  * Song List Manager for 云音
  * Handles fetching, rendering and interactions for the "Song List" (Playlist) feature.
  */
+import { escapeHtmlText, safeImageUrl } from '../player_security';
 import { toUserMessage } from '../player_notifications';
 
 export type SongListManagerApi = ReturnType<typeof createSongListManager>;
@@ -573,7 +574,7 @@ export function createSongListManager(context: SongListManagerContext) {
             <div role="button" tabindex="0" aria-label="打开歌单 ${item.name || ''}" class="playlist-card player-motion-item group cursor-pointer" style="--player-motion-index: ${Math.min(index, 7)};"
                  data-songlist-action="open-detail" data-id="${item.id}" data-source="${currentState.source}">
                 <div class="relative aspect-square overflow-hidden rounded-2xl shadow-md transition-all group-hover:shadow-xl group-hover:-translate-y-1">
-                    <img data-src="${item.img || '/music/assets/yun-yin.png'}" src="/music/assets/yun-yin.png" alt="${item.name || '歌单'}封面" width="320" height="320" loading="lazy" decoding="async"
+                    <img data-src="${escapeHtmlText(safeImageUrl(item.img || item.cover || item.picUrl))}" src="/music/assets/yun-yin.png" alt="${escapeHtmlText(item.name || '歌单')}封面" width="320" height="320" loading="lazy" decoding="async"
                          class="lazy-image w-full h-full object-cover dynamic-logo is-placeholder"
                          data-fallback-image="pending">
                     <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1039,7 +1040,7 @@ export function createSongListManager(context: SongListManagerContext) {
                     <div role="button" tabindex="0" aria-label="打开歌单 ${item.name || ''}" class="flex items-center gap-4 p-3 rounded-xl hover:t-bg-main transition-all cursor-pointer group"
                          data-songlist-action="select-user-playlist" data-id="${item.id}">
                         <div class="relative flex-shrink-0">
-                            <img src="${item.img || '/music/assets/yun-yin.png'}" alt="${item.name || '歌单'}封面" width="48" height="48" loading="lazy" decoding="async" class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition-transform">
+                            <img src="${escapeHtmlText(safeImageUrl(item.img || item.cover || item.picUrl))}" alt="${escapeHtmlText(item.name || '歌单')}封面" width="48" height="48" loading="lazy" decoding="async" class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition-transform">
                         </div>
                         <div class="flex-1 min-w-0">
                             <h4 class="text-sm font-bold t-text-main truncate">${item.name}</h4>

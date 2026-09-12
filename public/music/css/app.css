@@ -109,6 +109,20 @@ body.overlay-open > *:not(.skip-link) {
     background: color-mix(in srgb, var(--c-500) 16%, transparent);
 }
 
+/* 登录表单与设置账户表单必须保持明确的文本对比度，避免浏览器自动填充
+   或主题工具类把输入内容渲染成透明色。 */
+:where(#auth-form input, #user-login-form input) {
+    color: var(--text-main, #0f172a) !important;
+    -webkit-text-fill-color: var(--text-main, #0f172a) !important;
+    caret-color: var(--c-600, #059669) !important;
+    opacity: 1 !important;
+}
+
+:where(#auth-form input, #user-login-form input)::placeholder {
+    color: var(--text-muted, #64748b) !important;
+    opacity: 0.85;
+}
+
 /* Keep legacy utility classes in the player footer and settings view on the
    active theme palette instead of locking interactive states to emerald. */
 #player-footer [class~="bg-emerald-500"] {
@@ -3138,6 +3152,7 @@ aside {
     align-items: center;
     flex: 0 0 auto;
     min-inline-size: max-content;
+    margin-inline-start: auto;
 }
 
 .favorite-sidebar-item > button:not(.hidden) {
@@ -3282,6 +3297,98 @@ aside {
 .favorite-sidebar-item:hover .favorite-sidebar-name .animate-marquee,
 .favorite-sidebar-item:focus-within .favorite-sidebar-name .animate-marquee {
     animation-play-state: paused;
+}
+
+/* 自建歌单与系统歌单共用同一标题槽位；长名称只在当前选中歌单中滚动，
+   未选中的条目保持稳定省略，避免侧栏持续运动。 */
+.favorite-sidebar-name {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+}
+
+.favorite-sidebar-item .favorite-sidebar-name .animate-marquee {
+    animation-play-state: paused !important;
+}
+
+.favorite-sidebar-item.active-sub-item .favorite-sidebar-name .animate-marquee {
+    animation-play-state: running !important;
+}
+
+/* 底栏元数据共享剩余宽度，歌手和专辑各自省略，不再互相挤压收藏按钮。 */
+#player-song-info .player-meta-row {
+    display: flex;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+#player-song-info .player-meta-artist,
+#player-song-info .player-meta-album {
+    flex: 1 1 0%;
+    min-inline-size: 0;
+    max-inline-size: none;
+    overflow: hidden;
+}
+
+#player-song-info .player-meta-artist > .w-full,
+#player-song-info .player-meta-album > .w-full {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+/* 排行榜分页给出明确的方向反馈，同时尊重减少动态效果偏好。 */
+#lb-songs-list.leaderboard-page-changing[data-page-direction="next"] .player-motion-item {
+    animation: leaderboard-page-next 320ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1)) both;
+    animation-delay: calc(var(--player-motion-index, 0) * 18ms);
+}
+
+#lb-songs-list.leaderboard-page-changing[data-page-direction="prev"] .player-motion-item {
+    animation: leaderboard-page-prev 320ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1)) both;
+    animation-delay: calc(var(--player-motion-index, 0) * 18ms);
+}
+
+.player-pagination-button.is-page-changing {
+    transform: scale(0.94);
+    background: color-mix(in srgb, var(--c-500, #10b981) 12%, var(--bg-main));
+    color: var(--c-600, #059669);
+}
+
+@keyframes leaderboard-page-next {
+    from { opacity: 0; transform: translate3d(1rem, 0, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes leaderboard-page-prev {
+    from { opacity: 0; transform: translate3d(-1rem, 0, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+dialog.runtime-input-dialog {
+    inline-size: min(100% - 2rem, 34rem);
+    max-inline-size: min(100% - 2rem, 34rem);
+    border: 0 !important;
+    background: transparent;
+}
+
+dialog.runtime-input-dialog .runtime-input-dialog-panel {
+    inline-size: 100%;
+    border: 1px solid color-mix(in srgb, var(--border-main, #e2e8f0) 80%, transparent);
+}
+
+dialog.runtime-input-dialog #modal-input {
+    min-block-size: 3rem;
+    color: var(--text-main, #0f172a) !important;
+    -webkit-text-fill-color: var(--text-main, #0f172a) !important;
+    caret-color: var(--c-600, #059669) !important;
+    opacity: 1 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #lb-songs-list.leaderboard-page-changing .player-motion-item,
+    .player-pagination-button.is-page-changing {
+        animation: none !important;
+        transform: none !important;
+    }
 }
 
 .favorite-sidebar-item.active-sub-item {

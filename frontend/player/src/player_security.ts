@@ -9,9 +9,17 @@ export function escapeHtmlText(value) {
 }
 
 export function safeImageUrl(value, fallback = '/music/assets/yun-yin.png') {
-    if (!value) return fallback;
+    if (value && typeof value === 'object') {
+        value = value.url || value.src || value.picUrl || value.img || value.cover || value.picture;
+    }
+    if (!value || typeof value === 'object') return fallback;
     try {
         const parsed = new URL(String(value), window.location.origin);
+        // Music APIs still return legacy HTTP cover URLs. Upgrade remote
+        // images so they satisfy the app CSP and avoid mixed-content blocks.
+        if (parsed.protocol === 'http:' && parsed.origin !== window.location.origin) {
+            parsed.protocol = 'https:';
+        }
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
     } catch (e) { }
     return fallback;

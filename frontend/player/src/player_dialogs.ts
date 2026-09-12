@@ -33,11 +33,11 @@ export function showInput(title: string, message: string, options: InputDialogOp
         const dialog = document.createElement('dialog');
         dialog.id = `runtime-input-modal-${Date.now()}`;
         dialog.dataset.a11yOverlay = 'modal';
-        dialog.className = "m-auto bg-transparent p-4 outline-none border-none backdrop:bg-black/60 backdrop:backdrop-blur-sm";
+        dialog.className = "runtime-input-dialog m-auto bg-transparent p-4 outline-none border-none backdrop:bg-black/60 backdrop:backdrop-blur-sm";
         dialog.innerHTML = `
-            <div class="t-bg-panel rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all relative z-10 border t-border-main animate-slide-up">
+            <div class="runtime-input-dialog-panel t-bg-panel rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all relative z-10 animate-slide-up">
                 <!-- Header -->
-                <div class="px-5 py-4 border-b border-emerald-100/50 flex justify-between items-center bg-emerald-50/50">
+                <div class="px-6 py-5 flex justify-between items-center bg-emerald-50/60 dark:bg-emerald-500/10">
                     <h3 class="text-sm font-bold t-text-main">${safeTitle}</h3>
                     <button id="modal-close-x" data-overlay-close aria-label="关闭" class="t-text-muted hover:text-emerald-500 transition-colors">
                         <i class="fas fa-times text-lg"></i>
@@ -51,14 +51,14 @@ export function showInput(title: string, message: string, options: InputDialogOp
                         </div>
                         <div class="flex-1">
                             <p class="text-sm t-text-muted leading-relaxed mb-4">${safeMessage}</p>
-                            <input type="${safeInputType}" id="modal-input"
+                            <input type="${safeInputType}" id="modal-input" autocomplete="off"
                                 class="w-full px-4 py-2.5 t-bg-main border t-border-main rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm"
                                 placeholder="${safePlaceholder}" value="${safeDefaultValue}">
                         </div>
                     </div>
                 </div>
                 <!-- Footer -->
-                <div class="p-4 t-bg-main/50 border-t t-border-main/50 flex gap-3 flex-row-reverse">
+                <div class="p-4 t-bg-main/50 flex gap-3 flex-row-reverse">
                     <button id="confirm-ok" class="flex-1 py-2.5 text-sm font-bold text-white ${confirmColor} hover:opacity-90 rounded-xl shadow-lg transition-all active:scale-95">
                         ${safeConfirmText}
                     </button>

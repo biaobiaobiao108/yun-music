@@ -242,13 +242,6 @@
                         <span class="hidden sm:inline text-xs font-medium">退出</span>
                     </button>
 
-                    <!-- Social links -->
-                    <div class="hidden lg:flex items-center gap-3 ml-1">
-                        <a href="https://github.com/XCQ0607/lxserver" target="_blank"
-                            class="t-text-muted hover:text-emerald-500 transition-colors p-1" title="GitHub 仓库">
-                            <i class="fab fa-github text-lg"></i>
-                        </a>
-                    </div>
                 </div>
             </header>
 
@@ -3228,15 +3221,14 @@
                         data-text="暂无播放">暂无播放</div>
                     <div id="player-source" class="flex-shrink-0"></div>
                 </div>
-                <div class="flex items-center gap-1 min-w-0 text-[11px] text-gray-500">
+                    <div class="player-meta-row flex items-center gap-1 min-w-0 text-[11px] text-gray-500">
                     <button type="button" id="player-artist"
-                        class="text-left truncate dynamic-marquee min-w-0 max-w-[55%] w-fit self-start hover:text-emerald-500 cursor-pointer transition-colors"
+                        class="player-meta-artist text-left truncate dynamic-marquee min-w-0 flex-1 w-fit self-start hover:text-emerald-500 cursor-pointer transition-colors"
                         data-text="选择一首歌曲播放" aria-label="搜索歌手">选择一首歌曲播放</button>
                     <span id="player-meta-separator" class="hidden flex-shrink-0" aria-hidden="true">·</span>
                     <button type="button" id="player-album"
-                        class="hidden text-left truncate dynamic-marquee min-w-0 max-w-[45%] w-fit self-start hover:text-emerald-500 cursor-pointer transition-colors"
+                        class="player-meta-album hidden text-left truncate dynamic-marquee min-w-0 flex-1 w-fit self-start hover:text-emerald-500 cursor-pointer transition-colors"
                         data-text="" aria-label="搜索专辑"></button>
-                    <div id="player-status" class="ml-auto text-[10px] text-emerald-600 font-medium whitespace-nowrap truncate max-w-[35%]"></div>
                 </div>
             </div>
 
@@ -3632,7 +3624,7 @@
     <!-- Playlist Add Modal (添加到歌单) -->
     <div id="playlist-add-modal"
         class="fixed inset-0 bg-black/60 z-[70] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
-        <div class="t-bg-panel rounded-xl w-full max-w-2xl flex flex-col shadow-2xl transform transition-transform duration-300 scale-95 opacity-0 overflow-hidden"
+        <div class="playlist-add-modal-content t-bg-panel rounded-2xl w-full max-w-3xl mx-4 flex flex-col shadow-2xl transform transition-transform duration-300 scale-95 opacity-0 overflow-hidden"
             id="playlist-add-modal-content">
             <!-- Header -->
             <div class="p-4 border-b border-emerald-50 flex justify-between items-center bg-emerald-50/30">

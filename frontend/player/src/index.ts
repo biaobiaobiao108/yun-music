@@ -695,6 +695,12 @@ const authFeature = initAuthFeature({
     setUserSessionActive: (active) => { userSessionActive = active; },
     showSelect,
     handleLogout: (skipConfirm) => handleUserLogout(skipConfirm),
+    onSessionChanged: (active) => {
+        if (active) {
+            updateAdminUI();
+            syncSettingsUI();
+        }
+    },
 });
 playerAuthBridge = authFeature;
 const {
@@ -3150,13 +3156,15 @@ async function handleLocalLogin(): Promise<void> {
             body: JSON.stringify({ username, password }),
         });
         if (!response.ok) throw new Error('用户名或密码错误');
-        userName = username;
-        userSessionActive = true;
-        localStorage.setItem('lx_user_name', username);
+        const sessionReady = await ensureUserSession({ force: true });
+        if (!sessionReady) throw new Error('会话建立失败，请重试');
+        localStorage.setItem('lx_user_name', userName || username);
         if (passwordInput) passwordInput.value = '';
         updateUserUI();
+        updateAdminUI();
+        syncSettingsUI();
         await reloadUserFavorites();
-        updateUserStatus(`<span class="text-emerald-600">已登录：${escapeHtmlText(username)}</span>`);
+        updateUserStatus(`<span class="text-emerald-600">已登录：${escapeHtmlText(userName || username)}</span>`);
         showSuccess('登录成功');
     } catch (error) {
         console.error('[Auth] 用户登录失败:', error);

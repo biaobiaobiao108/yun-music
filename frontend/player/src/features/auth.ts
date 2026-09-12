@@ -5,6 +5,7 @@ export interface AuthFeatureContext {
     setUserSessionActive: (active: boolean) => void;
     showSelect: (...args: any[]) => Promise<boolean>;
     handleLogout: (skipConfirm?: boolean) => Promise<void>;
+    onSessionChanged?: (active: boolean) => void | Promise<void>;
 }
 
 /**
@@ -37,10 +38,12 @@ export function initAuthFeature(context: AuthFeatureContext) {
                 context.setUserSessionActive(active);
                 context.setUserName(active ? result.username! : null);
                 updateUserUI();
+                void context.onSessionChanged?.(active);
                 return active;
             } catch {
                 context.setUserSessionActive(false);
                 updateUserUI();
+                void context.onSessionChanged?.(false);
                 return false;
             } finally {
                 verifyPromise = null;

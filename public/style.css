@@ -137,6 +137,9 @@ body {
     border: 1px solid var(--glass-border);
     border-radius: 12px;
     color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
+    caret-color: var(--accent-primary);
+    opacity: 1;
     font-size: 0.95rem;
     transition: all 0.3s ease;
 }
@@ -801,15 +804,20 @@ body {
 /* =============== 现代化配置面板系统 =============== */
 .config-panels-layout {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.25rem;
-    align-items: start;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+    gap: 1.5rem;
+    align-items: stretch;
+    min-width: 0;
 }
 
 /* 卡片主体 */
 .config-card {
     border-radius: 16px;
     overflow: hidden;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     transition: box-shadow 0.3s ease, transform 0.2s ease;
 }
 
@@ -863,6 +871,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1.1rem;
+    flex: 1;
+    min-width: 0;
 }
 
 /* 字段 */
@@ -2538,6 +2548,16 @@ input:-webkit-autofill:active {
 .snapshots-container {
     border-radius: 16px;
     overflow: hidden;
+    min-width: 0;
+}
+
+.snapshots-list:has(.user-selection-grid) {
+    padding: 1.25rem;
+}
+
+.snapshots-list .user-selection-grid {
+    padding: 0;
+    gap: 1rem;
 }
 
 .snapshots-table-header {
@@ -2558,6 +2578,7 @@ input:-webkit-autofill:active {
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--glass-border);
     align-items: center;
+    min-width: 0;
     transition: background 0.3s ease;
 }
 
@@ -2580,6 +2601,8 @@ input:-webkit-autofill:active {
 .snapshot-actions {
     display: flex;
     gap: 0.5rem;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 /* 快照管理按钮通用样式 - 明确选择器并覆盖 .col-actions .btn-delete 的固定宽高 */
@@ -3302,21 +3325,20 @@ input:-webkit-autofill:active {
 
     /* 配置中心强制单列 (修复卡片大小不一) */
     .config-panels-layout {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 1.25rem !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 1rem !important;
         width: 100% !important;
         padding: 0 !important; /* 确保没有额外内边距 */
     }
 
     .config-card {
         width: 100% !important;
-        margin: 0 0 1.25rem 0 !important; /* 统一卡片间距 */
+        margin: 0 !important;
     }
 
     .config-field-row {
-        flex-direction: column !important;
-        align-items: stretch !important;
+        grid-template-columns: minmax(0, 1fr) !important;
         gap: 0.75rem !important;
     }
 
@@ -3665,6 +3687,41 @@ input:-webkit-autofill:active {
     /* 统一底部留白 */
     .content-wrapper {
         padding-bottom: 10rem !important;
+    }
+}
+
+/* =============== 表单与卡片最终布局覆盖 =============== */
+input,
+textarea,
+select {
+    color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
+    caret-color: var(--accent-primary);
+    opacity: 1;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.8;
+}
+
+.config-panels-layout > .config-card {
+    min-width: 0;
+}
+
+.config-panels-layout > .col-span-full {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+.user-selection-grid--snapshot {
+    padding-inline: 0.25rem;
+}
+
+@media (max-width: 768px) {
+    .snapshots-list:has(.user-selection-grid) {
+        padding: 0.75rem;
     }
 }
 
