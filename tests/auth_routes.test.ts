@@ -66,6 +66,23 @@ describe('Web Cookie Authentication', () => {
     expect(player.headers.get('set-cookie')).toContain(`Max-Age=${PLAYER_SESSION_TTL / 1000}`)
   })
 
+  test('HTTPS reverse proxy requests keep same-origin access and secure cookies', async () => {
+    const router = createAuthRouter()
+    const response = await router.handle(new Request('http://127.0.0.1:9527/api/login', {
+      method: 'POST',
+      headers: {
+        Host: 'music.example.com',
+        Origin: 'https://music.example.com',
+        'X-Forwarded-Proto': 'https',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password: 'admin123' }),
+    }))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('set-cookie')).toContain('Secure')
+  })
+
   test('user session survives in-memory cache loss and logout revokes it', async () => {
     const router = createAuthRouter()
     const login = await router.handle(new Request('http://localhost/api/user/login', {
