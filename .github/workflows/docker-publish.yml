@@ -80,8 +80,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           sbom: true
           provenance: false
-          cache-from: type=gha,scope=lxserver
-          cache-to: type=gha,mode=max,scope=lxserver,ignore-error=true
+          cache-from: type=gha,scope=yun-music
+          cache-to: type=gha,mode=max,scope=yun-music,ignore-error=true
 
       - name: Inspect multi-platform manifest
         run: docker buildx imagetools inspect "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}"
@@ -90,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          container_name=lxserver-smoke-${GITHUB_RUN_ID}
+          container_name=yun-music-smoke-${GITHUB_RUN_ID}
           trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true' EXIT
 
           docker run --detach \
@@ -121,7 +121,7 @@ jobs:
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
           body: |
-            ### 🎵 LX Music Sync Server ${{ github.ref_name }}
+            ### 🎵 云音 Web 播放器与管理后台 ${{ github.ref_name }}
 
             多架构极简全栈 Bun 容器镜像（`linux/amd64` + `linux/arm64`）已自动构建并推送到 GitHub Container Registry。
 
@@ -132,7 +132,7 @@ jobs:
 
             # 启动容器 (数据持久化在 ./data)
             docker run -d \
-              --name lxserver \
+              --name yun-music \
               --restart unless-stopped \
               -p 9527:9527 \
               -e FRONTEND_PASSWORD=replace-with-a-strong-random-password \
