@@ -26,18 +26,16 @@ describe('Admin frontend modular entrypoint', () => {
         expect(entry.split(/\r?\n/).length).toBeLessThan(250);
         expect(entry).toContain('initDashboardFeature');
         expect(entry).toContain('initSnapshotsFeature');
-        expect(entry).toContain('(window as any).app = app;');
+        expect(entry).not.toContain('(window as any).app = app;');
+        expect(entry).toContain('initAdminAccessibility');
     });
 
-    it('keeps public inline app handlers backed by the modular source', () => {
+    it('uses delegated admin actions without inline handlers or a window app bridge', () => {
         const html = fs.readFileSync(adminHtmlPath, 'utf8');
         const source = readAdminSources();
-        const calls = new Set(
-            [...html.matchAll(/\bapp\.([A-Za-z_$][A-Za-z0-9_$]*)/g)]
-                .map(match => match[1])
-                .filter(name => name !== 'js')
-        );
-
-        for (const name of calls) expect(source).toContain(name);
+        expect(html).toContain('data-admin-action=');
+        expect(html).not.toMatch(/\bon[a-z]+\s*=\s*["']/i);
+        expect(source).not.toMatch(/\bonclick\s*=/i);
+        expect(source).not.toContain('window.app');
     });
 });

@@ -1,5 +1,5 @@
 import type { AdminFeatureContext } from '../types';
-import { safeInlineString, stringToColor } from '../utils';
+import { stringToColor } from '../utils';
 
 export function initUsersFeature(context: AdminFeatureContext) {
     const app = context.app;
@@ -68,7 +68,7 @@ export function initUsersFeature(context: AdminFeatureContext) {
             const avatarStyle = isPublic ? 'background: linear-gradient(135deg, #10b981, #059669); font-size:12px;' : '';
             return `
             <div class="dropdown-item ${user.name === currentSelected ? 'active' : ''}" 
-                 onclick="app.selectUser(${safeInlineString(type)}, ${safeInlineString(user.name)})">
+                 data-admin-action="select-user" data-admin-user-type="${app.escapeHtml(type)}" data-admin-user-name="${app.escapeHtml(user.name)}">
                 <div class="dropdown-avatar" style="${avatarStyle}">${avatarChar}</div>
                 <span>${displayName}</span>
                 ${user.name === currentSelected ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:14px;height:14px;margin-left:auto;"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
@@ -94,7 +94,7 @@ export function initUsersFeature(context: AdminFeatureContext) {
                     const avatarStyle = isPublic ? 'background: linear-gradient(135deg, #10b981, #059669); font-size: 1.5rem;' : '';
                     const avatarHtml = isPublic ? '🌐' : app.escapeHtml(user.name.charAt(0).toUpperCase());
                     return `
-                    <div class="user-select-card" role="button" tabindex="0" aria-label="选择用户 ${displayName}" onclick="app.selectUser(${safeInlineString(type)}, ${safeInlineString(user.name)})" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); app.selectUser(${safeInlineString(type)}, ${safeInlineString(user.name)}); }">
+                    <div class="user-select-card" role="button" tabindex="0" aria-label="选择用户 ${displayName}" data-admin-action="select-user" data-admin-user-type="${app.escapeHtml(type)}" data-admin-user-name="${app.escapeHtml(user.name)}">
                         <div class="avatar" style="${avatarStyle}">${avatarHtml}</div>
                         <div class="name">${displayName}</div>
                         <div class="role">${roleText}</div>
@@ -261,14 +261,14 @@ export function initUsersFeature(context: AdminFeatureContext) {
         container.innerHTML = app.users.map((user, index) => `
             <div class="user-row glass">
                 <div class="col-checkbox">
-                    <input type="checkbox" class="user-checkbox" data-index="${index}" onchange="app.updateUserBatchBtn()">
+                    <input type="checkbox" class="user-checkbox" data-index="${index}" data-admin-action="update-user-batch">
                 </div>
                 <div class="col-name">
                     <div class="user-avatar" style="background-color: ${stringToColor(user.name)}">
                         <span>${app.escapeHtml(user.name.charAt(0).toUpperCase())}</span>
                     </div>
                     <span class="user-name-text">${app.escapeHtml(user.name)}</span>
-                    <button class="btn-icon" onclick="app.showRenameUserModal(${index})" title="重命名用户" style="margin-left: 8px;">
+                    <button class="btn-icon" data-admin-action="rename-user" data-admin-index="${index}" title="重命名用户" style="margin-left: 8px;">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -277,13 +277,13 @@ export function initUsersFeature(context: AdminFeatureContext) {
                 </div>
                 <div class="col-password">
                     <span class="password-text" id="pwd-text-${index}">******</span>
-                    <button class="btn-icon" onclick="app.togglePasswordVisibility(${index})" title="密码不回显">
+                    <button class="btn-icon" data-admin-action="toggle-password" data-admin-index="${index}" title="密码不回显">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                             <circle cx="12" cy="12" r="3"/>
                         </svg>
                     </button>
-                    <button class="btn-icon" onclick="app.showEditPasswordModal(${index})" title="修改密码">
+                    <button class="btn-icon" data-admin-action="edit-password" data-admin-index="${index}" title="修改密码">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -294,7 +294,7 @@ export function initUsersFeature(context: AdminFeatureContext) {
                     <span class="status-badge active">活跃</span>
                 </div>
                 <div class="col-actions">
-                    <button class="btn-delete" onclick="app.deleteUser(${index})" title="删除用户">
+                    <button class="btn-delete" data-admin-action="delete-user" data-admin-index="${index}" title="删除用户">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                         </svg>
@@ -341,7 +341,7 @@ export function initUsersFeature(context: AdminFeatureContext) {
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">添加</button>
-                    <button type="button" class="btn-secondary" onclick="app.closeModal()">取消</button>
+                    <button type="button" class="btn-secondary" data-admin-action="close-modal">取消</button>
                 </div>
             </form>
         `;

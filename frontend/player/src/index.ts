@@ -1,6 +1,5 @@
 import './legacy/quality';
 import './legacy/idb_store';
-import './legacy/user_sync';
 import { handleBatchSelect } from './legacy/batch_pagination';
 import { downloadSong } from './legacy/single_song_ops';
 import './legacy/list_search';
@@ -32,7 +31,6 @@ import {
     normalizeDownloadConcurrency,
     normalizeStoredSettings,
 } from './player_settings';
-import { loadTokenConfig } from './token_management';
 import { initCustomSelectManager } from './custom_select';
 import { initSearchTips } from './search_tips';
 import { showInput, showOptions, showSelect } from './player_dialogs';
@@ -43,14 +41,13 @@ import { initQueueFeature } from './features/queue';
 import { initPlaylistModalFeature } from './features/playlist_modal';
 import { initLibraryFeature } from './features/library';
 import { initAuthFeature } from './features/auth';
-import { initSyncSettingsFeature } from './features/sync_settings';
+import { initSettingsFeature } from './features/settings';
 import { initSongUrlFeature } from './features/song_url';
 import { initLyricFeature } from './features/lyrics';
 import { initSearchFeature } from './features/search';
 import { initPlaybackFeature, type PlaybackState } from './features/playback';
-import { initSyncFeature, type SyncState } from './features/sync';
 import { initShortcutsFeature } from './features/shortcuts';
-import { createTabSwitcher } from './features/navigation';
+import { createTabSwitcher, prefersReducedPlayerMotion } from './features/navigation';
 import { bindPlayerEvents, registerPlayerEventAction } from './player_events';
 import { DownloadManager } from './legacy/download_manager';
 import { createSongListManager, type SongListManagerApi } from './legacy/songlist_manager';
@@ -76,8 +73,6 @@ import {
  */
 
 const API_BASE = '/api/music';
-const credentialStorage = window.sessionStorage;
-
 // 认证功能在入口后段初始化，前面的功能模块通过稳定桥接函数访问它，
 // 避免在模块组装阶段把尚未赋值的认证方法传进去。
 type PlayerAuthBridge = {
@@ -91,24 +86,11 @@ const isPlayerUserLoggedIn = () => playerAuthBridge?.isUserLoggedIn() ?? false;
 let songListManager: SongListManagerApi;
 let downloadManager: DownloadManager;
 
-function getCredential(key: string): string | null {
-    const current = credentialStorage.getItem(key);
-    if (current !== null) return current;
-    const legacy = window.localStorage.getItem(key);
-    if (legacy === null) return null;
-
-    credentialStorage.setItem(key, legacy);
-    window.localStorage.removeItem(key);
-    return legacy;
-}
-
 // 认证状态先于功能模块组装，避免前置模块捕获未初始化的变量。
-let authEnabled = false;
-// authToken 保留用于播放器登录 (player.password) 颁发的 session
-let authToken = sessionStorage.getItem('lx_player_auth');
-// 用户 Token：将明文密码传输改为 Token 验证
-let userToken = getCredential('lx_user_token');
+let userName: string | null = localStorage.getItem('lx_user_name');
 let userSessionActive = false;
+let adminSessionActive = false;
+let authEnabled = false;
 
 let currentPage = 1;
 window.currentPage = 1;
@@ -241,11 +223,11 @@ function loadCustomSourcesFeature() {
     return loadPlayerFeature(
         'custom-sources',
         () => import('./features/custom_sources').then(({ initCustomSourcesFeature }) => initCustomSourcesFeature({
-            getCredential,
             getUserAuthHeaders: getPlayerUserAuthHeaders,
             getCurrentListData: () => currentListData,
             getSettings: () => settings,
             isUserLoggedIn: isPlayerUserLoggedIn,
+            isAdminSessionActive: () => adminSessionActive,
             handleAdminAuth,
             updateSetting,
             createMarqueeHtml: (text, className) => createMarqueeHtml(text, className),
@@ -312,8 +294,8 @@ function loadCacheFeature() {
     return loadPlayerFeature(
         'cache',
         () => import('./features/cache').then(({ initCacheFeature }) => initCacheFeature({
-            getCredential,
             getUserAuthHeaders: getPlayerUserAuthHeaders,
+            isAdminSessionActive: () => adminSessionActive,
             getSettings: () => settings,
             setSettings: (nextSettings) => {
                 settings = nextSettings;
@@ -360,9 +342,9 @@ function batchDeleteCache(...args: any[]) { return callCacheFeature('batchDelete
 function clearServerCache(...args: any[]) { return callCacheFeature('clearServerCache', args); }
 
 const libraryFeature = initLibraryFeature({
-    getCredential,
     getUserAuthHeaders: getPlayerUserAuthHeaders,
     isUserLoggedIn: isPlayerUserLoggedIn,
+    isAdminSessionActive: () => adminSessionActive,
     requireAdminForOpenWrite: (action) => requireAdminForOpenWrite(action),
     showInfo,
     showSuccess,
@@ -415,7 +397,6 @@ const searchFeature = initSearchFeature({
         window.currentPage = page;
     },
     getCurrentListData: () => currentListData,
-    getAuthToken: () => authToken,
     getUserAuthHeaders: getPlayerUserAuthHeaders,
     switchTab: (tabId, preserveSearchNavigation) => switchTab(tabId, preserveSearchNavigation),
     setCurrentSearchScope,
@@ -505,21 +486,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // Settings & Batch Selection
 let settings = { ...DEFAULT_SETTINGS };
 
-function restoreRemoteSyncCode(legacyValue) {
-    const stored = getCredential('lx_sync_code');
-    if (stored !== null) {
-        settings.remoteSyncCode = stored;
-    } else if (typeof legacyValue === 'string' && legacyValue) {
-        settings.remoteSyncCode = legacyValue;
-        credentialStorage.setItem('lx_sync_code', legacyValue);
-    } else {
-        settings.remoteSyncCode = '';
-    }
-}
-
 function persistSettings() {
     const persisted = { ...settings };
-    delete persisted.remoteSyncCode;
     localStorage.setItem('lx_settings', JSON.stringify(persisted));
 }
 
@@ -535,13 +503,10 @@ let currentRecoveryState = null; // 播放失败自动恢复状态管理
 // 从 localStorage 加载设置
 try {
     const saved = localStorage.getItem('lx_settings');
-    let legacyRemoteSyncCode = '';
     if (saved) {
         const parsed = JSON.parse(saved);
-        legacyRemoteSyncCode = parsed?.remoteSyncCode || '';
         settings = normalizeStoredSettings({ ...settings, ...parsed });
     }
-    restoreRemoteSyncCode(legacyRemoteSyncCode);
 } catch (e) {
     console.error('[Settings] 加载设置失败:', e);
 }
@@ -719,33 +684,29 @@ let toggleLyricsBtnTimeout = null; // 歌词按钮淡化计时器
 
 // ===== 认证功能 =====
 const authFeature = initAuthFeature({
-    credentialStorage,
-    getCredential,
-    getUserToken: () => userToken,
-    setUserToken: (token) => { userToken = token; },
+    getUserName: () => userName,
+    setUserName: (value) => { userName = value; },
     isUserSessionActive: () => userSessionActive,
+    setUserSessionActive: (active) => { userSessionActive = active; },
     showSelect,
-    handleSyncLogout: (skipConfirm) => handleSyncLogout(skipConfirm),
+    handleLogout: (skipConfirm) => handleUserLogout(skipConfirm),
 });
 playerAuthBridge = authFeature;
 const {
     getUserAuthHeaders,
     isUserLoggedIn,
     isPublicLibraryContext,
-    ensureUserAuthToken,
+    ensureUserSession,
     updateUserUI,
     handleHeaderLogout,
 } = authFeature;
-const syncSettingsFeature = initSyncSettingsFeature({
+const settingsFeature = initSettingsFeature({
     getSettings: () => settings,
     setSettings: (nextSettings) => {
         settings = nextSettings;
         window.settings = nextSettings;
     },
-    getCredential,
-    getUserAuthHeaders,
     persistSettings: () => persistSettings(),
-    restoreRemoteSyncCode: (value) => restoreRemoteSyncCode(value),
     syncSettingsUI: () => syncSettingsUI(),
     setupNetworkListAutoCheck: () => setupNetworkListAutoCheck(),
     pushSoundEffects: () => {
@@ -758,6 +719,7 @@ const syncSettingsFeature = initSyncSettingsFeature({
             window.soundEffects.fetchFromServer();
         }
     },
+    getUserName: () => userName,
     showSuccess,
     showError,
 });
@@ -765,7 +727,7 @@ const {
     pushSettingsToServer,
     manualSaveSettings,
     fetchSettingsFromServer,
-} = syncSettingsFeature;
+} = settingsFeature;
 const songUrlFeature = initSongUrlFeature({
     getSettings: () => settings,
     getPlaylist: () => currentPlaylist,
@@ -800,7 +762,7 @@ const {
 async function fetchPublicListData() {
     const enablePublicFavorites = !!window.lx_config?.['user.enablePublicFavorites'];
     const enablePublicNonAdminAccess = !!window.lx_config?.['user.enablePublicNonAdminAccess'];
-    const isAdmin = !!getCredential('lx_admin_password');
+    const isAdmin = adminSessionActive;
     const isUserLoggedIn = typeof window.isUserLoggedIn === 'function' ? window.isUserLoggedIn() : false;
 
     if (!enablePublicFavorites) return false;
@@ -813,12 +775,8 @@ async function fetchPublicListData() {
 
     try {
         console.log('[PublicList] 正在获取 _open 公共歌单数据...');
-        const headers = {};
-        const adminPass = getCredential('lx_admin_password');
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
-        headers['x-user-name'] = '_open';
         const res = await fetch('/api/user/list?user=_open', {
-            headers,
+            credentials: 'same-origin',
             cache: 'no-store'
         });
         if (res.ok) {
@@ -867,14 +825,8 @@ async function reloadUserFavorites() {
         }
 
         // 2. 再从服务器拉最新数据
-        const headers = typeof getUserAuthHeaders === 'function' ? getUserAuthHeaders() : {};
-        delete headers['x-user-name'];
-        const syncUser = localStorage.getItem('lx_sync_user');
-        if (syncUser && syncUser !== '_open') {
-            headers['x-user-name'] = syncUser;
-        }
         const res = await fetch('/api/user/list', {
-            headers,
+            credentials: 'same-origin',
             cache: 'no-store'
         });
         if (res.ok) {
@@ -960,10 +912,7 @@ const userSessionReady = Promise.race([
         if (typeof syncSettingsUI === 'function') syncSettingsUI();
         else if (typeof updateAdminUI === 'function') updateAdminUI();
 
-        // Restore the HttpOnly user session after a browser restart. The
-        // cookie is not readable from JavaScript, so ask the server for the
-        // associated username and keep the token fallback below for legacy
-        // sessions.
+        // Restore the HttpOnly user session after a browser restart.
         try {
             const userSessionRes = await fetch('/api/user/auth/verify', {
                 credentials: 'same-origin'
@@ -971,39 +920,11 @@ const userSessionReady = Promise.race([
             const userSessionData = await userSessionRes.json();
             if (userSessionData.valid && userSessionData.username) {
                 userSessionActive = true;
-                localStorage.setItem('lx_sync_mode', 'local');
-                localStorage.setItem('lx_sync_user', userSessionData.username);
+                userName = userSessionData.username;
+                localStorage.setItem('lx_user_name', userSessionData.username);
             }
         } catch (e) {
             console.warn('[Auth] 用户会话恢复失败:', e);
-        }
-
-        // [新增] 有 Token 时验证其有效性
-        if (userToken) {
-            try {
-                const vRes = await fetch('/api/user/auth/verify', {
-                    headers: { 'x-user-token': userToken },
-                    credentials: 'same-origin'
-                });
-                const vData = await vRes.json();
-                if (!vData.valid) {
-                    const refreshed = await ensureUserAuthToken({ force: true });
-                    if (refreshed) {
-                        console.log('[Auth] 用户 Token 已失效，已自动续签。');
-                    } else {
-                        console.log('[Auth] 用户 Token 已失效且无法自动续签，请重新登录。');
-                        // 明确告知登录已过期，并提供一键回到登录入口的操作，避免只显示
-                        // "已登录" 与 "请先登录" 相互矛盾的界面而没有任何解释。
-                        showError('登录状态已过期，请重新登录以继续同步收藏与歌单', {
-                            actionLabel: '去登录',
-                            onAction: () => openLocalModeSettings(),
-                            duration: 0,
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn('[Auth] Token 验证失败:', e);
-            }
         }
 
         resolveUserSessionReady?.();
@@ -1023,17 +944,6 @@ const userSessionReady = Promise.race([
             if (!loaded) {
                 renderMyLists(null);
             }
-        }
-
-        // [新增] 客户端模式自动连接远程同步 (仅在已登录到本地账户时触发，防止 _open 访客同步)
-        if (userToken && settings.enableClientModeSync && settings.remoteSyncUrl && settings.remoteSyncCode) {
-            console.info('[Sync] Client mode enabled, auto-connecting to remote server...');
-            // 降低延迟，只要认证完成后即可触发
-            setTimeout(() => {
-                if (typeof handleRemoteOverwriteConnect === 'function') {
-                    handleRemoteOverwriteConnect(true);
-                }
-            }, 500);
         }
 
         // [新增] 更新 UI 上的用户名状态
@@ -1670,11 +1580,13 @@ async function handleAdminAuth(message) {
         try {
             const response = await fetch('/api/admin/verify', {
                 method: 'POST',
-                headers: { 'x-frontend-auth': pass }
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ password: pass }),
             });
 
             if (response.ok) {
-                credentialStorage.setItem('lx_admin_password', pass);
+                adminSessionActive = true;
                 updateAdminUI(); // 更新 UI 状态
                 return true;
             } else {
@@ -1699,7 +1611,7 @@ window.handleAdminAuth = handleAdminAuth;
 async function requireAdminForOpenWrite(action) {
     const isOpen = currentListData?.username === '_open' || window.isViewingPublicFavorites;
     if (!isOpen) return true; // 不是 _open 数据，无需验证
-    if (getCredential('lx_admin_password')) return true; // 已登录管理员
+    if (adminSessionActive) return true; // 已登录管理员
     // 弹出管理员登录弹窗
     const authorized = await handleAdminAuth(`该操作需要管理员权限：${action || '修改公开内容'}`);
     return authorized;
@@ -1733,12 +1645,13 @@ window.handleAdminLogin = handleAdminLogin;
 // 管理员退出登录处理
 async function handleAdminLogout() {
     if (!(await showSelect('管理员登出', '确定要退出管理员身份吗？'))) return;
-    credentialStorage.removeItem('lx_admin_password');
+    try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
+    adminSessionActive = false;
     updateAdminUI();
     syncSettingsUI();
 
     // [核心新增] 如果当前使用的是 _open 公共列表，登出管理员后锁定列表显示
-    if (window.lx_config?.['user.enablePublicFavorites'] && (!userToken || !localStorage.getItem('lx_sync_user'))) {
+    if (window.lx_config?.['user.enablePublicFavorites'] && (!userSessionActive || !userName)) {
         const enablePublicNonAdminAccess = !!window.lx_config?.['user.enablePublicNonAdminAccess'];
         if (!enablePublicNonAdminAccess) {
             currentListData = null;
@@ -1760,7 +1673,7 @@ window.handleAdminLogout = handleAdminLogout;
 
 // 更新管理员相关 UI 元素
 function updateAdminUI() {
-    const isAdmin = !!getCredential('lx_admin_password');
+    const isAdmin = adminSessionActive;
     const isPublic = !currentListData?.username || currentListData?.username === 'default';
 
     // 自定义源部分的标签和按钮
@@ -1778,7 +1691,7 @@ function updateAdminUI() {
     const manageBtn = document.getElementById('btn-custom-source-manage');
     if (manageBtn) {
         const isPublicRestrictionEnabled = !!window.lx_config?.['user.enablePublicRestriction'];
-        const isUser = !!userToken;
+        const isUser = userSessionActive;
         // 如果开启了公开限制，且既不是管理员也不是登录用户，则隐藏管理入口（或之后显示锁定界面）
         // 这里根据用户要求，只要登录了就不隐藏
         const isRestricted = isPublicRestrictionEnabled && !isAdmin && !isUser;
@@ -1788,109 +1701,6 @@ function updateAdminUI() {
         scopeTag.classList.toggle('hidden', !isPublic);
     }
 
-    // [新增] 处于登录/同步状态时，将相关输入框和连接按钮变灰防止重复操作
-    const isLocalLoggedIn = !!userToken && !isPublic;
-    const isRemoteConnected = (window.SyncManager && window.SyncManager.mode === 'remote' && window.SyncManager.client?.isConnected) ||
-        (window.currentRemoteOverwriteClient && window.currentRemoteOverwriteClient.isConnected);
-
-    // 情况 A: 本地登录框 - 只要本地已登录，就禁用本地输入框和登录按钮 (必须要先退出登录才能换号)
-    const loginInputIds = ['sync-local-user', 'sync-local-pass'];
-    loginInputIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.disabled = isLocalLoggedIn;
-            if (isLocalLoggedIn) {
-                el.classList.add('opacity-40', 'cursor-not-allowed', 'grayscale');
-                el.parentElement?.classList.add('pointer-events-none');
-            } else {
-                el.classList.remove('opacity-40', 'cursor-not-allowed', 'grayscale');
-                el.parentElement?.classList.remove('pointer-events-none');
-            }
-        }
-    });
-
-    const localLoginBtn = document.querySelector('#sync-form-local button');
-    if (localLoginBtn) {
-        localLoginBtn.disabled = isLocalLoggedIn;
-        if (isLocalLoggedIn) localLoginBtn.classList.add('opacity-30', 'pointer-events-none', 'grayscale');
-        else localLoginBtn.classList.remove('opacity-30', 'pointer-events-none', 'grayscale');
-    }
-
-    const disableMainRemote = isRemoteConnected || isLocalLoggedIn;
-    ['sync-remote-url', 'sync-remote-code'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.disabled = disableMainRemote;
-            if (disableMainRemote) {
-                el.classList.add('opacity-40', 'cursor-not-allowed', 'grayscale');
-                el.parentElement?.classList.add('pointer-events-none');
-            } else {
-                el.classList.remove('opacity-40', 'cursor-not-allowed', 'grayscale');
-                el.parentElement?.classList.remove('pointer-events-none');
-            }
-        }
-    });
-
-    // 2. 弹窗内的远程同步输入框及客户端模式勾选框：仅在远程已连或开启了客户端模式时才禁用
-    // (勾选客户端模式后锁定输入，防止在自动同步流程中改动配置)
-    const disableModalRemote = isRemoteConnected || settings.enableClientModeSync;
-    const modalInputIds = ['remote-overwrite-url', 'remote-overwrite-code', 'setting-client-mode-sync'];
-    modalInputIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.disabled = disableModalRemote;
-            if (disableModalRemote) {
-                el.classList.add('opacity-40', 'cursor-not-allowed', 'grayscale');
-                // 注意：勾选框的父级不要加 pointer-events-none，否则无法取消
-                if (id !== 'setting-client-mode-sync') el.parentElement?.classList.add('pointer-events-none');
-            } else {
-                el.classList.remove('opacity-40', 'cursor-not-allowed', 'grayscale');
-                if (id !== 'setting-client-mode-sync') el.parentElement?.classList.remove('pointer-events-none');
-            }
-        }
-    });
-
-
-    const modeBtnIds = ['btn-mode-local', 'btn-mode-remote'];
-    modeBtnIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            if (isLocalLoggedIn || isRemoteConnected) {
-                el.style.opacity = '0.5';
-                el.style.pointerEvents = 'none';
-                el.classList.add('grayscale');
-            } else {
-                el.style.opacity = '1';
-                el.style.pointerEvents = 'auto';
-                el.classList.remove('grayscale');
-            }
-        }
-    });
-
-    // 3. 处理操作按钮的禁用状态 (分为主界面按钮和弹窗按钮)
-    const mainActionButtons = [
-        document.querySelector('#sync-remote-step1 button'),
-        document.querySelector('#sync-remote-step2 button')
-    ];
-    mainActionButtons.forEach(btn => {
-        if (btn) {
-            btn.disabled = disableMainRemote;
-            if (disableMainRemote) btn.classList.add('opacity-30', 'pointer-events-none', 'grayscale');
-            else btn.classList.remove('opacity-30', 'pointer-events-none', 'grayscale');
-        }
-    });
-
-    const modalActionButtons = [
-        document.querySelector('#remote-overwrite-step1 button'),
-        document.querySelector('button[onclick^="handleRemoteOverwriteConnect"]')
-    ];
-    modalActionButtons.forEach(btn => {
-        if (btn) {
-            btn.disabled = disableModalRemote;
-            if (disableModalRemote) btn.classList.add('opacity-30', 'pointer-events-none', 'grayscale');
-            else btn.classList.remove('opacity-30', 'pointer-events-none', 'grayscale');
-        }
-    });
 }
 
 const serverCacheRequests = new Set<string>();
@@ -1906,9 +1716,6 @@ async function triggerServerCache(song, url, quality) {
         const headers = { 'Content-Type': 'application/json' };
         Object.assign(headers, getUserAuthHeaders());
 
-        // 添加管理员验证 Header (如果已登录)
-        const adminPass = getCredential('lx_admin_password');
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
         const coverUrl = typeof getImgUrl === 'function' ? getImgUrl(song) : (song.img || song.meta?.picUrl || '');
         const songInfoForCache = {
@@ -1945,10 +1752,8 @@ async function updateServerCacheConfig(location, pattern) {
     const oldPattern = lastNamingPattern;
 
     const headers = { 'Content-Type': 'application/json' };
-    // 携带 Token（或兼容旧密码），让服务端正确识别身份
+    // 会话凭据由同源 HttpOnly Cookie 自动携带
     Object.assign(headers, getUserAuthHeaders());
-    const adminPass = getCredential('lx_admin_password');
-    if (adminPass) headers['x-frontend-auth'] = adminPass;
 
     try {
         const response = await fetch('/api/music/cache/config', {
@@ -2684,14 +2489,11 @@ function formatTime(s) {
 function loadSettings() {
     try {
         const saved = localStorage.getItem('lx_settings');
-        let legacyRemoteSyncCode = '';
         if (saved) {
             const loaded = JSON.parse(saved);
-            legacyRemoteSyncCode = loaded?.remoteSyncCode || '';
             settings = normalizeStoredSettings({ ...settings, ...loaded });
             console.log('[Settings] 加载设置成功:', settings);
         }
-        restoreRemoteSyncCode(legacyRemoteSyncCode);
     } catch (e) {
         console.error('[Settings] 加载设置失败:', e);
     }
@@ -2764,7 +2566,7 @@ initShortcutsFeature({
 });
 
 function getRemasterStorageUsername() {
-    const username = currentListData?.username || localStorage.getItem('lx_sync_user') || '_open';
+    const username = currentListData?.username || userName || '_open';
     return !username || username === 'default' ? '_open' : username;
 }
 
@@ -2791,7 +2593,7 @@ async function updateSetting(key, value) {
     const isPublic = !isUserLoggedIn() || currentListData?.username === '_open' || currentListData?.username === 'default' || window.isViewingPublicFavorites;
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
     const enableLoginCacheRestriction = window.lx_config?.['user.enableLoginCacheRestriction'];
-    const isAdmin = !!getCredential('lx_admin_password');
+    const isAdmin = adminSessionActive;
 
     // 权限校验：针对不同用户类型的受限设置项校验 (置灰逻辑由 syncSettingsUI 同步)
     const isRestricted = !isAdmin && (
@@ -2820,10 +2622,6 @@ async function updateSetting(key, value) {
     settings[key] = value;
     window.settings = settings; // 确保全局引用同步
     try {
-        if (key === 'remoteSyncCode') {
-            if (value) credentialStorage.setItem('lx_sync_code', String(value));
-            else credentialStorage.removeItem('lx_sync_code');
-        }
         persistSettings();
         console.log(`[Settings] ${key} 已更新为:`, value);
     } catch (e) {
@@ -2931,21 +2729,6 @@ const SETTINGS_UI_MAP = {
         type: 'checkbox',
         action: (v) => toggleNoSleep(v && !audio.paused)
     },
-    enablePersistentToken: {
-        id: 'setting-enable-persistent-token',
-        type: 'checkbox',
-        action: (v) => {
-            const container = document.getElementById('token-list-container');
-            if (container) {
-                if (v) {
-                    container.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
-                } else {
-                    container.classList.add('hidden', 'opacity-50', 'pointer-events-none');
-                }
-            }
-        }
-    },
-
     // 显示 (Display)
     showSidebarSongInfo: {
         id: 'setting-show-sidebar-info',
@@ -3061,7 +2844,6 @@ const SETTINGS_UI_MAP = {
         action: () => document.getElementById('search-results-header')?.classList.contains('hidden') && showInitialSearchState()
     },
     itemsPerPage: { id: 'items-per-page-select', type: 'value' },
-    enableClientModeSync: { id: 'setting-client-mode-sync', type: 'checkbox' }
 };
 
 //缓存设置项
@@ -3069,7 +2851,7 @@ function syncSettingsUI(key = null, value = null) {
     const isPublic = !isUserLoggedIn() || currentListData?.username === '_open' || currentListData?.username === 'default' || window.isViewingPublicFavorites;
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
     const enableLoginCacheRestriction = window.lx_config?.['user.enableLoginCacheRestriction'];
-    const isAdmin = !!getCredential('lx_admin_password');
+    const isAdmin = adminSessionActive;
     const restrictedKeys = ['enableServerCache', 'enableServerLyricCache', 'serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'enableOnlyDownloadMode', 'enableRemaster', 'preferredQuality', 'enablePublicSources', 'embedLyricToFile', 'preferServerCache'];
 
     const updateItem = (itemKey, itemValue, isSingle) => {
@@ -3330,72 +3112,71 @@ const favArrow = document.getElementById('favorites-arrow');
 if (favArrow) favArrow.style.transform = 'rotate(-90deg)';
 document.getElementById('tab-favorites')?.setAttribute('aria-expanded', 'false');
 
-// Link SyncManager from user_sync.js
-// Link SyncManager from user_sync.js
-const syncManager = window.SyncManager;
 let currentListData = null;
-let syncModeResolve = null;
-let currentRemoteOverwriteClient = null;
-let remoteSyncModeResolve = null;
-let lastSelectedRemoteSyncMode = null;
+function updateUserStatus(message: string, showLogout = true): void {
+    const status = document.getElementById('user-session-status');
+    if (!status) return;
+    status.innerHTML = message;
+    if (showLogout && userSessionActive) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'ml-2 text-red-500';
+        button.textContent = '退出登录';
+        button.addEventListener('click', () => void handleUserLogout(false));
+        status.append(' ', button);
+    }
+}
 
-const syncState: SyncState = {
-    get currentListData() { return currentListData; },
-    set currentListData(value) { currentListData = value; },
-    get syncModeResolve() { return syncModeResolve; },
-    set syncModeResolve(value) { syncModeResolve = value; },
-    get currentRemoteOverwriteClient() { return currentRemoteOverwriteClient; },
-    set currentRemoteOverwriteClient(value) { currentRemoteOverwriteClient = value; },
-    get remoteSyncModeResolve() { return remoteSyncModeResolve; },
-    set remoteSyncModeResolve(value) { remoteSyncModeResolve = value; },
-    get lastSelectedRemoteSyncMode() { return lastSelectedRemoteSyncMode; },
-    set lastSelectedRemoteSyncMode(value) { lastSelectedRemoteSyncMode = value; },
-    get userToken() { return userToken; },
-    set userToken(value) { userToken = value; },
-};
-const syncFeature = initSyncFeature({
-    state: syncState,
-    syncManager,
-    credentialStorage,
-    getCredential,
-    getSettings: () => settings,
-    getUserToken: () => userToken,
-    setUserToken: (token) => { userToken = token; },
-    audio: audio as HTMLAudioElement | null,
-    getLyricPlayer: () => lyricPlayer,
-    persistSettings: (...args) => persistSettings(...args),
-    pushSettingsToServer: (...args) => pushSettingsToServer(...args),
-    loadTokenConfig: (...args) => loadTokenConfig(...args),
-    loadLibraryData: (...args) => loadLibraryData(...args),
-    updateUserUI: (...args) => updateUserUI(...args),
-    updateSetting: (...args) => updateSetting(...args),
-    renderMyLists: (...args) => renderMyLists(...args),
-    pushDataChange: (...args) => pushDataChange(...args),
-    updateAdminUI: (...args) => updateAdminUI(...args),
-    showSelect,
-    showSuccess,
-    showError,
-});
-const {
-    switchSyncMode,
-    updateSyncStatus,
-    handleSyncLogout,
-    handleLocalLogin,
-    showSyncModeModal,
-    closeSyncModal,
-    selectSyncMode,
-    cancelSyncMode,
-    handleRemoteStep1,
-    handleRemoteBack,
-    handleRemoteConnect,
-    switchRemoteModalStep,
-    showRemoteOverwriteModal,
-    closeRemoteOverwriteModal,
-    selectRemoteOverwriteMode,
-    handleRemoteOverwriteConnect,
-} = syncFeature;
+async function handleLocalLogin(): Promise<void> {
+    const usernameInput = document.getElementById('user-login-name') as HTMLInputElement | null;
+    const passwordInput = document.getElementById('user-login-password') as HTMLInputElement | null;
+    const username = usernameInput?.value.trim() || '';
+    const password = passwordInput?.value || '';
+    if (!username || !password) {
+        showError('请输入用户名和密码');
+        return;
+    }
+    try {
+        const response = await fetch('/api/user/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ username, password }),
+        });
+        if (!response.ok) throw new Error('用户名或密码错误');
+        userName = username;
+        userSessionActive = true;
+        localStorage.setItem('lx_user_name', username);
+        if (passwordInput) passwordInput.value = '';
+        updateUserUI();
+        await reloadUserFavorites();
+        updateUserStatus(`<span class="text-emerald-600">已登录：${escapeHtmlText(username)}</span>`);
+        showSuccess('登录成功');
+    } catch (error) {
+        console.error('[Auth] 用户登录失败:', error);
+        showError('用户名或密码错误');
+    }
+}
 
-// Sync feature implementation moved to features/sync.ts.
+async function handleUserLogout(skipConfirm = false): Promise<void> {
+    if (!skipConfirm && !(await showSelect('退出账号', '确定要退出当前账号吗？', { danger: true }))) return;
+    try {
+        await fetch('/api/user/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (error) {
+        console.warn('[Auth] 注销请求失败:', error);
+    }
+    userName = null;
+    userSessionActive = false;
+    localStorage.removeItem('lx_user_name');
+    currentListData = null;
+    window.currentListData = null;
+    if (window.ListStore?.remove) await window.ListStore.remove().catch(() => undefined);
+    updateUserUI();
+    updateAdminUI();
+    renderMyLists(null);
+    showSuccess('已退出登录');
+}
+
 async function handleRemoveList(listId, event) {
     event.stopPropagation();
     if (!(await showSelect('删除歌单', '确定要删除歌单吗？', { danger: true }))) return;
@@ -3411,7 +3192,7 @@ async function handleRemoveList(listId, event) {
                 await pushDataChange();
                 renderMyLists(currentListData);
             } catch (e) {
-                showError('删除同步失败');
+        showError('删除收藏失败');
             }
         }
     }
@@ -4168,8 +3949,8 @@ async function toggleLove() {
     try {
         await pushDataChange(activeListData);
     } catch (e) {
-        console.error('[Love] 收藏同步失败:', e);
-        showError(toUserMessage(e, '收藏同步失败，请稍后重试'));
+        console.error('[Love] 收藏保存失败:', e);
+        showError(toUserMessage(e, '收藏保存失败，请稍后重试'));
     }
 }
 
@@ -4233,7 +4014,7 @@ async function handleRefreshList(listId, event, silent = false) {
         if (window.showToast) window.showToast('success', '歌单内容已同步至最新状态');
     } catch (e) {
         console.error('[Refresh] Failed:', e);
-        if (window.showToast) window.showToast('error', '歌单同步失败: ' + e.message);
+        if (window.showToast) window.showToast('error', '歌单保存失败: ' + e.message);
     }
 }
 
@@ -4311,9 +4092,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const cachedList = await window.ListStore.get();
         if (cachedList && isUserLoggedIn()) {
             currentListData = cachedList;
-            const savedUser = localStorage.getItem('lx_sync_user');
-            if (savedUser && currentListData) {
-                currentListData.username = savedUser;
+            if (userName && currentListData) {
+                currentListData.username = userName;
             }
             window.myPersonalListData = currentListData;
             renderMyLists(currentListData);
@@ -4327,82 +4107,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const defaultTab = settings.defaultEntry || 'favorites';
     switchTab(defaultTab);
 
-    // 2. Auto-reconnect or auto-login
-    const syncMode = localStorage.getItem('lx_sync_mode');
-
-    if (syncMode === 'local') {
-        // Local mode: auto-login
-        const user = localStorage.getItem('lx_sync_user');
-        const pass = getCredential('lx_sync_pass');
-        if (user && pass) {
-            document.getElementById('sync-local-user').value = user;
-            document.getElementById('sync-local-pass').value = pass;
-            console.log('[Cache] 自动登录本地账号:', user);
-            handleLocalLogin();
-        }
-    } else if (syncMode === 'remote') {
-        // Remote mode: auto-reconnect
-        const url = localStorage.getItem('lx_sync_url');
-        const code = getCredential('lx_sync_code');
-        const authStr = getCredential('lx_ws_auth');
-
-        if (url && code) {
-            document.getElementById('sync-remote-url').value = url;
-            document.getElementById('sync-remote-code').value = code;
-
-            // Check if we have saved authInfo
-            if (authStr) {
-                try {
-                    const authInfo = JSON.parse(authStr);
-                    console.log('[Cache] 使用缓存的认证信息自动重连...');
-
-                    // Pre-populate authInfo in client
-                    syncManager.initRemote(url, code, {
-                        getData: async () => {
-                            const cachedData = await window.ListStore.get().catch(() => null);
-                            return cachedData || { defaultList: [], loveList: [], userList: [] };
-                        },
-                        setData: async (data) => {
-                            await window.ListStore.set(data).catch(e => console.error('[IDBStore] 保存失败:', e));
-                            const oldUsername = currentListData ? currentListData.username : null;
-                            currentListData = data;
-                            if (oldUsername) currentListData.username = oldUsername; // Preserve username
-
-                            renderMyLists(data);
-                            document.getElementById('sync-status').innerHTML = '<i class="fas fa-check-circle text-blue-500"></i> 数据已同步';
-                        },
-                        getSyncMode: async () => {
-                            return new Promise((resolve) => {
-                                syncModeResolve = resolve;
-                                showSyncModeModal();
-                            });
-                        }
-                    });
-
-                    syncManager.client.authInfo = authInfo; // Reuse saved auth
-                    syncManager.client.onLogin = (success) => {
-                        if (success) {
-                            console.log('[Cache] 自动重连成功');
-                            updateSyncStatus('<i class="fas fa-check-circle text-green-500"></i> 已自动重连');
-                        } else {
-                            console.log('[Cache] 自动重连失败,需要手动重新配对');
-                            credentialStorage.removeItem('lx_ws_auth'); // Clear invalid auth
-                        }
-                    };
-                    syncManager.client.connect();
-                } catch (e) {
-                    console.error('[Cache] 自动重连失败:', e);
-                }
-            } else {
-                console.log('[Cache] 无缓存认证信息,请手动连接');
-            }
-        }
+    // Cookie 会话由首屏认证检查恢复；密码不会被保存到浏览器。
+    if (userSessionActive && userName) {
+        updateUserStatus(`<span class="text-emerald-600">已登录：${escapeHtmlText(userName)}</span>`);
     }
+    document.getElementById('user-login-form')?.addEventListener('submit', event => {
+        event.preventDefault();
+        void handleLocalLogin();
+    });
 });
 
-window.switchSyncMode = switchSyncMode;
 window.handleLocalLogin = handleLocalLogin;
-window.handleSyncLogout = handleSyncLogout;
+window.handleUserLogout = handleUserLogout;
 window.resetAllSettings = resetAllSettings;
 
 // 读取服务端返回的可读错误信息，优先使用 JSON 中的 message 字段。
@@ -4412,23 +4128,23 @@ async function resolvePushErrorMessage(res) {
         const message = data?.message || data?.error;
         if (typeof message === 'string' && message.trim()) return message.trim();
     } catch (_) { }
-    return '同步失败，请检查网络或重新登录';
+    return '保存失败，请检查网络或重新登录';
 }
 
-// Helper to Push Changes to Remote
-// 推送失败必须抛出异常，调用方才能回滚界面并提示用户，避免"看似成功实则未写入"。
+// 保存列表变更到服务端
+    // 保存失败必须抛出异常，调用方才能回滚界面并提示用户，避免“看似成功实则未写入”。
 async function pushDataChange(customListData) {
     const listToSave = customListData || currentListData;
     if (!listToSave) return;
 
-    // 1. 优先同步保存到客户端 IndexedDB 本地缓存
+    // 1. 优先保存到客户端 IndexedDB 本地缓存
     await window.ListStore.set(listToSave).catch(e => console.error('[IDBStore] 保存失败:', e));
 
     const isPublicList = listToSave.username === '_open' || listToSave.username === 'default';
 
     // 2. 如果是公开/未登录用户且开启了公开收藏开关
     if (isPublicList && window.lx_config?.['user.enablePublicFavorites']) {
-        const isAdmin = !!getCredential('lx_admin_password');
+        const isAdmin = adminSessionActive;
         if (!isAdmin) {
             throw new Error('保存公开歌单需要管理员权限，请先登录管理员账号');
         }
@@ -4449,35 +4165,22 @@ async function pushDataChange(customListData) {
         return;
     }
 
-    // 3. 登录普通用户的 SyncManager 推送逻辑
-    if (window.SyncManager && window.SyncManager.client) {
-        await window.SyncManager.push(listToSave);
-        console.log('Data Pushed to Remote');
-        return;
-    }
-
-    // 本地无同步模式：调用 REST API 推送给当前用户
-    const headers = getUserAuthHeaders();
-    if (headers['x-user-name'] === '_open') {
-        const syncUser = localStorage.getItem('lx_sync_user');
-        if (syncUser) headers['x-user-name'] = syncUser;
-        else delete headers['x-user-name'];
-    }
     const res = await fetch('/api/user/list', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            ...headers
         },
+        credentials: 'same-origin',
         body: JSON.stringify(listToSave)
     });
     if (!res.ok) throw new Error(await resolvePushErrorMessage(res));
 }
 
 async function refreshUserListData() {
-    if (!window.SyncManager) return;
     try {
-        const listData = await window.SyncManager.sync();
+        const response = await fetch('/api/user/list', { credentials: 'same-origin', cache: 'no-store' });
+        if (!response.ok) return;
+        const listData = await response.json();
         window.currentListData = listData;
         if (listData && listData.username !== '_open') {
             window.myPersonalListData = listData;
@@ -4488,28 +4191,25 @@ async function refreshUserListData() {
 
         // If currently viewing a local list, refresh its contents in main view
         if (isCurrentlyViewingLocalList(window.currentViewingListId)) {
-            console.log('[Sync] Auto-refreshing current list view:', window.currentViewingListId);
+            console.log('[List] Refreshing current list view:', window.currentViewingListId);
             handleListClick(window.currentViewingListId, true); // true to skip background auto-update
         }
 
         // Save to cache
         await window.ListStore.set(listData).catch(e => console.error('[IDBStore] 保存失败:', e));
-        console.log('[Sync] List Data Refreshed');
+        console.log('[List] Data refreshed');
     } catch (e) {
-        console.error('[Sync] Failed to refresh list data:', e);
+        console.error('[List] Failed to refresh list data:', e);
     }
 }
 
 window.refreshUserListData = refreshUserListData;
-window.handleRemoteConnect = handleRemoteConnect;
 window.handleCreateList = handleCreateList;
 window.handleRenameList = handleRenameList;
 window.handleRefreshList = handleRefreshList;
 window.handleRemoveList = handleRemoveList;
 window.toggleFavorites = toggleFavorites;
 window.handleFavoritesClick = handleFavoritesClick;
-window.handleRemoteStep1 = handleRemoteStep1;
-window.handleRemoteBack = handleRemoteBack;
 
 
 // ========================================
@@ -4571,6 +4271,7 @@ window.showLoading = showLoading;
 window.hideLoading = hideLoading;
 window.getUserAuthHeaders = getUserAuthHeaders;
 window.isUserLoggedIn = isUserLoggedIn;
+window.ensureUserSession = ensureUserSession;
 window.renderMyLists = renderMyLists;
 
 // Lyrics
@@ -4591,21 +4292,9 @@ window.collectCurrentSongList = collectCurrentSongList;
 // 认证与令牌管理
 window.handleLogout = handleLogout;
 
-// Sync functions
-window.switchSyncMode = switchSyncMode;
 window.handleLocalLogin = handleLocalLogin;
-window.handleSyncLogout = handleSyncLogout;
+window.handleUserLogout = handleUserLogout;
 window.resetAllSettings = resetAllSettings;
-window.handleRemoteConnect = handleRemoteConnect;
-window.handleRemoteStep1 = handleRemoteStep1;
-window.handleRemoteBack = handleRemoteBack;
-window.selectSyncMode = selectSyncMode;
-window.cancelSyncMode = cancelSyncMode;
-window.closeSyncModal = closeSyncModal;
-window.showRemoteOverwriteModal = showRemoteOverwriteModal;
-window.closeRemoteOverwriteModal = closeRemoteOverwriteModal;
-window.selectRemoteOverwriteMode = selectRemoteOverwriteMode;
-window.handleRemoteOverwriteConnect = handleRemoteOverwriteConnect;
 
 // Comment functions
 window.toggleCommentModal = toggleCommentModal;
@@ -4873,52 +4562,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // [Fix] Auto-Login logic (Restore Session)
-        const savedMode = localStorage.getItem('lx_sync_mode');
-        if (savedMode === 'local') {
-            const u = localStorage.getItem('lx_sync_user');
-            const p = getCredential('lx_sync_pass');
-            if (u && (p || userToken || userSessionActive)) {
-                // Fill UI
-                const uInput = document.getElementById('sync-local-user');
-                const pInput = document.getElementById('sync-local-pass');
-                if (uInput) uInput.value = u;
-                if (pInput) pInput.value = p;
-
-                if (p) {
-                    console.log('[AutoLogin] 检测到本地账户凭据，正在自动登录...');
-                    // Trigger login
-                    handleLocalLogin();
-                } else {
-                    // A valid HttpOnly session or persisted user token is
-                    // enough for list APIs. Initialize the local client
-                    // without putting the password into persistent storage.
-                    console.log('[AutoLogin] 检测到有效的本地会话，正在恢复登录状态...');
-                    syncManager.initLocal(u, '');
-                    await reloadUserFavorites();
-                    updateSyncStatus(`<i class="fas fa-check-circle text-emerald-500"></i> 已恢复登录 (用户: ${escapeHtmlText(u)})`);
-                }
-            }
-        } else if (savedMode === 'remote') {
-            const url = localStorage.getItem('lx_sync_url');
-            const code = getCredential('lx_sync_code');
-            if (url && code) {
-                console.log('[AutoLogin] 检测到远程同步设置，正在自动连接...');
-                // Fill UI
-                const remoteUrlInput = document.getElementById('sync-remote-url');
-                const remoteStep1 = document.getElementById('sync-remote-step1');
-                const remoteStep2 = document.getElementById('sync-remote-step2');
-                const remoteCodeInput = document.getElementById('sync-remote-code');
-
-                if (remoteUrlInput) remoteUrlInput.value = url;
-                if (remoteStep1) remoteStep1.classList.add('hidden');
-                if (remoteStep2) remoteStep2.classList.remove('hidden');
-                if (remoteCodeInput) remoteCodeInput.value = code;
-
-                // Trigger connect
-                handleRemoteConnect();
-            }
-        }
+        if (userSessionActive && userName) await reloadUserFavorites();
     }, 100);
 
     // [New] 全局精简播放栏控制函数

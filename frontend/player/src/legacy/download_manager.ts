@@ -243,7 +243,7 @@ export class DownloadManager {
                     embedLyric: !!(window.settings?.embedLyricToFile ?? true)
                 }))
             };
-            if (headers['x-frontend-auth'] && window.settings?.serverCacheNamingPattern) {
+            if (window.settings?.serverCacheNamingPattern) {
                 payload.namingPattern = window.settings.serverCacheNamingPattern;
             }
             await this.requestServerQueue('/api/music/cache/queue', payload);
@@ -742,10 +742,7 @@ export class DownloadManager {
                 ...(window.getUserAuthHeaders ? window.getUserAuthHeaders() : {})
             };
 
-            const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
-            if (username && !headers['x-user-name']) headers['x-user-name'] = username;
-
-            const resp = await fetch(url, { headers });
+            const resp = await fetch(url, { headers, credentials: 'same-origin' });
             if (resp.ok) {
                 task.hasLyric = true;
             } else if (resp.status === 404) {
@@ -1089,7 +1086,7 @@ export class DownloadManager {
                 cacheLyric: window.settings?.enableServerLyricCache !== false,
                 embedLyric: !!(window.settings?.embedLyricToFile ?? true)
             };
-            if (window.settings?.serverCacheNamingPattern && headers['x-frontend-auth']) {
+            if (window.settings?.serverCacheNamingPattern) {
                 payload.namingPattern = window.settings.serverCacheNamingPattern;
             }
 
@@ -1588,15 +1585,11 @@ export class DownloadManager {
                 });
 
                 // [NEW] 通知服务器中止所有该用户的缓存任务
-                const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
                 this.runServerQueueMutation(async () => {
                     const stopResponse = await fetch('/api/music/cache/stop', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-user-name': username,
-                            ...(window.getUserAuthHeaders ? window.getUserAuthHeaders() : {})
-                        },
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
                         body: JSON.stringify({ all: true })
                     });
                     const stopResult = await stopResponse.json().catch(() => ({}));

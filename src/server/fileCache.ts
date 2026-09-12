@@ -45,8 +45,8 @@ export const setNamingPattern = (pattern: unknown) => {
 
 // Define the two possible cache roots
 export const CACHE_ROOTS = {
-    DATA: 'data', // inside global.lx.dataPath (synced)
-    ROOT: 'root'  // relative to process.cwd() (not synced)
+    DATA: 'data', // inside global.lx.dataPath (application data)
+    ROOT: 'root'  // relative to process.cwd() (local instance storage)
 }
 
 let currentCacheLocation = CACHE_ROOTS.ROOT
@@ -2899,50 +2899,6 @@ export const setIndexEmbedLyric = (
         }
     }
     return false
-}
-
-export const serveCacheFile = (req: http.IncomingMessage, res: http.ServerResponse, filename: string, username?: string) => {
-    const locations = [
-        currentCacheLocation,
-        currentCacheLocation === CACHE_ROOTS.DATA ? CACHE_ROOTS.ROOT : CACHE_ROOTS.DATA
-    ]
-    const roots = ['cache', 'music']
-    let filePath = ''
-    const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
-    for (const loc of locations) {
-        for (const folder of roots) {
-            const dir = getCacheDir(normalizedUsername, folder === 'music', loc)
-            const checkPath = resolveCacheRelativePath(dir, filename)
-            if (!checkPath || !fs.existsSync(checkPath)) continue
-            const stats = fs.lstatSync(checkPath)
-            if (stats.isSymbolicLink() || !stats.isFile()) continue
-            filePath = checkPath
-            break
-        }
-        if (filePath) break
-    }
-    if (!filePath) { res.writeHead(404); res.end('Not Found'); return }
-    const stat = fs.statSync(filePath)
-    const ext = path.extname(filePath).toLowerCase()
-    const mimeTypes: Record<string, string> = {
-        '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav'
-    }
-    const contentType = mimeTypes[ext] || 'application/octet-stream'
-    const range = req.headers.range
-    if (range) {
-        const parts = range.replace(/bytes=/, "").split("-")
-        const start = parseInt(parts[0], 10)
-        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1
-        const chunksize = (end - start) + 1
-        res.writeHead(206, {
-            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
-            'Accept-Ranges': 'bytes', 'Content-Length': chunksize, 'Content-Type': contentType,
-        })
-        fs.createReadStream(filePath, { start, end }).pipe(res)
-    } else {
-        res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': contentType, 'Accept-Ranges': 'bytes' })
-        fs.createReadStream(filePath).pipe(res)
-    }
 }
 
 export const getCacheStats = (username?: string) => {

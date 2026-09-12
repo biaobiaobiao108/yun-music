@@ -1,4 +1,4 @@
-import { Router, adaptNodeHandler, type HttpContext } from '../core'
+import { Router } from '../core'
 import { verifyAdminAuth } from '../auth'
 import { verifyUserAuth } from './auth'
 import * as customSourceHandlers from '../customSourceHandlers'
@@ -9,7 +9,7 @@ export const createCustomSourceRouter = (): Router => {
 
   // 1. 源脚本校验（公共源必须管理员鉴权，私有源必须匹配当前用户）
   router.post('/api/custom-source/validate', (ctx) => {
-    return adaptNodeHandler(ctx, customSourceHandlers.handleValidate)
+    return customSourceHandlers.handleValidate(ctx)
   })
 
   // 通用中间件：若启用了公开受限模式，管理操作必须登录或管理员鉴权
@@ -28,16 +28,16 @@ export const createCustomSourceRouter = (): Router => {
 
   // 2. 导入与上传
   router.post('/api/custom-source/import', (ctx) => {
-    return adaptNodeHandler(ctx, customSourceHandlers.handleImport)
+    return customSourceHandlers.handleImport(ctx)
   })
 
   router.post('/api/custom-source/upload', (ctx) => {
-    return adaptNodeHandler(ctx, customSourceHandlers.handleUpload)
+    return customSourceHandlers.handleUpload(ctx)
   })
 
   // 3. 列表查询
   router.get('/api/custom-source/list', (ctx) => {
-    const requested = ctx.query.get('username') || ctx.headers.get('x-user-name') || ''
+    const requested = ctx.query.get('username') || ''
     const isAdmin = verifyAdminAuth(ctx.request)
     const currentUser = verifyUserAuth(ctx)
     let username = 'default'
@@ -47,22 +47,22 @@ export const createCustomSourceRouter = (): Router => {
     } else if (currentUser) {
       username = currentUser
     }
-    return adaptNodeHandler(ctx, customSourceHandlers.handleList, username)
+    return customSourceHandlers.handleList(ctx, username)
   })
 
   // 4. 启用/禁用切换
   router.post('/api/custom-source/toggle', (ctx) => {
-    return adaptNodeHandler(ctx, customSourceHandlers.handleToggle)
+    return customSourceHandlers.handleToggle(ctx)
   })
 
   // 5. 删除
   router.post('/api/custom-source/delete', (ctx) => {
-    return adaptNodeHandler(ctx, customSourceHandlers.handleDelete)
+    return customSourceHandlers.handleDelete(ctx)
   })
 
   // 6. 重排序
   router.post('/api/custom-source/reorder', (ctx) => {
-    return adaptNodeHandler(ctx, customSourceHandlers.handleReorder)
+    return customSourceHandlers.handleReorder(ctx)
   })
 
   return router

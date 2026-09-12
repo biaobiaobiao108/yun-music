@@ -38,16 +38,24 @@ export async function readApiErrorMessage(response: Response): Promise<string> {
     return resolveErrorMessage(response.status, rawBody);
 }
 
-export function createAdminRequest(getPassword: () => string | null, onUnauthorized: (message?: string) => void) {
+export function createAdminRequest(onUnauthorized: (message?: string) => void) {
     return async function request(url: string, options: RequestInit = {}): Promise<any> {
         const defaultOptions: RequestInit = {
             headers: {
                 'Content-Type': 'application/json',
-                'X-Frontend-Auth': getPassword() as any,
             },
+            credentials: 'same-origin',
         };
 
-        const response = await fetch(API_BASE + url, { ...defaultOptions, ...options });
+        const response = await fetch(API_BASE + url, {
+            ...defaultOptions,
+            ...options,
+            credentials: options.credentials ?? 'same-origin',
+            headers: {
+                ...defaultOptions.headers,
+                ...(options.headers || {}),
+            },
+        });
 
         if (!response.ok) {
             const message = await readApiErrorMessage(response);

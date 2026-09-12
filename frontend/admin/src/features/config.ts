@@ -1,5 +1,4 @@
 import type { AdminFeatureContext } from '../types';
-import { credentialStorage } from '../utils';
 
 export function initConfigFeature(context: AdminFeatureContext) {
     const app = context.app;
@@ -89,32 +88,6 @@ export function initConfigFeature(context: AdminFeatureContext) {
                 form.elements['player.password'].placeholder = config['player.passwordConfigured'] ? '已配置，留空保持不变' : '请设置播放器密码';
             }
 
-            // WebDAV 配置
-            if (form.elements['webdav.enable']) {
-                form.elements['webdav.enable'].checked = config['webdav.enable'] === true;
-            }
-            if (form.elements['webdav.url']) {
-                form.elements['webdav.url'].value = config['webdav.url'] || '';
-            }
-            if (form.elements['webdav.username']) {
-                form.elements['webdav.username'].value = config['webdav.username'] || '';
-            }
-            if (form.elements['webdav.password']) {
-                form.elements['webdav.password'].value = '';
-                form.elements['webdav.password'].placeholder = config['webdav.passwordConfigured'] ? '已配置，留空保持不变' : '请输入 WebDAV 密码';
-            }
-            if (form.elements['webdav.syncPath']) {
-                form.elements['webdav.syncPath'].value = config['webdav.syncPath'] || '/lx-sync';
-            }
-            if (form.elements['webdav.backupPath']) {
-                form.elements['webdav.backupPath'].value = config['webdav.backupPath'] || '/lx-sync-backups';
-            }
-            if (form.elements['sync.interval']) {
-                form.elements['sync.interval'].value = config['sync.interval'] || 60;
-            }
-            if (form.elements['sync.backupInterval']) {
-                form.elements['sync.backupInterval'].value = config['sync.backupInterval'] || 24;
-            }
 
             // URL路径配置
             if (form.elements['admin.path']) {
@@ -129,28 +102,6 @@ export function initConfigFeature(context: AdminFeatureContext) {
             const navPlayerLink = document.getElementById('nav-player-link');
             if (navPlayerLink) navPlayerLink.href = (config['player.path'] === '' ? '/' : (config['player.path'] ?? '/music'));
 
-            // Subsonic 配置
-            if (form.elements['subsonic.enable']) {
-                form.elements['subsonic.enable'].checked = config['subsonic.enable'] === true;
-            }
-            if (form.elements['subsonic.path']) {
-                form.elements['subsonic.path'].value = config['subsonic.path'] || '/rest';
-            }
-            if (form.elements['subsonic.enableDebug']) {
-                form.elements['subsonic.enableDebug'].checked = config['subsonic.enableDebug'] === true;
-            }
-            if (form.elements['subsonic.onlineSearch']) {
-                form.elements['subsonic.onlineSearch'].checked = config['subsonic.onlineSearch'] !== false;
-            }
-            if (form.elements['subsonic.onlineSearchMode']) {
-                form.elements['subsonic.onlineSearchMode'].value = config['subsonic.onlineSearchMode'] || 'fallback';
-            }
-            if (form.elements['subsonic.onlineSearchSources']) {
-                form.elements['subsonic.onlineSearchSources'].value = config['subsonic.onlineSearchSources'] || 'wy,tx';
-            }
-            if (form.elements['subsonic.lyricTranslation']) {
-                form.elements['subsonic.lyricTranslation'].checked = config['subsonic.lyricTranslation'] !== false;
-            }
         } catch (err) {
             console.error('Failed to load config:', err);
             app.renderViewError(
@@ -229,23 +180,8 @@ export function initConfigFeature(context: AdminFeatureContext) {
             'frontend.password': formData.get('frontend.password'),
             'player.enableAuth': formData.get('player.enableAuth') === 'on',
             'player.password': formData.get('player.password'),
-            'webdav.enable': formData.get('webdav.enable') === 'on',
-            'webdav.url': formData.get('webdav.url'),
-            'webdav.username': formData.get('webdav.username'),
-            'webdav.password': formData.get('webdav.password'),
-            'webdav.syncPath': (formData.get('webdav.syncPath') || '').trim() || '/lx-sync',
-            'webdav.backupPath': (formData.get('webdav.backupPath') || '').trim() || '/lx-sync-backups',
-            'sync.interval': parseInt(formData.get('sync.interval')) || 60,
-            'sync.backupInterval': parseInt(formData.get('sync.backupInterval')) || 24,
             'admin.path': adminPath,
             'player.path': playerPath,
-            'subsonic.enable': formData.get('subsonic.enable') === 'on',
-            'subsonic.path': (formData.get('subsonic.path') || '').trim() || '/rest',
-            'subsonic.enableDebug': formData.get('subsonic.enableDebug') === 'on',
-            'subsonic.onlineSearch': formData.get('subsonic.onlineSearch') === 'on',
-            'subsonic.onlineSearchMode': formData.get('subsonic.onlineSearchMode') || 'fallback',
-            'subsonic.onlineSearchSources': (formData.get('subsonic.onlineSearchSources') || '').trim() || 'wy,tx',
-            'subsonic.lyricTranslation': formData.get('subsonic.lyricTranslation') === 'on',
             'singer.sourcePriority': formData.get('singer.sourcePriority'),
             'system.allowUnsafeVM': formData.get('system.allowUnsafeVM') === 'on',
         };
@@ -255,12 +191,6 @@ export function initConfigFeature(context: AdminFeatureContext) {
                 method: 'POST',
                 body: JSON.stringify(config)
             });
-
-            // 如果密码改了，更新本地存储
-            if (config['frontend.password'] && config['frontend.password'] !== app.password) {
-                app.password = config['frontend.password'];
-                credentialStorage.setItem('lx_auth', config['frontend.password']);
-            }
 
             // 更新侧边栏播放器链接
             const navPlayerLink = document.getElementById('nav-player-link');

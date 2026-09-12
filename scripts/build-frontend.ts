@@ -2,11 +2,23 @@ import path from 'path'
 import fs from 'fs'
 
 const isWatch = process.argv.includes('--watch')
+const publicRoot = path.join(import.meta.dir, '../public')
+const publicMusicRoot = path.join(publicRoot, 'music')
+
+function copyHtml(source: string, target: string, entryName?: string): void {
+  let content = fs.readFileSync(source, 'utf8')
+  if (entryName) content = content.replaceAll('app.js', entryName)
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.writeFileSync(target, content)
+}
 
 async function build() {
   const startTime = performance.now()
   const adminEntry = path.join(import.meta.dir, '../frontend/admin/src/index.ts')
   const playerEntry = path.join(import.meta.dir, '../frontend/player/src/index.ts')
+  const adminHtmlSource = path.join(import.meta.dir, '../frontend/admin/index.html')
+  const playerHtmlSource = path.join(import.meta.dir, '../frontend/player/index.html')
+  const playerLoginSource = path.join(import.meta.dir, '../frontend/player/login.html')
   const playerVendorEntry = path.join(import.meta.dir, '../frontend/player/src/vendor_bridge.ts')
   const playerWorkletEntry = path.join(import.meta.dir, '../frontend/player/src/legacy/pitch_shifter/phase_vocoder.ts')
   const shouldMinify = process.env.NODE_ENV === 'production' || !isWatch
@@ -24,7 +36,7 @@ async function build() {
 
   const vendorResult = await Bun.build({
     entrypoints: [playerVendorEntry],
-    outdir: path.join(import.meta.dir, '../public/music/js'),
+    outdir: path.join(publicMusicRoot, 'js'),
     naming: 'vendor-bridge.js',
     format: 'iife',
     minify: shouldMinify,
@@ -39,7 +51,7 @@ async function build() {
 
   const workletResult = await Bun.build({
     entrypoints: [playerWorkletEntry],
-    outdir: path.join(import.meta.dir, '../public/music/js/pitch-shifter'),
+    outdir: path.join(publicMusicRoot, 'js/pitch-shifter'),
     naming: 'phase-vocoder.js',
     format: 'esm',
     minify: shouldMinify,
@@ -52,11 +64,18 @@ async function build() {
     return
   }
 
+  // Remove only previous generated entry bundles; source HTML and data are never touched here.
+  for (const [directory, pattern] of [[publicRoot, /^app(?:-[a-z0-9]+)?\.js$/i], [publicMusicRoot, /^app(?:-[a-z0-9]+)?\.js$/i]] as const) {
+    for (const filename of fs.readdirSync(directory)) {
+      if (pattern.test(filename)) fs.rmSync(path.join(directory, filename), { force: true })
+    }
+  }
+
   // 1. Build Admin Panel
   const adminResult = await Bun.build({
     entrypoints: [adminEntry],
-    outdir: path.join(import.meta.dir, '../public'),
-    naming: 'app.js',
+    outdir: publicRoot,
+    naming: 'app-[hash].[ext]',
     minify: shouldMinify,
     target: 'browser',
     sourcemap: isWatch ? 'inline' : 'none',
@@ -67,8 +86,11 @@ async function build() {
     return
   }
 
+  const adminOutput = adminResult.outputs.find(output => output.path.endsWith('.js'))
+  if (!adminOutput) throw new Error('Admin entry output was not generated')
+
   // 2. Build Music Player
-  const playerOutdir = path.join(import.meta.dir, '../public/music')
+  const playerOutdir = publicMusicRoot
   const playerChunkDir = path.join(playerOutdir, 'js/chunks')
   for (const filename of ['songlist_manager.js', 'download_manager.js']) {
     const staleBundle = path.join(playerOutdir, 'js', filename)
@@ -85,7 +107,7 @@ async function build() {
     entrypoints: [playerEntry],
     outdir: playerOutdir,
     naming: {
-      entry: 'app.js',
+      entry: 'app-[hash].[ext]',
       chunk: 'js/chunks/[name]-[hash].[ext]',
     },
     format: 'esm',
@@ -100,10 +122,19 @@ async function build() {
     return
   }
 
+  const playerOutput = playerResult.outputs.find(output => output.path.endsWith('.js') && !output.path.includes(`${path.sep}chunks${path.sep}`))
+  if (!playerOutput) throw new Error('Player entry output was not generated')
+
+  const adminFileName = path.basename(adminOutput.path)
+  const playerFileName = path.basename(playerOutput.path)
+  copyHtml(adminHtmlSource, path.join(publicRoot, 'index.html'), adminFileName)
+  copyHtml(playerHtmlSource, path.join(publicMusicRoot, 'index.html'), playerFileName)
+  copyHtml(playerLoginSource, path.join(publicMusicRoot, 'login.html'))
+
   const duration = (performance.now() - startTime).toFixed(1)
-  const adminSize = (fs.statSync(path.join(import.meta.dir, '../public/app.js')).size / 1024).toFixed(1)
-  const playerSize = (fs.statSync(path.join(import.meta.dir, '../public/music/app.js')).size / 1024).toFixed(1)
-  console.log(`[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminSize}KB, player: ${playerSize}KB, minified: ${shouldMinify})`)
+  const adminSize = (fs.statSync(adminOutput.path).size / 1024).toFixed(1)
+  const playerSize = (fs.statSync(playerOutput.path).size / 1024).toFixed(1)
+  console.log(`[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminFileName} ${adminSize}KB, player: ${playerFileName} ${playerSize}KB, minified: ${shouldMinify})`)
 }
 
 async function main() {

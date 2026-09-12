@@ -27,10 +27,6 @@ const controlLabels: Record<string, string> = {
     'items-per-page-select': '每页数量',
     'setting-default-entry': '默认入口',
     'setting-download-concurrency': '下载并发数',
-    'sync-local-user': '本地同步用户名',
-    'sync-local-pass': '本地同步密码',
-    'sync-url': '远程同步服务地址',
-    'sync-code': '远程同步连接码',
     'external-list-input': '歌单链接或歌单 ID',
     'qq-input-field': 'QQ 号',
     'new-subfolder-input': '新文件夹名称',
@@ -67,7 +63,6 @@ const overlayCloseActions: Record<string, () => void> = {
     'external-list-modal': () => (window as any).closeExternalListModal?.(),
     'qq-input-modal': () => getSongListManager()?.closeQQInputModal(),
     'user-playlist-modal': () => getSongListManager()?.closeUserPlaylistModal(),
-    'sync-auth-modal': () => (window as any).closeSyncModal?.(),
     'custom-source-modal': () => (window as any).closeCustomSourceModal?.(),
     'playlist-add-modal': () => (window as any).closePlaylistAddModal?.(),
     'subpath-select-modal': () => (window as any).LocalMusicManager?.closeSubPathModal?.(),
@@ -91,7 +86,7 @@ function setAttributeIfChanged(element: HTMLElement, name: string, value: string
 
 function getOverlays(): OverlayElement[] {
     return Array.from(document.querySelectorAll<OverlayElement>(OVERLAY_SELECTOR)).filter(element => {
-        // IDs such as `modal-add-token-content` and `modal-source-scope-info`
+        // IDs such as `modal-source-scope-info`
         // belong to controls inside a modal, not to independent overlay roots.
         // Only manage the outermost matching element to avoid keeping the app inert
         // after the actual modal has been closed.

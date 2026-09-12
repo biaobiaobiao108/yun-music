@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  lx-sync-server:
+  lx-music-web-server:
     build: .
-    container_name: lx-sync-server
+    container_name: lx-music-web-server
     restart: always
     ports:
       - "9527:9527"
@@ -12,14 +12,15 @@ services:
       - ./data:/server/data
       # 歌曲缓存目录。默认缓存根目录是 <工作目录>/cache，即容器内的 /server/cache，
       # 不在 /server/data 之下；未挂载时容器重建会丢失全部已缓存歌曲。
-      # 若不挂载此项，请在「设置 → 缓存位置」中把缓存位置切换为 data。
       - ./cache:/server/cache
-      # 下载目录：仅下载模式下保存的音乐文件，同样位于默认缓存根目录之下
+      # 下载目录：仅下载模式下保存的音乐文件
       - ./music:/server/music
       # 封面缓存目录（可选，丢失后会自动从音频文件重新提取）
       - ./cover_cache:/server/cover_cache
     environment:
       # 环境变量配置，优先级高于 config.js
       - NODE_ENV=production
-      # 示例：通过环境变量设置用户
+      # 必填：请在 .env 中设置强密码，禁止空密码启动
+      - FRONTEND_PASSWORD=${FRONTEND_PASSWORD:?set FRONTEND_PASSWORD in .env}
+      # 可选：首次初始化时创建用户，用户密码之后仅以 SQLite 哈希保存
       # - LX_USER_myuser=mypassword

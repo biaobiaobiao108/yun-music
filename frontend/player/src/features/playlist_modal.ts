@@ -320,33 +320,17 @@ async function handleTogglePlaylist(listId, btnElement) {
         // 4. Close Modal Immediately
         closePlaylistAddModal();
 
-        // 5. Background Backend Sync
+        // 5. Persist through the same-origin Web API; the HttpOnly session is
+        // attached by the browser and never exposed to JavaScript.
         try {
-            const isRemoteSync = window.SyncManager && window.SyncManager.mode === 'remote' && window.SyncManager.client && window.SyncManager.client.isConnected;
-
-            if (isRemoteSync) {
-                // 远程模式：推送更新
-                await pushDataChange(activeListData);
-                showSuccess(`成功批量同步 ${addedSongs.length} 首歌曲`);
-            } else {
-                // 本地模式：调用 API 同步后端存储
-                const headers = getUserAuthHeaders();
-                if (headers['x-user-name'] === '_open') {
-                    const syncUser = localStorage.getItem('lx_sync_user');
-                    if (syncUser) headers['x-user-name'] = syncUser;
-                    else delete headers['x-user-name'];
-                }
-                const res = await fetch('/api/music/user/list/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...headers },
-                    body: JSON.stringify({
-                        listId: listId,
-                        musicInfos: addedSongs
-                    })
-                });
-                if (!res.ok) throw new Error(await res.text());
-                showSuccess(`批量收藏 ${addedSongs.length} 首歌曲成功`);
-            }
+            const res = await fetch('/api/music/user/list/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...getUserAuthHeaders() },
+                credentials: 'same-origin',
+                body: JSON.stringify({ listId, musicInfos: addedSongs })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            showSuccess(`批量收藏 ${addedSongs.length} 首歌曲成功`);
 
             // Cleanup selection
             if (typeof exitBatchMode === 'function') exitBatchMode();

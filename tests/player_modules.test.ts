@@ -100,19 +100,18 @@ describe('Player manager module boundaries', () => {
         expect(violations).toEqual([]);
     });
 
-    it('keeps cross-module search and sync dependencies as explicit imports', () => {
+    it('keeps retained cross-module dependencies explicit and removes retired sync modules', () => {
         const searchSource = read('frontend/player/src/features/search.ts');
         const paginationSource = read('frontend/player/src/legacy/batch_pagination.ts');
-        const syncSource = read('frontend/player/src/features/sync.ts');
-        const userSyncSource = read('frontend/player/src/legacy/user_sync.ts');
         const indexSource = read('frontend/player/src/index.ts');
 
         expect(searchSource).toContain("import { updatePaginationInfo } from '../legacy/batch_pagination';");
         expect(searchSource).not.toContain('window.updatePaginationInfo');
         expect(paginationSource).toContain('export function updatePaginationInfo');
-        expect(syncSource).toContain("import { RemoteClient } from '../legacy/user_sync';");
-        expect(syncSource).not.toContain('window as any).RemoteClient');
-        expect(userSyncSource).toContain('export class RemoteClient');
+        expect(fs.existsSync(path.join(projectRoot, 'frontend/player/src/features/sync.ts'))).toBe(false);
+        expect(fs.existsSync(path.join(projectRoot, 'frontend/player/src/legacy/user_sync.ts'))).toBe(false);
+        expect(indexSource).not.toContain('RemoteClient');
+        expect(indexSource).not.toContain('SyncManager');
         expect(indexSource).toContain('Object.assign(window, { getImgUrl, createMarqueeHtml, applyMarqueeChecks });');
     });
 
@@ -132,9 +131,8 @@ describe('Player manager module boundaries', () => {
         expect(leaderboardSource).toContain('Object.assign(window, {');
     });
 
-    it('exposes static delegated actions from the player entrypoint and token manager', () => {
+    it('exposes retained delegated actions from the player entrypoint', () => {
         const indexSource = read('frontend/player/src/index.ts');
-        const tokenSource = read('frontend/player/src/token_management.ts');
 
         for (const action of [
             'showInitialSearchState',
@@ -143,20 +141,11 @@ describe('Player manager module boundaries', () => {
             'handleLyricScroll',
             'collectCurrentSongList',
             'handleLogout',
-            'showRemoteOverwriteModal',
-            'closeRemoteOverwriteModal',
-            'selectRemoteOverwriteMode',
-            'handleRemoteOverwriteConnect',
+            'handleLocalLogin',
+            'handleUserLogout',
         ]) {
             expect(indexSource).toContain(`window.${action} = ${action};`);
         }
-
-        for (const action of [
-            'handleToggleTokenStatus',
-            'switchTokenExpireMode',
-            'openEditTokenModal',
-        ]) {
-            expect(tokenSource).toContain(`(window as any).${action} = ${action};`);
-        }
+        expect(fs.existsSync(path.join(projectRoot, 'frontend/player/src/token_management.ts'))).toBe(false);
     });
 });

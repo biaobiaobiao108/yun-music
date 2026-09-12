@@ -1,5 +1,5 @@
 import type { AdminFeatureContext } from '../types';
-import { credentialStorage, renderSafeMarkdown } from '../utils';
+import { renderSafeMarkdown } from '../utils';
 
 export function initShellFeature(context: AdminFeatureContext) {
     const app = context.app;
@@ -22,6 +22,125 @@ export function initShellFeature(context: AdminFeatureContext) {
 
         document.querySelectorAll('.action-btn').forEach(button => {
             button.addEventListener('click', () => app.handleQuickAction(button.dataset.action));
+        });
+
+        document.addEventListener('click', event => {
+            const target = event.target instanceof Element
+                ? event.target.closest<HTMLElement>('[data-admin-action]')
+                : null;
+            if (!target) return;
+            const action = target.dataset.adminAction;
+            const index = Number(target.dataset.adminIndex);
+            switch (action) {
+                case 'switch-users':
+                    app.switchView('users');
+                    break;
+                case 'toggle-user-dropdown':
+                    app.toggleUserDropdown(target.dataset.adminDropdown);
+                    break;
+                case 'select-user':
+                    app.selectUser(target.dataset.adminUserType, target.dataset.adminUserName);
+                    break;
+                case 'view-all-songs':
+                    app.viewAllSongs();
+                    break;
+                case 'view-system-list':
+                    app.viewSystemList(target.dataset.adminListType);
+                    break;
+                case 'render-playlists':
+                    app.renderPlaylists();
+                    break;
+                case 'view-playlist':
+                    app.viewPlaylistDetails(index);
+                    break;
+                case 'delete-playlist':
+                    app.deletePlaylist(index);
+                    break;
+                case 'edit-playlist':
+                    app.editPlaylistName(index);
+                    break;
+                case 'filter-songs':
+                    app.filterSongs();
+                    break;
+                case 'sort-songs':
+                    app.sortSongs();
+                    break;
+                case 'select-all-songs':
+                    app.selectAllSongs();
+                    break;
+                case 'invert-selection':
+                    app.invertSelection();
+                    break;
+                case 'clear-selection':
+                    app.clearSelection();
+                    break;
+                case 'batch-delete-songs':
+                    app.batchDeleteSongs();
+                    break;
+                case 'delete-song':
+                    app.deleteSong(target.dataset.adminPlaylistType ?? index, Number(target.dataset.adminSongIndex));
+                    break;
+                case 'rename-user':
+                    app.showRenameUserModal(index);
+                    break;
+                case 'toggle-password':
+                    app.togglePasswordVisibility(index);
+                    break;
+                case 'edit-password':
+                    app.showEditPasswordModal(index);
+                    break;
+                case 'delete-user':
+                    app.deleteUser(index);
+                    break;
+                case 'close-modal':
+                    app.closeModal();
+                    break;
+                case 'trigger-upload-snapshot':
+                    app.triggerUploadSnapshot();
+                    break;
+                case 'load-snapshots':
+                    app.loadSnapshots();
+                    break;
+                case 'retry': {
+                    const retry = app[target.dataset.adminMethod];
+                    if (typeof retry === 'function') retry.call(app);
+                    break;
+                }
+            }
+        });
+
+        document.addEventListener('input', event => {
+            const target = event.target as HTMLElement;
+            if (target.dataset.adminAction === 'filter-users') app.filterUsers();
+            if (target.dataset.adminAction === 'filter-songs') app.filterSongs();
+        });
+
+        document.addEventListener('change', event => {
+            const target = event.target as HTMLInputElement | HTMLSelectElement;
+            switch (target.dataset.adminAction) {
+                case 'sort-songs':
+                    app.sortSongs();
+                    break;
+                case 'toggle-all-songs':
+                    app.toggleAllSongs((target as HTMLInputElement).checked);
+                    break;
+                case 'update-batch-delete':
+                    app.updateBatchDeleteBtn();
+                    break;
+                case 'update-user-batch':
+                    app.updateUserBatchBtn();
+                    break;
+            }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            const target = event.target instanceof Element
+                ? event.target.closest<HTMLElement>('[data-admin-action]')
+                : null;
+            if (!target || !['BUTTON', 'DIV'].includes(target.tagName)) return;
+            event.preventDefault();
+            target.click();
         });
 
         document.querySelectorAll('.modal-close').forEach(button => {
@@ -122,8 +241,6 @@ export function initShellFeature(context: AdminFeatureContext) {
             });
 
             if (res.success) {
-                app.password = password;
-                credentialStorage.setItem('lx_auth', password);
                 app.showApp();
                 app.loadDashboard();
             } else {
@@ -137,9 +254,8 @@ export function initShellFeature(context: AdminFeatureContext) {
 
     function logout(notice?: string) {
         void fetch('/api/logout', { method: 'POST' }).catch(() => undefined);
-        credentialStorage.removeItem('lx_auth');
         // Survive the reload so the login overlay can explain why the user is back here.
-        if (notice) credentialStorage.setItem('lx_auth_notice', notice);
+        if (notice) sessionStorage.setItem('lx_auth_notice', notice);
         location.reload();
     }
 
@@ -180,7 +296,6 @@ export function initShellFeature(context: AdminFeatureContext) {
             data: '数据查看',
             config: '系统配置',
             logs: '系统日志',
-            webdav: 'WebDAV同步',
             snapshots: '快照管理',
             about: '关于'
         };
@@ -204,15 +319,6 @@ export function initShellFeature(context: AdminFeatureContext) {
                 break;
             case 'logs':
                 app.loadLogs();
-                break;
-            case 'webdav':
-                try {
-                    const status = await app.request('/api/status');
-                    app.checkWebDAVConfig(status.isWebDAVConfigured);
-                    app.loadSyncLogs();
-                } catch (e) {
-                    console.error('Failed to check webdav status:', e);
-                }
                 break;
             case 'snapshots':
                 app.loadSnapshots();

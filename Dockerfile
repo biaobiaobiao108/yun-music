@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.10
-# Multi-stage Dockerfile for LX Music Sync Server (Ultra-slim Bun Architecture)
+# Multi-stage Dockerfile for LX Music Web Server (Ultra-slim Bun Architecture)
 
 ARG BUN_VERSION=1.4.2
 
@@ -53,6 +53,11 @@ COPY --from=builder /app/public ./public
 # 将系统 chromaprint (fpcalc) 直接软链接至播放器二进制目录，免去容器内外部下载
 RUN mkdir -p /server/public/music/bin && ln -sf /usr/bin/fpcalc /server/public/music/bin/fpcalc
 
+# 生产进程使用非 root 用户；挂载目录需要由宿主机授予该用户写权限。
+RUN addgroup -S lx && adduser -S -G lx lx && \
+  mkdir -p /server/data /server/cache /server/music /server/cover_cache && \
+  chown -R lx:lx /server
+
 # /server/cache 与 /server/music 位于工作目录之下，不在 /server/data 内：
 # 前者是歌曲缓存根目录，后者是仅下载模式下保存的音乐文件目录。
 # 未声明为卷时，容器重建会连带清空这两个目录。
@@ -70,6 +75,7 @@ EXPOSE 9527
 
 # 容器原生健康检查
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD bun -e "fetch('http://127.0.0.1:9527/').then(r => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))"
+  CMD bun -e "fetch('http://127.0.0.1:9527/healthz').then(r => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))"
 
+USER lx
 CMD [ "bun", "server/index.js" ]

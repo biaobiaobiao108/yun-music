@@ -1,11 +1,11 @@
 import { safeInlineString } from '../player_security';
 
 export interface CustomSourcesFeatureContext {
-    getCredential: (key: string) => string | null;
     getUserAuthHeaders: () => Record<string, string>;
     getCurrentListData: () => any;
     getSettings: () => any;
     isUserLoggedIn: () => boolean;
+    isAdminSessionActive: () => boolean;
     handleAdminAuth: (message: string) => Promise<boolean>;
     updateSetting: (key: string, value: any) => Promise<void>;
     createMarqueeHtml: (text: any, className?: string) => string;
@@ -19,8 +19,8 @@ export interface CustomSourcesFeatureContext {
 }
 
 export function initCustomSourcesFeature(context: CustomSourcesFeatureContext) {
-    const getCredential = context.getCredential;
     const getUserAuthHeaders = context.getUserAuthHeaders;
+    const isAdminSessionActive = context.isAdminSessionActive;
     const handleAdminAuth = context.handleAdminAuth;
     const updateSetting = context.updateSetting;
     const createMarqueeHtml = context.createMarqueeHtml;
@@ -78,9 +78,7 @@ async function handleFileUpload(input) {
 
         // 先验证脚本
         showInfo('正在验证脚本...');
-        const adminPass = getCredential('lx_admin_password');
         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
         let validationRes = await fetch('/api/custom-source/validate', {
             method: 'POST',
@@ -177,8 +175,6 @@ async function handleUrlImport() {
 
         const username = currentListData?.username || 'default';
         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-        const adminPass = getCredential('lx_admin_password');
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
         // 从服务器代理下载
         const response = await fetch(`/api/custom-source/import`, {
@@ -215,7 +211,6 @@ async function handleUrlImport() {
             const confirmed = await showSelect('安全风险确认', result.message || '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？', { danger: true, confirmText: '允许并导入' });
             if (confirmed) {
                 const retryHeaders = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-                if (adminPass) retryHeaders['x-frontend-auth'] = adminPass;
                 const retryResp = await fetch(`/api/custom-source/import`, {
                     method: 'POST',
                     headers: retryHeaders,
@@ -254,8 +249,6 @@ async function handleUrlImport() {
 // 上传自定义源到服务器
 async function uploadCustomSource(filename, content, type, allowUnsafeVM = false) {
     const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-    const adminPass = getCredential('lx_admin_password');
-    if (adminPass) headers['x-frontend-auth'] = adminPass;
 
     const response = await fetch('/api/custom-source/upload', {
         method: 'POST',
@@ -305,8 +298,6 @@ async function fetchCustomSources() {
     try {
         const username = currentListData?.username || 'default';
         const headers = getUserAuthHeaders();
-        const adminPass = getCredential('lx_admin_password');
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
         const res = await fetch(`/api/custom-source/list?username=${encodeURIComponent(username)}`, {
             headers: headers
@@ -367,7 +358,7 @@ async function renderCustomSources() {
     // 判断当前状态：是否由于权限被拦截
     // list === null 表示后端返回了 403
     // 或者前端认为应该拦截：开启了公开限制 && 非登录用户 && 非管理员
-    const isAdmin = !!getCredential('lx_admin_password');
+    const isAdmin = isAdminSessionActive();
     const isUser = !!context.isUserLoggedIn();
     const isPublicRestrictionEnabled = !!window.lx_config?.['user.enablePublicRestriction'];
     const isPublicRestrictionActive = isPublicRestrictionEnabled && !isUser && !isAdmin;
@@ -579,8 +570,6 @@ async function renderCustomSources() {
                     try {
                         const username = currentListData?.username || 'default';
                         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-                        const adminPass = getCredential('lx_admin_password');
-                        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
                         const response = await fetch('/api/custom-source/reorder', {
                             method: 'POST',
@@ -617,9 +606,7 @@ async function renderCustomSources() {
 async function reloadSource(sourceId) {
     try {
         const username = currentListData?.username || 'default';
-        const adminPass = getCredential('lx_admin_password');
         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
         const response = await fetch('/api/custom-source/toggle', {
             method: 'POST',
@@ -646,8 +633,6 @@ async function toggleSource(sourceId, currentEnabled, allowUnsafeVM = false) {
     try {
         const username = currentListData?.username || 'default';
         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-        const adminPass = getCredential('lx_admin_password');
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
         const response = await fetch('/api/custom-source/toggle', {
             method: 'POST',
@@ -698,8 +683,6 @@ async function deleteSource(sourceId) {
     try {
         const username = currentListData?.username || 'default';
         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-        const adminPass = getCredential('lx_admin_password');
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
 
         const response = await fetch('/api/custom-source/delete', {
             method: 'POST',

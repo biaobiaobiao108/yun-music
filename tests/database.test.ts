@@ -4,7 +4,7 @@ import fs from 'fs'
 import os from 'os'
 import { randomUUID } from 'crypto'
 import { initDatabase, getDb, closeDb } from '../src/database'
-import { syncUsersToDatabase } from '../src/user/data'
+import { hashUserPassword, syncUsersToDatabase, verifyUserPassword } from '../src/user/data'
 
 let testDbPath = ''
 
@@ -20,6 +20,7 @@ describe('Database (bun:sqlite) Structured Storage', () => {
         users: [{ name: 'testuser', password: 'pwd', maxSnapshotNum: 5, 'list.addMusicLocationType': 'bottom' }],
       },
     }
+    closeDb()
     testDbPath = path.join(dataDir, `lx-test-${randomUUID()}.db`)
     initDatabase(testDbPath)
   })
@@ -39,21 +40,24 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     const db = getDb()
     const journalMode = db.query('PRAGMA journal_mode;').get() as any
     expect(journalMode?.journal_mode.toLowerCase()).toBe('wal')
+    const sessionSchema = db.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'user_sessions'").get() as { sql?: string }
+    expect(sessionSchema.sql).toContain('FOREIGN KEY (user_name) REFERENCES users(name)')
   })
 
   it('should CRUD user records', () => {
     const db = getDb()
     const now = Date.now()
     db.run(
-      'INSERT OR REPLACE INTO users (name, password, max_snapshot_num, add_music_location_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ['alice', 'secret', 10, 'top', now, now]
+      'INSERT OR REPLACE INTO users (name, password_hash, max_snapshot_num, add_music_location_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      ['alice', hashUserPassword('secret'), 10, 'top', now, now]
     )
 
-    const user = db.query('SELECT name, password, max_snapshot_num FROM users WHERE name = ?').get('alice') as any
+    const user = db.query('SELECT name, password_hash, max_snapshot_num FROM users WHERE name = ?').get('alice') as any
 
     expect(user).toBeDefined()
     expect(user?.name).toBe('alice')
-    expect(user?.password).toBe('secret')
+    expect(user?.password_hash).not.toBe('secret')
+    expect(verifyUserPassword(user?.password_hash, 'secret')).toBe(true)
     expect(user?.max_snapshot_num).toBe(10)
   })
 
@@ -83,8 +87,11 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     syncUsersToDatabase([...users, { name: 'new_user', password: 'another', maxSnapshotNum: 10 }])
     syncUsersToDatabase(users)
 
-    expect(db.query('SELECT created_at, max_snapshot_num, password FROM users WHERE name = ?').get('paired_user'))
-      .toEqual({ created_at: 123, max_snapshot_num: 20, password: '' })
+    const persisted = db.query('SELECT created_at, max_snapshot_num, password_hash FROM users WHERE name = ?').get('paired_user') as any
+    expect(persisted?.created_at).toBe(123)
+    expect(persisted?.max_snapshot_num).toBe(20)
+    expect(persisted?.password_hash).not.toBe('secret')
+    expect(verifyUserPassword(persisted?.password_hash, 'secret')).toBe(true)
     expect(db.query('SELECT name FROM users WHERE name = ?').get('new_user')).toEqual({ name: 'new_user' })
     expect(db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('devices', 'device_snapshot_state')").all()).toEqual([])
   })

@@ -1,2 +1,49 @@
 @config "../../tailwind.player.config.cjs";
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --lx-bg: #f6f8f7;
+    --lx-panel: #ffffff;
+    --lx-text: #17211d;
+    --lx-muted: #6b7a72;
+    --lx-accent: #10b981;
+    --lx-accent-strong: #047857;
+    --lx-border: #dce7e1;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--lx-accent) 55%, white);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .player-responsive-container {
+    container-type: inline-size;
+    width: min(100%, 1680px);
+    margin-inline: auto;
+  }
+
+  .player-cover-frame {
+    aspect-ratio: 1;
+  }
+}

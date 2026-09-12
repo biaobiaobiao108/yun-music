@@ -1,7 +1,5 @@
 import { marked } from 'marked';
 
-export const credentialStorage = window.sessionStorage;
-
 export function stringToColor(str: string): string {
     if (!str) return 'var(--accent-primary)';
     let hash = 0;
@@ -100,13 +98,14 @@ export function formatUptime(seconds: number): string {
 
 export function renderViewError(container: HTMLElement | null, message: string, retryAction?: string): void {
     if (!container) return;
-    const retry = retryAction
-        ? `<div style="margin-top: 0.75rem;"><button type="button" class="btn-secondary" style="padding: 0.4rem 1rem; font-size: 0.85rem;" onclick="${retryAction}">重试</button></div>`
+    const retryMethod = retryAction?.match(/^app\.([A-Za-z0-9_]+)\(\)$/)?.[1];
+    const retryButton = retryMethod
+        ? `<div style="margin-top: 0.75rem;"><button type="button" class="btn-secondary" style="padding: 0.4rem 1rem; font-size: 0.85rem;" data-admin-action="retry" data-admin-method="${escapeHtml(retryMethod)}">重试</button></div>`
         : '';
     container.innerHTML = `
         <div role="alert" style="color: var(--accent-error); text-align: center; padding: 1.5rem;">
             <p style="margin: 0;">${escapeHtml(message)}</p>
-            ${retry}
+            ${retryButton}
         </div>
     `;
     container.hidden = false;

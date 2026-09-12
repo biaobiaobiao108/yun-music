@@ -21,6 +21,7 @@ import {
 } from '../auth'
 import { loginLog } from '@/utils/log4js'
 import { getDb } from '@/database'
+import { verifyUserPassword } from '@/user/data'
 
 /** Web 用户会话只允许通过 HttpOnly Cookie 使用。 */
 export const userSessions = new Map<string, { username: string; createdAt: number }>()
@@ -117,17 +118,23 @@ export const createAuthRouter = (): Router => {
     }, 200, { 'Cache-Control': 'no-cache' })
   })
 
-  router.post('/api/admin/verify', (ctx) => {
-    const ip = ctx.remoteAddress || 'unknown'
-    if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
-    if (!verifyAdminAuth(ctx.request)) {
-      recordLoginFailure(ip)
-      return ctx.fail(401, '管理员密码错误')
+  router.post('/api/admin/verify', async (ctx) => {
+    try {
+      const ip = ctx.remoteAddress || 'unknown'
+      if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
+      const { password } = await ctx.bodyJson<{ password?: string }>()
+      if (!safeStringEqual(password, global.lx.config['frontend.password'])) {
+        recordLoginFailure(ip)
+        loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
+        return ctx.fail(401, '管理员密码错误')
+      }
+      clearLoginFailures(ip)
+      const sessionId = createAdminSession()
+      loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
+      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.url.protocol === 'https:') })
+    } catch {
+      return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
-    clearLoginFailures(ip)
-    const sessionId = createAdminSession()
-    loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.url.protocol === 'https:') })
   })
 
   router.post('/api/login', async (ctx) => {
@@ -160,7 +167,11 @@ export const createAuthRouter = (): Router => {
       const ip = ctx.remoteAddress || 'unknown'
       if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
       const { username, password } = await ctx.bodyJson<{ username?: string; password?: string }>()
-      const user = configuredUsers().find(item => item.name === username && safeStringEqual(item.password, password))
+      const user = configuredUsers().find(item => {
+        if (item.name !== username) return false
+        const row = getDb().query<{ password_hash: string }, [string]>('SELECT password_hash FROM users WHERE name = ?').get(item.name)
+        return verifyUserPassword(row?.password_hash || item.passwordHash, password)
+      })
       if (!user) {
         recordLoginFailure(ip)
         loginLog.warn(`User login failed: ${username || '[unknown]'} from ${ctx.remoteAddress}`)

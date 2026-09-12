@@ -12,7 +12,6 @@ export type SearchFeatureContext = {
     getCurrentPage: () => number;
     setCurrentPage: (page: number) => void;
     getCurrentListData: () => any;
-    getAuthToken: () => string | null;
     getUserAuthHeaders: () => Record<string, string>;
     switchTab: (tabId: string, preserveSearchNavigation?: boolean) => void;
     setCurrentSearchScope: (scope: string) => void;
@@ -430,7 +429,6 @@ async function doSearch(page = 1, append = false, prefetch = false) {
 
     try {
         const headers = {};
-        if (typeof context.getAuthToken() !== 'undefined' && context.getAuthToken()) headers['x-user-token'] = context.getAuthToken();
         Object.assign(headers, getUserAuthHeaders());
 
         let list = [];

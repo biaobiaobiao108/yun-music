@@ -239,87 +239,20 @@ async function batchDeleteFromList() {
     const idsToDelete = Array.from(window.selectedItems);
     let deleted = false;
 
-    if (window.SyncManager.mode === 'local') {
-        // Local mode: Use user credentials to directly manipulate data
-        const username = localStorage.getItem('lx_sync_user');
-        const password = sessionStorage.getItem('lx_sync_pass');
-
-        if (!username || !password) {
-            globalState.showError('请先登录本地账号');
-            return;
-        }
-
-        try {
-            // Call user-specific API endpoint
-            const res = await fetch('/api/music/user/list/remove', {
-                method: 'POST',
-                headers: globalState.getUserAuthHeaders(),
-                body: JSON.stringify({
-                    listId: activeListId,
-                    songIds: idsToDelete
-                })
-            });
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(errorText || '删除失败');
-            }
-
-            // Reload data from server
-            const data = await window.SyncManager.sync();
-            const oldUsername = globalState.currentListData ? globalState.currentListData.username : null;
-            globalState.currentListData = data;
-            if (oldUsername) globalState.currentListData.username = oldUsername; // Preserve username
-            await window.ListStore.set(data).catch(e => console.error('[IDBStore] 保存失败:', e));
-            globalState.renderMyLists(data);
-
-            // Refresh current view
-            globalState.handleListClick(activeListId);
-            deleted = true;
-
-            console.log('[Batch] 本地模式删除成功');
-
-        } catch (e) {
-            globalState.showError('批量删除失败: ' + e.message);
-            console.error('[Batch] 删除错误:', e);
-        }
-    } else if (window.SyncManager.mode === 'remote') {
-        // Remote mode: Modify cache, sync on next connection
-        try {
-            // Get current list
-            const listToModify = getListById(activeListId);
-            if (!listToModify) {
-                throw new Error('找不到当前列表');
-            }
-
-            // Remove items from list
-            const idsSet = new Set(idsToDelete.map(id => String(id)));
-            const remainingItems = listToModify.filter(item => !idsSet.has(String(item.id)));
-            setListById(activeListId, remainingItems);
-
-            // Save to cache
-            await window.ListStore.set(globalState.currentListData).catch(e => console.error('[IDBStore] 保存失败:', e));
-            console.log('[Batch] WS模式:已修改缓存,下次连接时将同步');
-
-            // If currently connected, push the change immediately
-            if (window.SyncManager.client && window.SyncManager.client.isConnected) {
-                try {
-                    await pushDataChange();
-                    console.log('[Batch] WS模式:实时推送成功');
-                } catch (e) {
-                    console.warn('[Batch] WS推送失败(将在下次连接时同步):', e);
-                }
-            }
-
-            // Update UI
-            globalState.renderMyLists(globalState.currentListData);
-            globalState.handleListClick(activeListId);
-            deleted = true;
-
-        } catch (e) {
-            globalState.showError('批量删除失败: ' + e.message);
-            console.error('[Batch] WS删除错误:', e);
-        }
+    try {
+        const res = await fetch('/api/music/user/list/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ listId: activeListId, songIds: idsToDelete })
+        });
+        if (!res.ok) throw new Error((await res.text()) || '删除失败');
+        await globalState.refreshUserListData?.();
+        globalState.handleListClick(activeListId);
+        deleted = true;
+    } catch (e) {
+        globalState.showError('批量删除失败: ' + e.message);
+        console.error('[Batch] 删除错误:', e);
     }
 
     // Clear selection only after the list was actually updated.

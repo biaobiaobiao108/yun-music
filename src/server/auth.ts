@@ -163,16 +163,8 @@ export const checkAdminSession = (source: HeaderSource): boolean => {
   return true
 }
 
-export const verifyAdminAuth = (source: HeaderSource, allowQueryAuth = false, urlObj?: URL): boolean => {
+export const verifyAdminAuth = (source: HeaderSource): boolean => {
   const configuredPassword = global.lx.config?.['frontend.password']
   if (typeof configuredPassword !== 'string' || configuredPassword.trim() === '') return false
-
-  if (safeStringEqual(getHeader(source, 'x-frontend-auth'), configuredPassword)) return true
-  if (checkAdminSession(source)) return true
-
-  if (allowQueryAuth) {
-    const url = urlObj ?? (source instanceof Request ? new URL(source.url) : null)
-    if (url && safeStringEqual(url.searchParams.get('auth'), configuredPassword)) return true
-  }
-  return false
+  return checkAdminSession(source)
 }

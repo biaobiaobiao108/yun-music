@@ -1,119 +1,67 @@
 export interface AuthFeatureContext {
-    credentialStorage: Storage;
-    getCredential: (key: string) => string | null;
-    getUserToken: () => string | null;
-    setUserToken: (token: string | null) => void;
+    getUserName: () => string | null;
+    setUserName: (username: string | null) => void;
     isUserSessionActive: () => boolean;
+    setUserSessionActive: (active: boolean) => void;
     showSelect: (...args: any[]) => Promise<boolean>;
-    handleSyncLogout: (skipConfirm?: boolean) => Promise<void>;
+    handleLogout: (skipConfirm?: boolean) => Promise<void>;
 }
 
+/**
+ * Web-only authentication feature.
+ * Credentials never enter localStorage/sessionStorage and every API request
+ * relies on the HttpOnly same-origin session cookie.
+ */
 export function initAuthFeature(context: AuthFeatureContext) {
-    let userTokenRefreshPromise: Promise<boolean> | null = null;
+    let verifyPromise: Promise<boolean> | null = null;
 
-    /**
-     * 生成用户 API 请求所需的认证 Headers。
-     * 优先使用 Token，若无 Token 则兼容旧的 x-user-password 方式。
-     * 注意：此函数总是返回“真实用户”的凭证，不受公开收藏视图影响。
-     */
     function getUserAuthHeaders(): Record<string, string> {
-        let username = localStorage.getItem('lx_sync_user') || '';
-        if (username === '_open') username = '';
-
-        const headers: Record<string, string> = {};
-        const userToken = context.getUserToken();
-        const adminPass = context.getCredential('lx_admin_password');
-
-        if (userToken) {
-            headers['x-user-name'] = username;
-            headers['x-user-token'] = userToken;
-        } else {
-            const pass = context.getCredential('lx_sync_pass');
-            if (username && pass) {
-                headers['x-user-name'] = username;
-                headers['x-user-password'] = pass;
-            } else if (username) {
-                headers['x-user-name'] = username;
-            }
-        }
-        if (adminPass) headers['x-frontend-auth'] = adminPass;
-        return headers;
+        return {};
     }
 
     function isUserLoggedIn(): boolean {
-        const user = localStorage.getItem('lx_sync_user');
-        const token = context.getCredential('lx_user_token');
-        const pass = context.getCredential('lx_sync_pass');
-        return !!user && user !== '_open' && !!(token || pass || context.isUserSessionActive());
+        return Boolean(context.getUserName() && context.isUserSessionActive());
     }
 
     function isPublicLibraryContext(): boolean {
         return !isUserLoggedIn();
     }
 
-    async function ensureUserAuthToken(options: { force?: boolean } = {}): Promise<boolean> {
-        const force = options.force === true;
-        const username = localStorage.getItem('lx_sync_user') || '';
-        const password = context.getCredential('lx_sync_pass') || '';
-        const currentToken = context.getUserToken();
-
-        if (!username || !password) {
-            if (force) {
-                context.setUserToken(null);
-                context.credentialStorage.removeItem('lx_user_token');
-                updateUserUI();
-            }
-            return false;
-        }
-        if (currentToken && !force) return true;
-        if (userTokenRefreshPromise) return userTokenRefreshPromise;
-
-        userTokenRefreshPromise = (async () => {
-            if (force) {
-                context.setUserToken(null);
-                context.credentialStorage.removeItem('lx_user_token');
-            }
+    async function ensureUserSession(options: { force?: boolean } = {}): Promise<boolean> {
+        if (verifyPromise && !options.force) return verifyPromise;
+        verifyPromise = (async () => {
             try {
-                const response = await fetch('/api/user/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                if (!response.ok) return false;
-
-                const result = await response.json();
-                if (!result.success || !result.token) return false;
-
-                context.setUserToken(result.token);
-                context.credentialStorage.setItem('lx_user_token', result.token);
+                const response = await fetch('/api/user/auth/verify', { credentials: 'same-origin', cache: 'no-store' });
+                const result = await response.json() as { valid?: boolean; username?: string | null };
+                const active = response.ok && result.valid === true && Boolean(result.username);
+                context.setUserSessionActive(active);
+                context.setUserName(active ? result.username! : null);
                 updateUserUI();
-                return true;
-            } catch (error) {
-                console.warn('[Auth] Token 自动续签失败:', error);
+                return active;
+            } catch {
+                context.setUserSessionActive(false);
+                updateUserUI();
                 return false;
             } finally {
-                userTokenRefreshPromise = null;
+                verifyPromise = null;
             }
         })();
-
-        return userTokenRefreshPromise;
+        return verifyPromise;
     }
 
-    /** 更新顶部栏的用户状态显示。 */
-    function updateUserUI() {
+    function updateUserUI(): void {
         const loginBtn = document.getElementById('header-login-btn');
         const userDisplay = document.getElementById('header-user-display');
         const usernameEl = document.getElementById('header-username');
         if (!loginBtn || !userDisplay || !usernameEl) return;
 
-        const username = localStorage.getItem('lx_sync_user');
-        const token = context.getCredential('lx_user_token');
-        if ((token || context.isUserSessionActive()) && username) {
+        const username = context.getUserName();
+        if (username && context.isUserSessionActive()) {
             loginBtn.classList.add('hidden');
             loginBtn.classList.remove('flex');
             userDisplay.classList.add('flex');
             userDisplay.classList.remove('hidden');
-            usernameEl.innerText = username;
+            usernameEl.textContent = username;
         } else {
             loginBtn.classList.add('flex');
             loginBtn.classList.remove('hidden');
@@ -122,20 +70,17 @@ export function initAuthFeature(context: AuthFeatureContext) {
         }
     }
 
-    /** 顶部栏退出登录处理。 */
-    async function handleHeaderLogout(event?: Event) {
+    async function handleHeaderLogout(event?: Event): Promise<void> {
         event?.stopPropagation();
-        await context.handleSyncLogout(false);
+        await context.handleLogout(false);
     }
 
-    const feature = {
+    return {
         getUserAuthHeaders,
         isUserLoggedIn,
         isPublicLibraryContext,
-        ensureUserAuthToken,
+        ensureUserSession,
         updateUserUI,
         handleHeaderLogout,
     };
-    Object.assign(window, feature);
-    return feature;
 }

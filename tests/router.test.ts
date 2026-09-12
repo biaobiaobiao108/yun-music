@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { Router, corsMiddleware, HttpContext } from '@/server/core'
+import { Router, corsMiddleware, securityHeadersMiddleware, HttpContext } from '@/server/core'
 
 describe('Core Router & HttpContext', () => {
   test('Exact route match and JSON response', async () => {
@@ -73,7 +73,7 @@ describe('Core Router & HttpContext', () => {
     expect(trail).toEqual(['m1_start', 'm2_start', 'handler', 'm2_end', 'm1_end'])
   })
 
-  test('CORS middleware and OPTIONS preflight', async () => {
+  test('same-origin CORS policy and OPTIONS preflight', async () => {
     const router = new Router()
     router.use(corsMiddleware)
     router.get('/api/data', (ctx) => ctx.json({ ok: true }))
@@ -82,14 +82,31 @@ describe('Core Router & HttpContext', () => {
     const optReq = new Request('http://localhost:9527/api/data', { method: 'OPTIONS' })
     const optRes = await router.handle(optReq)
     expect(optRes.status).toBe(204)
-    expect(optRes.headers.get('Access-Control-Allow-Origin')).toBe('*')
     expect(optRes.headers.get('Access-Control-Allow-Methods')).toContain('GET')
 
     // Actual GET
     const getReq = new Request('http://localhost:9527/api/data', { method: 'GET' })
     const getRes = await router.handle(getReq)
     expect(getRes.status).toBe(200)
-    expect(getRes.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(getRes.headers.get('Access-Control-Allow-Origin')).toBeNull()
+
+    const crossOrigin = await router.handle(new Request('http://localhost:9527/api/data', {
+      headers: { Origin: 'https://attacker.example' },
+    }))
+    expect(crossOrigin.status).toBe(403)
+  })
+
+  test('security middleware adds request tracing and browser policy headers', async () => {
+    const router = new Router()
+    router.use(securityHeadersMiddleware)
+    router.get('/healthz', (ctx) => ctx.json({ ok: true }))
+
+    const res = await router.handle(new Request('http://localhost:9527/healthz'))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('X-Request-ID')).toMatch(/^[A-Za-z0-9._-]{1,64}$/)
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin')
+    expect(res.headers.get('X-Frame-Options')).toBe('DENY')
   })
 
   test('Context cookie and query parsing', async () => {

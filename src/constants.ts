@@ -47,7 +47,6 @@ export const File = {
   userDir: 'users',
   userSettingsJSON: 'settings.json',
   userSoundEffectsJSON: 'soundEffects.json',
-  userTokensJSON: 'token.json',
   listDir: 'list',
   listSnapshotDir: 'snapshot',
   listSnapshotInfoJSON: 'snapshotInfo.json',

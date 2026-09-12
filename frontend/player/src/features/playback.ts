@@ -475,7 +475,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         // 普通播放的缓存提示延迟到 play() 成功后，避免失效链接先显示“命中”再静默失败。
         // 在线解析 (sourceType === 'normal') 的成功提示已由 fetchSongUrl 中的进度监听处理，此处不再重复显示
 
-        // [Real-time Progress handles attempts now via WebSocket]
+        // The Web player keeps progress local and updates the fixed player bar directly.
 
         if (urlResult.errorMsg) {
             showError(urlResult.errorMsg);
@@ -502,7 +502,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             try {
                 const _lyricHeaders = { 'Content-Type': 'application/json' };
                 Object.assign(_lyricHeaders, getUserAuthHeaders());
-                // x-user-token 现在由 getUserAuthHeaders 统一管理
+                // 会话 Cookie 由浏览器自动携带，播放模块不接触认证凭据。
                 fetch(`${API_BASE}/cache/lyric`, {
                     method: 'POST',
                     headers: _lyricHeaders,

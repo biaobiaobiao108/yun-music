@@ -180,85 +180,19 @@ async function deleteSingleSong(songId) {
 
     const normalizedSongId = String(songId);
 
-    if (window.SyncManager.mode === 'local') {
-        // Local mode: Use user credentials
-        const username = localStorage.getItem('lx_sync_user');
-        const password = sessionStorage.getItem('lx_sync_pass');
-
-        if (!username || !password) {
-            globalState.showError('请先登录本地账号');
-            return;
-        }
-
-        try {
-            const res = await fetch('/api/music/user/list/remove', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...globalState.getUserAuthHeaders()
-                },
-                body: JSON.stringify({
-                    listId: activeListId,
-                    songIds: [normalizedSongId]
-                })
-            });
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(errorText || '删除失败');
-            }
-
-            // Reload data from server
-            const data = await window.SyncManager.sync();
-            const oldUsername = globalState.currentListData ? globalState.currentListData.username : null;
-            globalState.currentListData = data;
-            if (oldUsername) globalState.currentListData.username = oldUsername; // Preserve username
-            await window.ListStore.set(data).catch(e => console.error('[IDBStore] 保存失败:', e));
-            globalState.renderMyLists(data);
-
-            // Refresh current view
-            globalState.handleListClick(activeListId);
-
-            console.log('[Single] 本地模式删除成功');
-
-        } catch (e) {
-            globalState.showError('删除失败: ' + e.message);
-            console.error('[Single] 删除错误:', e);
-        }
-    } else if (window.SyncManager.mode === 'remote') {
-        // Remote mode: Modify cache
-        try {
-            const listToModify = getListById(activeListId);
-            if (!listToModify) {
-                throw new Error('找不到当前列表');
-            }
-
-            // Remove item from list
-            const remainingItems = listToModify.filter(item => String(item.id) !== normalizedSongId);
-            setListById(activeListId, remainingItems);
-
-            // Save to cache
-            await window.ListStore.set(globalState.currentListData).catch(e => console.error('[IDBStore] 保存失败:', e));
-            console.log('[Single] WS模式:已修改缓存,下次连接时将同步');
-
-            // If currently connected, push the change immediately
-            if (window.SyncManager.client && window.SyncManager.client.isConnected) {
-                try {
-                    await pushDataChange();
-                    console.log('[Single] WS模式:实时推送成功');
-                } catch (e) {
-                    console.warn('[Single] WS推送失败(将在下次连接时同步):', e);
-                }
-            }
-
-            // Update UI
-            globalState.renderMyLists(globalState.currentListData);
-            globalState.handleListClick(activeListId);
-
-        } catch (e) {
-            globalState.showError('删除失败: ' + e.message);
-            console.error('[Single] WS删除错误:', e);
-        }
+    try {
+        const res = await fetch('/api/music/user/list/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ listId: activeListId, songIds: [normalizedSongId] })
+        });
+        if (!res.ok) throw new Error((await res.text()) || '删除失败');
+        await globalState.refreshUserListData?.();
+        globalState.handleListClick(activeListId);
+    } catch (e) {
+        globalState.showError('删除失败: ' + e.message);
+        console.error('[Single] 删除错误:', e);
     }
 }
 

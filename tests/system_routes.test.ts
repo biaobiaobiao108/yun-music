@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
+import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
 ;(global as any).lx = {
   dataPath: 'd:\\test_data',
@@ -28,7 +29,7 @@ describe('System Routes (routes/system.ts)', () => {
 
     // With admin auth
     const req2 = new Request('http://localhost:9527/api/stats', {
-      headers: { 'x-frontend-auth': 'admin_secret' },
+      headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
     })
     const res2 = await router.handle(req2)
     expect(res2.status).toBe(200)
@@ -41,7 +42,7 @@ describe('System Routes (routes/system.ts)', () => {
     const router = createSystemRouter()
 
     const req = new Request('http://localhost:9527/api/config', {
-      headers: { 'x-frontend-auth': 'admin_secret' },
+      headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
     })
     const res = await router.handle(req)
     expect(res.status).toBe(200)
@@ -52,7 +53,7 @@ describe('System Routes (routes/system.ts)', () => {
   test('removed external protocol endpoints are unavailable', async () => {
     const router = createSystemRouter()
     const res = await router.handle(new Request('http://localhost:9527/api/webdav/logs', {
-      headers: { 'x-frontend-auth': 'admin_secret' },
+      headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
     }))
     expect(res.status).toBe(404)
   })

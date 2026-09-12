@@ -11,6 +11,7 @@ import {
   migrateUserData,
   finishRenameUserSpace,
   syncUsersToDatabase,
+  hashUserPassword,
   deleteUserDataFromDatabase,
   releaseUserSpace,
 } from '@/user'
@@ -22,7 +23,7 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | null => {
   const config = (global.lx?.config ?? {}) as any
   const targetUserParam = ctx.query.get('user') || ''
-  const reqUsername = ctx.headers.get('x-user-name') || targetUserParam
+  const reqUsername = targetUserParam
   const isAdmin = verifyAdminAuth(ctx.request)
   const tokenUser = verifyUserAuth(ctx)
 
@@ -59,19 +60,7 @@ const saveUsers = () => {
     console.error('Failed to sync users to SQLite:', err)
   }
 
-  const usersJsonPath = path.join(global.lx.dataPath, 'users.json')
-  try {
-    fs.writeFileSync(usersJsonPath, JSON.stringify(global.lx.config.users.map((u: any) => ({
-      name: u.name,
-      password: u.password,
-      maxSnapshotNum: u.maxSnapshotNum,
-      'list.addMusicLocationType': u['list.addMusicLocationType'],
-    })), null, 2))
-    return true
-  } catch (err) {
-    console.error('Failed to save users.json', err)
-    return false
-  }
+  return true
 }
 
 const resolveSnapshotUsername = (ctx: HttpContext, userParam: string, write = false): string | null => {
@@ -102,7 +91,7 @@ export const createUserRouter = (): Router => {
   // 0. 用户账户管理 (GET / POST / PUT / DELETE /api/users)
   router.get('/api/users', (ctx) => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const users = (global.lx.config.users || []).map((u: any) => ({ name: u.name, hasPassword: Boolean(u.password) }))
+    const users = (global.lx.config.users || []).map((u: any) => ({ name: u.name, hasPassword: Boolean(u.passwordHash || u.password) }))
     if (global.lx.config['user.enablePublicFavorites']) {
       users.unshift({ name: '_open', hasPassword: false })
     }
@@ -178,7 +167,10 @@ export const createUserRouter = (): Router => {
           migrateUserData(name, newName)
           revokeUserAuth(name)
           user.name = newName
-          if (password) user.password = password
+          if (password) {
+            user.passwordHash = hashUserPassword(password)
+            user.password = ''
+          }
           saveUsers()
           return ctx.json({ success: true })
         } catch (err: any) {
@@ -187,7 +179,10 @@ export const createUserRouter = (): Router => {
           finishRenameUserSpace(name)
         }
       } else {
-        if (password) user.password = password
+        if (password) {
+          user.passwordHash = hashUserPassword(password)
+          user.password = ''
+        }
         saveUsers()
         return ctx.json({ success: true })
       }
@@ -276,7 +271,7 @@ export const createUserRouter = (): Router => {
     }
 
     try {
-      const listData = await ctx.bodyJson()
+      const listData = await ctx.bodyJson<LX.List.ListData>()
       const userSpace = getUserSpace(username)
       await userSpace.listManage.listDataManage.restore(listData)
       await userSpace.listManage.createSnapshot()
@@ -363,7 +358,7 @@ export const createUserRouter = (): Router => {
 
   // 4. 用户设置 (GET & POST /api/user/settings)
   router.get('/api/user/settings', (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name')
+    const reqUsername = ctx.query.get('user') || ''
     const isPublic = !reqUsername || reqUsername === 'default'
     let resolvedUsername: string | null = null
 
@@ -396,7 +391,7 @@ export const createUserRouter = (): Router => {
   })
 
   router.post('/api/user/settings', async (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name')
+    const reqUsername = ctx.query.get('user') || ''
     const isPublic = !reqUsername || reqUsername === 'default'
     let resolvedUsername: string | null = null
     const config = (global.lx?.config ?? {}) as any
@@ -417,7 +412,7 @@ export const createUserRouter = (): Router => {
     }
 
     try {
-      let settings = await ctx.bodyJson()
+      let settings = await ctx.bodyJson<Record<string, unknown>>()
 
       if (resolvedUsername === '_open' && config['user.enablePublicRestriction']) {
         const restrictedSettings: any = {}

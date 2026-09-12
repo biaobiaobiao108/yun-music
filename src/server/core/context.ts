@@ -20,9 +20,10 @@ export class HttpContext {
   readonly method: string
   readonly query: URLSearchParams
   readonly headers: Headers
-  readonly state = new Map<string, any>()
+  readonly state = new Map<string, unknown>()
   readonly params: Record<string, string> = {}
   readonly remoteAddress: string
+  readonly requestId: string
 
   private _cookies: Record<string, string> | null = null
 
@@ -34,6 +35,10 @@ export class HttpContext {
     this.query = this.url.searchParams
     this.headers = request.headers
     this.remoteAddress = this.resolveRemoteAddress(options?.remoteAddress)
+    const incomingRequestId = request.headers.get('x-request-id')?.trim() || ''
+    this.requestId = /^[A-Za-z0-9._-]{1,64}$/.test(incomingRequestId)
+      ? incomingRequestId
+      : crypto.randomUUID()
   }
 
   /**
@@ -77,7 +82,7 @@ export class HttpContext {
   }
 
   /** 解析 JSON 请求体 */
-  async bodyJson<T = any>(): Promise<T> {
+  async bodyJson<T = unknown>(): Promise<T> {
     try {
       return JSON.parse(await this.readBodyText()) as T
     } catch {
@@ -131,7 +136,7 @@ export class HttpContext {
   }
 
   /** 构造 JSON 响应 */
-  json(data: any, status = 200, headers?: HeadersInit): Response {
+  json(data: unknown, status = 200, headers?: HeadersInit): Response {
     return Response.json(data, {
       status,
       headers,

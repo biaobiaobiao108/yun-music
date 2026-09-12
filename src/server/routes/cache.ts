@@ -16,6 +16,7 @@ import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import { accessLog } from '@/utils/log4js'
 import { assertSafeRemoteHttpUrl } from '../networkSecurity'
 import { resolveInside } from '@/utils/pathSecurity'
+import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 
 /** Keep upstream buffers bounded by downstream demand; cancellation tears down the whole pipeline. */
@@ -51,9 +52,14 @@ const getMusicTagNative = (): MusicTagNative => {
 
 /** 辅助获取缓存与下载任务的目标用户名 */
 const getCacheRequestUsername = (ctx: HttpContext): string | null => {
-  const requested = ctx.headers.get('x-user-name') || ''
-  if (!requested || requested === 'default' || requested === 'open' || requested === '_open') return '_open'
-  return verifyUserAuth(ctx)
+  const requested = ctx.query.get('user')?.trim() || ''
+  const verified = verifyUserAuth(ctx)
+  const isAdmin = verifyAdminAuth(ctx.request)
+  if (!requested || requested === 'default' || requested === 'open' || requested === '_open') return verified || '_open'
+  if (isAdmin) {
+    try { return assertSafePathSegment(requested, 'user name') } catch { return null }
+  }
+  return verified === requested ? verified : null
 }
 
 type CacheTargetResult = { ok: true; username: string } | { ok: false; error: Response }
@@ -67,18 +73,23 @@ const resolveCacheTarget = (
   ctx: HttpContext,
   options: { publicWrite?: boolean } = {},
 ): CacheTargetResult => {
-  const requested = ctx.headers.get('x-user-name') || ''
+  const requested = ctx.query.get('user')?.trim() || ''
   const isPublic = !requested || requested === 'default' || requested === 'open' || requested === '_open'
+  const verified = verifyUserAuth(ctx)
+  const isAdmin = verifyAdminAuth(ctx.request)
 
   if (isPublic) {
-    if (options.publicWrite && !verifyAdminAuth(ctx.request)) {
+    if (verified) return { ok: true, username: verified }
+    if (options.publicWrite && !isAdmin) {
       return { ok: false, error: ctx.fail(403, '权限不足：修改公共本地音乐库需要先验证管理员身份') }
     }
     return { ok: true, username: '_open' }
   }
 
-  const verified = verifyUserAuth(ctx)
-  if (!verified) return { ok: false, error: ctx.fail(401, '登录状态已失效，请重新登录') }
+  if (isAdmin) {
+    try { return { ok: true, username: assertSafePathSegment(requested, 'user name') } } catch { return { ok: false, error: ctx.fail(400, '用户名不合法') } }
+  }
+  if (!verified || verified !== requested) return { ok: false, error: ctx.fail(401, '登录状态已失效，请重新登录') }
   return { ok: true, username: verified }
 }
 
@@ -147,15 +158,8 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/sync', async (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name') || ''
-    const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default'
-    let username = '_open'
-
-    if (!isPublic) {
-      const verified = verifyUserAuth(ctx)
-      if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = verified
-    }
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     try {
       await fileCache.syncCacheIndex(username)
@@ -166,15 +170,8 @@ export const createCacheRouter = (): Router => {
   })
 
   router.get('/api/music/cache/subdirs', (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name') || ctx.query.get('user') || ''
-    const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default'
-    let username = '_open'
-
-    if (!isPublic) {
-      const verified = verifyUserAuth(ctx)
-      if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = verified
-    }
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     const folder = (ctx.query.get('folder') as 'cache' | 'music') || 'music'
     const subdirs = fileCache.getSubDirectories(username, folder)
     return ctx.json({ success: true, data: subdirs })
@@ -237,15 +234,8 @@ export const createCacheRouter = (): Router => {
       return ctx.fail(400, '缺少必要参数')
     }
 
-    const reqUsername = ctx.headers.get('x-user-name') || ''
-    const isPublic = !reqUsername || reqUsername === 'default'
-    let username = '_open'
-
-    if (!isPublic) {
-      const verified = verifyUserAuth(ctx)
-      if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = verified
-    }
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     const result = fileCache.checkCache({ name, singer, source, songmid, songId, quality, exactQuality }, username)
     return ctx.json(result)
@@ -341,15 +331,8 @@ export const createCacheRouter = (): Router => {
       if (!songInfo || !url) return ctx.fail(400, '缺少必要参数')
       const safeDownloadUrl = await assertSafeRemoteHttpUrl(String(url))
 
-      const reqUsername = ctx.headers.get('x-user-name') || ''
-      const isPublic = !reqUsername || reqUsername === 'default'
-      let username = '_open'
-
-      if (!isPublic) {
-        const verified = verifyUserAuth(ctx)
-        if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-        username = verified
-      }
+      const username = getCacheRequestUsername(ctx)
+      if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
       if (namingPattern && verifyAdminAuth(ctx.request)) {
         const normalizedNamingPattern = fileCache.setNamingPattern(namingPattern)
@@ -384,15 +367,8 @@ export const createCacheRouter = (): Router => {
 
   // 6. 停止下载任务
   router.post('/api/music/cache/stop', async (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name') || ''
-    const isPublic = !reqUsername || reqUsername === 'default'
-    let username = '_open'
-
-    if (!isPublic) {
-      const verified = verifyUserAuth(ctx)
-      if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = verified
-    }
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     try {
       const { songKey, queueId, all } = await ctx.bodyJson<{ songKey?: string; queueId?: string; all?: boolean }>()
@@ -515,15 +491,8 @@ export const createCacheRouter = (): Router => {
 
   // 8. 缓存统计与清理
   router.get('/api/music/cache/stats', (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name') || ''
-    const isPublic = !reqUsername || reqUsername === 'default'
-    let username = '_open'
-
-    if (!isPublic) {
-      const verified = verifyUserAuth(ctx)
-      if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = verified
-    }
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const stats = fileCache.getCacheStats(username)
       return ctx.json({ success: true, data: stats })
@@ -569,7 +538,7 @@ export const createCacheRouter = (): Router => {
 
   router.get('/api/music/cache/list', async (ctx) => {
     const targetUserParam = ctx.query.get('user')
-    const reqUsername = targetUserParam || ctx.headers.get('x-user-name') || ''
+    const reqUsername = targetUserParam || ''
     const isAdmin = verifyAdminAuth(ctx.request)
     const isPublic = !reqUsername || reqUsername === 'default' || reqUsername === '_open' || targetUserParam === '_open'
     let username = '_open'
@@ -605,7 +574,7 @@ export const createCacheRouter = (): Router => {
   })
 
   router.get('/api/music/cache/cover', async (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name') || ctx.query.get('user') || ''
+    const reqUsername = ctx.query.get('user') || ''
     const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default'
     let username = '_open'
 
@@ -632,7 +601,7 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/remove', async (ctx) => {
-    const reqUsername = ctx.headers.get('x-user-name') || ''
+    const reqUsername = ctx.query.get('user') || ''
     const isAdmin = verifyAdminAuth(ctx.request)
     const isPublic = !reqUsername || reqUsername === 'default' || reqUsername === '_open'
     let username = '_open'
@@ -919,15 +888,8 @@ export const createCacheRouter = (): Router => {
     const songmid = ctx.query.get('songmid') || ctx.query.get('songId') || ctx.query.get('id')
     const songId = ctx.query.get('songId') || ctx.query.get('id')
 
-    const reqUsername = ctx.headers.get('x-user-name') || ''
-    const isPublic = !reqUsername || reqUsername === 'default'
-    let username = '_open'
-
-    if (!isPublic) {
-      const verified = verifyUserAuth(ctx)
-      if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = verified
-    }
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     if (!source || (!songmid && !songId)) return ctx.fail(400, '缺少必要参数：source、songmid')
 
@@ -947,15 +909,8 @@ export const createCacheRouter = (): Router => {
         lyricsObj?: any
         enableOnlyDownloadMode?: boolean
       }>()
-      const reqUsername = ctx.headers.get('x-user-name') || ''
-      const isPublic = !reqUsername || reqUsername === 'default'
-      let username = '_open'
-
-      if (!isPublic) {
-        const verified = verifyUserAuth(ctx)
-        if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-        username = verified
-      }
+      const username = getCacheRequestUsername(ctx)
+      if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
       if (!songInfo || !lyricsObj) return ctx.fail(400, '缺少必要参数')
 
@@ -1029,7 +984,6 @@ export const createCacheRouter = (): Router => {
 
               const headers: Record<string, string> = {
                 'Content-Type': contentType,
-                'Access-Control-Allow-Origin': '*',
                 'X-Content-Type-Options': 'nosniff',
                 'Content-Security-Policy': "sandbox; default-src 'none'",
               }

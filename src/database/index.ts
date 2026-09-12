@@ -22,11 +22,11 @@ export const initDatabase = (customDbPath?: string): Database => {
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
   ).all().map(row => row.name)
   const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
-  if (currentVersion !== 0 && currentVersion !== 2) {
+  if (currentVersion !== 0 && currentVersion !== 3) {
     db.close()
     throw new Error('数据库版本不兼容，请先执行 bun run reset:instance')
   }
-  if (currentVersion === 0 && existingTables.includes('devices')) {
+  if (currentVersion === 0 && existingTables.length > 0) {
     db.close()
     throw new Error('检测到旧版同步数据库，请先执行 bun run reset:instance')
   }
@@ -48,17 +48,13 @@ export const initDatabase = (customDbPath?: string): Database => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       name TEXT PRIMARY KEY,
-      password TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
       max_snapshot_num INTEGER DEFAULT 10,
       add_music_location_type TEXT DEFAULT 'bottom',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
   `)
-  // Passwords remain in the runtime config for legacy protocol compatibility;
-  // never persist them in the structured database.
-  db.run("UPDATE users SET password = '' WHERE password <> ''")
-
   // 3. 快照数据表 (歌单、黑名单)
   db.run(`
     CREATE TABLE IF NOT EXISTS snapshots (
@@ -100,7 +96,8 @@ export const initDatabase = (customDbPath?: string): Database => {
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_hash TEXT PRIMARY KEY,
       user_name TEXT NOT NULL,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_name) REFERENCES users(name) ON DELETE CASCADE
     );
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_created_at ON user_sessions(created_at);')
@@ -129,7 +126,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_cache_query ON cache_index(location, user_name, folder, song_id);')
 
-  db.run('PRAGMA user_version = 2')
+  db.run('PRAGMA user_version = 3')
 
   dbInstance = db
   stmtCache.clear()

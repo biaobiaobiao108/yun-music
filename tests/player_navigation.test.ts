@@ -12,10 +12,11 @@ describe('Player Navigation and State Restoration Safety', () => {
     const customSelectSrcPath = path.join(import.meta.dir, '../frontend/player/src/custom_select.ts');
     const accessibleOverlaysSrcPath = path.join(import.meta.dir, '../frontend/player/src/accessible_overlays.ts');
     const playerCssPath = path.join(import.meta.dir, '../public/music/css/app.css');
-    const playerDistPath = path.join(import.meta.dir, '../public/music/app.js');
+    const playerPublicDir = path.join(import.meta.dir, '../public/music');
+    const getPlayerDistPath = () => path.join(playerPublicDir, fs.readdirSync(playerPublicDir).find(name => /^app-[a-z0-9]+\.js$/i.test(name)) || 'app.js');
 
     beforeAll(() => {
-        if (!fs.existsSync(playerDistPath)) {
+        if (!fs.existsSync(getPlayerDistPath())) {
             const { execSync } = require('child_process');
             execSync('bun run build:frontend', { cwd: path.join(import.meta.dir, '..'), stdio: 'ignore' });
         }
@@ -27,7 +28,7 @@ describe('Player Navigation and State Restoration Safety', () => {
     });
 
     it('built frontend distribution (public/music/app.js) should not contain _pendingResumeListId', () => {
-        const distContent = fs.readFileSync(playerDistPath, 'utf8');
+        const distContent = fs.readFileSync(getPlayerDistPath(), 'utf8');
         expect(distContent.includes('_pendingResumeListId')).toBe(false);
     });
 
@@ -53,7 +54,7 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(srcContent.includes('(window as any).toggleSidebar = toggleSidebar')).toBe(true);
         expect(srcContent.includes('(window as any).toggleDetailCover = toggleDetailCover')).toBe(true);
 
-        const distContent = fs.readFileSync(playerDistPath, 'utf8');
+        const distContent = fs.readFileSync(getPlayerDistPath(), 'utf8');
         expect(distContent.includes('toggleSidebar')).toBe(true);
         expect(distContent.includes('toggleDetailCover')).toBe(true);
     });
@@ -263,7 +264,7 @@ describe('Player Navigation and State Restoration Safety', () => {
     it('artist details keep a single bounded scroll container and restore search pagination', () => {
         const searchContent = fs.readFileSync(searchSrcPath, 'utf8');
         const css = fs.readFileSync(playerCssPath, 'utf8');
-        const distContent = fs.readFileSync(playerDistPath, 'utf8');
+        const distContent = fs.readFileSync(getPlayerDistPath(), 'utf8');
 
         expect(searchContent).toContain('id="artist-detail-view" class="artist-detail-view flex flex-1 min-h-0 flex-col overflow-y-auto custom-scrollbar"');
         expect(searchContent).toContain('container.classList.add(\'artist-detail-active\');');

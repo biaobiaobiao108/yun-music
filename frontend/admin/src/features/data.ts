@@ -38,19 +38,19 @@ export function initDataFeature(context: AdminFeatureContext) {
             totalSongs += defaultCount + loveCount;
 
             document.getElementById('data-stats').innerHTML = `
-                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看总歌曲数" onclick="app.viewAllSongs()" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); app.viewAllSongs(); }">
+                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看总歌曲数" data-admin-action="view-all-songs">
                     <h4>总歌曲数</h4>
                     <div class="value">${totalSongs}</div>
                 </div>
-                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看试听列表" onclick="app.viewSystemList('default')" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); app.viewSystemList('default'); }">
+                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看试听列表" data-admin-action="view-system-list" data-admin-list-type="default">
                     <h4>试听列表</h4>
                     <div class="value">${defaultCount}</div>
                 </div>
-                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看我的收藏" onclick="app.viewSystemList('love')" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); app.viewSystemList('love'); }">
+                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看我的收藏" data-admin-action="view-system-list" data-admin-list-type="love">
                     <h4>我的收藏</h4>
                     <div class="value">${loveCount}</div>
                 </div>
-                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看自定义列表" onclick="app.renderPlaylists()" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); app.renderPlaylists(); }">
+                <div class="data-stat-card clickable" role="button" tabindex="0" aria-label="查看自定义列表" data-admin-action="render-playlists">
                     <h4>自定义列表</h4>
                     <div class="value">${userListCount}</div>
                 </div>
@@ -99,14 +99,14 @@ export function initDataFeature(context: AdminFeatureContext) {
                             </div>
                         </div>
                         <div class="playlist-card-actions">
-                            <button class="btn-view" onclick="app.viewPlaylistDetails(${index})">
+                            <button class="btn-view" data-admin-action="view-playlist" data-admin-index="${index}">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                     <circle cx="12" cy="12" r="3"/>
                                 </svg>
                                 查看详情
                             </button>
-                            <button class="btn-delete-playlist" onclick="app.deletePlaylist(${index})">
+                            <button class="btn-delete-playlist" data-admin-action="delete-playlist" data-admin-index="${index}">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                                 </svg>
@@ -132,7 +132,7 @@ export function initDataFeature(context: AdminFeatureContext) {
 
         let content = `
             <div class="playlist-detail-header">
-                <button onclick="app.renderPlaylists()" class="btn-back">
+                <button data-admin-action="render-playlists" class="btn-back">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
                     </svg>
@@ -140,7 +140,7 @@ export function initDataFeature(context: AdminFeatureContext) {
                 </button>
                 <div class="playlist-title-row">
                     <h3 id="playlist-name-${index}">${app.escapeHtml(playlist.name)}</h3>
-                    <button onclick="app.editPlaylistName(${index})" class="btn-edit-name" title="编辑名称">
+                    <button data-admin-action="edit-playlist" data-admin-index="${index}" class="btn-edit-name" title="编辑名称">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -158,12 +158,12 @@ export function initDataFeature(context: AdminFeatureContext) {
             content += `
                 <div class="search-sort-bar">
                     <div class="search-box">
-                        <input type="text" id="song-search" placeholder="搜索歌曲、歌手..." oninput="app.filterSongs()">
+                        <input type="text" id="song-search" placeholder="搜索歌曲、歌手..." data-admin-action="filter-songs">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                         </svg>
                     </div>
-                    <select id="song-sort" onchange="app.sortSongs()" class="sort-select">
+                    <select id="song-sort" data-admin-action="sort-songs" class="sort-select">
                         <option value="">默认排序</option>
                         <option value="name-asc">歌曲名 ↑</option>
                         <option value="name-desc">歌曲名 ↓</option>
@@ -173,11 +173,11 @@ export function initDataFeature(context: AdminFeatureContext) {
                 </div>
                 <div class="batch-actions">
                     <div class="batch-select-btns">
-                        <button onclick="app.selectAllSongs()" class="btn-batch">全选</button>
-                        <button onclick="app.invertSelection()" class="btn-batch">反选</button>
-                        <button onclick="app.clearSelection()" class="btn-batch">清空</button>
+                        <button data-admin-action="select-all-songs" class="btn-batch">全选</button>
+                        <button data-admin-action="invert-selection" class="btn-batch">反选</button>
+                        <button data-admin-action="clear-selection" class="btn-batch">清空</button>
                     </div>
-                    <button onclick="app.batchDeleteSongs()" class="btn-batch-delete" id="batch-delete-btn" disabled>
+                    <button data-admin-action="batch-delete-songs" class="btn-batch-delete" id="batch-delete-btn" disabled>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                         </svg>
@@ -189,7 +189,7 @@ export function initDataFeature(context: AdminFeatureContext) {
             content += `
                 <div class="songs-table-header with-checkbox">
                     <div class="song-col-checkbox">
-                        <input type="checkbox" id="select-all-checkbox" onchange="app.toggleAllSongs(this.checked)">
+                        <input type="checkbox" id="select-all-checkbox" data-admin-action="toggle-all-songs">
                     </div>
                     <div class="song-col-index">#</div>
                     <div class="song-col-name">歌曲</div>
@@ -202,13 +202,13 @@ export function initDataFeature(context: AdminFeatureContext) {
                 content += `
                     <div class="song-row with-checkbox">
                         <div class="song-col-checkbox">
-                            <input type="checkbox" class="song-checkbox" data-index="${songIndex}" onchange="app.updateBatchDeleteBtn()">
+                        <input type="checkbox" class="song-checkbox" data-index="${songIndex}" data-admin-action="update-batch-delete">
                         </div>
                         <div class="song-col-index">${songIndex + 1}</div>
                         ${app.renderSongNameCell(song)}
                         <div class="song-col-artist">${app.escapeHtml(song.singer || '未知歌手')}</div>
                         <div class="song-col-actions">
-                            <button class="btn-delete-song" onclick="app.deleteSong(${index}, ${songIndex})" title="删除歌曲">
+                            <button class="btn-delete-song" data-admin-action="delete-song" data-admin-playlist-index="${index}" data-admin-song-index="${songIndex}" title="删除歌曲">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                                 </svg>
@@ -311,7 +311,7 @@ export function initDataFeature(context: AdminFeatureContext) {
 
         let content = `
             <div class="playlist-detail-header">
-                <button onclick="app.renderPlaylists()" class="btn-back">
+                <button data-admin-action="render-playlists" class="btn-back">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
                     </svg>
@@ -344,7 +344,7 @@ export function initDataFeature(context: AdminFeatureContext) {
                         ${app.renderSongNameCell(song)}
                         <div class="song-col-artist">${app.escapeHtml(song.singer || '未知歌手')}</div>
                         <div class="song-col-actions">
-                            <button class="btn-delete-song" onclick="app.deleteSong('${listType}', ${songIndex})" title="删除歌曲">
+                            <button class="btn-delete-song" data-admin-action="delete-song" data-admin-playlist-type="${app.escapeHtml(listType)}" data-admin-song-index="${songIndex}" title="删除歌曲">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                                 </svg>
@@ -574,7 +574,7 @@ export function initDataFeature(context: AdminFeatureContext) {
 
         let content = `
             <div class="playlist-detail-header">
-                <button onclick="app.renderPlaylists()" class="btn-back">
+                <button data-admin-action="render-playlists" class="btn-back">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
                     </svg>
@@ -591,12 +591,12 @@ export function initDataFeature(context: AdminFeatureContext) {
             content += `
                 <div class="search-sort-bar">
                     <div class="search-box">
-                        <input type="text" id="song-search" placeholder="搜索歌曲、歌手..." oninput="app.filterSongs()">
+                        <input type="text" id="song-search" placeholder="搜索歌曲、歌手..." data-admin-action="filter-songs">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                         </svg>
                     </div>
-                    <select id="song-sort" onchange="app.sortSongs()" class="sort-select">
+                    <select id="song-sort" data-admin-action="sort-songs" class="sort-select">
                         <option value="">默认排序</option>
                         <option value="name-asc">歌曲名 ↑</option>
                         <option value="name-desc">歌曲名 ↓</option>

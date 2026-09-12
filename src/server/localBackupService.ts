@@ -43,8 +43,6 @@ export const createLocalBackup = async (): Promise<string> => {
       const configPath = process.env.CONFIG_PATH || path.join(global.lx.dataPath, 'config.js')
       if (fs.existsSync(configPath)) archive.file(configPath, { name: 'config.js' })
 
-      const usersPath = path.join(global.lx.dataPath, 'users.json')
-      if (fs.existsSync(usersPath)) archive.file(usersPath, { name: 'users.json' })
       if (fs.existsSync(global.lx.userPath)) archive.directory(global.lx.userPath, 'users')
 
       void archive.finalize().catch(fail)

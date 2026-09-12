@@ -9,6 +9,7 @@ import { Readable } from 'node:stream'
 import * as identify from '@/server/utils/identify'
 import * as fileCache from '@/server/fileCache'
 import { createCacheRouter, createProxyResponseStream } from '@/server/routes/cache'
+import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
 test('proxy stream bounds unread data and cancels the upstream transport', async () => {
   let produced = 0
@@ -83,8 +84,9 @@ test('local identification resolves its module and forwards a bounded file path'
   const cacheDir = spyOn(fileCache, 'getCacheDir').mockReturnValue(dir)
   const identifySong = spyOn(identify, 'identifyLocalSong').mockResolvedValue([{ name: 'Identified song' }] as any)
   try {
-    const request = (filename: string) => createCacheRouter().handle(new Request('http://localhost/api/music/identify', {
-      method: 'POST', headers: { 'x-frontend-auth': 'identify-admin', 'content-type': 'application/json' },
+  const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+  const request = (filename: string) => createCacheRouter().handle(new Request('http://localhost/api/music/identify', {
+      method: 'POST', headers: { cookie: adminCookie, 'content-type': 'application/json' },
       body: JSON.stringify({ filename }),
     }))
     const response = await request('song.mp3')

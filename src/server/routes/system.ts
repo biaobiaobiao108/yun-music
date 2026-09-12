@@ -7,7 +7,6 @@ import { toUserMessage } from '../core/context'
 import { verifyAdminAuth } from '../auth'
 import { serverStatus } from '../state'
 import { startupLog } from '@/utils/log4js'
-import { getUserDirname } from '@/user'
 import { resolveInside } from '@/utils/pathSecurity'
 import { createLocalBackup } from '../localBackupService'
 
@@ -68,40 +67,20 @@ export const reloadServerData = async (): Promise<void> => {
     }
   }
 
-  const usersJsonPath = path.join(global.lx.dataPath, 'users.json')
-  if (fs.existsSync(usersJsonPath)) {
-    try {
-      const usersRaw = fs.readFileSync(usersJsonPath, 'utf-8')
-      const users = JSON.parse(usersRaw)
-      if (Array.isArray(users)) {
-        global.lx.config.users = users.map(u => ({
-          ...u,
-          dataPath: path.join(global.lx.userPath, getUserDirname(u.name)),
-        }))
-        for (const user of global.lx.config.users) {
-          if (!fs.existsSync(user.dataPath)) {
-            fs.mkdirSync(user.dataPath, { recursive: true })
-          }
-        }
-      }
-    } catch (err: any) {
-      startupLog.error('Failed to reload users.json:', err.message)
-    }
-  }
 }
 
 /** 注册系统运维与管理相关路由 */
 export const createSystemRouter = (): Router => {
   const router = new Router()
 
-  // 1. 服务运行统计 (CPU/内存/设备数/状态)
+  // 1. 服务运行统计 (CPU/内存/状态)
   router.get('/api/stats', (ctx) => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
     const stats = {
       users: global.lx.config.users?.length ?? 0,
-      connectedDevices: 0,
+      publicAccess: global.lx.config['user.enablePublicNonAdminAccess'] === true,
       serverStatus: serverStatus.status,
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
@@ -150,7 +129,7 @@ export const createSystemRouter = (): Router => {
 
     const status = {
       users: global.lx.config.users.length,
-      devices: 0,
+      publicAccess: global.lx.config['user.enablePublicNonAdminAccess'] === true,
       uptime: process.uptime(),
       memory: process.memoryUsage().rss,
       totalMemory: totalMem,

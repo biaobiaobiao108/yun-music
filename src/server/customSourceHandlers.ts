@@ -1,41 +1,20 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { extractMetadata, loadUserApi, initUserApis, getApiStatus } from './userApi'
-import type { IncomingMessage, ServerResponse } from 'http'
+import type { HttpContext } from './core'
 import { verifyAdminAuth } from './auth'
 import { verifyUserAuth } from './routes/auth'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { assertSafeRemoteHttpUrl } from './networkSecurity'
 
 // 读取请求体
-async function readBody(req: IncomingMessage): Promise<string> {
-    const maxBytes = 5 * 1024 * 1024
-    return new Promise((resolve, reject) => {
-        const chunks: any[] = []
-        let totalBytes = 0
-        let rejected = false
-        req.on('data', chunk => {
-            totalBytes += Buffer.byteLength(chunk)
-            if (totalBytes > maxBytes && !rejected) {
-                rejected = true
-                reject(new Error('Request body is too large'))
-                req.destroy?.()
-                return
-            }
-            chunks.push(chunk)
-        })
-        req.on('end', () => {
-            if (rejected) return
-            const buffer = Buffer.concat(chunks)
-            resolve(buffer.toString('utf-8'))
-        })
-        req.on('error', error => { if (!rejected) reject(error) })
-    })
+async function readBody(ctx: HttpContext): Promise<string> {
+    return ctx.bodyText()
 }
 
-const getRequestedOwner = (req: IncomingMessage, requested?: string): string => {
-    const admin = verifyAdminAuth(req)
-    const tokenUser = verifyUserAuth(req)
+const getRequestedOwner = (ctx: HttpContext, requested?: string): string => {
+    const admin = verifyAdminAuth(ctx.request)
+    const tokenUser = verifyUserAuth(ctx)
     const value = typeof requested === 'string' ? requested.trim() : ''
 
     if (value === 'open' || value === '_open') {
@@ -54,17 +33,17 @@ const getRequestedOwner = (req: IncomingMessage, requested?: string): string => 
     throw new Error('无权操作其他用户的自定义源')
 }
 
-const requireAdmin = (req: IncomingMessage): void => {
-    if (!verifyAdminAuth(req)) throw new Error('管理员权限不足')
+const requireAdmin = (ctx: HttpContext): void => {
+    if (!verifyAdminAuth(ctx.request)) throw new Error('管理员权限不足')
 }
 
 // 验证脚本
-export async function handleValidate(req: IncomingMessage, res: ServerResponse) {
+export async function handleValidate(ctx: HttpContext): Promise<Response> {
     try {
-        const body = await readBody(req)
+        const body = await readBody(ctx)
         const { script, username, allowUnsafeVM } = JSON.parse(body)
 
-        const targetOwner = (username && username !== 'default') ? getRequestedOwner(req, username) : (verifyUserAuth(req) || (requireAdmin(req), 'open'))
+        const targetOwner = (username && username !== 'default') ? getRequestedOwner(ctx, username) : (verifyUserAuth(ctx) || (requireAdmin(ctx), 'open'))
 
         if (!script || typeof script !== 'string') {
             throw new Error('Invalid script content')
@@ -77,7 +56,7 @@ export async function handleValidate(req: IncomingMessage, res: ServerResponse) 
             id: 'temp_validation',
             script,
             enabled: false,
-            allowUnsafeVM: !!allowUnsafeVM && verifyAdminAuth(req),
+            allowUnsafeVM: !!allowUnsafeVM && verifyAdminAuth(ctx.request),
             ...metadata,
             owner: 'temp' // 临时验证 owner
         } as any)
@@ -92,26 +71,23 @@ export async function handleValidate(req: IncomingMessage, res: ServerResponse) 
                 throw new Error('脚本没有注册任何音源。请确保脚本正确调用了 lx.send("inited", { sources: {...} })')
             }
 
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({
+            return ctx.json({
                 valid: true,
                 metadata,
                 sources: Object.keys(sources),
                 sourcesCount
-            }))
+            })
         } else {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({
+            return ctx.json({
                 valid: false,
                 error: result.error,
                 requireUnsafe: result.requireUnsafe,
                 disabledVM: result.requireUnsafe && !global.lx.config['system.allowUnsafeVM'],
                 metadata // 即使验证失败也返回元数据，方便前端展示
-            }))
+            })
         }
     } catch (err: any) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ valid: false, error: err.message }))
+        return ctx.json({ valid: false, error: err.message }, 400)
     }
 }
 
@@ -179,13 +155,13 @@ function generateId(name?: string, fallbackFilename?: string): string {
 }
 
 // 上传脚本
-export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
+export async function handleUpload(ctx: HttpContext): Promise<Response> {
     try {
-        const body = await readBody(req)
+        const body = await readBody(ctx)
         const { filename, content, username, allowUnsafeVM } = JSON.parse(body)
 
         // 确定 owner 用于后续标识
-        const targetOwner = getRequestedOwner(req, username)
+        const targetOwner = getRequestedOwner(ctx, username)
 
         if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > 5 * 1024 * 1024) {
             throw new Error('Script content is missing or too large')
@@ -200,14 +176,12 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
         }
 
         // 获取脚本信息
-        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, Boolean(allowUnsafeVM) && verifyAdminAuth(req))
+        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, Boolean(allowUnsafeVM) && verifyAdminAuth(ctx.request))
 
         // 核心安全校验：若脚本需要或者指定了 unsafe VM 模式，则必须验证管理员身份
         if (requireUnsafe || allowUnsafeVM) {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }, 403)
             }
         }
 
@@ -215,16 +189,12 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
         if (requireUnsafe) {
             // 如果系统已禁用 VM 模式
             if (!global.lx.config['system.allowUnsafeVM']) {
-                res.writeHead(200, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' }))
-                return
+                return ctx.json({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' })
             }
 
             // 如果未提供标志，则要求确认
             if (!allowUnsafeVM) {
-                res.writeHead(200, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' }))
-                return
+                return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
             }
         }
 
@@ -269,19 +239,17 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
         // 重新加载该用户的API
         await initUserApis(targetOwner)
 
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: true, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM }))
+        return ctx.json({ success: true, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM })
     } catch (err: any) {
         console.error('[CustomSource] Upload error:', err)
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: false, error: err.message }))
+        return ctx.json({ success: false, error: err.message }, 500)
     }
 }
 
 // 从远程URL导入脚本
-export async function handleImport(req: IncomingMessage, res: ServerResponse) {
+export async function handleImport(ctx: HttpContext): Promise<Response> {
     try {
-        const body = await readBody(req)
+        const body = await readBody(ctx)
         const { url, filename, username, allowUnsafeVM } = JSON.parse(body)
 
         if (!url) {
@@ -337,14 +305,12 @@ export async function handleImport(req: IncomingMessage, res: ServerResponse) {
         if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > 5 * 1024 * 1024) {
             throw new Error('Script content is missing or too large')
         }
-        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, allowUnsafeVM && verifyAdminAuth(req))
+        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, allowUnsafeVM && verifyAdminAuth(ctx.request))
 
         // 核心安全校验：若脚本需要或者指定了 unsafe VM 模式，则必须验证管理员身份
         if (requireUnsafe || allowUnsafeVM) {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }, 403)
             }
         }
 
@@ -352,20 +318,16 @@ export async function handleImport(req: IncomingMessage, res: ServerResponse) {
         if (requireUnsafe) {
             // 如果系统已禁用 VM 模式
             if (!global.lx.config['system.allowUnsafeVM']) {
-                res.writeHead(200, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' }))
-                return
+                return ctx.json({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' })
             }
 
             // 如果未提供标志，则要求确认
             if (!allowUnsafeVM) {
-                res.writeHead(200, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' }))
-                return
+                return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
             }
         }
 
-        const targetOwner = getRequestedOwner(req, username)
+        const targetOwner = getRequestedOwner(ctx, username)
 
         const sourcesDir = getSourceDir(targetOwner)
         const metaPath = path.join(sourcesDir, 'sources.json')
@@ -418,19 +380,17 @@ export async function handleImport(req: IncomingMessage, res: ServerResponse) {
         // 重新加载
         await initUserApis(targetOwner)
 
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: true, filename: displayName, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM }))
+        return ctx.json({ success: true, filename: displayName, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM })
     } catch (err: any) {
         console.error('[CustomSource] Import error:', err)
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: false, error: err.message }))
+        return ctx.json({ success: false, error: err.message }, 500)
     }
 }
 
 // 获取列表
 // 如果提供了 username，返回 open + username 的源
 // 如果没提供，只返回 open 的源
-export async function handleList(req: IncomingMessage, res: ServerResponse, username: string) {
+export async function handleList(ctx: HttpContext, username: string): Promise<Response> {
     const openSources: any[] = []
     const userSources: any[] = []
 
@@ -543,27 +503,24 @@ export async function handleList(req: IncomingMessage, res: ServerResponse, user
         })
     }
 
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify(enrichedSources))
+    return ctx.json(enrichedSources)
 }
 
 // 启用/禁用
 // 启用/禁用
-export async function handleToggle(req: IncomingMessage, res: ServerResponse) {
+export async function handleToggle(ctx: HttpContext): Promise<Response> {
     try {
-        const body = await readBody(req)
+        const body = await readBody(ctx)
         const { id, sourceId, enabled, username, allowUnsafeVM } = JSON.parse(body)
         const targetId = id || sourceId
         assertSafePathSegment(targetId, 'source id')
 
-        let targetOwner = getRequestedOwner(req, username)
+        let targetOwner = getRequestedOwner(ctx, username)
 
         // 检查权限限制
         if (targetOwner === 'open') {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '公共源状态切换已受限，仅管理员可操作。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '公共源状态切换已受限，仅管理员可操作。' }, 403)
             }
         }
 
@@ -607,10 +564,8 @@ export async function handleToggle(req: IncomingMessage, res: ServerResponse) {
         // 2. 如果正在修改的是全局公共源 (targetOwner === 'open')
         //    则必须校验管理员密码。
         if (targetOwner === 'open') {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '权限不足：管理全局公开自定义源需要验证管理员身份。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '权限不足：管理全局公开自定义源需要验证管理员身份。' }, 403)
             }
         }
 
@@ -625,9 +580,7 @@ export async function handleToggle(req: IncomingMessage, res: ServerResponse) {
             states[targetId].enabled = enabled !== undefined ? enabled : !(states[targetId].enabled ?? target.enabled)
             fs.writeFileSync(userStatesPath, JSON.stringify(states, null, 2))
 
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ success: true, enabled: states[targetId].enabled }))
-            return
+            return ctx.json({ success: true, enabled: states[targetId].enabled })
         }
 
         const oldEnabled = target.enabled
@@ -635,10 +588,8 @@ export async function handleToggle(req: IncomingMessage, res: ServerResponse) {
 
         // 核心安全校验：如果试图开启 VM 模式（或当前就是 VM 模式），必须要验证管理员密码
         if (target.allowUnsafeVM || allowUnsafeVM) {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '开启/运行 VM 模式脚本需要验证管理员身份。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '开启/运行 VM 模式脚本需要验证管理员身份。' }, 403)
             }
         }
 
@@ -670,19 +621,14 @@ export async function handleToggle(req: IncomingMessage, res: ServerResponse) {
 
                     // 如果系统已禁用 VM 模式，直接提示已禁用
                     if (!global.lx.config['system.allowUnsafeVM']) {
-                        res.writeHead(200, { 'Content-Type': 'application/json' })
-                        res.end(JSON.stringify({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' }))
-                        return
+                        return ctx.json({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' })
                     }
 
-                    res.writeHead(200, { 'Content-Type': 'application/json' })
-                    res.end(JSON.stringify({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' }))
-                    return
+                    return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
                 }
             }
 
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ success: true, enabled: target.enabled }))
+            return ctx.json({ success: true, enabled: target.enabled })
         } catch (e: any) {
             // initUserApis 本身不应抛出这个错误（内部已捕获并记录 status），但为了健壮性保留此判断
             const isRequireUnsafe = !allowUnsafeVM && !oldAllowUnsafeVM && !!(e && e.message && (
@@ -691,37 +637,32 @@ export async function handleToggle(req: IncomingMessage, res: ServerResponse) {
                 e.message.includes('timeout')
             ))
             if (isRequireUnsafe) {
-                res.writeHead(200, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' }))
-                return
+                return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
             }
             throw e
         }
     } catch (err: any) {
         console.error('[CustomSource] Toggle error:', err)
-        res.writeHead(500)
-        res.end(err.message)
+        return ctx.text(err.message, 500)
     }
 }
 
 // 拖拽排序，更新 sources.json 中源的顺序
-export async function handleReorder(req: IncomingMessage, res: ServerResponse) {
+export async function handleReorder(ctx: HttpContext): Promise<Response> {
     try {
-        const body = await readBody(req)
+        const body = await readBody(ctx)
         const { username, sourceIds } = JSON.parse(body)
 
         if (!Array.isArray(sourceIds) || sourceIds.length > 500 || sourceIds.some(id => typeof id !== 'string' || id.length > 128)) {
             throw new Error('sourceIds must be an array')
         }
 
-        let targetOwner = getRequestedOwner(req, username)
+        let targetOwner = getRequestedOwner(ctx, username)
 
         // 检查权限限制 (公开源排序)
         if (targetOwner === 'open') {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '公共源排序已受限，仅管理员可操作。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '公共源排序已受限，仅管理员可操作。' }, 403)
             }
         }
 
@@ -787,32 +728,28 @@ export async function handleReorder(req: IncomingMessage, res: ServerResponse) {
             await initUserApis('open')
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: true }))
+        return ctx.json({ success: true })
     } catch (err: any) {
         console.error('[CustomSource] Reorder error:', err)
-        res.writeHead(500)
-        res.end(err.message)
+        return ctx.text(err.message, 500)
     }
 }
 
 // 删除
-export async function handleDelete(req: IncomingMessage, res: ServerResponse) {
+export async function handleDelete(ctx: HttpContext): Promise<Response> {
     try {
-        const body = await readBody(req)
+        const body = await readBody(ctx)
         const { id, sourceId, username } = JSON.parse(body)
         const targetId = id || sourceId
         assertSafePathSegment(targetId, 'source id')
 
         // 查找逻辑同 Toggle
-        let targetOwner = getRequestedOwner(req, username)
+        let targetOwner = getRequestedOwner(ctx, username)
 
         // 检查权限限制
         if (targetOwner === 'open') {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '公共源删除已受限，仅管理员可操作。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '公共源删除已受限，仅管理员可操作。' }, 403)
             }
         }
 
@@ -852,10 +789,8 @@ export async function handleDelete(req: IncomingMessage, res: ServerResponse) {
 
         // 核心安全逻辑：删除全局公开源必须校验管理员权限
         if (targetOwner === 'open') {
-            if (!verifyAdminAuth(req)) {
-                res.writeHead(403, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({ success: false, error: '权限不足：删除全局公共源需要验证管理员身份。' }))
-                return
+            if (!verifyAdminAuth(ctx.request)) {
+                return ctx.json({ success: false, error: '权限不足：删除全局公共源需要验证管理员身份。' }, 403)
             }
         }
 
@@ -872,11 +807,9 @@ export async function handleDelete(req: IncomingMessage, res: ServerResponse) {
         // 重新初始化
         await initUserApis(targetOwner)
 
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: true }))
+        return ctx.json({ success: true })
     } catch (err: any) {
         console.error('[CustomSource] Delete error:', err)
-        res.writeHead(500)
-        res.end(err.message)
+        return ctx.text(err.message, 500)
     }
 }

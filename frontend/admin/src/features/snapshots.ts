@@ -1,6 +1,5 @@
 import type { AdminFeatureContext } from '../types';
 import { readApiErrorMessage } from '../api';
-import { safeInlineString } from '../utils';
 
 export function initSnapshotsFeature(context: AdminFeatureContext) {
     const app = context.app;
@@ -8,6 +7,15 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
     function bindSnapshotsEvents() {
         document.getElementById('restart-server-btn')?.addEventListener('click', () => app.restartServer());
         document.getElementById('snapshot-upload-input')?.addEventListener('change', event => app.handleSnapshotUpload(event));
+        document.getElementById('snapshots-list')?.addEventListener('click', event => {
+            const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-snapshot-action]');
+            if (!button) return;
+            const id = button.dataset.snapshotId || '';
+            const time = button.dataset.snapshotTime;
+            if (button.dataset.snapshotAction === 'download') void app.downloadSnapshot(id);
+            if (button.dataset.snapshotAction === 'restore') void app.restoreSnapshot(id, time);
+            if (button.dataset.snapshotAction === 'delete') void app.deleteSnapshot(id, time);
+        });
     }
 
     async function loadSnapshots() {
@@ -35,16 +43,14 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
             container.innerHTML = list.map(item => {
                 const snapshotId = String(item.id || '');
                 const snapshotIdHtml = app.escapeHtml(snapshotId);
-                const snapshotIdArg = safeInlineString(snapshotId);
                 const snapshotTime = new Date(item.time).toLocaleString();
-                const snapshotTimeArg = safeInlineString(snapshotTime);
                 return `
             <div class="snapshot-row">
                 <div class="col-time">${snapshotTime}</div>
                 <div class="col-id" title="${snapshotIdHtml}">snapshot_${snapshotIdHtml}</div>
                 <div class="col-size">${app.formatFileSize(item.size)}</div>
                 <div class="col-actions snapshot-actions">
-                    <button class="btn-download" onclick="app.downloadSnapshot(${snapshotIdArg})">
+                    <button type="button" class="btn-download" data-snapshot-action="download" data-snapshot-id="${snapshotIdHtml}">
                         <!-- 下载图标 -->
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -53,7 +59,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
                         </svg>
                         下载备份
                     </button>
-                    <button class="btn-restore" onclick="app.restoreSnapshot(${snapshotIdArg}, ${snapshotTimeArg})">
+                    <button type="button" class="btn-restore" data-snapshot-action="restore" data-snapshot-id="${snapshotIdHtml}" data-snapshot-time="${app.escapeHtml(snapshotTime)}">
                         <!-- 恢复图标 -->
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="1 4 1 10 7 10"></polyline>
@@ -62,7 +68,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
                         回滚
                     </button>
                     <!-- [新增] 删除按钮 -->
-                    <button class="btn-delete" onclick="app.deleteSnapshot(${snapshotIdArg}, ${snapshotTimeArg})">
+                    <button type="button" class="btn-delete" data-snapshot-action="delete" data-snapshot-id="${snapshotIdHtml}" data-snapshot-time="${app.escapeHtml(snapshotTime)}">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -119,9 +125,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
 
             const response = await fetch(`/api/data/upload-snapshot?user=${encodeURIComponent(username)}&time=${time}&filename=${encodeURIComponent(filename)}`, {
                 method: 'POST',
-                headers: {
-                    'X-Frontend-Auth': app.password
-                },
+                credentials: 'same-origin',
                 body: content
             });
 
@@ -151,8 +155,8 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frontend-Auth': app.password
                 },
+                credentials: 'same-origin',
                 body: JSON.stringify({ id })
             });
 
@@ -212,7 +216,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
 
         try {
             const response = await fetch('/api/backup/download', {
-                headers: { 'X-Frontend-Auth': app.password },
+                credentials: 'same-origin',
             });
             if (!response.ok) throw new Error(await readApiErrorMessage(response));
             const blob = await response.blob();
@@ -221,7 +225,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
             a.href = url;
             // 获取当前日期作为文件名建议
             const dateStr = new Date().toISOString().split('T')[0];
-            a.download = `lx-sync-backup-local-${dateStr}.zip`;
+            a.download = `lx-music-web-backup-${dateStr}.zip`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {
@@ -259,9 +263,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
         try {
             const response = await fetch('/api/backup/upload', {
                 method: 'POST',
-                headers: {
-                    'X-Frontend-Auth': app.password
-                },
+                credentials: 'same-origin',
                 body: formData
             });
 
@@ -289,7 +291,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
         }
 
         const label = time ? `快照 snapshot_${id}（创建于 ${time}）` : `快照 snapshot_${id}`;
-        if (!(await showSelect('回滚快照', `警告：此操作将把服务器数据回滚到${label}！\n\n1. 当前所有未保存的更改将丢失。\n2. 所有客户端的同步状态将被重置。\n3. 客户端连接后，请务必选择【远程覆盖本地】以获取回滚后的数据。\n\n确定要继续吗？`, { danger: true }))) {
+        if (!(await showSelect('回滚快照', `警告：此操作将把服务器数据回滚到${label}！\n\n当前未保存的更改将丢失，操作不可撤销。\n\n确定要继续吗？`, { danger: true }))) {
             return;
         }
 
@@ -299,7 +301,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
                 method: 'POST',
                 body: JSON.stringify({ id })
             });
-            showSuccess('回滚成功！请重启客户端或重新连接同步服务。');
+            showSuccess('回滚成功！');
             app.loadDashboard(); // 刷新数据概览
         } catch (err) {
             showError('回滚失败: ' + err.message);
@@ -307,7 +309,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
     }
 
     async function restartServer() {
-        if (!(await showSelect('重启服务器', '确定要重启服务器吗？\n\n重启后所有连接的客户端将断开，大约需要几秒钟时间。', { danger: true }))) {
+        if (!(await showSelect('重启服务器', '确定要重启服务器吗？\n\n重启后正在处理的请求将断开，大约需要几秒钟时间。', { danger: true }))) {
             return;
         }
 
@@ -327,40 +329,6 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
         }
     }
 
-    function checkWebDAVConfig(isConfigured) {
-        const cloudGroup = document.getElementById('webdav-cloud-group');
-        const guideCard = document.getElementById('webdav-config-guide');
-        const statusSection = document.getElementById('webdav-status-section');
-        const logsSection = document.getElementById('webdav-logs-section');
-
-        if (isConfigured) {
-            cloudGroup?.classList.remove('hidden');
-            guideCard?.classList.add('hidden');
-            statusSection?.classList.remove('hidden');
-            logsSection?.classList.remove('hidden');
-        } else {
-            cloudGroup?.classList.add('hidden');
-            guideCard?.classList.remove('hidden');
-            statusSection?.classList.add('hidden');
-            logsSection?.classList.add('hidden');
-        }
-    }
-
-    function jumpToWebDAVConfig() {
-        app.switchView('config').then(() => {
-            setTimeout(() => {
-                const target = document.getElementById('config-card-webdav');
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    target.style.outline = '2px solid var(--accent-primary)';
-                    target.style.outlineOffset = '4px';
-                    setTimeout(() => {
-                        target.style.outline = 'none';
-                    }, 2000);
-                }
-            }, 300);
-        });
-    }
     return {
         bindSnapshotsEvents,
         loadSnapshots,
@@ -372,7 +340,5 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
         handleLocalRestore,
         restoreSnapshot,
         restartServer,
-        checkWebDAVConfig,
-        jumpToWebDAVConfig,
     };
 }

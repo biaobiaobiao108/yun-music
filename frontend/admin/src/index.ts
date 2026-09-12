@@ -22,7 +22,7 @@ import { initLogsFeature } from './features/logs';
 import { initShellFeature } from './features/shell';
 import { initSnapshotsFeature } from './features/snapshots';
 import { initUsersFeature } from './features/users';
-import { initWebDAVFeature } from './features/webdav';
+import type { AdminApp, AdminRequest, AdminUser, AdminUserData, InstallPromptEvent } from './types';
 import {
     escapeHtml,
     formatFileSize,
@@ -36,25 +36,24 @@ import {
 } from './utils';
 
 class App {
-    [key: string]: any;
-    password: string | null = null;
     currentView = 'dashboard';
-    users: any[] = [];
-    allUsers: any[] = [];
+    users: AdminUser[] = [];
+    allUsers: AdminUser[] = [];
     configLoaded = false;
-    currentUserData: any = null;
+    currentUserData: AdminUserData | null = null;
     currentPlaylistView: number | string | null = null;
     editingUser: string | null = null;
-    deferredPrompt: any = null;
+    deferredPrompt: InstallPromptEvent | null = null;
     monitorTimer: ReturnType<typeof setInterval> | null = null;
     systemCpuHistory: number[] = [];
     processCpuHistory: number[] = [];
     systemMemHistory: number[] = [];
     processMemHistory: number[] = [];
-    request: (url: string, options?: RequestInit) => Promise<any>;
+    request: AdminRequest;
 
     constructor() {
-        this.request = createAdminRequest(() => this.password, (message) => this.logout(message));
+        const featureApp = this as unknown as AdminApp;
+        this.request = createAdminRequest((message) => featureApp.logout(message));
         this.initializeFeatures();
         this.init();
     }
@@ -75,14 +74,13 @@ class App {
         Object.assign(
             this,
             sharedMethods,
-            initShellFeature({ app: this }),
-            initDashboardFeature({ app: this }),
-            initUsersFeature({ app: this }),
-            initDataFeature({ app: this }),
-            initConfigFeature({ app: this }),
-            initLogsFeature({ app: this }),
-            initWebDAVFeature({ app: this }),
-            initSnapshotsFeature({ app: this }),
+            initShellFeature({ app: this as unknown as AdminApp }),
+            initDashboardFeature({ app: this as unknown as AdminApp }),
+            initUsersFeature({ app: this as unknown as AdminApp }),
+            initDataFeature({ app: this as unknown as AdminApp }),
+            initConfigFeature({ app: this as unknown as AdminApp }),
+            initLogsFeature({ app: this as unknown as AdminApp }),
+            initSnapshotsFeature({ app: this as unknown as AdminApp }),
         );
     }
 
@@ -94,16 +92,22 @@ class App {
         this.bindDataEvents();
         this.bindConfigEvents();
         this.bindLogsEvents();
-        this.bindWebDAVFeatureEvents();
         this.bindSnapshotsEvents();
 
-        const savedPassword = window.sessionStorage.getItem('lx_auth');
-        if (savedPassword) {
-            this.password = savedPassword;
-            this.showApp();
-            void this.loadConfig();
-            void this.loadDashboard();
-        } else {
+        void this.restoreSession();
+    }
+
+    private async restoreSession(): Promise<void> {
+        try {
+            const response = await fetch('/api/stats', {
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            if (!response.ok) return;
+            const featureApp = this as unknown as AdminApp;
+            featureApp.showApp();
+            await Promise.all([featureApp.loadConfig(), featureApp.loadDashboard()]);
+        } catch {
             const notice = window.sessionStorage.getItem('lx_auth_notice');
             if (notice) {
                 window.sessionStorage.removeItem('lx_auth_notice');
@@ -115,4 +119,3 @@ class App {
 }
 
 const app = new App();
-(window as any).app = app;

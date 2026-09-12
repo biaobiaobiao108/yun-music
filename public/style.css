@@ -1,21 +1,21 @@
 :root {
-    --bg-primary: #0a0e27;
-    --bg-secondary: #121729;
-    --bg-tertiary: #1a1f3a;
-    --text-primary: #e2e8f0;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --accent-primary: #3b82f6;
-    --accent-secondary: #8b5cf6;
+    --bg-primary: #f5f8f6;
+    --bg-secondary: #eef3f0;
+    --bg-tertiary: #e4ece8;
+    --text-primary: #17211d;
+    --text-secondary: #5f7067;
+    --text-muted: #87968f;
+    --accent-primary: #0f9f6e;
+    --accent-secondary: #0f766e;
     --accent-success: #10b981;
     --accent-warning: #f59e0b;
     --accent-error: #ef4444;
-    --glass-bg: rgba(26, 31, 58, 0.7);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    --glass-bg: rgba(255, 255, 255, 0.86);
+    --glass-border: rgba(23, 33, 29, 0.1);
+    --shadow-sm: 0 1px 2px 0 rgba(23, 33, 29, 0.06);
+    --shadow-md: 0 4px 12px -3px rgba(23, 33, 29, 0.1);
+    --shadow-lg: 0 12px 28px -8px rgba(23, 33, 29, 0.16);
+    --shadow-xl: 0 24px 46px -12px rgba(23, 33, 29, 0.2);
     --space-1: 0.25rem;
     --space-2: 0.5rem;
     --space-3: 0.75rem;
@@ -85,7 +85,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, rgba(10, 14, 39, 0.95) 0%, rgba(18, 23, 41, 0.95) 100%);
+    background: rgba(245, 248, 246, 0.96);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -158,13 +158,13 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 4px 12px rgba(15, 159, 110, 0.2);
     white-space: nowrap;
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 8px 20px rgba(15, 159, 110, 0.28);
     filter: brightness(1.1);
 }
 
@@ -458,7 +458,7 @@ body {
 }
 
 .users-icon svg, .icon-blue svg { color: #3b82f6 !important; }
-.devices-icon svg, .icon-purple svg { color: #8b5cf6 !important; }
+.access-icon svg, .icon-purple svg { color: #0f9f6e !important; }
 .uptime-icon svg, .icon-green svg { color: #10b981 !important; }
 .cpu-icon svg { color: #3b82f6 !important; }
 .mem-icon svg { color: #f59e0b !important; }
@@ -1075,7 +1075,7 @@ select.form-input:focus,
 select.form-input option,
 #data-user-select option,
 #log-type-select option {
-    background: rgb(20, 20, 35);
+    background: var(--bg-tertiary);
     color: var(--text-primary);
     padding: 0.5rem;
 }
@@ -1459,152 +1459,6 @@ select.form-input option:checked {
 
 /* 改进的响应式设计 */
 
-/* =============== WebDAV 同步 =============== */
-.webdav-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.sync-actions-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1rem;
-}
-
-.action-card {
-    padding: 1.5rem 1rem;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
-    text-align: center;
-    transition: all 0.3s ease;
-    border-radius: 16px;
-}
-
-.action-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-xl);
-    background: rgba(255, 255, 255, 0.02);
-}
-
-/* 通用颜色图标变体 - 移除背景，仅保留颜色 */
-.icon-emerald {
-    color: var(--accent-success) !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-.icon-blue {
-    color: var(--accent-primary) !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-.icon-amber {
-    color: var(--accent-warning) !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-.icon-purple {
-    color: var(--accent-secondary) !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-.icon-red {
-    color: var(--accent-error) !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-/* 彩色图标背景 - WebDAV 卡片专用 (当前设置为无背景模式) */
-.action-card-icon {
-    width: 64px;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 0.5rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    background: transparent;
-    border: none;
-}
-
-.action-card-icon svg {
-    width: 32px; /* 稍微放大图标 */
-    height: 32px;
-    color: inherit;
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.1));
-}
-
-.action-card:hover .action-card-icon {
-    transform: scale(1.2); /* 悬停时图标放大 */
-    filter: drop-shadow(0 0 12px currentcolor); /* 发光效果 */
-}
-
-/* WebDAV 分组标签 */
-.webdav-group-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 0.4rem 0;
-    margin-bottom: 0.25rem;
-}
-
-/* 同步状态区域标题 */
-.sync-section-hd {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 1rem;
-}
-
-.sync-section-hd h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-/* 空状态提示 */
-
-/* 进度条 */
-.progress-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-    font-size: 0.875rem;
-    color: var(--text-primary);
-}
-
-.progress-track {
-    width: 100%;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.progress-fill {
-    width: 0%;
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-    border-radius: 4px;
-    transition: width 0.3s ease;
-}
-
 /* .users-table-header override removed to use unified style below */
 
 .border-emerald {
@@ -1626,37 +1480,6 @@ select.form-input option:checked {
 }
 
 
-.action-card svg {
-    width: 48px;
-    height: 48px;
-    color: var(--accent-primary);
-}
-
-.action-card h4 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-}
-
-.action-card p {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin: 0;
-}
-
-.sync-status-section,
-.sync-logs-section {
-    padding: 1.5rem;
-}
-
-.sync-status-section h3,
-.sync-logs-section h3 {
-    font-size: 1.125rem;
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-}
-
 .logs-header {
     display: flex;
     justify-content: space-between;
@@ -1666,23 +1489,6 @@ select.form-input option:checked {
 
 .logs-header h3 {
     margin: 0;
-}
-
-.sync-logs-list {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.sync-log-item {
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--glass-border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.sync-log-item:last-child {
-    border-bottom: none;
 }
 
 .log-info {
@@ -1937,10 +1743,6 @@ select.form-input option:checked {
 
 /* 响应式 - 文件管理器 */
 @media (max-width: 768px) {
-    .sync-actions-grid {
-        grid-template-columns: 1fr;
-    }
-
     .file-toolbar {
         flex-direction: column;
         align-items: stretch;
@@ -2648,7 +2450,7 @@ input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 1000px #1a1f3a inset !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-tertiary) inset !important;
     /* 增加阴影大小以确保覆盖 */
     -webkit-text-fill-color: #e2e8f0 !important;
     transition: background-color 5000s ease-in-out 0s;
@@ -3347,22 +3149,6 @@ input:-webkit-autofill:active {
     opacity: 0.5;
 }
 
-/* WebDAV & Placeholder Styles */
-.setup-guide-card {
-    padding: 3rem 2rem;
-    text-align: center;
-    border: 1px dashed var(--glass-border);
-    border-radius: 20px;
-    margin: 1.5rem 0;
-}
-
-.sync-empty-tip {
-    padding: 2rem;
-    text-align: center;
-    color: var(--text-secondary);
-    opacity: 0.6;
-}
-
 /* --- Phone & Small Screens (768px) --- */
 @media screen and (max-width: 768px) {
     /* Layout Reset */
@@ -3389,7 +3175,7 @@ input:-webkit-autofill:active {
         margin: 1rem 0; /* 仅上下外边距，左右外边距由 main-content padding 提供 */
         width: 100%;
         padding: 1.25rem 1.5rem;
-        background: rgba(10, 14, 39, 0.9);
+        background: rgba(255, 255, 255, 0.94);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         flex-direction: column;
@@ -3444,7 +3230,7 @@ input:-webkit-autofill:active {
         height: 100vh;
         margin: 0;
         z-index: 1000;
-        background: rgba(18, 23, 41, 0.95);
+        background: rgba(255, 255, 255, 0.96);
         backdrop-filter: blur(30px);
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         border-right: 1px solid var(--glass-border);
@@ -3914,4 +3700,3 @@ input:-webkit-autofill:active {
         animation: none !important;
     }
 }
-

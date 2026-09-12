@@ -314,7 +314,6 @@ export const createMusicRouter = (): Router => {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
         'X-Accel-Buffering': 'no',
       },
     })
@@ -322,16 +321,7 @@ export const createMusicRouter = (): Router => {
 
   // 8. 音乐播放 URL 解析 API
   router.post('/api/music/url', async (ctx) => {
-    const clientUsername = ctx.headers.get('x-user-name') || undefined
-    let verifiedUsername = 'open'
-
-    if (clientUsername && clientUsername !== 'default' && clientUsername !== 'open' && clientUsername !== '_open') {
-      const verified = verifyUserAuth(ctx)
-      if (!verified || verified !== clientUsername) {
-        return ctx.fail(401, '登录状态已失效，请重新登录')
-      }
-      verifiedUsername = verified
-    }
+    const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
     const reqId = ctx.headers.get('x-req-id') || undefined
 
@@ -456,16 +446,7 @@ export const createMusicRouter = (): Router => {
 
   // 9. 音质真实文件大小 API
   router.post('/api/music/quality/size', async (ctx) => {
-    const clientUsername = ctx.headers.get('x-user-name') || undefined
-    let verifiedUsername = 'open'
-
-    if (clientUsername && clientUsername !== 'default' && clientUsername !== 'open' && clientUsername !== '_open') {
-      const verified = verifyUserAuth(ctx)
-      if (!verified || verified !== clientUsername) {
-        return ctx.fail(401, '登录状态已失效，请重新登录')
-      }
-      verifiedUsername = verified
-    }
+    const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
     try {
       let { songInfo, quality } = await ctx.bodyJson<{ songInfo?: any; quality?: string }>()
@@ -531,13 +512,7 @@ export const createMusicRouter = (): Router => {
       songmid = songmid.slice(sourcePrefix.length)
     }
 
-    const reqUsername = ctx.headers.get('x-user-name') || ''
-    const isPublic = !reqUsername || reqUsername === 'default'
-    let lyricUsername = '_open'
-    if (!isPublic) {
-      const verified = verifyUserAuth(ctx)
-      if (verified) lyricUsername = verified
-    }
+    const lyricUsername = verifyUserAuth(ctx) || '_open'
 
     const localLyricResult = fileCache.checkLyricCache({
       source,

@@ -9,22 +9,23 @@ import { describe, it, expect, beforeEach } from 'bun:test'
   },
 }
 
-const { verifyAdminAuth } = await import('../src/server/auth')
+const { verifyAdminAuth, createAdminSession, ADMIN_SESSION_COOKIE_NAME } = await import('../src/server/auth')
 
 describe('Admin Authentication Security (verifyAdminAuth)', () => {
   beforeEach(() => {
     (global as any).lx.config['frontend.password'] = 'secure123'
   })
 
-  it('should allow access when valid x-frontend-auth header matches', () => {
+  it('should allow access when a valid HttpOnly session cookie is present', () => {
+    const session = createAdminSession()
     const mockReq = {
-      headers: { 'x-frontend-auth': 'secure123' },
+      headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${session}` },
     } as any
 
     expect(verifyAdminAuth(mockReq)).toBe(true)
   })
 
-  it('should deny access when header is missing', () => {
+  it('should deny access when cookie is missing', () => {
     const mockReq = {
       headers: {},
     } as any
@@ -32,9 +33,9 @@ describe('Admin Authentication Security (verifyAdminAuth)', () => {
     expect(verifyAdminAuth(mockReq)).toBe(false)
   })
 
-  it('should deny access when password is wrong', () => {
+  it('should deny access when the session cookie is unknown', () => {
     const mockReq = {
-      headers: { 'x-frontend-auth': 'wrong_password' },
+      headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=unknown` },
     } as any
 
     expect(verifyAdminAuth(mockReq)).toBe(false)
@@ -54,16 +55,14 @@ describe('Admin Authentication Security (verifyAdminAuth)', () => {
     expect(verifyAdminAuth(mockReq2)).toBe(false)
   })
 
-  it('should allow query auth only when explicitly enabled', () => {
+  it('should reject query-string and legacy header authentication', () => {
     const urlWithAuth = new URL('http://localhost:9527/api/admin?auth=secure123')
     const mockReq = {
-      headers: {},
+      headers: { 'x-frontend-auth': 'secure123' },
     } as any
 
-    // Disallowed by default
-    expect(verifyAdminAuth(mockReq, false, urlWithAuth)).toBe(false)
-
-    // Allowed when flag is true
-    expect(verifyAdminAuth(mockReq, true, urlWithAuth)).toBe(true)
+    expect(verifyAdminAuth(mockReq)).toBe(false)
+    expect(verifyAdminAuth({ headers: {} } as any)).toBe(false)
+    expect(verifyAdminAuth({ headers: { cookie: urlWithAuth.searchParams.toString() } } as any)).toBe(false)
   })
 })

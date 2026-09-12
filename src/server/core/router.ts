@@ -157,10 +157,12 @@ export class Router {
 
     try {
       return await dispatch(0)
-    } catch (err: any) {
-      console.error(`[Router Error] ${ctx.method} ${ctx.pathname}:`, err)
+    } catch (err: unknown) {
+      const detail = err instanceof Error ? err.message : String(err)
+      console.error(`[Router Error] ${ctx.requestId} ${ctx.method} ${ctx.pathname}:`, err)
       return ctx.fail(500, '服务器内部错误，请稍后重试', {
-        detail: process.env.NODE_ENV !== 'production' ? err.message : undefined,
+        requestId: ctx.requestId,
+        detail: process.env.NODE_ENV !== 'production' ? detail : undefined,
       })
     }
   }

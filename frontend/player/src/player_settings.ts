@@ -42,23 +42,18 @@ export const DEFAULT_SETTINGS = {
     enableServerCache: true, // 开启服务器缓存
     enableServerLyricCache: true, // 开启服务器歌词文件缓存
     embedLyricToFile: true, // 下载时将歌词嵌入文件（标签+.lrc）
-    serverCacheLocation: 'root', // 缓存位置: 'data' (synced) or 'root' (local)
+    serverCacheLocation: 'root', // 缓存位置: 'data' (application data) or 'root' (local)
     serverCacheNamingPattern: 'simple', // 缓存命名规则: standard | simple
     enableRemaster: false, // 启用下载目录歌曲洗版
     enableLyricCache: true,
     enableSongUrlCache: true,
     enableLyricGlow: true, // 歌词荧光效果 (默认开启)
-    enablePersistentToken: false, // 启用持久化 Token 验证
     playerBackground: 'blur', // 播放页背景: 'blur', 'solid', 'dark'
-    saveAccountSettingsToFile: true, // 同步账号设置到文件 (默认开启)
+    saveAccountSettingsToFile: true, // 登录后保存账号设置到服务器
     autoUpdateNetworkList: false, // 自动更新网络歌单（默认关闭）
     networkListAutoCheckInterval: '6h', // 网络歌单自动检测间隔
     favoriteSidebarOrder: [], // 我的收藏侧边栏子项排序
     preferServerCache: true, // 优先播放缓存歌曲 (默认开启)
-    remoteSyncUrl: '', // 远程同步地址
-    remoteSyncCode: '', // 远程同步连接码
-    enableClientModeSync: false, // 客户端模式: 每次登陆本地账户都会模拟客户端向远程服务器发起同步请求
-    lastRemoteSyncMode: 'merge_remote_local', // 上次使用的远程同步模式
     deduplicatePlaylistByQuality: true, // 同 ID 歌曲仅加入最高音质 (默认开启)
 };
 

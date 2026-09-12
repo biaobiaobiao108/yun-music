@@ -1,9 +1,8 @@
-const CACHE_NAME = 'lx-sync-server-v5';
+const CACHE_NAME = 'lx-music-web-admin-v6';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './style.css',
-    './app.js',
     './js/ui-utils.js',
     './icon.svg',
     './manifest.json',

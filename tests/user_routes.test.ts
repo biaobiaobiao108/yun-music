@@ -6,6 +6,7 @@ import { closeDb, getDb, initDatabase } from '@/database'
 import { getUserDirname, getUserSpace, releaseUserSpace, syncUsersToDatabase } from '@/user'
 import { createUserRouter } from '@/server/routes/user'
 import { createAuthRouter, revokeUserAuth, userSessions, verifyUserAuth } from '@/server/routes/auth'
+import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
 describe('User snapshot permissions', () => {
   let previousLx: typeof global.lx
@@ -14,7 +15,7 @@ describe('User snapshot permissions', () => {
   const initialData = { defaultList: [], loveList: [], userList: [] }
   const uploadedData = { ...initialData, userList: [{ id: 'playlist', name: 'Uploaded', list: [] }] }
   const userHeaders = { cookie: `lx_user_session=${sessionToken}` }
-  const adminHeaders = { 'x-frontend-auth': 'snapshot-admin' }
+  let adminHeaders: Record<string, string>
 
   beforeEach(async () => {
     previousLx = global.lx
@@ -31,6 +32,7 @@ describe('User snapshot permissions', () => {
       },
     } as typeof global.lx
     syncUsersToDatabase(global.lx.config.users)
+    adminHeaders = { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` }
     userSessions.set(sessionToken, { username, createdAt: Date.now() })
     for (const owner of ['_open', username]) {
       const manager = getUserSpace(owner).listManage
@@ -118,7 +120,7 @@ describe('Deleted account credentials', () => {
   let previousLx: typeof global.lx
   let tempDir: string
   const username = 'deleted_account'
-  const adminHeaders = { 'x-frontend-auth': 'account-admin', 'content-type': 'application/json' }
+  let adminHeaders: Record<string, string>
 
   beforeEach(() => {
     previousLx = global.lx
@@ -134,6 +136,7 @@ describe('Deleted account credentials', () => {
       },
     } as typeof global.lx
     syncUsersToDatabase(global.lx.config.users)
+    adminHeaders = { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`, 'content-type': 'application/json' }
   })
 
   afterEach(() => {

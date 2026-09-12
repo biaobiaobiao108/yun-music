@@ -1,8 +1,9 @@
 import { safeInlineJson } from '../player_security';
 
 export interface CacheFeatureContext {
-    getCredential: (key: string) => string | null;
     getUserAuthHeaders: () => Record<string, string>;
+    isUserLoggedIn: () => boolean;
+    isAdminSessionActive: () => boolean;
     getSettings: () => any;
     setSettings: (settings: any) => void;
     persistSettings: () => void;
@@ -18,8 +19,9 @@ export interface CacheFeatureContext {
 }
 
 export function initCacheFeature(context: CacheFeatureContext) {
-    const getCredential = context.getCredential;
     const getUserAuthHeaders = context.getUserAuthHeaders;
+    const isUserLoggedIn = context.isUserLoggedIn;
+    const isAdminSessionActive = context.isAdminSessionActive;
     let settings = context.getSettings();
     const persistSettings = context.persistSettings;
     const pushSettingsToServer = context.pushSettingsToServer;
@@ -74,7 +76,6 @@ async function resetAllSettings() {
         // Reset to default
         context.setSettings({ ...DEFAULT_SETTINGS });
         settings = context.getSettings();
-        credentialStorage.removeItem('lx_sync_code');
         window.settings = settings;
         persistSettings();
         localStorage.removeItem('lx_playback_state'); // 同时重置播放进度记忆
@@ -101,10 +102,10 @@ async function clearCache(type) {
         clearServerLyric = await showSelect('清除缓存', '是否同时清除本地缓存文件夹内的歌词LRC文件？', { danger: true });
 
         if (clearServerLyric) {
-            const isLogined = !!getCredential('lx_user_token');
+            const isLogined = isUserLoggedIn();
             const isPublicUser = !window.currentListData || !window.currentListData.username || window.currentListData.username === 'default';
             if (isPublicUser && window.lx_config && window.lx_config['user.enablePublicRestriction'] && !isLogined) {
-                const isAdminSession = getCredential('lx_admin_password');
+                const isAdminSession = isAdminSessionActive();
                 const enableServerLyricCache = window.settings && window.settings.enableServerLyricCache === true;
                 if (!enableServerLyricCache && !isAdminSession) {
                     if (typeof window.handleAdminAuth === 'function') {
@@ -146,7 +147,7 @@ async function clearCache(type) {
 
     if (clearServerLyric) {
         try {
-            const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
+            const username = (window.currentListData && window.currentListData.username) || '';
             const headers = {};
             Object.assign(headers, getUserAuthHeaders());
 
@@ -242,7 +243,7 @@ async function refreshCacheList() {
     container.innerHTML = getDownloadStatusHtml('fa-spinner', '正在重新扫描文件并刷新列表...', true);
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
+        const username = (window.currentListData && window.currentListData.username) || '';
         const headers = getUserAuthHeaders();
 
         // 刷新前先强制触发服务器端的磁盘同步/索引重建
@@ -309,7 +310,7 @@ function renderCacheList() {
             qTagHtml = `<span class="flex-shrink-0 px-1 py-0 rounded text-[10px] t-badge-red border border-red-200 dark:border-red-500/30 transition-colors">${qName}</span>`;
         }
 
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
+        const username = (window.currentListData && window.currentListData.username) || '';
         const coverUrl = item.hasCover
             ? `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}`
             : '/music/assets/logo.svg';
@@ -511,10 +512,10 @@ async function removeCacheItem(index) {
         showError('文件信息已失效，请刷新后重试');
         return;
     }
-    const isLogined = !!getCredential('lx_user_token');
+            const isLogined = isUserLoggedIn();
     const isPublicUser = !window.currentListData || !window.currentListData.username || window.currentListData.username === 'default';
     if (isPublicUser && window.lx_config && window.lx_config['user.enablePublicRestriction'] && !isLogined) {
-        const isAdminSession = getCredential('lx_admin_password');
+        const isAdminSession = isAdminSessionActive();
         const enableServerCache = window.settings && window.settings.enableServerCache === true;
         if (!enableServerCache && !isAdminSession) {
             if (typeof window.handleAdminAuth === 'function') {
@@ -530,7 +531,7 @@ async function removeCacheItem(index) {
     if (!(await showSelect('确定删除', '确认从服务器永久删除此缓存文件吗？', { danger: true }))) return;
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
+        const username = (window.currentListData && window.currentListData.username) || '';
         const headers = { 'Content-Type': 'application/json' };
         Object.assign(headers, getUserAuthHeaders());
 
@@ -560,7 +561,7 @@ async function batchDeleteCache() {
     }
 
     if ((!window.currentListData || !window.currentListData.username || window.currentListData.username === 'default') && window.lx_config && window.lx_config['user.enablePublicRestriction']) {
-        const isAdminSession = getCredential('lx_admin_password');
+        const isAdminSession = isAdminSessionActive();
         const enableServerCache = window.settings && window.settings.enableServerCache === true;
         if (!enableServerCache && !isAdminSession) {
             if (typeof window.handleAdminAuth === 'function') {
@@ -576,7 +577,7 @@ async function batchDeleteCache() {
     if (!(await showSelect('批量删除', `确定要删除这 ${deleteItems.length} 个缓存文件吗？`, { danger: true }))) return;
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
+        const username = (window.currentListData && window.currentListData.username) || '';
         const headers = { 'Content-Type': 'application/json' };
         Object.assign(headers, getUserAuthHeaders());
 
@@ -602,7 +603,7 @@ async function batchDeleteCache() {
 
 async function clearServerCache() {
     if ((!window.currentListData || !window.currentListData.username || window.currentListData.username === 'default') && window.lx_config && window.lx_config['user.enablePublicRestriction']) {
-        const isAdminSession = getCredential('lx_admin_password');
+        const isAdminSession = isAdminSessionActive();
         const enableServerCache = window.settings && window.settings.enableServerCache === true;
         if (!enableServerCache && !isAdminSession) {
             if (typeof window.handleAdminAuth === 'function') {
@@ -618,7 +619,7 @@ async function clearServerCache() {
     if (!(await showSelect('完全清理', '确定要清除所有服务器缓存吗？', { danger: true }))) return;
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '';
+        const username = (window.currentListData && window.currentListData.username) || '';
         const headers = {};
         Object.assign(headers, getUserAuthHeaders());
 

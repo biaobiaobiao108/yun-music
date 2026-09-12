@@ -34,26 +34,31 @@ export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promi
   const mtime = bunFile.lastModified
   const etag = `W/"${size}-${mtime}"`
   const lastModified = new Date(mtime).toUTCString()
+  const normalizedPath = safeFilePath.replaceAll('\\', '/')
+  const isImmutableAsset = /(?:^|\/)(?:chunks\/)?[^/]*-[a-z0-9]{8,}\.[a-z0-9]+$/i.test(normalizedPath)
+  const cacheControl = isImmutableAsset
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache, no-store, must-revalidate'
+  const responseHeaders = {
+    'Content-Type': bunFile.type || 'application/octet-stream',
+    'ETag': etag,
+    'Last-Modified': lastModified,
+    'Cache-Control': cacheControl,
+    ...(isImmutableAsset ? {} : { Pragma: 'no-cache', Expires: '0' }),
+  }
 
   // 304 缓存协商
   const ifNoneMatch = ctx.headers.get('if-none-match')
   const ifModifiedSince = ctx.headers.get('if-modified-since')
   if (ifNoneMatch === etag || (ifModifiedSince && ifModifiedSince === lastModified)) {
-    return new Response(null, { status: 304 })
+    return new Response(null, { status: 304, headers: responseHeaders })
   }
 
-  const contentType = bunFile.type || 'application/octet-stream'
+  if (ctx.method === 'HEAD') return new Response(null, { status: 200, headers: responseHeaders })
 
   return new Response(bunFile, {
     status: 200,
-    headers: {
-      'Content-Type': contentType,
-      'ETag': etag,
-      'Last-Modified': lastModified,
-      'Cache-Control': 'no-cache, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-    },
+    headers: responseHeaders,
   })
 }
 
@@ -200,7 +205,7 @@ export const createStaticRouter = (): Router => {
       if (res) return res
     }
 
-    // (C) 默认根静态文件回退 (例如 favicon.ico, app.js 等)
+    // (C) 默认根静态文件回退 (例如 favicon.ico)
     const generalFilePath = path.join(staticRoot, ctx.pathname.startsWith('/') ? ctx.pathname.slice(1) : ctx.pathname)
     const res = await serveStaticFile(ctx, generalFilePath)
     if (res) return res

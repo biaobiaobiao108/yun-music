@@ -1,399 +1,136 @@
-# LX Music Sync Server
+# LX Music Web Server
 
-<div align="center">
+LX Music Web Server 是一个面向现代浏览器的 Web 音乐播放器与管理后台。项目使用 Bun、TypeScript、原生 DOM 和 SQLite，提供搜索、播放、歌词、歌单、收藏、缓存、本地音乐、自定义音源、用户管理、快照、配置、日志和服务状态。
 
-<svg aria-hidden="true" viewBox="0 0 447.942 447.943" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
-  <path style="fill: #34d399" d="M203.806.482c-19.668-3.346-35.76 11.139-35.76 31.086v206.166c-11.642-4.271-24.165-6.725-37.281-6.725-59.905 0-108.469 48.566-108.469 108.473 0 59.903 48.564 108.461 108.469 108.461 34.141 0 64.54-15.82 84.406-40.482l-49.658-49.664c-15.116-15.112-11.708-28.901-9.542-34.14 2.166-5.233 9.514-17.4 30.883-17.4h18.082v-56.885c0-21.132 14.617-38.862 34.266-43.745.032-44.373.032-81.808.032-81.808 140.147 0 131.724 83.974 115.325 132.196-6.42 18.884-2.601 22.05 10.893 7.354C536.473 77.106 298.38 16.566 203.806.482z" />
-  <path style="fill: #059669" d="M301.061 223.876h-50.994c-3.911 0-7.574.95-10.889 2.523-8.616 4.09-14.615 12.798-14.615 22.973v76.51h-37.708c-14.082 0-17.428 8.071-7.466 18.029l46.893 46.898 31.25 31.246a25.424 25.424 0 0 0 18.033 7.474c6.523 0 13.052-2.484 18.029-7.474l78.152-78.145c9.951-9.958 6.608-18.029-7.47-18.029h-37.71v-76.51c.001-14.078-11.42-25.495-25.505-25.495z" />
-</svg>
+项目已经收敛为 Web-only 产品，不再支持 LX 桌面/移动端同步协议、WebSocket 同步、Subsonic、WebDAV 或其他旧第三方接口。旧接口会返回明确的 `404` 或 `410`，旧数据库不会自动迁移。
 
-### 现代高性能 LX Music 列表实时同步服务端 · Web 音乐播放器 · Subsonic 流媒体中心
+## 特性
 
-[![Bun Version](https://img.shields.io/badge/Bun-1.1%2B-black?logo=bun)](https://bun.sh)
-[![TypeScript](https://img.shields.io/badge/TypeScript-7.0%2B-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![Database](https://img.shields.io/badge/SQLite-WAL%20Mode-003B57?logo=sqlite)](https://bun.sh/docs/api/sqlite)
-[![Docker Support](https://img.shields.io/badge/Docker-Alpine%20Slim-2496ED?logo=docker)](https://www.docker.com/)
-[![License](https://img.shields.io/badge/License-Apache--2.0-green)](./LICENSE)
+- 原生 `Bun.serve`、Web 标准 `Request` / `Response` 和同源 HTTP API。
+- Web 播放器：音乐搜索、在线播放、歌词、队列、歌单、收藏、缓存、本地音乐和自定义音源。
+- 管理后台：用户、数据、快照、本地备份、配置、日志和运行状态。
+- SQLite WAL：用户、会话、设置、快照元数据和缓存索引使用结构化存储。
+- Cookie 会话：认证使用 HttpOnly、SameSite Cookie；密码以 scrypt 哈希保存，不写入浏览器存储或日志。
+- 安全边界：同源策略、安全响应头、请求 ID、路径穿越防护、媒体 Range、流式下载和远程 URL 校验。
+- Docker Alpine 多阶段镜像，生产进程以非 root 用户运行。
 
-[在线特性演示页 (GitHub Pages)](https://biaobiaobiao108.github.io/lxserver/) · [快速开始](#-快速开始--docker-部署) · [数据持久化](#-数据持久化挂载说明) · [环境变量参考](#-环境变量完整速查表) · [Subsonic 接入](#-subsonic-流媒体与第三方客户端接入) · [客户端配置](#-多端客户端连接指南)
+## 快速开始
 
-</div>
-
----
-
-## 📖 项目简介
-
-**LX Music Sync Server** 是专为 **[洛雪音乐助手 (LX Music)](https://github.com/lyswhut/lx-music-desktop)** 设计的私有化数据同步与多功能音乐中枢服务。
-
-本项目经历全面现代重构，基于全栈 **原生 Bun (1.1+) + TypeScript 7.0+** 架构，彻底移除了传统的 Express 框架与重型运行时依赖，提供毫秒级冷启动响应与极低的内存占用（生产镜像运行时内存仅约几十兆）。服务集成了 **实时双向 WebSocket 同步**、**功能完备的现代桌面级 Web 网页播放器**、**Subsonic / OpenSubsonic 协议音频流兼容** 以及 **全网音源在线回退检索** 等众多特性，是个人与家庭私有音乐库的理想底座。
-
----
-
-## ✨ 核心特性
-
-- ⚡ **全栈原生极速引擎**：
-  - 基于 `Bun.serve` 与 Web 标准 `Request` / `Response` 构建的高性能洋葱模型中间件路由，零外部 Web 框架开销。
-  - 原生支持 HTTP Keep-Alive 与大文件流式快速传输。
-- 🔄 **毫秒级实时数据同步**：
-  - 基于 Bun 原生 WebSocket 驱动，支持多端歌单双向秒级同步、防并发冲突仲裁与自动心跳保活。
-  - 完善的歌单版本控制与快照机制，支持自定义快照备份上限与一键版本回滚。
-- 🎵 **现代化 Web 网页播放器**：
-  - 访问 `/music` 即可使用的桌面级 Web 播放器，原生支持 PWA（可离线安装至手机与桌面）。
-  - 内置逐字歌词动态滚动、双语翻译与罗马音对照、音频音高升降调节（Pitch Shift）、Web Audio 均衡器、实时声学频谱跳动。
-  - 支持多端歌单直接在线管理、歌曲批量迁移、封面自动获取与本地缓存索引。
-- 📻 **Subsonic 协议兼容与全网在线搜索**：
-  - 原生提供 `/rest/` 接口，无缝对接 **Symfonium**、**Feishin**、**Amperfy**、**DSub**、**音鲸** 等各大流行第三方音频客户端。
-  - 内置全网音源在线回退（`fallback`）与聚合合并（`merge`）检索能力，使本地库中不存在的歌曲也能通过 Subsonic 在线即点即播。
-- 💾 **严苛的数据安全与持久化**：
-  - 核心数据采用原生 **`bun:sqlite`** 引擎存储，启用 **WAL（Write-Ahead Logging）** 高并发写入模式与完整外键完整性约束。
-  - 数据目录物理隔离（支持路径权限模式），杜绝未授权跨租户读取。
-  - 集成 **WebDAV** 增量同步与全量定时自动冷备机制，避免单点故障丢失珍贵歌单。
-- 🛡️ **生产级安全基线**：
-  - 严格的主机与目录穿越检测，强制禁止弱口令/默认示例口令启动，全方位保护管理接口与播放器访问权限。
-
----
-
-## 🚀 快速开始 / Docker 部署
-
-官方推荐使用 **Docker** 或 **Docker Compose** 容器化部署，生产镜像基于轻量级 `Alpine Linux` 构建，并内置了用于音频指纹提取的 `chromaprint (fpcalc)` 工具。
-
-### 方式一：使用 Docker Compose 部署（推荐）
-
-在项目根目录或部署服务器上创建 `docker-compose.yml` 文件：
+### Docker Compose
 
 ```yaml
-version: '3.8'
-
 services:
-  lx-sync-server:
+  lx-music-web-server:
     image: ghcr.io/biaobiaobiao108/lxserver:latest
-    container_name: lx-sync-server
+    container_name: lx-music-web-server
     restart: always
     ports:
       - "9527:9527"
     volumes:
-      # 数据目录：SQLite 数据库、账户、歌单快照、config.js 与日志
       - ./data:/server/data
-      # 歌曲缓存目录。默认缓存根目录是 <工作目录>/cache，即容器内的 /server/cache，
-      # 不在 /server/data 之下；未挂载时容器重建（升级镜像、compose down 后再 up）
-      # 会丢失全部已缓存歌曲。若不想挂载此项，可在「设置 → 缓存位置」中切换为 data。
       - ./cache:/server/cache
-      # 下载目录：仅下载模式下保存的音乐文件，同样位于默认缓存根目录之下
       - ./music:/server/music
-      # 封面缓存目录（可选，丢失后会自动从音频文件重新提取）
       - ./cover_cache:/server/cover_cache
     environment:
-      - NODE_ENV=production
-      # 【必须设置】管理后台登录密码，禁止使用 123456 等示例弱口令！
-      - FRONTEND_PASSWORD=YourStrongAdminPassword123!
-      # 服务端同步账户配置，格式为 LX_USER_<用户名>=<密码>
-      - LX_USER_admin=UserPassword456!
-      # 启用 Web 播放器密码鉴权（可选）
-      - ENABLE_WEBPLAYER_AUTH=true
-      - WEBPLAYER_PASSWORD=PlayerPassword789!
-      # 开启 Subsonic 协议流媒体支持
-      - SUBSONIC_ENABLE=true
+      NODE_ENV: production
+      FRONTEND_PASSWORD: replace-with-a-strong-admin-password
+      LX_USER_admin: replace-with-a-strong-user-password
 ```
 
-启动容器：
+启动并查看日志：
+
 ```bash
 docker compose up -d
+docker compose logs -f lx-music-web-server
 ```
 
-查看容器日志：
-```bash
-docker compose logs -f lx-sync-server
-```
+挂载目录由宿主机负责授予容器用户写权限。生产环境建议同时使用只读根文件系统，并仅将 `/server/data`、`/server/cache`、`/server/music` 和 `/server/cover_cache` 作为可写目录挂载。
 
----
-
-### 方式二：使用 `docker run` 命令
+### Bun 源码运行
 
 ```bash
-docker run -d \
-  --name lx-sync-server \
-  --restart always \
-  -p 9527:9527 \
-  -v $(pwd)/data:/server/data \
-  -v $(pwd)/cache:/server/cache \
-  -v $(pwd)/music:/server/music \
-  -v $(pwd)/cover_cache:/server/cover_cache \
-  -e NODE_ENV=production \
-  -e FRONTEND_PASSWORD=YourStrongAdminPassword123! \
-  -e LX_USER_admin=UserPassword456! \
-  -e ENABLE_WEBPLAYER_AUTH=false \
-  -e SUBSONIC_ENABLE=true \
-  ghcr.io/biaobiaobiao108/lxserver:latest
-```
-
-> 只挂载 `/server/data` 会漏掉歌曲缓存与下载的音乐文件，详见下方[数据持久化说明](#-数据持久化挂载说明)。
-
----
-
-### 方式三：从源码本地构建 Docker 镜像
-
-如果您直接克隆了本代码仓库，可直接基于源码构建极简的多阶段生产镜像：
-
-```bash
-# 1. 克隆本仓库
-git clone https://github.com/biaobiaobiao108/lxserver.git
-cd lxserver
-
-# 2. 修改 docker-compose.yml（配置你的安全密码）
-
-# 3. 本地构建并运行
-docker compose up -d --build
-```
-
----
-
-### 方式四：使用 Bun 从源码直接本地运行（原生极速 / 免 Docker）
-
-如果您没有安装 Docker，或者希望直接在宿主机进行开发与调试，只需安装 **[Bun](https://bun.sh)** 运行时即可直接启动服务（毫秒级冷启，无需额外安装 Node.js、Redis 或 Python）：
-
-#### 1. 安装 Bun 运行时（已安装请跳过）
-- **Linux / macOS**:
-  ```bash
-  curl -fsSL https://bun.sh/install | bash
-  ```
-- **Windows (PowerShell)**:
-  ```powershell
-  powershell -c "irm bun.sh/install.ps1 | iex"
-  ```
-
-#### 2. 克隆仓库并安装依赖
-```bash
-git clone https://github.com/biaobiaobiao108/lxserver.git
-cd lxserver
 bun install
-```
-
-#### 3. 配置必要环境变量
-Bun 原生支持自动加载项目根目录下的 `.env` 文件。创建并编辑 `.env`：
-```bash
-# 【必填】管理后台密码（禁止使用 123456 等示例弱口令）
-FRONTEND_PASSWORD=YourStrongAdminPassword123!
-
-# 【可选】同步用户账号，格式为 LX_USER_<用户名>=<密码>
-LX_USER_admin=UserPassword456!
-
-# 服务监听端口与 Subsonic 开启
-PORT=9527
-SUBSONIC_ENABLE=true
-```
-
-#### 4. 构建前端并启动服务
-```bash
-# 极速编译前端产物（仅需数十毫秒）
 bun run build:frontend
-
-# 生产模式启动
 bun start
-
-# 或开发监听热重载模式启动（修改源码自动生效）
-bun run dev
-```
-启动成功后，即可直接在浏览器中访问 `http://localhost:9527/`（管理后台）或 `http://localhost:9527/music`（Web 网页播放器）。
-
----
-
-## 📁 数据持久化挂载说明
-
-容器内 `/server/data` 存放数据库与配置，但**歌曲缓存与下载的音乐文件默认不在其中**。默认布局（工作目录为 `/server`）如下：
-
-| 内容 | 容器内路径 | 是否在 `/server/data` 内 |
-| :--- | :--- | :--- |
-| SQLite 数据库（账户、设备、歌单快照、用户设置、缓存索引） | `/server/data/lxserver.db` | 是 |
-| 用户数据（歌单 `list`、`devices.json`、`settings.json`、`token.json`、自定义源 `users/source`） | `/server/data/users/` | 是 |
-| 配置落盘文件 `config.js` | `/server/data/config.js` | 是 |
-| 日志 | `/server/data/logs/` | 是 |
-| 歌曲缓存（"缓存"目录） | `/server/cache/<用户名>/` | **否** |
-| 下载的音乐文件（"音乐"目录，仅下载模式） | `/server/music/<用户名>/` | **否** |
-| 封面缓存 | `/server/cover_cache/<用户名>/` | **否** |
-
-原因是缓存根目录默认为 `运行目录`，即工作目录下的 `cache` 与 `music`，并不在 `/server/data` 之下。因此推荐按上文示例把 `./cache`、`./music`、`./cover_cache` 一并挂载。
-
-**如果只想挂载一个 `/server/data`**：在 Web 播放器的「设置 → 缓存歌曲位置」中选择 `DATA_PATH (WebDAV同步)`，等价于在 `config.js` 中设置 `serverCacheLocation: "data"`。该值会持久化到数据库，重启后依然生效，此后缓存与下载目录分别落在 `/server/data/cache` 与 `/server/data/music`，单个卷即可覆盖全部数据。
-
-几点注意：
-
-- 封面缓存始终位于 `/server/cover_cache`，不受缓存位置设置影响；它由音频文件自动提取，丢失后会自动重建。
-- 若同时启用了 **WebDAV 同步**，`/server/data` 下的文件会被整体纳入同步扫描并逐个计算 MD5 上传。把大量音乐放进 `/server/data` 会让同步体积暴涨，此时建议保持默认缓存位置并单独挂载缓存卷（设置项名称中的「WebDAV同步」标记即指这一点）。
-- 缓存位置是服务端全局设置：以公共/未登录身份修改时需要通过管理员验证。
-- 切换缓存位置不会自动搬迁旧目录中的文件，建议切换前先清空缓存（缓存可以重新下载）。
-
----
-
-## 🔑 访问地址与默认路径
-
-服务启动后，默认监听 `9527` 端口：
-
-| 模块 | 访问路径 | 说明 |
-| :--- | :--- | :--- |
-| **管理后台** | `http://<服务器IP>:9527/` | 系统监控、用户管理、快照管理、自定义音源管理（需要 `FRONTEND_PASSWORD`） |
-| **Web 网页播放器** | `http://<服务器IP>:9527/music` | 现代 PWA 网页播放器（若开启鉴权需输入 `WEBPLAYER_PASSWORD`） |
-| **Subsonic 接口** | `http://<服务器IP>:9527/rest/` | 兼容 Subsonic / OpenSubsonic API，可直接填入第三方客户端 |
-| **WebSocket 同步** | `ws://<服务器IP>:9527/` | 用于客户端连接实时同步 |
-| **在线交互演示页** | [https://biaobiaobiao108.github.io/lxserver/](https://biaobiaobiao108.github.io/lxserver/) | GitHub Pages 在线访问，或本地浏览器直接打开 `docs/index.html` |
-
-> [!CAUTION]
-> **安全红线警告**：
-> 服务启动时会自动执行安全校验。如果 `FRONTEND_PASSWORD` 未配置或设置为默认示例弱密码（如 `123456`），服务端将**拒绝启动**并退出。在公网暴露服务时，请务必设置高强度密码！
-
----
-
-## ⚙️ 环境变量完整速查表
-
-通过环境变量配置的选项优先级**高于** `config.js` 文件，修改环境变量后重启容器即可生效。
-
-### 1. 基础网络与系统参数
-| 环境变量名 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `PORT` | Number | `9527` | 服务监听端口 |
-| `BIND_IP` | String | `0.0.0.0` | 绑定的 IP 地址 |
-| `DATA_PATH` | String | `/server/data` | 数据持久化目录（数据库、用户数据、配置与日志，不含歌曲缓存，详见[数据持久化说明](#-数据持久化挂载说明)） |
-| `SERVER_NAME` | String | `lxserver` | 同步服务器名称标识 |
-| `NODE_ENV` | String | `production` | 运行环境模式 |
-| `DISABLE_TELEMETRY` | Boolean | `false` | 是否禁用匿名数据遥测 |
-
-### 2. 安全与账户认证
-| 环境变量名 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `FRONTEND_PASSWORD` | String | **无 (必填)** | **管理后台管理员登录密码**（禁止使用空值或弱密码） |
-| `LX_USER_<username>` | String | 无 | 创建同步用户，例如 `LX_USER_tom=pwd123` |
-| `ENABLE_WEBPLAYER_AUTH` | Boolean | `false` | 是否对 Web 网页播放器启用访问鉴权 |
-| `WEBPLAYER_PASSWORD` | String | 无 | Web 网页播放器访问密码（启用鉴权时必填） |
-| `USER_ENABLE_PATH` | Boolean | `true` | 是否启用用户路径模式（支持多租户路径隔离） |
-| `USER_ENABLE_ROOT` | Boolean | `false` | 是否允许根路径模式 |
-
-### 3. 访问路径自定义
-| 环境变量名 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `ADMIN_PATH` | String | `""` | 管理后台相对路径（默认为根路径 `/`） |
-| `PLAYER_PATH` | String | `/music` | Web 网页播放器相对路径 |
-| `SUBSONIC_PATH` | String | `/rest` | Subsonic 服务 API 相对路径 |
-
-### 4. Subsonic 与音源检索
-| 环境变量名 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `SUBSONIC_ENABLE` | Boolean | `true` | 是否启用 Subsonic API 支持 |
-| `SINGER_SOURCE_PRIORITY` | String | `tx,wy` | 歌手信息与音源优先级，支持 `tx` (企鹅) 与 `wy` (云音乐) |
-
-### 5. 权限与资源限制
-| 环境变量名 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `ENABLE_PUBLIC_USER_RESTRICTION` | Boolean | `true` | 是否开启公开用户权限边界限制 |
-| `ENABLE_PUBLIC_FAVORITES` | Boolean | `false` | 是否开启公共收藏歌单 |
-| `ENABLE_CACHE_SIZE_LIMIT` | Boolean | `false` | 是否开启音频缓存空间上限限制 |
-| `CACHE_SIZE_LIMIT` | Number | `2000` | 缓存空间上限限制大小（单位：MB） |
-| `MAX_SNAPSHOT_NUM` | Number | `10` | 歌单最大快照保存数量 |
-
-### 6. WebDAV 备份与增量同步
-| 环境变量名 | 类型 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `WEBDAV_ENABLE` | Boolean | `false` | 是否启用 WebDAV 远程备份 |
-| `WEBDAV_URL` | String | `""` | WebDAV 服务端完整 URL 地址 |
-| `WEBDAV_USERNAME` | String | `""` | WebDAV 账户名 |
-| `WEBDAV_PASSWORD` | String | `""` | WebDAV 密码 |
-| `WEBDAV_SYNC_PATH` | String | `/lx-sync` | 增量同步远程目录 |
-| `WEBDAV_BACKUP_PATH` | String | `/lx-sync-backups`| 全量备份远程归档目录 |
-| `SYNC_INTERVAL` | Number | `60` | 增量同步周期（分钟） |
-| `BACKUP_INTERVAL` | Number | `24` | 全量备份周期（小时） |
-
----
-
-## 🌐 Nginx 反向代理配置（含 HTTPS 与 WebSocket）
-
-若您使用 Nginx 暴露域名并在前端启用 SSL/TLS，**必须**正确转发 WebSocket 升级头及真实客户端 IP，以确保实时同步和在线流媒体稳定运作。以下是推荐的 Nginx 虚拟主机配置：
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name music.yourdomain.com;
-
-    ssl_certificate     /path/to/fullchain.pem;
-    ssl_certificate_key /path/to/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         HIGH:!aNULL:!MD5;
-
-    # 允许上传自定义音源或备份文件的最大体积极限
-    client_max_body_size 100M;
-
-    location / {
-        proxy_pass http://127.0.0.1:9527;
-
-        # 核心：必须配置 WebSocket 协议升级握手支持
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # 客户端真实真实 IP 及 Host 头透传
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # 关闭代理缓冲，保证音频流式播放与长连接保活低延迟
-        proxy_buffering off;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-    }
-}
 ```
 
----
-
-## 📱 多端客户端连接指南
-
-### 1. LX Music 官方客户端（桌面端 / Android 移动端）
-1. 打开 LX Music 设置 ➡️ **数据同步** ➡️ 启用 **同步功能**。
-2. 同步模式选择：`服务端模式` 或 `自定义服务端`。
-3. **服务端地址**：填写 `http://<服务器IP或域名>:9527`（若启用了 HTTPS 则填 `https://...`）。
-4. **连接密码**：填写在环境变量或管理后台配置的用户密码（即 `LX_USER_<用户名>` 的密码）。
-5. 点击 **连接测试**，提示成功后即可开启实时同步或手动创建快照。
-
-### 2. Subsonic 流媒体客户端（Symfonium / Feishin / Amperfy 等）
-1. 打开 Subsonic 客户端，添加新的服务端类型选择 **Subsonic**。
-2. **服务器地址**：`http://<你的域名或IP>:9527`（部分客户端需填写完整路径 `http://<域名>:9527/rest`）。
-3. **用户名与密码**：输入服务端配置的任一系统用户账户与对应密码。
-4. 连接成功后，客户端不仅能加载你在服务端同步的歌单与本地缓存音乐，还可通过客户端顶部的全局搜索框直接检索并流式播放全网海量音源。
-
----
-
-## 🛠️ 本地开发与贡献指南
-
-本项目采用纯粹的 **Bun** 工具链构建，无需安装 Node.js、Webpack 或 Python。
-
-### 依赖环境
-- **Bun** >= 1.1（推荐使用最新版 Bun，可执行 `bun upgrade` 升级）
-
-### 常用命令
+开发模式：
 
 ```bash
-# 1. 安装项目纯净依赖
-bun install
-
-# 2. 启动前端源码热重载监听（开发 Web 播放器或后台）
-bun run dev:frontend
-
-# 3. 启动服务端源码开发模式（支持自动热重载）
 bun run dev
+bun run dev:frontend
+```
 
-# 4. 执行全栈静态类型检查（严格 0 错误）
+默认地址：
+
+- 管理后台：`http://localhost:9527/`
+- Web 播放器：`http://localhost:9527/music`
+- 健康检查：`http://localhost:9527/healthz`
+- 就绪检查：`http://localhost:9527/readyz`
+
+## 配置
+
+管理密码必须通过 `FRONTEND_PASSWORD` 或运行时配置设置，不能是空密码或示例弱密码。首次初始化用户可使用 `LX_USER_<username>` 环境变量，例如：
+
+```dotenv
+FRONTEND_PASSWORD=replace-with-a-strong-admin-password
+LX_USER_alice=replace-with-a-strong-user-password
+PORT=9527
+BIND_IP=0.0.0.0
+DATA_PATH=/server/data
+PLAYER_PATH=/music
+ADMIN_PATH=
+SERVER_NAME=lx-music-web
+SINGER_SOURCE_PRIORITY=tx,wy
+```
+
+可用配置类别包括：网络监听、数据目录、管理员与用户认证、播放器访问控制、公开访问限制、缓存限制、快照数量、代理和音源优先级。`config.js` 可由实例挂载到 `DATA_PATH`，用户列表不写入该文件，而是由 SQLite 管理。
+
+播放器与管理后台均为同源应用，浏览器请求不需要也不接受 `x-user-password`、`x-user-token`、`x-frontend-auth` 或旧同步 Token。
+
+## 数据与实例重置
+
+实例首次启动会创建全新 SQLite schema（当前版本 3），不迁移旧数据库。若目录中检测到旧 schema，服务会停止并提示重置；不会在启动时静默删除用户数据。
+
+显式重置只允许清理以下四个实例目录：`data/`、`cache/`、`music/`、`cover_cache/`。确认前请停止服务并做好备份：
+
+```bash
+bun run reset:instance -- --confirm
+```
+
+本地备份下载/上传属于管理后台能力，备份文件不依赖 WebDAV。备份包含配置、用户数据和数据库相关文件；请将备份存放在受控位置。
+
+## HTTP API 边界
+
+浏览器业务 API 保留在 `/api/` 下，并由同源 Cookie 会话保护。服务不再提供：
+
+- LX 客户端同步握手和 WebSocket 升级；
+- `/rest/*` Subsonic / OpenSubsonic；
+- `/api/webdav/*`、WebDAV 自动同步和远程备份任务；
+- 旧的密码请求头、同步 Token 和设备密钥接口。
+
+媒体文件继续支持受保护的 Range 请求、流式传输和缓存队列。静态 hash 资源使用长期 immutable 缓存，HTML 与运行时配置使用 no-cache，并支持 ETag / 304 / HEAD。
+
+## 开发检查
+
+```bash
 bun run tsc --noEmit
-
-# 5. 执行基于 bun:test 的单元与集成自动化测试套件
 bun test
-
-# 6. 打包前端产物至 public/
 bun run build:frontend
-
-# 7. 编译服务端单文件生产包至 ./server/
+bun run check:frontend-assets
 bun run build
 ```
 
----
+前端源码位于 `frontend/`，`public/` 只保存服务发布产物；不要手工修改 JavaScript/CSS 编译文件。前端使用原生 DOM，不引入 React、Vue 或运行时 Web 框架。
 
-## 📄 开源许可证
+## 部署建议
+
+- 使用 HTTPS 反向代理，并透传 `Host`、真实 IP 和 `X-Forwarded-Proto`。
+- 管理后台和用户密码使用密码管理器生成的高强度随机值。
+- 将 `data/`、`cache/`、`music/`、`cover_cache/` 分开备份，并限制宿主机权限。
+- 容器运行时启用非 root、只读根文件系统和受限临时目录；需要写入的目录显式挂载。
+- 不要把数据库、配置文件、会话 Cookie 或日志暴露到公共静态目录。
+
+## 许可证
 
 本项目基于 [Apache-2.0 License](./LICENSE) 协议分发。

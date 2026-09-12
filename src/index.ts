@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import fs from 'fs'
 import path from 'path'
@@ -69,7 +69,8 @@ const getConfigHash = (filePath: string) => {
 const dataPath = envParams.DATA_PATH ?? path.join(__dirname, '../data')
 const saveConfigToFile = async () => {
   const configPath = process.env.CONFIG_PATH || path.join(dataPath, 'config.js')
-  const content = `module.exports = ${JSON.stringify(global.lx.config, null, 2)}\n`
+  const configForFile = { ...global.lx.config, users: [] }
+  const content = `module.exports = ${JSON.stringify(configForFile, null, 2)}\n`
   try {
     const file = Bun.file(configPath)
     if (await file.exists()) {
@@ -309,32 +310,6 @@ checkAndCreateDir(global.lx.dataPath)
 checkAndCreateDir(global.lx.userPath)
 checkAndCreateDir(global.lx.userPath)
 
-// Load users from users.json if exists
-const usersJsonPath = path.join(global.lx.dataPath, 'users.json')
-if (fs.existsSync(usersJsonPath)) {
-  try {
-    const users = JSON.parse(fs.readFileSync(usersJsonPath, 'utf-8'))
-    if (Array.isArray(users)) {
-      console.log('Load users from users.json')
-      global.lx.config.users = users.map(u => ({ ...u, dataPath: '' }))
-    }
-  } catch (err) {
-    console.error('Failed to load users.json', err)
-  }
-} else {
-  // Save initial users to users.json
-  try {
-    fs.writeFileSync(usersJsonPath, JSON.stringify(global.lx.config.users.map(u => ({
-      name: u.name,
-      password: u.password,
-      maxSnapshotNum: u.maxSnapshotNum,
-      'list.addMusicLocationType': u['list.addMusicLocationType'],
-    })), null, 2))
-  } catch (err) {
-    console.error('Failed to save users.json', err)
-  }
-}
-
 checkUserConfig(global.lx.config.users)
 
 const frontendPassword = global.lx.config['frontend.password']
@@ -384,14 +359,11 @@ function normalizePort(val: string) {
 // const bindIP = envParams.BIND_IP ?? '127.0.0.1'
 
 // 初始化全局事件总线
-const { createModuleEvent } = await import('@/event')
-createModuleEvent()
-
 // 初始化 SQLite 原生数据库 (WAL 模式)
 const { initDatabase, closeDb } = await import('@/database')
 initDatabase()
-const { syncUsersToDatabase } = await import('@/user/data')
-syncUsersToDatabase(global.lx.config.users)
+const { initializeUsersFromDatabase } = await import('@/user/data')
+initializeUsersFromDatabase(global.lx.config.users)
 
 // 初始化 Web 服务
 const { startServer, stopServer } = await import('@/server')

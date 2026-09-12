@@ -15,7 +15,7 @@ export function initDashboardFeature(context: AdminFeatureContext) {
 
             // 更新顶部概览卡片
             document.getElementById('stat-users').textContent = status.users;
-            document.getElementById('stat-devices').textContent = status.devices;
+            document.getElementById('stat-devices').textContent = status.publicAccess ? '开' : '关';
             document.getElementById('stat-cpu').textContent = status.cpuUsage + '%';
             document.getElementById('stat-memory').textContent = app.formatFileSize(status.memory);
 
@@ -64,7 +64,7 @@ export function initDashboardFeature(context: AdminFeatureContext) {
     function startMonitor() {
         if (app.monitorTimer) return;
         app.monitorTimer = setInterval(async () => {
-            if (app.currentView !== 'dashboard' || !app.password) {
+            if (app.currentView !== 'dashboard') {
                 clearInterval(app.monitorTimer);
                 app.monitorTimer = null;
                 return;
@@ -144,7 +144,7 @@ export function initDashboardFeature(context: AdminFeatureContext) {
         const statDevices = document.getElementById('stat-devices');
         const statUptime = document.getElementById('stat-uptime');
         if (statUsers) statUsers.textContent = status.users;
-        if (statDevices) statDevices.textContent = status.devices;
+        if (statDevices) statDevices.textContent = status.publicAccess ? '开' : '关';
         if (statUptime) statUptime.textContent = app.formatUptime(status.uptime);
 
         // 更新硬件详情
@@ -240,4 +240,3 @@ export function initDashboardFeature(context: AdminFeatureContext) {
         renderMultiLineChart,
     };
 }
-

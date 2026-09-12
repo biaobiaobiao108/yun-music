@@ -12,6 +12,9 @@ declare namespace LX {
      */
     password: string
 
+    /** SQLite 中保存的密码哈希；仅作为运行时凭据，不写入配置文件。 */
+    passwordHash?: string
+
     /**
      * 最大备份快照数
      */
@@ -29,7 +32,7 @@ declare namespace LX {
 
   interface Config {
     /**
-     * 同步服务名称
+     * Web 服务名称
      */
     'serverName': string
 

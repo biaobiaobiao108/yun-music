@@ -81,8 +81,7 @@
 }
 
 /* 网易云经典红 (NetEase Red) */
-:root[data-theme="netease"],
-:root:not([data-theme]) {
+:root[data-theme="netease"] {
     --c-50: #fef2f2;
     --c-100: #fee2e2;
     --c-200: #fecaca;
@@ -98,7 +97,8 @@
 }
 
 /* 默认主题: 森之韵 (Forest Rhythm) - Emerald */
-:root[data-theme="emerald"] {
+:root[data-theme="emerald"],
+:root:not([data-theme]) {
     --c-50: #ecfdf5;
     --c-100: #d1fae5;
     --c-200: #a7f3d0;

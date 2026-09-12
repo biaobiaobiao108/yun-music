@@ -935,16 +935,13 @@ window.LocalMusicManager = {
         try {
             const requestList = () => {
                 const headers = window.getUserAuthHeaders ? window.getUserAuthHeaders() : {};
-                if (this.isViewingPublicSongs) {
-                    headers['x-user-name'] = '_open';
-                }
                 const url = `/api/music/cache/list${this.isViewingPublicSongs ? '?user=_open' : ''}`;
-                return fetch(url, { headers, cache: 'no-store' });
+                return fetch(url, { headers, credentials: 'same-origin', cache: 'no-store' });
             };
 
             let res = await requestList();
-            if (res.status === 401 && typeof window.ensureUserAuthToken === 'function') {
-                const refreshed = await window.ensureUserAuthToken({ force: true });
+            if (res.status === 401 && typeof window.ensureUserSession === 'function') {
+                const refreshed = await window.ensureUserSession({ force: true });
                 if (refreshed) res = await requestList();
             }
 
@@ -1241,7 +1238,7 @@ window.LocalMusicManager = {
             return;
         }
 
-        const username = this.isViewingPublicSongs ? '_open' : ((window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '_open');
+        const username = this.isViewingPublicSongs ? '_open' : ((window.currentListData && window.currentListData.username) || '_open');
         const page = this.getPageSlice();
         this.updatePagination();
 
@@ -1667,7 +1664,7 @@ window.LocalMusicManager = {
         if (!item) return;
 
         // Transform into songInfo for global player
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '_open';
+        const username = (window.currentListData && window.currentListData.username) || '_open';
 
         // Important: Use existing checkCache via global logic if possible, 
         // or directly supply local URL
@@ -1766,15 +1763,10 @@ window.LocalMusicManager = {
                 'Content-Type': 'application/json',
                 ...(window.getUserAuthHeaders ? window.getUserAuthHeaders() : {})
             };
-            const isLoggedIn = typeof window.isUserLoggedIn === 'function' ? window.isUserLoggedIn() : false;
-            if (this.isViewingPublicSongs || !isLoggedIn) {
-                headers['x-user-name'] = '_open';
-                delete headers['x-user-token'];
-                delete headers['x-user-password'];
-            }
             const res = await fetch('/api/music/cache/remove', {
                 method: 'POST',
                 headers,
+                credentials: 'same-origin',
                 body: JSON.stringify({
                     items: items.map(item => ({ filename: item.filename, folder: item.folder }))
                 })
@@ -2005,7 +1997,7 @@ window.LocalMusicManager = {
         const targetLocName = el ? (el.value === 'data' ? '本地(Root)' : '云端(Data)') : '另一目录';
 
         if (typeof showSelect === 'function') {
-            if (!(await showSelect('云端同步', `确定要将选中的 ${targetFilenames.length} 个文件从 ${currentLocName} 转移到 ${targetLocName} 吗?`))) return;
+            if (!(await showSelect('切换存储位置', `确定要将选中的 ${targetFilenames.length} 个文件从 ${currentLocName} 转移到 ${targetLocName} 吗?`))) return;
         }
 
         try {
@@ -2037,7 +2029,7 @@ window.LocalMusicManager = {
     downloadSingle(index) {
         const item = this.displayData[index];
         if (!item) return;
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '_open';
+        const username = (window.currentListData && window.currentListData.username) || '_open';
         const url = `/api/music/cache/file/${encodeURIComponent(username)}/${encodeURIComponent(item.filename)}?folder=${item.folder}`;
 
         const a = document.createElement('a');
@@ -2056,7 +2048,7 @@ window.LocalMusicManager = {
             return;
         }
 
-        const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '_open';
+        const username = (window.currentListData && window.currentListData.username) || '_open';
 
         // Use a slight delay to prevent browser from blocking multiple downloads
         targets.forEach((item, idx) => {
@@ -2194,16 +2186,12 @@ window.LocalMusicManager = {
         }
 
         try {
-            const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '_open';
-            const authToken = (window.getUserAuthHeaders ? window.getUserAuthHeaders()['x-user-token'] : null) || sessionStorage.getItem('lx_user_token') || '';
-
             const resp = await fetch('/api/music/identify', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-user-name': username,
-                    'x-user-token': authToken
                 },
+                credentials: 'same-origin',
                 body: JSON.stringify({ filename: item.filename, folder: item.folder })
             });
 
@@ -2482,16 +2470,12 @@ window.LocalMusicManager = {
         // 1. 优先：使用 AcoustID 指纹识别
         console.log('[AutoLink] Using AcoustID first for:', localItem.filename);
         try {
-            const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '_open';
-            const authToken = (window.getUserAuthHeaders ? window.getUserAuthHeaders()['x-user-token'] : null) || sessionStorage.getItem('lx_user_token') || '';
-
             const resp = await fetch('/api/music/identify', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-user-name': username,
-                    'x-user-token': authToken
                 },
+                credentials: 'same-origin',
                 body: JSON.stringify({ filename: localItem.filename, folder: localItem.folder })
             });
 
@@ -2686,7 +2670,7 @@ window.LocalMusicManager = {
         if (typeof showMsg === 'function') showMsg(`正在移动 ${filenames.length} 首歌曲到 ${targetSubPath || '根目录'}...`, 'info');
 
         try {
-            const username = (window.currentListData && window.currentListData.username) || localStorage.getItem('lx_sync_user') || '_open';
+            const username = (window.currentListData && window.currentListData.username) || '_open';
             const res = await fetch(`/api/music/cache/categorize?user=${encodeURIComponent(username)}`, {
                 method: 'POST',
                 headers: {
@@ -2751,7 +2735,6 @@ window.LocalMusicManager = {
     getRemasterQualityStorageKey() {
         const username = window.getRemasterStorageUsername?.()
             || (window.currentListData && window.currentListData.username)
-            || localStorage.getItem('lx_sync_user')
             || '_open';
         const normalizedUsername = !username || username === 'default' ? '_open' : username;
         return `lx_remaster_target_quality:${encodeURIComponent(normalizedUsername)}`;

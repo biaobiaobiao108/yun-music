@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { closeDb, initDatabase } from '@/database'
+import { syncUsersToDatabase } from '@/user/data'
 
 ;(global as any).lx = {
   dataPath: 'd:\\test_data',
@@ -23,6 +24,7 @@ describe('Web Cookie Authentication', () => {
     lxGlobal.config['frontend.password'] = 'admin123'
     lxGlobal.config['player.password'] = 'player456'
     lxGlobal.config.users = [{ name: 'test_user', password: 'password123' }]
+    syncUsersToDatabase(lxGlobal.config.users)
     userSessions.clear()
   })
 
@@ -35,7 +37,8 @@ describe('Web Cookie Authentication', () => {
     const router = createAuthRouter()
     const ip = '192.0.2.45'
     const verify = (password: string) => router.handle(new Request('http://localhost/api/admin/verify', {
-      method: 'POST', headers: { 'x-frontend-auth': password },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
     }), { remoteAddress: ip })
     for (let i = 0; i < 9; i++) expect((await verify('wrong')).status).toBe(401)
     expect((await verify('admin123')).status).toBe(200)

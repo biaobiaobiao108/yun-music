@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
+import fs from 'node:fs'
 import path from 'node:path'
 import { createStaticRouter, isPathInside } from '@/server/routes/static'
 import { Router } from '@/server/core'
@@ -45,14 +46,17 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     router.mount('/', createStaticRouter())
 
     // First request
-    const req1 = new Request('http://localhost:9527/app.js')
+    const adminEntry = fs.readdirSync(publicDir).find(name => /^app-[a-z0-9]+\.js$/i.test(name))
+    expect(adminEntry).toBeTruthy()
+    const req1 = new Request(`http://localhost:9527/${adminEntry}`)
     const res1 = await router.handle(req1)
     if (res1.status === 200) {
+      expect(res1.headers.get('Cache-Control')).toContain('immutable')
       const etag = res1.headers.get('ETag')
       expect(etag).toBeTruthy()
 
       // Conditional request
-      const req2 = new Request('http://localhost:9527/app.js', {
+      const req2 = new Request(`http://localhost:9527/${adminEntry}`, {
         headers: {
           'if-none-match': etag!,
         },
@@ -60,6 +64,12 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
       const res2 = await router.handle(req2)
       expect(res2.status).toBe(304)
     }
+
+    const html = await router.handle(new Request('http://localhost:9527/'))
+    expect(html.headers.get('Cache-Control')).toContain('no-cache')
+    const head = await router.handle(new Request(`http://localhost:9527/${adminEntry}`, { method: 'HEAD' }))
+    expect(head.status).toBe(200)
+    expect(await head.arrayBuffer()).toHaveLength(0)
   })
 
   test('Player auth redirects to login when enabled and unauthenticated', async () => {

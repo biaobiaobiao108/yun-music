@@ -1,9 +1,9 @@
 import { escapeHtmlText, safeImageUrl, safeInlineString } from '../player_security';
 
 export interface LibraryFeatureContext {
-    getCredential: (key: string) => string | null;
     getUserAuthHeaders: () => Record<string, string>;
     isUserLoggedIn: () => boolean;
+    isAdminSessionActive: () => boolean;
     requireAdminForOpenWrite: (action: string) => Promise<boolean>;
     showInfo: (message: string) => void;
     showSuccess: (message: string) => void;
@@ -20,9 +20,9 @@ export interface LibraryFeatureContext {
 }
 
 export function initLibraryFeature(context: LibraryFeatureContext) {
-    const getCredential = context.getCredential;
     const getUserAuthHeaders = context.getUserAuthHeaders;
     const isUserLoggedIn = context.isUserLoggedIn;
+    const isAdminSessionActive = context.isAdminSessionActive;
     const requireAdminForOpenWrite = context.requireAdminForOpenWrite;
     const showInfo = context.showInfo;
     const showSuccess = context.showSuccess;
@@ -114,9 +114,6 @@ async function loadLibraryData() {
 
         if (isPublic) {
             // 公开收藏模式：拉 _open 的歌手/专辑库
-            const adminPass = getCredential('lx_admin_password');
-            if (adminPass) headers['x-frontend-auth'] = adminPass;
-            headers['x-user-name'] = '_open';
             artistsUrl += '?user=_open';
             albumsUrl  += '?user=_open';
         } else {
@@ -191,9 +188,6 @@ async function saveLibraryArtists(customList = null) {
         let headers = { 'Content-Type': 'application/json' };
         let url = '/api/user/library/artists';
         if (isPublic) {
-            const adminPass = getCredential('lx_admin_password');
-            if (adminPass) headers['x-frontend-auth'] = adminPass;
-            headers['x-user-name'] = '_open';
             url += '?user=_open';
         } else {
             headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
@@ -217,9 +211,6 @@ async function saveLibraryAlbums(customList = null) {
         let headers = { 'Content-Type': 'application/json' };
         let url = '/api/user/library/albums';
         if (isPublic) {
-            const adminPass = getCredential('lx_admin_password');
-            if (adminPass) headers['x-frontend-auth'] = adminPass;
-            headers['x-user-name'] = '_open';
             url += '?user=_open';
         } else {
             headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };

@@ -44,7 +44,7 @@ export function switchSettingsTab(tabName: string): void {
 }
 
 export function initTheme(): void {
-    setTheme(localStorage.getItem('lx_theme') || 'netease', false);
+    setTheme(localStorage.getItem('lx_theme') || 'emerald', false);
     setAppearance(localStorage.getItem('lx_appearance') || 'system', false);
 }
 

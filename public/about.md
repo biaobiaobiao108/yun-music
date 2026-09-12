@@ -1,18 +1,18 @@
-# LX Music Sync Server
+# LX Music Web Server
 
 <div align="center">
-  <img src="/icon.svg" width="100" height="100" alt="LX Sync Logo">
+  <img src="/icon.svg" width="100" height="100" alt="LX Music Web Server Logo">
   <br>
-  <h1>LX Music Sync Server</h1>
+  <h1>LX Music Web Server</h1>
   <p>
     <img src="https://img.shields.io/badge/hash-{{buildHash}}-%2310b981?style=flat-square" alt="Build Hash">
     <a href="/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-orange?style=flat-square" alt="License"></a>
   </p>
 </div>
 
-基于 [lyswhut/lx-music-sync-server](https://github.com/lyswhut/lx-music-sync-server) 开发的增强版 LX Music 数据同步服务端。
+面向现代浏览器的 LX Music Web 播放器与管理后台，使用 Bun、TypeScript 和 SQLite 构建。
 
-本项目在原版基础上增加了强大的 **Web 管理界面**，支持用户管理、数据查看、快照回滚、WebDAV 备份等高级功能，让私有化部署更加便捷易用。
+项目提供同源的音乐搜索、播放、歌单、收藏、缓存和自定义音源能力，并提供用户、数据、快照、配置、日志和服务状态管理。
 
 ## ✨ 主要特性
 
@@ -33,25 +33,24 @@
 ### 💾 快照管理 (Snapshot)
 
 - **查看快照**：浏览服务器自动生成的历史数据快照。
-- **下载备份**：将快照下载为 `lx_backup.json`，可直接导入 LX Music 客户端。
+- **下载备份**：将快照下载为 Web Server 备份文件，供同一实例恢复使用。
 - **一键回滚**：支持将服务器数据回滚到任意历史时刻。
 
 ### 📂 文件与日志管理
 
-内置简易文件管理器，方便在线查看、下载和管理服务器上的日志和配置文件。
+内置管理界面，方便查看日志、配置和实例运行状态。
 
 ### ⚙️ 系统配置
 
 支持通过 Web 界面修改系统配置（端口、代理、密码等），无需手动编辑 `config.js` 文件。
 
-### ☁️ WebDAV 同步备份
-
-- 支持将服务器数据自动/手动备份到 WebDAV 网盘（如坚果云、Nextcloud、Alist 等）。
-- 支持从 WebDAV 云端恢复数据，确保数据安全。
-
 ### 🎧 Web 播放器
 
-**[Web 播放器](/music)**：内置功能强大的 Web 端音乐播放器，支持多源搜索、歌单同步、歌词显示等，随时随地享受音乐。
+**[Web 播放器](/music)**：内置功能强大的 Web 端音乐播放器，支持多源搜索、歌单、收藏、歌词和缓存。
+
+## 🔒 部署边界
+
+本项目仅保留 Web 浏览器使用的同源业务接口，不再支持旧版客户端同步、WebSocket 同步或其他第三方协议接口。全新实例使用新的 SQLite 结构，不自动迁移旧数据库。
 
 ## 🤝 致谢
 
