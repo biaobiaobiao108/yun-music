@@ -4,6 +4,52 @@ export interface ContextOptions {
   remoteAddress?: string
 }
 
+const firstHeaderValue = (value: string | null): string | null => {
+  const first = value?.split(',')[0]?.trim()
+  return first || null
+}
+
+const forwardedParameter = (header: string | null, name: string): string | null => {
+  const firstEntry = firstHeaderValue(header)
+  if (!firstEntry) return null
+  const match = firstEntry.match(new RegExp(`(?:^|;)\\s*${name}=\\s*(?:"([^"]+)"|([^;\\s]+))`, 'i'))
+  return (match?.[1] || match?.[2] || '').trim() || null
+}
+
+/**
+ * 计算浏览器实际看到的请求 origin。
+ *
+ * TLS 通常在反向代理处终止，Bun 收到的连接本身仍然是 HTTP；
+ * 因此需要使用标准转发头还原公网协议与主机，避免把同站请求误判成跨域。
+ * 代理必须覆盖这些请求头，而不是把客户端传入值继续透传到后端。
+ */
+export const resolveRequestOrigin = (request: Request, internalUrl: URL): string => {
+  const forwardedProtocol = firstHeaderValue(request.headers.get('x-forwarded-proto'))
+    || forwardedParameter(request.headers.get('forwarded'), 'proto')
+  const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'))
+    || forwardedParameter(request.headers.get('forwarded'), 'host')
+    || firstHeaderValue(request.headers.get('host'))
+
+  const externalUrl = new URL(internalUrl.href)
+  if (forwardedProtocol === 'http' || forwardedProtocol === 'https') {
+    externalUrl.protocol = `${forwardedProtocol}:`
+  }
+
+  if (forwardedHost) {
+    try {
+      const hostUrl = new URL(`${externalUrl.protocol}//${forwardedHost}`)
+      if (!hostUrl.username && !hostUrl.password && hostUrl.pathname === '/') {
+        externalUrl.hostname = hostUrl.hostname
+        externalUrl.port = hostUrl.port
+      }
+    } catch {
+      // Ignore malformed forwarding headers and keep Bun's internal origin.
+    }
+  }
+
+  return externalUrl.origin
+}
+
 /**
  * 面向用户的错误文案：保留服务端已写好的中文原因，
  * 英文/技术性异常（如 SDK、fs、fetch 抛出的原文）统一替换为中文兜底文案。
@@ -16,6 +62,8 @@ export const toUserMessage = (err: unknown, fallback: string): string => {
 export class HttpContext {
   readonly request: Request
   readonly url: URL
+  readonly requestOrigin: string
+  readonly isSecure: boolean
   readonly pathname: string
   readonly method: string
   readonly query: URLSearchParams
@@ -30,6 +78,8 @@ export class HttpContext {
   constructor(request: Request, options?: ContextOptions) {
     this.request = request
     this.url = new URL(request.url)
+    this.requestOrigin = resolveRequestOrigin(request, this.url)
+    this.isSecure = this.requestOrigin.startsWith('https://')
     this.pathname = this.url.pathname
     this.method = request.method.toUpperCase()
     this.query = this.url.searchParams

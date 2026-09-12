@@ -125,7 +125,7 @@ bun run build
 
 ## 部署建议
 
-- 使用 HTTPS 反向代理，并透传 `Host`、真实 IP 和 `X-Forwarded-Proto`。
+- 使用 HTTPS 反向代理，并覆盖透传 `Host`、真实 IP 和 `X-Forwarded-Proto`（或标准 `Forwarded`）。应用会据此识别公网 origin；请勿把客户端同名请求头直接转发到容器。
 - 管理后台和用户密码使用密码管理器生成的高强度随机值。
 - 将 `data/`、`cache/`、`music/`、`cover_cache/` 分开备份，并限制宿主机权限。
 - 容器运行时按 root 用户运行，并启用只读根文件系统和受限临时目录；需要写入的目录显式挂载。

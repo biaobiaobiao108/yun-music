@@ -131,7 +131,7 @@ export const createAuthRouter = (): Router => {
       clearLoginFailures(ip)
       const sessionId = createAdminSession()
       loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.url.protocol === 'https:') })
+      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.isSecure) })
     } catch {
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
@@ -150,7 +150,7 @@ export const createAuthRouter = (): Router => {
       clearLoginFailures(ip)
       const sessionId = createAdminSession()
       loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.url.protocol === 'https:') })
+      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.isSecure) })
     } catch {
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
@@ -159,7 +159,7 @@ export const createAuthRouter = (): Router => {
   router.post('/api/logout', (ctx) => {
     const sessionId = ctx.cookies[ADMIN_SESSION_COOKIE_NAME]
     if (sessionId) removeAdminSession(sessionId)
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, '', 0, ctx.url.protocol === 'https:') })
+    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
   })
 
   router.post('/api/user/login', async (ctx) => {
@@ -180,7 +180,7 @@ export const createAuthRouter = (): Router => {
       clearLoginFailures(ip)
       const sessionId = issueUserSession(user.name)
       loginLog.info(`User login success: ${user.name} from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true, username: user.name }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, sessionId, USER_SESSION_TTL / 1000, ctx.url.protocol === 'https:') })
+      return ctx.json({ success: true, username: user.name }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, sessionId, USER_SESSION_TTL / 1000, ctx.isSecure) })
     } catch {
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
@@ -192,7 +192,7 @@ export const createAuthRouter = (): Router => {
       userSessions.delete(sessionId)
       deletePersistedUserSession(sessionId)
     }
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, '', 0, ctx.url.protocol === 'https:') })
+    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
   })
 
   router.get('/api/music/auth/verify', (ctx) => ctx.json({ valid: checkPlayerAuthSession(ctx.cookies) }))
@@ -211,7 +211,7 @@ export const createAuthRouter = (): Router => {
       clearLoginFailures(ip)
       const sessionId = createPlayerSession()
       loginLog.info(`Player login success from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, sessionId, PLAYER_SESSION_TTL / 1000, ctx.url.protocol === 'https:') })
+      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, sessionId, PLAYER_SESSION_TTL / 1000, ctx.isSecure) })
     } catch {
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
@@ -220,7 +220,7 @@ export const createAuthRouter = (): Router => {
   router.post('/api/music/auth/logout', (ctx) => {
     const sessionId = ctx.cookies[SESSION_COOKIE_NAME]
     if (sessionId) removePlayerSession(sessionId)
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, '', 0, ctx.url.protocol === 'https:') })
+    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
   })
 
   router.get('/api/user/auth/verify', (ctx) => {

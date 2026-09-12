@@ -7,7 +7,7 @@ export * from './router'
 /** 默认同源策略与跨域预检中间件 */
 export const corsMiddleware: Middleware = async (ctx, next) => {
   const origin = ctx.headers.get('origin')
-  if (origin && origin !== ctx.url.origin) {
+  if (origin && origin !== ctx.requestOrigin) {
     return ctx.fail(403, '跨域请求被拒绝')
   }
 
