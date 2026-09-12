@@ -207,7 +207,7 @@
                 <a href="#player-demo" class="t-text-muted hover:text-[var(--c-500)] transition-colors">模拟播放器</a>
                 <a href="#deployment" class="t-text-muted hover:text-[var(--c-500)] transition-colors">Docker 部署</a>
                 <a href="#security" class="t-text-muted hover:text-[var(--c-500)] transition-colors">安全与存储</a>
-                <a href="https://github.com/biaobiaobiao108/lxserver#readme" target="_blank" class="t-text-muted hover:text-[var(--c-500)] transition-colors">完整 README</a>
+                <a href="https://github.com/biaobiaobiao108/yun-music#readme" target="_blank" class="t-text-muted hover:text-[var(--c-500)] transition-colors">完整 README</a>
             </nav>
 
             <!-- 右侧操作栏：主题模式 & 色系切换 & GitHub -->
@@ -240,7 +240,7 @@
                 </button>
 
                 <!-- GitHub 链接 -->
-                <a href="https://github.com/biaobiaobiao108/lxserver" target="_blank" rel="noopener" class="w-9 h-9 rounded-full flex items-center justify-center border t-border t-bg-panel t-bg-item-hover transition-colors shadow-sm t-text-muted hover:text-[var(--c-500)]">
+                <a href="https://github.com/biaobiaobiao108/yun-music" target="_blank" rel="noopener" class="w-9 h-9 rounded-full flex items-center justify-center border t-border t-bg-panel t-bg-item-hover transition-colors shadow-sm t-text-muted hover:text-[var(--c-500)]">
                     <i class="fab fa-github text-base"></i>
                 </a>
             </div>
@@ -290,9 +290,9 @@
             <div class="max-w-xl mx-auto glass-card rounded-2xl p-2.5 flex items-center justify-between shadow-xl">
                 <div class="flex items-center space-x-3 pl-3 overflow-hidden text-left font-mono text-xs sm:text-sm t-text-muted">
                     <span class="t-accent font-bold select-none">$</span>
-                    <span class="truncate">docker run -d -p 9527:9527 -e FRONTEND_PASSWORD=admin123 ghcr.io/biaobiaobiao108/lxserver</span>
+                    <span class="truncate">docker run -d -p 9527:9527 -e FRONTEND_PASSWORD=admin123 ghcr.io/biaobiaobiao108/yun-music</span>
                 </div>
-                <button onclick="copyCommand('docker run -d -p 9527:9527 -v $(pwd)/data:/server/data -e FRONTEND_PASSWORD=YourStrongPassword ghcr.io/biaobiaobiao108/lxserver:latest', this)" class="ml-3 px-4 py-2 rounded-xl text-xs font-semibold text-white t-accent-bg t-accent-bg-hover transition-colors whitespace-nowrap flex items-center space-x-1.5">
+                <button onclick="copyCommand('docker run -d -p 9527:9527 -v $(pwd)/data:/server/data -e FRONTEND_PASSWORD=YourStrongPassword ghcr.io/biaobiaobiao108/yun-music:latest', this)" class="ml-3 px-4 py-2 rounded-xl text-xs font-semibold text-white t-accent-bg t-accent-bg-hover transition-colors whitespace-nowrap flex items-center space-x-1.5">
                     <i class="far fa-copy"></i>
                     <span>一键复制</span>
                 </button>
@@ -611,7 +611,7 @@
 
 services:
   yun-yin:
-    image: ghcr.io/biaobiaobiao108/lxserver:latest
+    image: ghcr.io/biaobiaobiao108/yun-music:latest
     container_name: yun-yin
     user: "0:0"
     restart: always
@@ -650,7 +650,7 @@ services:
   -e NODE_ENV=production \
   -e FRONTEND_PASSWORD=YourStrongAdminPassword123! \
   -e ENABLE_WEBPLAYER_AUTH=false \
-  ghcr.io/biaobiaobiao108/lxserver:latest</code></pre>
+  ghcr.io/biaobiaobiao108/yun-music:latest</code></pre>
                 <!-- Tab 3: Bun Source Run -->
                 <div id="deploy-bun" class="relative hidden">
                     <div class="flex justify-between items-center mb-2">
@@ -661,8 +661,8 @@ services:
                         </button>
                     </div>
                     <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-bun"># 1. 克隆代码仓库并安装依赖
-git clone https://github.com/biaobiaobiao108/lxserver.git
-cd lxserver
+git clone https://github.com/biaobiaobiao108/yun-music.git
+cd yun-music
 bun install
 
 # 2. 配置根目录 .env 文件 (Bun 原生自动加载)
@@ -691,8 +691,8 @@ bun start
                         </button>
                     </div>
                     <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-build"># 1. 克隆代码仓库
-git clone https://github.com/biaobiaobiao108/lxserver.git
-cd lxserver
+git clone https://github.com/biaobiaobiao108/yun-music.git
+cd yun-music
 
 # 2. 修改 docker-compose.yml 中的环境变量密码
 
@@ -754,7 +754,7 @@ docker compose logs -f yun-yin</code></pre>
                 <span>· Powered by Bun 1.1+ & TypeScript 7.0</span>
             </div>
             <div>
-                Distributed under <a href="https://github.com/biaobiaobiao108/lxserver/blob/main/LICENSE" target="_blank" class="underline hover:t-accent">Apache-2.0 License</a>.
+                Distributed under <a href="https://github.com/biaobiaobiao108/yun-music/blob/main/LICENSE" target="_blank" class="underline hover:t-accent">Apache-2.0 License</a>.
             </div>
             <div>
                 <a href="#top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="hover:t-accent">

@@ -19,12 +19,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biaobiaobiao108/lxserver.git"
+    "url": "git+https://github.com/biaobiaobiao108/yun-music.git"
   },
   "bugs": {
-    "url": "https://github.com/biaobiaobiao108/lxserver/issues"
+    "url": "https://github.com/biaobiaobiao108/yun-music/issues"
   },
-  "homepage": "https://github.com/biaobiaobiao108/lxserver#readme",
+  "homepage": "https://github.com/biaobiaobiao108/yun-music#readme",
   "dependencies": {
     "archiver": "^8.0.0",
     "file-type": "^22.0.2",

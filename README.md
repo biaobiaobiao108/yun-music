@@ -21,7 +21,7 @@
 ```yaml
 services:
   yun-yin:
-    image: ghcr.io/biaobiaobiao108/lxserver:latest
+    image: ghcr.io/biaobiaobiao108/yun-music:latest
     container_name: yun-yin
     restart: always
     ports:

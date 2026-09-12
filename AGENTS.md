@@ -33,7 +33,7 @@
 
 ### 核心目录指引
 ```text
-lxserver/
+yun-music/
 ├── src/                    # 服务端核心 TypeScript 源码
 │   ├── server/             # HTTP 服务、路由、中间件与业务服务
 │   │   ├── core/           # Bun.serve 原生路由引擎、HttpContext、洋葱模型中间件
