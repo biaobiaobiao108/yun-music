@@ -3436,19 +3436,57 @@ aside {
     animation-play-state: running !important;
 }
 
-/* 底栏元数据共享剩余宽度，歌手和专辑各自省略，不再互相挤压收藏按钮。 */
+/* 底栏元数据按内容优先排布：歌手和专辑彼此靠近，只有空间不足时才收缩。 */
 #player-song-info .player-meta-row {
     display: flex;
+    align-items: center;
+    column-gap: 0.35rem;
     min-inline-size: 0;
     max-inline-size: 100%;
+    overflow: hidden;
 }
 
 #player-song-info .player-meta-artist,
 #player-song-info .player-meta-album {
-    flex: 1 1 0%;
+    flex: 0 1 auto;
     min-inline-size: 0;
-    max-inline-size: none;
+    max-inline-size: 50%;
     overflow: hidden;
+    white-space: nowrap;
+}
+
+#player-song-info .player-meta-artist {
+    max-inline-size: 52%;
+}
+
+#player-song-info .player-meta-album {
+    max-inline-size: 48%;
+}
+
+#player-song-info #player-meta-separator {
+    flex: 0 0 auto;
+    color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+/* 长元数据默认静止，避免底栏持续运动；鼠标悬浮或键盘聚焦时才滚动。 */
+#player-song-info .player-meta-artist .animate-marquee,
+#player-song-info .player-meta-album .animate-marquee {
+    animation-play-state: paused;
+    animation-duration: 12s;
+}
+
+#player-song-info .player-meta-artist:hover .animate-marquee,
+#player-song-info .player-meta-artist:focus-visible .animate-marquee,
+#player-song-info .player-meta-album:hover .animate-marquee,
+#player-song-info .player-meta-album:focus-visible .animate-marquee {
+    animation-play-state: running;
+}
+
+@media (hover: none) {
+    #player-song-info .player-meta-artist:focus .animate-marquee,
+    #player-song-info .player-meta-album:focus .animate-marquee {
+        animation-play-state: running;
+    }
 }
 
 #player-song-info .player-meta-artist > .w-full,

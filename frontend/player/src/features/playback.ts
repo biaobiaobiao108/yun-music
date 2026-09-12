@@ -922,6 +922,7 @@ function updatePlayerInfo(song, actualQuality) {
         if (artistEl) {
             artistEl.innerText = '选择一首歌曲播放';
             artistEl.setAttribute('data-text', '选择一首歌曲播放');
+            artistEl.removeAttribute('title');
             artistEl.onclick = null;
             artistEl.classList.remove('hover:text-emerald-500', 'cursor-pointer');
             artistEl.classList.add('truncate');
@@ -930,6 +931,7 @@ function updatePlayerInfo(song, actualQuality) {
             albumEl.innerText = '';
             albumEl.removeAttribute('data-text');
             albumEl.removeAttribute('aria-label');
+            albumEl.removeAttribute('title');
             albumEl.classList.add('hidden');
             albumEl.onclick = null;
         }
@@ -984,6 +986,7 @@ function updatePlayerInfo(song, actualQuality) {
     if (artistEl) {
         artistEl.innerText = song.singer;
         artistEl.setAttribute('data-text', song.singer);
+        artistEl.title = song.singer;
         artistEl.classList.add('truncate');
         artistEl.classList.remove('overflow-hidden');
 
@@ -1008,6 +1011,7 @@ function updatePlayerInfo(song, actualQuality) {
             albumEl.innerText = albumName;
             albumEl.setAttribute('data-text', albumName);
             albumEl.setAttribute('aria-label', `搜索专辑 ${albumName}`);
+            albumEl.title = albumName;
             albumEl.classList.remove('hidden');
             albumEl.onclick = (e) => {
                 e.stopPropagation();
@@ -1019,6 +1023,7 @@ function updatePlayerInfo(song, actualQuality) {
             albumEl.innerText = '';
             albumEl.removeAttribute('data-text');
             albumEl.removeAttribute('aria-label');
+            albumEl.removeAttribute('title');
             albumEl.classList.add('hidden');
             albumEl.onclick = null;
             albumSeparator?.classList.add('hidden');
