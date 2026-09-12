@@ -2586,7 +2586,7 @@ initShortcutsFeature({
 });
 
 function getRemasterStorageUsername() {
-    const username = currentListData?.username || userName || '_open';
+    const username = userName || currentListData?.username || '_open';
     return !username || username === 'default' ? '_open' : username;
 }
 
@@ -2603,6 +2603,7 @@ async function toggleRemasterFeature(enabled) {
 }
 
 window.getRemasterStorageUsername = getRemasterStorageUsername;
+window.getUserName = () => userName;
 window.toggleRemasterFeature = toggleRemasterFeature;
 
 async function updateSetting(key, value) {

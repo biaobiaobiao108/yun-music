@@ -66,6 +66,24 @@ window.LocalMusicManager = {
         return this.escapeHtml(value);
     },
 
+    getStorageUsername() {
+        if (this.isViewingPublicSongs) return '_open';
+        const loggedIn = typeof window.isUserLoggedIn === 'function' && window.isUserLoggedIn();
+        if (!loggedIn) return '_open';
+
+        // currentListData can temporarily point at the public library while a
+        // personal session is still active. URLs for local files must follow
+        // the authenticated principal, not the currently visible playlist.
+        const sessionUsername = typeof window.getUserName === 'function' ? window.getUserName() : '';
+        const personalUsername = window.myPersonalListData?.username;
+        const currentUsername = window.currentListData?.username;
+        const storedUsername = localStorage.getItem('lx_user_name');
+        const username = sessionUsername || personalUsername ||
+            (currentUsername && !['_open', 'open', 'default'].includes(currentUsername) ? currentUsername : '') ||
+            storedUsername || '';
+        return username && !['open', 'default'].includes(username) ? username : '_open';
+    },
+
     tokenizeSearchExpression(expression) {
         const tokens = [];
         let buffer = '';
@@ -1239,7 +1257,7 @@ window.LocalMusicManager = {
             return;
         }
 
-        const username = this.isViewingPublicSongs ? '_open' : ((window.currentListData && window.currentListData.username) || '_open');
+        const username = this.getStorageUsername();
         const page = this.getPageSlice();
         this.updatePagination();
 
@@ -1284,7 +1302,11 @@ window.LocalMusicManager = {
             let coverHtml = `<div class="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-gray-100/50 flex-shrink-0 flex items-center justify-center border t-border-main mr-2.5 md:mr-4 ml-0.5 md:ml-3">
                                 <i class="fas fa-music t-text-muted text-xs"></i>
                              </div>`;
-            if (itemHasCover) {
+            // Do not trust a stale hasCover flag: the server may be able to
+            // recover an embedded/cached cover while reconciling the index.
+            // Failed probes are remembered until the next data refresh to
+            // avoid repeatedly rendering a broken image placeholder.
+            if (itemHasCover || !item._coverLoadFailed) {
                 const coverVersion = [
                     item.coverCheckedVersion || 0,
                     Math.round(item.coverCheckedMtime || item.mtime || 0),
@@ -1449,6 +1471,7 @@ window.LocalMusicManager = {
             img.src = item.img;
             return;
         }
+        item._coverLoadFailed = true;
         item.hasCover = false;
         item.coverType = 'none';
 
@@ -1665,7 +1688,7 @@ window.LocalMusicManager = {
         if (!item) return;
 
         // Transform into songInfo for global player
-        const username = (window.currentListData && window.currentListData.username) || '_open';
+        const username = this.getStorageUsername();
 
         // Important: Use existing checkCache via global logic if possible, 
         // or directly supply local URL
@@ -1760,11 +1783,12 @@ window.LocalMusicManager = {
 
     async _executeDelete(items) {
         try {
+            const username = this.getStorageUsername();
             const headers = {
                 'Content-Type': 'application/json',
                 ...(window.getUserAuthHeaders ? window.getUserAuthHeaders() : {})
             };
-            const res = await fetch('/api/music/cache/remove', {
+            const res = await fetch(`/api/music/cache/remove?user=${encodeURIComponent(username)}`, {
                 method: 'POST',
                 headers,
                 credentials: 'same-origin',
@@ -2030,7 +2054,7 @@ window.LocalMusicManager = {
     downloadSingle(index) {
         const item = this.displayData[index];
         if (!item) return;
-        const username = (window.currentListData && window.currentListData.username) || '_open';
+        const username = this.getStorageUsername();
         const url = `/api/music/cache/file/${encodeURIComponent(username)}/${encodeURIComponent(item.filename)}?folder=${item.folder}`;
 
         const a = document.createElement('a');
@@ -2049,7 +2073,7 @@ window.LocalMusicManager = {
             return;
         }
 
-        const username = (window.currentListData && window.currentListData.username) || '_open';
+        const username = this.getStorageUsername();
 
         // Use a slight delay to prevent browser from blocking multiple downloads
         targets.forEach((item, idx) => {
@@ -2671,7 +2695,7 @@ window.LocalMusicManager = {
         if (typeof showMsg === 'function') showMsg(`正在移动 ${filenames.length} 首歌曲到 ${targetSubPath || '根目录'}...`, 'info');
 
         try {
-            const username = (window.currentListData && window.currentListData.username) || '_open';
+            const username = this.getStorageUsername();
             const res = await fetch(`/api/music/cache/categorize?user=${encodeURIComponent(username)}`, {
                 method: 'POST',
                 headers: {

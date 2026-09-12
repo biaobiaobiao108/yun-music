@@ -2328,6 +2328,11 @@ function lazyLoadImages(root = document) {
             img.removeAttribute('data-src');
         };
         img.onerror = () => {
+            // Local music rows own their fallback chain: first try the
+            // authenticated cache-cover endpoint, then the song's remote
+            // cover, and only then render the default logo. Do not replace
+            // that image from this generic loader during the same error event.
+            if (img.classList.contains('lm-cover-image')) return;
             img.src = '/music/assets/yun-yin.png';
             img.classList.add('is-placeholder');
             img.removeAttribute('data-src');

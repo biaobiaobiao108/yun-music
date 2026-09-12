@@ -34,6 +34,18 @@ export function initCacheFeature(context: CacheFeatureContext) {
     const DEFAULT_SETTINGS = context.defaultSettings;
     const getDownloadStatusHtml = context.getDownloadStatusHtml;
 
+    const getPersonalStorageUsername = (): string => {
+        if (!isUserLoggedIn()) return '_open';
+        const sessionUsername = typeof window.getUserName === 'function' ? window.getUserName() : '';
+        const personalUsername = window.myPersonalListData?.username;
+        const currentUsername = window.currentListData?.username;
+        const storedUsername = localStorage.getItem('lx_user_name');
+        const username = sessionUsername || personalUsername ||
+            (currentUsername && !['_open', 'open', 'default'].includes(currentUsername) ? currentUsername : '') ||
+            storedUsername || '';
+        return username && !['open', 'default'].includes(username) ? username : '_open';
+    };
+
 async function calcStorageUsage() {
     try {
         // 1. 优先使用原生 API 获取包含 IndexedDB 的准确占用
@@ -243,7 +255,6 @@ async function refreshCacheList() {
     container.innerHTML = getDownloadStatusHtml('fa-spinner', '正在重新扫描文件并刷新列表...', true);
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || '';
         const headers = getUserAuthHeaders();
 
         // 刷新前先强制触发服务器端的磁盘同步/索引重建
@@ -310,7 +321,7 @@ function renderCacheList() {
             qTagHtml = `<span class="flex-shrink-0 px-1 py-0 rounded text-[10px] t-badge-red border border-red-200 dark:border-red-500/30 transition-colors">${qName}</span>`;
         }
 
-        const username = (window.currentListData && window.currentListData.username) || '';
+        const username = getPersonalStorageUsername();
         const coverUrl = item.hasCover
             ? `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}`
             : '/music/assets/yun-yin.png';
@@ -531,11 +542,11 @@ async function removeCacheItem(index) {
     if (!(await showSelect('确定删除', '确认从服务器永久删除此缓存文件吗？', { danger: true }))) return;
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || '';
+        const username = getPersonalStorageUsername();
         const headers = { 'Content-Type': 'application/json' };
         Object.assign(headers, getUserAuthHeaders());
 
-        const res = await fetch('/api/music/cache/remove', {
+        const res = await fetch(`/api/music/cache/remove?user=${encodeURIComponent(username)}`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({ items: [{ filename: item.filename, folder: item.folder }] })
@@ -577,11 +588,11 @@ async function batchDeleteCache() {
     if (!(await showSelect('批量删除', `确定要删除这 ${deleteItems.length} 个缓存文件吗？`, { danger: true }))) return;
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || '';
+        const username = getPersonalStorageUsername();
         const headers = { 'Content-Type': 'application/json' };
         Object.assign(headers, getUserAuthHeaders());
 
-        const res = await fetch('/api/music/cache/remove', {
+        const res = await fetch(`/api/music/cache/remove?user=${encodeURIComponent(username)}`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({

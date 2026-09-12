@@ -83,12 +83,16 @@ const resolveCacheTarget = (
   options: { publicWrite?: boolean } = {},
 ): CacheTargetResult => {
   const requested = ctx.query.get('user')?.trim() || ''
-  const isPublic = !requested || requested === 'default' || requested === 'open' || requested === '_open'
+  const isPublicAlias = requested === 'default' || requested === 'open' || requested === '_open'
   const verified = verifyUserAuth(ctx)
   const isAdmin = verifyAdminAuth(ctx.request)
 
-  if (isPublic) {
-    if (verified) return { ok: true, username: verified }
+  // An omitted user means the authenticated user's private storage. An
+  // explicit public alias means the shared _open storage, even when the
+  // request also carries a personal session cookie.
+  if (!requested && verified) return { ok: true, username: verified }
+
+  if (!requested || isPublicAlias) {
     if (options.publicWrite && !isAdmin) {
       return { ok: false, error: ctx.fail(403, '权限不足：修改公共本地音乐库需要先验证管理员身份') }
     }
@@ -589,13 +593,14 @@ export const createCacheRouter = (): Router => {
 
   router.get('/api/music/cache/cover', async (ctx) => {
     const reqUsername = ctx.query.get('user') || ''
-    const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default'
-    let username = '_open'
+    const isPublicAlias = reqUsername === '_open' || reqUsername === 'default' || reqUsername === 'open'
+    const verified = verifyUserAuth(ctx)
+    let username = verified || '_open'
 
-    if (!isPublic) {
-      const tokenUser = verifyUserAuth(ctx)
-      if (!tokenUser) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = tokenUser
+    if (isPublicAlias) {
+      username = '_open'
+    } else if (reqUsername && (!verified || verified !== reqUsername)) {
+      return ctx.fail(401, '登录状态已失效，请重新登录')
     }
 
     const filename = ctx.query.get('filename')
@@ -615,20 +620,9 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/remove', async (ctx) => {
-    const reqUsername = ctx.query.get('user') || ''
-    const isAdmin = verifyAdminAuth(ctx.request)
-    const isPublic = !reqUsername || reqUsername === 'default' || reqUsername === '_open'
-    let username = '_open'
-
-    if (isPublic) {
-      if (!isAdmin) {
-        return ctx.json({ success: false, message: '权限不足：删除公共本地歌曲需要验证管理员权限。' }, 403)
-      }
-    } else {
-      const verified = verifyUserAuth(ctx)
-      if (!verified) return ctx.fail(401, '登录状态已失效，请重新登录')
-      username = verified
-    }
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+    const username = target.username
 
     try {
       const payload = await ctx.bodyJson<any>()

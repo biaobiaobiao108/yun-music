@@ -69,6 +69,64 @@ describe('cache list user scope', () => {
       getCacheList.mockRestore()
     }
   })
+
+  test('uses the authenticated user for cache removal when user is omitted', async () => {
+    const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'music' })
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/remove', {
+        method: 'POST',
+        headers: {
+          cookie: `lx_user_session=${sessionId}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ items: [{ filename: 'album/song.mp3', folder: 'music' }] }),
+      }))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ success: true, deletedCount: 1 })
+      expect(removeCacheFile).toHaveBeenCalledWith('album/song.mp3', username, 'music')
+    } finally {
+      removeCacheFile.mockRestore()
+    }
+  })
+
+  test('keeps an explicit public cache removal protected for personal sessions', async () => {
+    const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'music' })
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/remove?user=_open', {
+        method: 'POST',
+        headers: {
+          cookie: `lx_user_session=${sessionId}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ items: [{ filename: 'public/song.mp3', folder: 'music' }] }),
+      }))
+
+      expect(response.status).toBe(403)
+      expect(removeCacheFile).not.toHaveBeenCalled()
+    } finally {
+      removeCacheFile.mockRestore()
+    }
+  })
+
+  test('uses the authenticated user for cover lookup when user is omitted', async () => {
+    const getCacheCover = spyOn(fileCache, 'getCacheCover').mockResolvedValue({
+      data: Buffer.from('cover'),
+      mime: 'image/png',
+    })
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }))
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-type')).toBe('image/png')
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('cover'))
+      expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username)
+    } finally {
+      getCacheCover.mockRestore()
+    }
+  })
 })
 
 test('proxy stream bounds unread data and cancels the upstream transport', async () => {

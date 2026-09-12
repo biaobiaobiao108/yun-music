@@ -12,6 +12,7 @@ describe('Player Navigation and State Restoration Safety', () => {
     const customSelectSrcPath = path.join(import.meta.dir, '../frontend/player/src/custom_select.ts');
     const accessibleOverlaysSrcPath = path.join(import.meta.dir, '../frontend/player/src/accessible_overlays.ts');
     const playlistModalSrcPath = path.join(import.meta.dir, '../frontend/player/src/features/playlist_modal.ts');
+    const localMusicSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/local_music.ts');
     const playerCssPath = path.join(import.meta.dir, '../public/music/css/app.css');
     const playerPublicDir = path.join(import.meta.dir, '../public/music');
     const getPlayerDistPath = () => path.join(playerPublicDir, fs.readdirSync(playerPublicDir).find(name => /^app-[a-z0-9]+\.js$/i.test(name)) || 'app.js');
@@ -80,6 +81,19 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(overlays).toContain("element.tagName === 'DIALOG'");
         expect(player).toContain('function syncUserSessionStatus()');
         expect(player).toContain('syncUserSessionStatus();');
+    });
+
+    it('local music uses the authenticated storage scope for media URLs and deletion', () => {
+        const localMusic = fs.readFileSync(localMusicSrcPath, 'utf8');
+
+        expect(localMusic).toContain('getStorageUsername()');
+        expect(localMusic).toContain('window.getUserName');
+        expect(localMusic).toContain('item._coverLoadFailed');
+        expect(localMusic).toContain('/api/music/cache/remove?user=${encodeURIComponent(username)}');
+        expect(localMusic).not.toContain("(window.currentListData && window.currentListData.username) || '_open'");
+
+        const search = fs.readFileSync(searchSrcPath, 'utf8');
+        expect(search).toContain("img.classList.contains('lm-cover-image')");
     });
 
     it('player sidebar prevents horizontal overflow from long navigation labels', () => {
