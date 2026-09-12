@@ -11,6 +11,7 @@ describe('Player Navigation and State Restoration Safety', () => {
     const lyricsSrcPath = path.join(import.meta.dir, '../frontend/player/src/features/lyrics.ts');
     const customSelectSrcPath = path.join(import.meta.dir, '../frontend/player/src/custom_select.ts');
     const accessibleOverlaysSrcPath = path.join(import.meta.dir, '../frontend/player/src/accessible_overlays.ts');
+    const playlistModalSrcPath = path.join(import.meta.dir, '../frontend/player/src/features/playlist_modal.ts');
     const playerCssPath = path.join(import.meta.dir, '../public/music/css/app.css');
     const playerPublicDir = path.join(import.meta.dir, '../public/music');
     const getPlayerDistPath = () => path.join(playerPublicDir, fs.readdirSync(playerPublicDir).find(name => /^app-[a-z0-9]+\.js$/i.test(name)) || 'app.js');
@@ -65,6 +66,20 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(html.includes('viewport-fit=cover')).toBe(true);
         expect(html.includes('id="mobile-menu-btn"')).toBe(true);
         expect(html.includes('data-event-click-action="toggleSidebar"')).toBe(true);
+    });
+
+    it('nested playlist creation keeps native dialogs interactive and syncs restored user status', () => {
+        const player = fs.readFileSync(playerSrcPath, 'utf8');
+        const playlistModal = fs.readFileSync(playlistModalSrcPath, 'utf8');
+        const overlays = fs.readFileSync(accessibleOverlaysSrcPath, 'utf8');
+
+        expect(player).toContain('const shouldRestorePlaylistModal');
+        expect(player).toContain('closePlaylistAddModal(true)');
+        expect(player).toContain('await openPlaylistAddModal()');
+        expect(playlistModal).toContain('function closePlaylistAddModal(immediate = false)');
+        expect(overlays).toContain("element.tagName === 'DIALOG'");
+        expect(player).toContain('function syncUserSessionStatus()');
+        expect(player).toContain('syncUserSessionStatus();');
     });
 
     it('player sidebar prevents horizontal overflow from long navigation labels', () => {

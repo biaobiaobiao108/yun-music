@@ -262,6 +262,12 @@ function dismissTransientPortals(): void {
 }
 
 function getOverlayStackingOrder(element: OverlayElement): number {
+    // Native modal dialogs are promoted to the browser's top layer by
+    // showModal(). Their CSS z-index is not comparable with fixed legacy
+    // overlays, so always let an open <dialog> own the active focus boundary.
+    if (element.tagName === 'DIALOG' && (element as HTMLDialogElement).open) {
+        return Number.MAX_SAFE_INTEGER;
+    }
     const zIndex = Number.parseInt(getComputedStyle(element).zIndex, 10);
     return Number.isFinite(zIndex) ? zIndex : 0;
 }

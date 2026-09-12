@@ -164,7 +164,7 @@ async function openPlaylistAddModal(batchSongs = null) {
     }, 10);
 }
 
-function closePlaylistAddModal() {
+function closePlaylistAddModal(immediate = false) {
     const modal = document.getElementById('playlist-add-modal');
     const content = document.getElementById('playlist-add-modal-content');
 
@@ -173,13 +173,16 @@ function closePlaylistAddModal() {
         content.classList.add('scale-95', 'opacity-0');
     }
 
-    setTimeout(() => {
+    const hide = () => {
         if (modal) modal.classList.add('hidden');
         // Update Player Info to refresh heart icon state
         if (context.getCurrentPlayingSong()) {
             updatePlayerInfo(context.getCurrentPlayingSong());
         }
-    }, 300);
+    };
+
+    if (immediate) hide();
+    else setTimeout(hide, 300);
 }
 
 // 绑定模态框背景点击

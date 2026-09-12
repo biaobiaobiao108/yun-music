@@ -699,6 +699,7 @@ const authFeature = initAuthFeature({
     showSelect,
     handleLogout: (skipConfirm) => handleUserLogout(skipConfirm),
     onSessionChanged: (active) => {
+        syncUserSessionStatus();
         if (active) {
             updateAdminUI();
             syncSettingsUI();
@@ -940,6 +941,11 @@ const userSessionReady = Promise.race([
         } catch (e) {
             console.warn('[Auth] 用户会话恢复失败:', e);
         }
+
+        // The settings card can render before this asynchronous cookie check
+        // finishes. Keep its status synchronized with the authoritative session
+        // result instead of leaving the initial "未登录" placeholder visible.
+        syncUserSessionStatus();
 
         resolveUserSessionReady?.();
 
@@ -3142,6 +3148,14 @@ function updateUserStatus(message: string, showLogout = true): void {
     }
 }
 
+function syncUserSessionStatus(): void {
+    if (userSessionActive && userName) {
+        updateUserStatus(`<span class="text-emerald-600">已登录：${escapeHtmlText(userName)}</span>`);
+    } else {
+        updateUserStatus('未登录', false);
+    }
+}
+
 async function handleLocalLogin(): Promise<void> {
     const usernameInput = document.getElementById('user-login-name') as HTMLInputElement | null;
     const passwordInput = document.getElementById('user-login-password') as HTMLInputElement | null;
@@ -3167,7 +3181,7 @@ async function handleLocalLogin(): Promise<void> {
         updateAdminUI();
         syncSettingsUI();
         await reloadUserFavorites();
-        updateUserStatus(`<span class="text-emerald-600">已登录：${escapeHtmlText(userName || username)}</span>`);
+        syncUserSessionStatus();
         showSuccess('登录成功');
     } catch (error) {
         console.error('[Auth] 用户登录失败:', error);
@@ -3190,6 +3204,7 @@ async function handleUserLogout(skipConfirm = false): Promise<void> {
     if (window.ListStore?.remove) await window.ListStore.remove().catch(() => undefined);
     updateUserUI();
     updateAdminUI();
+    syncUserSessionStatus();
     renderMyLists(null);
     showSuccess('已退出登录');
 }
@@ -3726,36 +3741,49 @@ function handleFavoritesClick() {
 }
 
 async function handleCreateList() {
-    const name = await showInput("新建歌单", "请输入新歌单的名称：", {
-        placeholder: "歌单名称"
-    });
+    // The add-to-playlist surface is a legacy fixed overlay. Hide it before
+    // opening the native input dialog so its backdrop/focus boundary cannot
+    // intercept clicks or keyboard input. It is restored after cancellation or
+    // successful creation, preserving the original collection flow.
+    const shouldRestorePlaylistModal = !document.getElementById('playlist-add-modal')?.classList.contains('hidden');
+    if (shouldRestorePlaylistModal) closePlaylistAddModal(true);
 
-    if (name && currentListData) {
-        const activeListData = (window.isViewingPublicFavorites && window.myPersonalListData) ? window.myPersonalListData : currentListData;
+    try {
+        const name = await showInput("新建歌单", "请输入新歌单的名称：", {
+            placeholder: "歌单名称"
+        });
 
-        // 公开列表新建歌单需要管理员权限
-        if (activeListData.username === '_open') {
-            if (!(await requireAdminForOpenWrite('公开列表中新建歌单'))) return;
-        }
-        const newList = {
-            id: 'webplayer_' + Date.now(),
-            name: name,
-            source: 'webplayer',
-            list: []
-        };
-        activeListData.userList.push(newList);
-        // Sync
-        try {
-            await pushDataChange(activeListData);
-            renderMyLists(currentListData);
-            // Re-render the add modal grid if it is open (or just to keep it fresh)
-            if (typeof renderPlaylistAddGrid === 'function') {
-                renderPlaylistAddGrid();
+        if (name && currentListData) {
+            const activeListData = (window.isViewingPublicFavorites && window.myPersonalListData) ? window.myPersonalListData : currentListData;
+
+            // 公开列表新建歌单需要管理员权限
+            if (activeListData.username === '_open') {
+                if (!(await requireAdminForOpenWrite('公开列表中新建歌单'))) return;
             }
-            showSuccess('歌单创建成功');
-        } catch (e) {
-            console.error('Create list failed:', e);
-            showError('创建失败，请重试');
+            const newList = {
+                id: 'webplayer_' + Date.now(),
+                name: name,
+                source: 'webplayer',
+                list: []
+            };
+            activeListData.userList.push(newList);
+            // Sync
+            try {
+                await pushDataChange(activeListData);
+                renderMyLists(currentListData);
+                // Re-render the add modal grid if it is open (or just to keep it fresh)
+                if (typeof renderPlaylistAddGrid === 'function') {
+                    renderPlaylistAddGrid();
+                }
+                showSuccess('歌单创建成功');
+            } catch (e) {
+                console.error('Create list failed:', e);
+                showError('创建失败，请重试');
+            }
+        }
+    } finally {
+        if (shouldRestorePlaylistModal) {
+            await openPlaylistAddModal();
         }
     }
 }
@@ -4125,9 +4153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     switchTab(defaultTab);
 
     // Cookie 会话由首屏认证检查恢复；密码不会被保存到浏览器。
-    if (userSessionActive && userName) {
-        updateUserStatus(`<span class="text-emerald-600">已登录：${escapeHtmlText(userName)}</span>`);
-    }
+    syncUserSessionStatus();
     document.getElementById('user-login-form')?.addEventListener('submit', event => {
         event.preventDefault();
         void handleLocalLogin();
