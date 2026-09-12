@@ -39,6 +39,15 @@ export const createProxyResponseStream = (source: Readable, request: http.Client
   return stream
 }
 
+/** 客户端离开页面或取消媒体请求时，Node 会以 AbortError 结束中继请求。
+ * 这是正常的连接生命周期，不应按服务端故障写入 error 日志。 */
+const isExpectedDownloadAbort = (error: unknown, signal?: AbortSignal): boolean => {
+  if (signal?.aborted) return true
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { name?: unknown; code?: unknown }
+  return candidate.name === 'AbortError' || candidate.code === 'ABORT_ERR'
+}
+
 type MusicTagNative = {
   MusicTagger: new () => any
   MetaPicture: new (mime: string, data: Uint8Array, type: string) => any
@@ -930,6 +939,29 @@ export const createCacheRouter = (): Router => {
     if (!urlStr) return ctx.fail(400, '缺少必要参数：url')
 
     return new Promise<Response>((resolve) => {
+      let responseSettled = false
+      let abortListener: (() => void) | null = null
+      const settleResponse = (response: Response) => {
+        if (responseSettled) return
+        responseSettled = true
+        if (abortListener) {
+          ctx.request.signal.removeEventListener('abort', abortListener)
+          abortListener = null
+        }
+        resolve(response)
+      }
+
+      const finishExpectedAbort = () => {
+        // 499 is intentionally used for an HTTP client-closed request. Bun's
+        // server will not send it after the socket is gone, but resolving the
+        // route prevents an orphaned async proxy chain from lingering.
+        settleResponse(new Response(null, { status: 499 }))
+      }
+
+      abortListener = finishExpectedAbort
+      ctx.request.signal.addEventListener('abort', abortListener, { once: true })
+      if (ctx.request.signal.aborted) finishExpectedAbort()
+
       try {
         const isTaggingMode = ctx.query.get('tag') === '1'
         const taskId = ctx.query.get('taskId')
@@ -937,8 +969,13 @@ export const createCacheRouter = (): Router => {
         const isFullRange = rangeHeader === 'bytes=0-'
 
         const doFetch = async (targetUrl: string, attempt: number) => {
+          if (ctx.request.signal.aborted) {
+            finishExpectedAbort()
+            return
+          }
+
           if (attempt > 5) {
-            resolve(ctx.fail(502, '远程地址跳转次数过多，无法下载'))
+            settleResponse(ctx.fail(502, '远程地址跳转次数过多，无法下载'))
             return
           }
 
@@ -974,7 +1011,7 @@ export const createCacheRouter = (): Router => {
               const declaredLength = Number(proxyRes.headers['content-length'] || 0)
               if (declaredLength > maxAudioBytes) {
                 proxyRes.destroy()
-                resolve(ctx.fail(413, '远程文件过大，已超过允许的下载上限'))
+                settleResponse(ctx.fail(413, '远程文件过大，已超过允许的下载上限'))
                 return
               }
               const remoteType = String(proxyRes.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
@@ -1023,7 +1060,7 @@ export const createCacheRouter = (): Router => {
                 const settleTaggedResponse = (response: Response) => {
                   if (taggedResponseSettled) return
                   taggedResponseSettled = true
-                  resolve(response)
+                  settleResponse(response)
                 }
                 const markProgressError = (message: string) => {
                   if (!taskId) return
@@ -1183,28 +1220,40 @@ export const createCacheRouter = (): Router => {
 
               const stream = createProxyResponseStream(proxyRes, proxyReq, maxAudioBytes)
 
-              resolve(new Response(stream, {
+              settleResponse(new Response(stream, {
                 status: proxyRes.statusCode || 200,
                 headers,
               }))
             })
 
             proxyReq.on('error', (err: any) => {
+              if (isExpectedDownloadAbort(err, ctx.request.signal)) {
+                finishExpectedAbort()
+                return
+              }
               console.error('[DownloadProxy] Request Error:', err)
-              resolve(ctx.fail(502, '请求远程地址失败，请重试'))
+              settleResponse(ctx.fail(502, '请求远程地址失败，请重试'))
             })
 
             proxyReq.end()
           } catch (err: any) {
+            if (isExpectedDownloadAbort(err, ctx.request.signal)) {
+              finishExpectedAbort()
+              return
+            }
             console.error('[DownloadProxy] Try Error:', err)
-            resolve(ctx.fail(500, '服务器内部错误，请稍后重试'))
+            settleResponse(ctx.fail(500, '服务器内部错误，请稍后重试'))
           }
         }
 
         void doFetch(urlStr, 0)
       } catch (err: any) {
+        if (isExpectedDownloadAbort(err, ctx.request.signal)) {
+          finishExpectedAbort()
+          return
+        }
         console.error('[DownloadProxy] Error:', err)
-        resolve(ctx.fail(500, '服务器内部错误，请稍后重试'))
+        settleResponse(ctx.fail(500, '服务器内部错误，请稍后重试'))
       }
     })
   })

@@ -65,14 +65,14 @@ export function initCommentsFeature(context: CommentsFeatureContext) {
         let replyHtml = '';
         if (comment.reply && comment.reply.length > 0) {
             replyHtml = `
-                <div class="mt-4 ml-2 pl-4 border-l-2 t-border-main space-y-4">
+                <div class="comment-reply-tree mt-4 ml-2 pl-4 space-y-4">
                     ${comment.reply.map((reply: any) => createCommentItemHTML(reply, true)).join('')}
                 </div>
             `;
         }
 
         return `
-            <div class="group flex gap-3 md:gap-4 transition-all animate-fade-in-up">
+            <div class="comment-item group flex gap-3 md:gap-4 transition-all animate-fade-in-up">
                 <img src="${avatar}"
                      loading="lazy" fetchpriority="low"
                      width="40" height="40" alt="${context.escapeHtmlText(comment.userName || '用户')}的头像"

@@ -3991,14 +3991,14 @@
         </div>
     </div>
 
-    <!-- Comment Modal (Glassmorphism) -->
+    <!-- Comment Modal -->
     <div id="comment-modal"
-        class="fixed inset-0 z-[70] hidden items-center justify-center p-4 md:p-6 transition-all duration-300">
-        <div class="absolute inset-0 bg-black/20 backdrop-blur-sm" data-event-click-action="toggleCommentModal"></div>
+        class="comment-modal fixed inset-0 z-[70] hidden items-center justify-center p-3 sm:p-4 md:p-6 transition-all duration-300">
+        <div class="comment-modal-backdrop absolute inset-0" data-event-click-action="toggleCommentModal"></div>
         <div id="comment-modal-content"
-            class="relative w-full max-w-2xl h-[85vh] md:h-[80vh] t-bg-panel rounded-3xl shadow-2xl border t-border-main flex flex-col overflow-hidden transform translate-y-10 opacity-0 transition-all duration-500">
+            class="comment-modal-panel relative w-full max-w-3xl h-[min(88dvh,52rem)] t-bg-panel rounded-[1.75rem] flex flex-col overflow-hidden transform translate-y-10 opacity-0 transition-all duration-500">
             <!-- Header -->
-            <div class="p-4 md:p-6 border-b t-border-main/50 flex items-center justify-between">
+            <div class="comment-modal-header p-4 md:p-6 flex items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
                     <div
                         class="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-100">
@@ -4023,7 +4023,7 @@
             </div>
 
             <!-- Tabs -->
-            <div class="px-4 md:px-6 py-2 md:py-3 border-b t-border-main/30 flex items-center gap-4 md:gap-6">
+            <div class="comment-modal-tabs px-4 md:px-6 py-2 md:py-3 flex items-center gap-4 md:gap-6">
                 <button id="tab-hot-comments" data-event-click-action="switchCommentType" data-event-click-args="[&quot;hot&quot;]"
                     class="relative py-2 text-sm font-black transition-colors text-emerald-600">
                     最热评论 <span id="hot-comment-count" class="text-[10px] opacity-60 ml-0.5"></span>
@@ -4052,7 +4052,7 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="px-6 py-3 t-bg-main/50 border-t t-border-main/30 flex items-center justify-between">
+            <div class="comment-modal-footer px-4 md:px-6 py-3 flex items-center justify-between gap-4">
                 <div class="flex items-center gap-2">
                     <button data-event-click-action="changeCommentPage" data-event-click-args="[-1]"
                         class="w-8 h-8 flex items-center justify-center t-text-muted hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-20 disabled:pointer-events-none"

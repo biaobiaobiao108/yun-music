@@ -510,6 +510,127 @@ html, body {
     }
 }
 
+/* 评论弹窗使用层次化背景和柔和投影，不使用会在深色主题下变成硬黑线的
+   border-* 分隔线。所有规则限定在弹窗内，避免影响其它面板。 */
+#comment-modal {
+    padding-block: max(0.75rem, env(safe-area-inset-top, 0px)) max(0.75rem, env(safe-area-inset-bottom, 0px));
+    padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px));
+    background: rgb(15 23 42 / 0.38);
+    backdrop-filter: blur(12px) saturate(1.08);
+    -webkit-backdrop-filter: blur(12px) saturate(1.08);
+}
+
+#comment-modal .comment-modal-backdrop {
+    background: transparent;
+}
+
+#comment-modal-content.comment-modal-panel {
+    max-block-size: min(88dvh, 52rem);
+    border: 0 !important;
+    outline: 0;
+    background: var(--bg-panel);
+    box-shadow: 0 26px 80px rgb(15 23 42 / 0.24), 0 8px 24px rgb(16 185 129 / 0.08);
+}
+
+#comment-modal-content .comment-modal-header,
+#comment-modal-content .comment-modal-tabs,
+#comment-modal-content .comment-modal-footer {
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+#comment-modal-content .comment-modal-header {
+    flex: 0 0 auto;
+    background: color-mix(in srgb, var(--c-500, #10b981) 7%, var(--bg-panel));
+}
+
+#comment-modal-content .comment-modal-header > div:first-child {
+    min-inline-size: 0;
+}
+
+#comment-modal-content .comment-modal-header h3 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#comment-modal-content .comment-modal-tabs {
+    flex: 0 0 auto;
+    background: color-mix(in srgb, var(--bg-main) 62%, var(--bg-panel));
+}
+
+#comment-modal-content .comment-modal-tabs button {
+    min-block-size: 2.75rem;
+    border: 0;
+    border-radius: 0.75rem;
+    padding-inline: 0.65rem;
+}
+
+#comment-modal-content .comment-modal-tabs button > div {
+    bottom: 0.2rem;
+    block-size: 0.2rem;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--c-500, #10b981) 42%, transparent);
+}
+
+#comment-list-container {
+    min-block-size: 0;
+    background: color-mix(in srgb, var(--bg-main) 38%, var(--bg-panel));
+    scrollbar-gutter: stable;
+}
+
+#comment-list .comment-item + .comment-item {
+    margin-block-start: 1.25rem;
+    padding-block-start: 1.25rem;
+    border: 0 !important;
+}
+
+#comment-list .comment-reply-tree {
+    border: 0 !important;
+    border-radius: 0.875rem;
+    padding-block: 0.75rem;
+    padding-inline-end: 0.75rem;
+    background: color-mix(in srgb, var(--bg-panel) 72%, var(--bg-main));
+}
+
+#comment-modal-content .comment-modal-footer {
+    flex: 0 0 auto;
+    background: color-mix(in srgb, var(--c-500, #10b981) 5%, var(--bg-panel));
+}
+
+#comment-modal-content .comment-modal-footer #comment-source-info {
+    max-inline-size: min(42vw, 16rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+    #comment-modal-content.comment-modal-panel {
+        border-radius: 1.25rem;
+    }
+
+    #comment-modal-content .comment-modal-header {
+        padding-block: 1rem;
+    }
+
+    #comment-modal-content .comment-modal-header .w-10 {
+        inline-size: 2.5rem;
+        block-size: 2.5rem;
+    }
+
+    #comment-modal-content .comment-modal-footer {
+        padding-block-end: max(0.75rem, env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #comment-modal,
+    #comment-modal-content {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
+
 /* Floating overlay scrollbars */
 * {
     scrollbar-width: thin;

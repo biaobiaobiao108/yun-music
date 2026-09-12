@@ -75,6 +75,36 @@ test('download proxy isolates active content and preserves media responses', asy
   }
 })
 
+test('download proxy treats client aborts as normal request cancellation', async () => {
+  const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
+  const request = spyOn(http, 'request').mockImplementation(() => {
+    const req = new EventEmitter() as any
+    req.destroy = () => {}
+    req.end = () => {
+      queueMicrotask(() => {
+        const error = Object.assign(new Error('The operation was aborted'), {
+          name: 'AbortError',
+          code: 'ABORT_ERR',
+        })
+        req.emit('error', error)
+      })
+    }
+    return req
+  })
+  const errorLog = spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    const response = await createCacheRouter().handle(new Request(
+      'http://localhost/api/music/download?url=http%3A%2F%2Fexample.com%2Faudio',
+    ))
+    expect(response.status).toBe(499)
+    expect(errorLog).not.toHaveBeenCalled()
+  } finally {
+    errorLog.mockRestore()
+    request.mockRestore()
+    lookup.mockRestore()
+  }
+})
+
 test('local identification resolves its module and forwards a bounded file path', async () => {
   const previousLx = global.lx
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-identify-test-'))
