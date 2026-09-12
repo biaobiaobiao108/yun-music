@@ -115,7 +115,9 @@ async function clearCache(type) {
 
         if (clearServerLyric) {
             const isLogined = isUserLoggedIn();
-            const isPublicUser = !window.currentListData || !window.currentListData.username || window.currentListData.username === 'default';
+            // Cache APIs target the authenticated storage scope, independent
+            // of whichever public playlist is currently visible.
+            const isPublicUser = !isLogined;
             if (isPublicUser && window.lx_config && window.lx_config['user.enablePublicRestriction'] && !isLogined) {
                 const isAdminSession = isAdminSessionActive();
                 const enableServerLyricCache = window.settings && window.settings.enableServerLyricCache === true;
@@ -159,7 +161,6 @@ async function clearCache(type) {
 
     if (clearServerLyric) {
         try {
-            const username = (window.currentListData && window.currentListData.username) || '';
             const headers = {};
             Object.assign(headers, getUserAuthHeaders());
 
@@ -323,7 +324,7 @@ function renderCacheList() {
 
         const username = getPersonalStorageUsername();
         const coverUrl = item.hasCover
-            ? `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}`
+            ? `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}&folder=${encodeURIComponent(item.folder || 'cache')}`
             : '/music/assets/yun-yin.png';
         const itemName = escapeHtmlText(item.name || '未命名歌曲');
         const itemSinger = escapeHtmlText(item.singer || '未知歌手');
@@ -524,7 +525,9 @@ async function removeCacheItem(index) {
         return;
     }
             const isLogined = isUserLoggedIn();
-    const isPublicUser = !window.currentListData || !window.currentListData.username || window.currentListData.username === 'default';
+    // Cache APIs target the authenticated storage scope, independent of the
+    // currently visible playlist.
+    const isPublicUser = !isLogined;
     if (isPublicUser && window.lx_config && window.lx_config['user.enablePublicRestriction'] && !isLogined) {
         const isAdminSession = isAdminSessionActive();
         const enableServerCache = window.settings && window.settings.enableServerCache === true;
@@ -571,7 +574,7 @@ async function batchDeleteCache() {
         return;
     }
 
-    if ((!window.currentListData || !window.currentListData.username || window.currentListData.username === 'default') && window.lx_config && window.lx_config['user.enablePublicRestriction']) {
+    if (!isUserLoggedIn() && window.lx_config && window.lx_config['user.enablePublicRestriction']) {
         const isAdminSession = isAdminSessionActive();
         const enableServerCache = window.settings && window.settings.enableServerCache === true;
         if (!enableServerCache && !isAdminSession) {
@@ -613,7 +616,7 @@ async function batchDeleteCache() {
 }
 
 async function clearServerCache() {
-    if ((!window.currentListData || !window.currentListData.username || window.currentListData.username === 'default') && window.lx_config && window.lx_config['user.enablePublicRestriction']) {
+    if (!isUserLoggedIn() && window.lx_config && window.lx_config['user.enablePublicRestriction']) {
         const isAdminSession = isAdminSessionActive();
         const enableServerCache = window.settings && window.settings.enableServerCache === true;
         if (!enableServerCache && !isAdminSession) {
@@ -630,7 +633,6 @@ async function clearServerCache() {
     if (!(await showSelect('完全清理', '确定要清除所有服务器缓存吗？', { danger: true }))) return;
 
     try {
-        const username = (window.currentListData && window.currentListData.username) || '';
         const headers = {};
         Object.assign(headers, getUserAuthHeaders());
 

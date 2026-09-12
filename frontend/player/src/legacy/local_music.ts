@@ -1313,7 +1313,7 @@ window.LocalMusicManager = {
                     item.coverCheckedSize || item.size || 0,
                     1
                 ].join('-');
-                const coverUrl = `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}&v=${encodeURIComponent(coverVersion)}`;
+                const coverUrl = `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}&folder=${encodeURIComponent(item.folder || 'cache')}&v=${encodeURIComponent(coverVersion)}`;
                 coverHtml = `<img data-src="${this.escapeAttr(coverUrl)}" data-lm-cover-index="${index}" src="/music/assets/yun-yin.png" alt="${this.escapeAttr(item.title || item.filename || '本地歌曲')}封面" width="48" height="48" loading="lazy" decoding="async" class="lazy-image lm-cover-image is-placeholder w-10 h-10 md:w-12 md:h-12 rounded-lg object-cover shadow-sm flex-shrink-0 border t-border-main mr-2.5 md:mr-4 ml-0.5 md:ml-3">`;
             }
 
@@ -1456,7 +1456,7 @@ window.LocalMusicManager = {
             img.addEventListener('error', () => {
                 const index = parseInt(img.dataset.lmCoverIndex || '', 10);
                 this.handleCoverLoadError(index, img);
-            }, { once: true });
+            });
         });
         if (typeof window.lazyLoadImages === 'function') {
             window.lazyLoadImages(container);
@@ -1696,7 +1696,7 @@ window.LocalMusicManager = {
             ...item.songInfo,
             // Reconstruct full URL locally
             url: `/api/music/cache/file/${encodeURIComponent(username)}/${encodeURIComponent(item.filename)}?folder=${item.folder}`,
-            pic: `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}`,
+            pic: `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}&folder=${encodeURIComponent(item.folder || 'cache')}`,
             isLocal: true,
             folder: item.folder
         };
@@ -1706,7 +1706,7 @@ window.LocalMusicManager = {
         const playlist = this.displayData.map(d => ({
             ...d.songInfo,
             url: `/api/music/cache/file/${encodeURIComponent(username)}/${encodeURIComponent(d.filename)}?folder=${d.folder}`,
-            pic: `/api/music/cache/cover?filename=${encodeURIComponent(d.filename)}&user=${encodeURIComponent(username)}`,
+            pic: `/api/music/cache/cover?filename=${encodeURIComponent(d.filename)}&user=${encodeURIComponent(username)}&folder=${encodeURIComponent(d.folder || 'cache')}`,
             isLocal: true
         }));
 

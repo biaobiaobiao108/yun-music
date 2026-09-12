@@ -70,6 +70,27 @@ describe('cache list user scope', () => {
     }
   })
 
+  test('keeps omitted and explicit public cache sync targets separate', async () => {
+    const syncCacheIndex = spyOn(fileCache, 'syncCacheIndex').mockResolvedValue(undefined)
+    try {
+      const personalResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/sync', {
+        method: 'POST',
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }))
+      expect(personalResponse.status).toBe(200)
+      expect(syncCacheIndex).toHaveBeenLastCalledWith(username)
+
+      const publicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/sync?user=_open', {
+        method: 'POST',
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }))
+      expect(publicResponse.status).toBe(200)
+      expect(syncCacheIndex).toHaveBeenLastCalledWith('_open')
+    } finally {
+      syncCacheIndex.mockRestore()
+    }
+  })
+
   test('uses the authenticated user for cache removal when user is omitted', async () => {
     const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'music' })
     try {
@@ -121,12 +142,80 @@ describe('cache list user scope', () => {
 
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toBe('image/png')
+      expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
       expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('cover'))
       expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username)
     } finally {
       getCacheCover.mockRestore()
     }
   })
+})
+
+test('cache file routes honor the requested folder and keep personal media private', async () => {
+  const previousLx = global.lx
+  const username = 'file_owner'
+  const sessionId = 'file-owner-session'
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cache-file-route-test-'))
+  const cacheDir = path.join(tempRoot, 'cache')
+  const musicDir = path.join(tempRoot, 'music')
+  fs.mkdirSync(cacheDir, { recursive: true })
+  fs.mkdirSync(musicDir, { recursive: true })
+  fs.writeFileSync(path.join(cacheDir, 'song.mp3'), 'cache-file')
+  fs.writeFileSync(path.join(musicDir, 'song.mp3'), 'music-file')
+  global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'file-route-admin' } } as typeof global.lx
+  userSessions.set(sessionId, { username, createdAt: Date.now() })
+  const getCacheLocation = spyOn(fileCache, 'getCacheLocation').mockReturnValue(fileCache.CACHE_ROOTS.ROOT)
+  const getCacheDir = spyOn(fileCache, 'getCacheDir').mockImplementation((_username, isOnlyDownload) => isOnlyDownload ? musicDir : cacheDir)
+
+  try {
+    const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+      headers: { cookie: `lx_user_session=${sessionId}` },
+    }))
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
+    expect(await response.text()).toBe('music-file')
+
+    const invalidFolder = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=other`, {
+      headers: { cookie: `lx_user_session=${sessionId}` },
+    }))
+    expect(invalidFolder.status).toBe(400)
+  } finally {
+    getCacheDir.mockRestore()
+    getCacheLocation.mockRestore()
+    userSessions.delete(sessionId)
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+    global.lx = previousLx
+  }
+})
+
+test('cover routes forward the requested folder and return public cache headers only for public storage', async () => {
+  const previousLx = global.lx
+  const username = 'cover_owner'
+  const sessionId = 'cover-owner-session'
+  global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'cover-route-admin' } } as typeof global.lx
+  userSessions.set(sessionId, { username, createdAt: Date.now() })
+  const getCacheCover = spyOn(fileCache, 'getCacheCover').mockResolvedValue({
+    data: Buffer.from('cover'),
+    mime: 'image/png',
+  })
+
+  try {
+    const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/cover?filename=album/song.mp3&user=${username}&folder=music`, {
+      headers: { cookie: `lx_user_session=${sessionId}` },
+    }))
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
+    expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username, 'music')
+
+    const publicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'))
+    expect(publicResponse.status).toBe(200)
+    expect(publicResponse.headers.get('cache-control')).toBe('public, max-age=86400')
+    expect(getCacheCover).toHaveBeenLastCalledWith('album/song.mp3', '_open', 'cache')
+  } finally {
+    getCacheCover.mockRestore()
+    userSessions.delete(sessionId)
+    global.lx = previousLx
+  }
 })
 
 test('proxy stream bounds unread data and cancels the upstream transport', async () => {

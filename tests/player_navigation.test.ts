@@ -89,6 +89,8 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(localMusic).toContain('getStorageUsername()');
         expect(localMusic).toContain('window.getUserName');
         expect(localMusic).toContain('item._coverLoadFailed');
+        expect(localMusic).toContain('&folder=${encodeURIComponent(item.folder || \'cache\')}');
+        expect(localMusic).not.toContain('this.handleCoverLoadError(index, img);\n                }, { once: true });');
         expect(localMusic).toContain('/api/music/cache/remove?user=${encodeURIComponent(username)}');
         expect(localMusic).not.toContain("(window.currentListData && window.currentListData.username) || '_open'");
 

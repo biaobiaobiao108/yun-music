@@ -2322,7 +2322,6 @@ function lazyLoadImages(root = document) {
         if (img.src.includes('yun-yin.png')) {
             img.classList.add('is-placeholder');
         }
-        img.src = src;
         img.onload = () => {
             img.classList.remove('is-placeholder', 'opacity-0');
             img.removeAttribute('data-src');
@@ -2337,6 +2336,9 @@ function lazyLoadImages(root = document) {
             img.classList.add('is-placeholder');
             img.removeAttribute('data-src');
         };
+        // Register handlers before assigning src so cached responses cannot
+        // win the race and leave a stale placeholder or broken image state.
+        img.src = src;
     };
 
     if ('IntersectionObserver' in window) {

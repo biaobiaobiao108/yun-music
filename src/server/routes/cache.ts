@@ -64,7 +64,12 @@ const getCacheRequestUsername = (ctx: HttpContext): string | null => {
   const requested = ctx.query.get('user')?.trim() || ''
   const verified = verifyUserAuth(ctx)
   const isAdmin = verifyAdminAuth(ctx.request)
-  if (!requested || requested === 'default' || requested === 'open' || requested === '_open') return verified || '_open'
+  const isPublicAlias = requested === 'default' || requested === 'open' || requested === '_open'
+  // An omitted user means the current user's private storage. An explicit
+  // public alias must remain public even when the browser also sends a
+  // personal session cookie.
+  if (!requested && verified) return verified
+  if (!requested || isPublicAlias) return '_open'
   if (isAdmin) {
     try { return assertSafePathSegment(requested, 'user name') } catch { return null }
   }
@@ -185,7 +190,11 @@ export const createCacheRouter = (): Router => {
   router.get('/api/music/cache/subdirs', (ctx) => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const folder = (ctx.query.get('folder') as 'cache' | 'music') || 'music'
+    const requestedFolder = ctx.query.get('folder')
+    if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') {
+      return ctx.fail(400, '目录类型不合法')
+    }
+    const folder = (requestedFolder as fileCache.CacheFolder | null) || 'music'
     const subdirs = fileCache.getSubDirectories(username, folder)
     return ctx.json({ success: true, data: subdirs })
   })
@@ -198,6 +207,7 @@ export const createCacheRouter = (): Router => {
     try {
       const { folder, subPath } = await ctx.bodyJson<{ folder?: fileCache.CacheFolder; subPath?: string }>()
       if (!folder || !subPath) return ctx.fail(400, '缺少必要参数：folder、subPath')
+      if (folder !== 'cache' && folder !== 'music') return ctx.fail(400, '目录类型不合法')
       const success = fileCache.createSubDirectory(username, folder, subPath)
       return ctx.json({ success })
     } catch (err) {
@@ -404,13 +414,21 @@ export const createCacheRouter = (): Router => {
   // 7. 分发缓存文件（基于 Bun.file 零拷贝高性能分发）
   router.get('/api/music/cache/file/*', async (ctx) => {
     const parts = ctx.pathname.replace('/api/music/cache/file/', '').split('/')
-    const reqUsername = parts.length > 1 ? decodeURIComponent(parts[0]) : '_open'
-    const filename = parts.length > 1 ? parts.slice(1).join('/') : parts[0]
+    let reqUsername = '_open'
+    let filename = parts[0]
+    try {
+      if (parts.length > 1) {
+        reqUsername = decodeURIComponent(parts[0])
+        filename = parts.slice(1).join('/')
+      }
+    } catch {
+      return ctx.fail(400, '文件路径不合法')
+    }
 
     if (!filename) return ctx.fail(400, '缺少必要参数：filename')
 
     let username = '_open'
-    const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default'
+    const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default' || reqUsername === 'open'
 
     if (!isPublic) {
       const tokenUser = verifyUserAuth(ctx)
@@ -420,13 +438,24 @@ export const createCacheRouter = (): Router => {
       username = tokenUser
     }
 
-    const decodedFilename = decodeURIComponent(filename)
+    let decodedFilename = filename
+    try {
+      decodedFilename = decodeURIComponent(filename)
+    } catch {
+      return ctx.fail(400, '文件路径不合法')
+    }
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
+    const requestedFolder = ctx.query.get('folder')
+    if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') {
+      return ctx.fail(400, '目录类型不合法')
+    }
     const locations = [
       fileCache.getCacheLocation(),
       fileCache.getCacheLocation() === fileCache.CACHE_ROOTS.DATA ? fileCache.CACHE_ROOTS.ROOT : fileCache.CACHE_ROOTS.DATA,
     ]
-    const roots: Array<fileCache.CacheFolder> = ['cache', 'music']
+    const roots: Array<fileCache.CacheFolder> = requestedFolder
+      ? [requestedFolder as fileCache.CacheFolder]
+      : ['cache', 'music']
     let filePath = ''
 
     for (const loc of locations) {
@@ -459,8 +488,16 @@ export const createCacheRouter = (): Router => {
 
     const ifNoneMatch = ctx.headers.get('if-none-match')
     const ifModifiedSince = ctx.headers.get('if-modified-since')
+    const cacheControl = normalizedUsername === '_open' ? 'public, max-age=86400' : 'private, max-age=86400'
     if (ifNoneMatch === etag || (ifModifiedSince && ifModifiedSince === lastModified)) {
-      return new Response(null, { status: 304 })
+      return new Response(null, {
+        status: 304,
+        headers: {
+          ETag: etag,
+          'Last-Modified': lastModified,
+          'Cache-Control': cacheControl,
+        },
+      })
     }
 
     const rangeHeader = ctx.headers.get('range')
@@ -482,7 +519,7 @@ export const createCacheRouter = (): Router => {
               'Content-Type': contentType,
               'ETag': etag,
               'Last-Modified': lastModified,
-              'Cache-Control': 'public, max-age=86400',
+              'Cache-Control': cacheControl,
             },
           })
         }
@@ -497,7 +534,7 @@ export const createCacheRouter = (): Router => {
         'Content-Type': contentType,
         'ETag': etag,
         'Last-Modified': lastModified,
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': cacheControl,
       },
     })
   })
@@ -605,14 +642,20 @@ export const createCacheRouter = (): Router => {
 
     const filename = ctx.query.get('filename')
     if (!filename) return ctx.fail(400, '缺少必要参数：filename')
+    const requestedFolder = ctx.query.get('folder')
+    if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') {
+      return ctx.fail(400, '目录类型不合法')
+    }
 
-    const cover = (await fileCache.getCacheCover(filename, username)) as any
+    const cover = (await (requestedFolder
+      ? fileCache.getCacheCover(filename, username, requestedFolder as fileCache.CacheFolder)
+      : fileCache.getCacheCover(filename, username))) as any
     if (cover && cover.data) {
       return new Response(cover.data, {
         status: 200,
         headers: {
           'Content-Type': cover.mime || 'image/jpeg',
-          'Cache-Control': 'public, max-age=86400',
+          'Cache-Control': username === '_open' ? 'public, max-age=86400' : 'private, max-age=86400',
         },
       })
     }

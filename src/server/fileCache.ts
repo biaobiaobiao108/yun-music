@@ -1572,8 +1572,9 @@ export const downloadCoverImage = async (imageUrl: string, redirects = 0): Promi
     })
 }
 
-const setIndexCoverState = (filename: string, username: string, coverType: CacheItem['coverType'], stats?: Stats, location?: string) => {
-    for (const folder of ['cache', 'music'] as const) {
+const setIndexCoverState = (filename: string, username: string, coverType: CacheItem['coverType'], stats?: Stats, location?: string, requestedFolder?: CacheFolder) => {
+    const folders: CacheFolder[] = requestedFolder ? [requestedFolder] : ['cache', 'music']
+    for (const folder of folders) {
         const item = indexManager.getAll(username, folder, location).find(candidate => candidate.filename === filename)
         if (!item) continue
         item.coverType = coverType
@@ -1592,14 +1593,15 @@ const setIndexCoverState = (filename: string, username: string, coverType: Cache
 /**
  * Get cover image for a cached file
  */
-export const getCacheCover = async (filename: string, username?: string) => {
+export const getCacheCover = async (filename: string, username?: string, requestedFolder?: CacheFolder) => {
+    if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') return null
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
 
     const locations = [
         currentCacheLocation,
         currentCacheLocation === CACHE_ROOTS.DATA ? CACHE_ROOTS.ROOT : CACHE_ROOTS.DATA
     ]
-    const roots: Array<'cache' | 'music'> = ['cache', 'music']
+    const roots: Array<CacheFolder> = requestedFolder ? [requestedFolder] : ['cache', 'music']
 
     for (const loc of locations) {
         for (const folder of roots) {
@@ -1612,7 +1614,7 @@ export const getCacheCover = async (filename: string, username?: string) => {
                     stats = fs.statSync(filePath)
                     const cachedCover = readCoverCache(filename, normalizedUsername, stats)
                     if (cachedCover) {
-                        setIndexCoverState(filename, normalizedUsername, 'cached', stats, loc)
+                        setIndexCoverState(filename, normalizedUsername, 'cached', stats, loc, folder)
                         return cachedCover
                     }
                 } catch (e) {
@@ -1629,7 +1631,7 @@ export const getCacheCover = async (filename: string, username?: string) => {
                         const mime = pic.mimeType || 'image/jpeg'
                         const data = Buffer.from(pic.data)
                         writeCoverCache(filename, normalizedUsername, data, mime, stats)
-                        setIndexCoverState(filename, normalizedUsername, 'embedded', stats, loc)
+                        setIndexCoverState(filename, normalizedUsername, 'embedded', stats, loc, folder)
                         return { data, mime: detectImageMime(data) || mime }
                     }
                 } catch (e) {
@@ -1638,17 +1640,18 @@ export const getCacheCover = async (filename: string, username?: string) => {
                     try { if (tagger) tagger.dispose() } catch (e) { }
                 }
 
-                const item = [...indexManager.getAll(normalizedUsername, 'cache', loc), ...indexManager.getAll(normalizedUsername, 'music', loc)]
+                const item = roots
+                    .flatMap(folderName => indexManager.getAll(normalizedUsername, folderName, loc))
                     .find(candidate => candidate.filename === filename)
                 if (item && hasUsableRemoteCover(item.img)) {
                     const remoteCover = await downloadCoverImage(item.img!)
                     if (remoteCover && writeCoverCache(filename, normalizedUsername, remoteCover.data, remoteCover.mime, stats)) {
-                        setIndexCoverState(filename, normalizedUsername, 'cached', stats, loc)
+                        setIndexCoverState(filename, normalizedUsername, 'cached', stats, loc, folder)
                         return remoteCover
                     }
                 }
 
-                setIndexCoverState(filename, normalizedUsername, 'none', stats, loc)
+                setIndexCoverState(filename, normalizedUsername, 'none', stats, loc, folder)
             }
         }
     }
