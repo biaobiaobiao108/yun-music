@@ -11,7 +11,7 @@ export class ListDataManage {
   constructor(snapshotDataManage: SnapshotDataManage) {
     this.snapshotDataManage = snapshotDataManage
 
-    let listData: LX.Sync.List.ListData | null
+    let listData: LX.List.ListData | null
     this.initPromise = this.snapshotDataManage.getSnapshotInfo().then(async (snapshotInfo) => {
       if (snapshotInfo.latest) listData = await this.snapshotDataManage.getSnapshot(snapshotInfo.latest)
       if (!listData) listData = { defaultList: [], loveList: [], userList: [] }
@@ -23,7 +23,7 @@ export class ListDataManage {
       }))
     })
   }
-  restore = async (listData: LX.Sync.List.ListData) => {
+  restore = async (listData: LX.List.ListData) => {
     this.allMusicList.clear()
     this.userLists = []
 
@@ -34,7 +34,7 @@ export class ListDataManage {
       return l
     }))
   }
-  getListData = async (): Promise<LX.Sync.List.ListData> => {
+  getListData = async (): Promise<LX.List.ListData> => {
     await this.initPromise
     return {
       defaultList: this.allMusicList.get(LIST_IDS.DEFAULT) ?? [],
@@ -348,4 +348,3 @@ export class ListDataManage {
     return changedIds
   }
 }
-

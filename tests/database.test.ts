@@ -73,25 +73,20 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     expect(JSON.parse(snap.data)).toEqual({ defaultList: [], userList: [] })
   })
 
-  it('preserves paired devices and sync state when refreshing configured users', () => {
+  it('refreshes Web user metadata without persisting passwords', () => {
     const db = getDb()
     const users = [{ name: 'paired_user', password: 'secret', maxSnapshotNum: 5 }]
     syncUsersToDatabase(users)
     db.run('UPDATE users SET created_at = 123 WHERE name = ?', ['paired_user'])
-    db.run('INSERT INTO devices (client_id, user_name, key, device_name) VALUES (?, ?, ?, ?)',
-      ['paired_device', 'paired_user', 'device_key', 'Desktop'])
-    db.run('INSERT INTO device_snapshot_state VALUES (?, ?, ?, ?)',
-      ['paired_device', 'list', 'paired_snapshot', 456])
 
     users[0].maxSnapshotNum = 20
     syncUsersToDatabase([...users, { name: 'new_user', password: 'another', maxSnapshotNum: 10 }])
     syncUsersToDatabase(users)
 
-    expect(db.query('SELECT key FROM devices WHERE client_id = ?').get('paired_device')).toEqual({ key: 'device_key' })
-    expect(db.query('SELECT snapshot_key FROM device_snapshot_state WHERE client_id = ?').get('paired_device'))
-      .toEqual({ snapshot_key: 'paired_snapshot' })
     expect(db.query('SELECT created_at, max_snapshot_num, password FROM users WHERE name = ?').get('paired_user'))
       .toEqual({ created_at: 123, max_snapshot_num: 20, password: '' })
+    expect(db.query('SELECT name FROM users WHERE name = ?').get('new_user')).toEqual({ name: 'new_user' })
+    expect(db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('devices', 'device_snapshot_state')").all()).toEqual([])
   })
 
   it('should store and query user_settings and cache_index', () => {

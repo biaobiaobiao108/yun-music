@@ -178,32 +178,6 @@ if (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
 if (envParams.FRONTEND_PASSWORD) {
   global.lx.config['frontend.password'] = envParams.FRONTEND_PASSWORD
 }
-if (envParams.WEBDAV_ENABLE) {
-  global.lx.config['webdav.enable'] = envParams.WEBDAV_ENABLE === 'true'
-}
-if (envParams.WEBDAV_URL) {
-  global.lx.config['webdav.url'] = envParams.WEBDAV_URL
-}
-if (envParams.WEBDAV_USERNAME) {
-  global.lx.config['webdav.username'] = envParams.WEBDAV_USERNAME
-}
-if (envParams.WEBDAV_PASSWORD) {
-  global.lx.config['webdav.password'] = envParams.WEBDAV_PASSWORD
-}
-if (envParams.WEBDAV_SYNC_PATH) {
-  global.lx.config['webdav.syncPath'] = envParams.WEBDAV_SYNC_PATH
-}
-if (envParams.WEBDAV_BACKUP_PATH) {
-  global.lx.config['webdav.backupPath'] = envParams.WEBDAV_BACKUP_PATH
-}
-if (envParams.SYNC_INTERVAL) {
-  const interval = parseInt(envParams.SYNC_INTERVAL)
-  if (!isNaN(interval)) global.lx.config['sync.interval'] = interval
-}
-if (envParams.BACKUP_INTERVAL) {
-  const backupInterval = parseInt(envParams.BACKUP_INTERVAL)
-  if (!isNaN(backupInterval)) global.lx.config['sync.backupInterval'] = backupInterval
-}
 if (envParams.USER_ENABLE_PATH) {
   global.lx.config['user.enablePath'] = envParams.USER_ENABLE_PATH === 'true'
 }
@@ -258,12 +232,6 @@ if (envParams.ADMIN_PATH !== undefined) {
 }
 if (envParams.PLAYER_PATH !== undefined) {
   global.lx.config['player.path'] = envParams.PLAYER_PATH
-}
-if (envParams.SUBSONIC_ENABLE !== undefined) {
-  global.lx.config['subsonic.enable'] = envParams.SUBSONIC_ENABLE === 'true'
-}
-if (envParams.SUBSONIC_PATH !== undefined) {
-  global.lx.config['subsonic.path'] = envParams.SUBSONIC_PATH
 }
 if (envParams.SINGER_SOURCE_PRIORITY !== undefined) {
   const priority = envParams.SINGER_SOURCE_PRIORITY.split(',').filter(s => s === 'tx' || s === 'wy') as Array<'tx' | 'wy'>
@@ -428,53 +396,6 @@ syncUsersToDatabase(global.lx.config.users)
 // 初始化 Web 服务
 const { startServer, stopServer } = await import('@/server')
 
-// 初始化 WebDAV 同步
-const { default: WebDAVSync } = await import('@/utils/webdavSync')
-const webdavSync = new WebDAVSync({
-  enable: global.lx.config['webdav.enable'],
-  url: global.lx.config['webdav.url'] || '',
-  username: global.lx.config['webdav.username'] || '',
-  password: global.lx.config['webdav.password'] || '',
-  syncPath: global.lx.config['webdav.syncPath'],
-  backupPath: global.lx.config['webdav.backupPath'],
-  interval: global.lx.config['sync.interval'],
-  backupInterval: global.lx.config['sync.backupInterval'],
-}, global.lx.dataPath)
-
-// 如果配置了 WebDAV，在启动时尝试从远程恢复
-if (webdavSync.isConfigured()) {
-  console.log('WebDAV configured, attempting to restore from remote...')
-  void webdavSync.restoreFromRemote().then(async (success: boolean) => {
-    if (success) {
-      console.log('Data restored from WebDAV successfully')
-
-      // 1. 重新从磁盘加载最新的 config.js 到内存 (解决实时生效问题)
-      const configPath = process.env.CONFIG_PATH || path.join(global.lx.dataPath, 'config.js')
-      if (fs.existsSync(configPath)) {
-        console.log('Reloading config.js after WebDAV restore...')
-        try {
-          delete require.cache[require.resolve(configPath)]
-          margeConfig(configPath)
-        } catch (e) {
-          console.error('Failed to hot-reload config.js:', e)
-        }
-      }
-
-      // 2. 重新初始化用户 API 与自定义源
-      const { initUserApis } = await import('@/server/userApi')
-      console.log('Re-initializing user APIs after WebDAV restore...')
-      await initUserApis()
-    }
-    // 启动自动同步
-    webdavSync.startAutoSync()
-  })
-} else {
-  console.log('WebDAV not configured, skipping remote restore')
-}
-
-// 导出 webdavSync 实例供 API 使用
-global.lx.webdavSync = webdavSync
-
 // [新增] 确保数据目录下的 _open 及 _open/library 目录存在 (用于公共受限资源 & 公开收藏)
 const openDir = path.join(global.lx.userPath, '_open')
 const openLibDir = path.join(openDir, 'library')
@@ -509,18 +430,6 @@ if (fs.existsSync(rootConfigPath)) {
         try {
           delete require.cache[require.resolve(rootConfigPath)]
           margeConfig(rootConfigPath)
-          // 重新初始化各模块以使用新配置（如果需要）
-          if (global.lx.webdavSync) {
-            global.lx.webdavSync.updateConfig({
-              url: global.lx.config['webdav.url'],
-              username: global.lx.config['webdav.username'],
-              password: global.lx.config['webdav.password'],
-              syncPath: global.lx.config['webdav.syncPath'],
-              backupPath: global.lx.config['webdav.backupPath'],
-              interval: global.lx.config['sync.interval'],
-              backupInterval: global.lx.config['sync.backupInterval'],
-            })
-          }
         } catch (e) {
           console.error('Hot-reload config.js failed:', e)
         }
@@ -544,14 +453,6 @@ const gracefulShutdown = async (signal: string) => {
   } catch { }
 
   try {
-    if (webdavSync) {
-      webdavSync.stopAutoSync()
-    }
-  } catch (err) {
-    console.error('Error stopping WebDAV sync:', err)
-  }
-
-  try {
     await stopServer(true)
   } catch (err) {
     console.error('Error stopping server:', err)
@@ -569,4 +470,3 @@ const gracefulShutdown = async (signal: string) => {
 
 process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'))
 process.on('SIGINT', () => void gracefulShutdown('SIGINT'))
-

@@ -5,7 +5,7 @@ import path from 'node:path'
 import { closeDb, getDb, initDatabase } from '@/database'
 import { getUserDirname, getUserSpace, releaseUserSpace, syncUsersToDatabase } from '@/user'
 import { createUserRouter } from '@/server/routes/user'
-import { createAuthRouter, persistentTokens, persistentTokenMeta, revokeUserAuth, saveUserTokenConfig, userSessions, verifyUserAuth } from '@/server/routes/auth'
+import { createAuthRouter, revokeUserAuth, userSessions, verifyUserAuth } from '@/server/routes/auth'
 
 describe('User snapshot permissions', () => {
   let previousLx: typeof global.lx
@@ -13,7 +13,7 @@ describe('User snapshot permissions', () => {
   const sessionToken = 'snapshot-owner-session'
   const initialData = { defaultList: [], loveList: [], userList: [] }
   const uploadedData = { ...initialData, userList: [{ id: 'playlist', name: 'Uploaded', list: [] }] }
-  const userHeaders = { 'x-user-token': sessionToken }
+  const userHeaders = { cookie: `lx_user_session=${sessionToken}` }
   const adminHeaders = { 'x-frontend-auth': 'snapshot-admin' }
 
   beforeEach(async () => {
@@ -118,7 +118,6 @@ describe('Deleted account credentials', () => {
   let previousLx: typeof global.lx
   let tempDir: string
   const username = 'deleted_account'
-  const apiToken = 'deleted-account-api-token'
   const adminHeaders = { 'x-frontend-auth': 'account-admin', 'content-type': 'application/json' }
 
   beforeEach(() => {
@@ -150,7 +149,7 @@ describe('Deleted account credentials', () => {
     fs.rmdirSync(tempDir)
   })
 
-  test('deleting and recreating an account does not revive old sessions or API tokens', async () => {
+  test('deleting and recreating an account does not revive old sessions', async () => {
     const auth = createAuthRouter()
     const login = await auth.handle(new Request('http://localhost/api/user/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -158,14 +157,9 @@ describe('Deleted account credentials', () => {
     }))
     expect(login.status).toBe(200)
     const cookie = login.headers.get('set-cookie')!.split(';')[0]
-    const sessionToken = (await login.json()).token
+    const sessionToken = decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1))
     const cookieRequest = new Request('http://localhost/api/user/auth/verify', { headers: { cookie } })
     expect(verifyUserAuth(cookieRequest)).toBe(username)
-    saveUserTokenConfig(username, { enabled: true, tokens: [{
-      token: apiToken, name: 'test', createdAt: Date.now(), expiresAt: null,
-    }] })
-    const tokenRequest = new Request('http://localhost/api/user/auth/verify', { headers: { 'x-user-token': apiToken } })
-    expect(verifyUserAuth(tokenRequest)).toBe(username)
 
     const users = createUserRouter()
     const deleted = await users.handle(new Request('http://localhost/api/users', {
@@ -173,14 +167,8 @@ describe('Deleted account credentials', () => {
     }))
     expect(deleted.status).toBe(200)
     expect(userSessions.has(sessionToken)).toBe(false)
-    expect(persistentTokens.has(apiToken)).toBe(false)
-    expect(persistentTokenMeta.has(apiToken)).toBe(false)
     expect(getDb().query('SELECT * FROM user_sessions WHERE user_name = ?').all(username)).toEqual([])
     expect(verifyUserAuth(cookieRequest)).toBeNull()
-    expect(verifyUserAuth(tokenRequest)).toBeNull()
-
-    // A pending lastUsed write must not recreate the deleted account's token settings.
-    await Bun.sleep(10_100)
     expect(getDb().query('SELECT * FROM user_settings WHERE user_name = ?').all(username)).toEqual([])
 
     const recreated = await users.handle(new Request('http://localhost/api/users', {
@@ -188,7 +176,6 @@ describe('Deleted account credentials', () => {
     }))
     expect(recreated.status).toBe(200)
     expect(verifyUserAuth(cookieRequest)).toBeNull()
-    expect(verifyUserAuth(tokenRequest)).toBeNull()
     userSessions.clear()
     expect(verifyUserAuth(cookieRequest)).toBeNull()
     expect((await auth.handle(new Request('http://localhost/api/user/login', {
@@ -205,7 +192,7 @@ describe('Deleted account credentials', () => {
     const cookie = login.headers.get('set-cookie')!.split(';')[0]
     const request = new Request('http://localhost/api/user/auth/verify', { headers: { cookie } })
     userSessions.set('cached-removed-account', { username, createdAt: Date.now() })
-    userSessions.delete((await login.json()).token)
+    userSessions.delete(decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1)))
     global.lx.config.users = []
     expect(verifyUserAuth(request)).toBeNull()
     expect(userSessions.has('cached-removed-account')).toBe(false)

@@ -6,8 +6,6 @@ import { createUserRouter } from './user'
 import { createCustomSourceRouter } from './customSource'
 import { createMusicRouter } from './music'
 import { createCacheRouter } from './cache'
-import { createSyncRouter } from './sync'
-import { createSubsonicRouter } from './subsonic'
 import { createStaticRouter } from './static'
 
 /** 播放器鉴权豁免：登录态自身的接口必须在未登录时也可访问 */
@@ -38,22 +36,25 @@ const playerApiAuthMiddleware: Middleware = async (ctx, next) => {
 export const createRootRouter = (): Router => {
   const root = new Router()
 
+  // 已移除协议明确返回 410，避免旧客户端将 SPA fallback 误判为服务仍可用。
+  for (const path of ['/hello/*', '/id/*', '/ah/*', '/rest/*', '/api/webdav/*']) {
+    root.all(path, (ctx) => ctx.fail(410, '该外部协议已移除'))
+  }
+
   // 全局中间件
   root.use(corsMiddleware)
   root.use(accessLogMiddleware)
   root.use(compressionMiddleware)
 
-  // 1. 业务领域路由挂载
+  // 1. Web 业务领域路由挂载
   root.mount('/', createAuthRouter())
   root.mount('/', createSystemRouter())
   root.mount('/', createUserRouter())
   root.mount('/', createCustomSourceRouter())
   root.mount('/', createMusicRouter())
   root.mount('/', createCacheRouter())
-  root.mount('/', createSyncRouter())
-  root.mount('/', createSubsonicRouter())
 
-  // 2. 播放器数据接口鉴权（仅作用于 /api/music/*，不影响 Subsonic 与同步协议）
+  // 2. 播放器数据接口鉴权
   root.use('/api/music', playerApiAuthMiddleware)
 
   // 3. 静态资源与前端托管（必须挂在最后，作为兜底匹配）

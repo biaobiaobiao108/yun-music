@@ -1,6 +1,6 @@
 
 const config: LX.Config = {
-  serverName: 'lxserver', // 同步服务名称
+  serverName: 'lx-music-web', // Web 服务名称
   'proxy.enabled': false, // 是否使用代理转发请求到本服务器
   'proxy.header': 'x-real-ip', // 代理转发的请求头 原始IP
   bindIP: '0.0.0.0', // 绑定IP
@@ -32,16 +32,6 @@ const config: LX.Config = {
   // 必须由部署者显式设置；禁止使用空密码或示例密码启动。
   'frontend.password': '',
 
-  // WebDAV 配置
-  'webdav.enable': false,
-  'webdav.url': '',
-  'webdav.username': '',
-  'webdav.password': '',
-  'webdav.syncPath': '/lx-sync', // 增量同步远程路径
-  'webdav.backupPath': '/lx-sync-backups', // 全量备份远程路径
-  'sync.interval': 60, // 同步间隔（分钟）默认1小时
-  'sync.backupInterval': 24, // 全量备份间隔（小时）默认24小时
-
   // Web播放器配置
   'player.enableAuth': false,
   'player.password': '',
@@ -53,13 +43,6 @@ const config: LX.Config = {
   // 访问路径配置
   'admin.path': '', // 后台管理路径，默认为根路径 /
   'player.path': '/music', // 播放器路径
-  'subsonic.enable': true, // 是否启用 Subsonic 服务
-  'subsonic.path': '/rest', // Subsonic 访问路径
-  'subsonic.enableDebug': true, // 是否开启 Subsonic 调试日志模式
-  'subsonic.onlineSearch': true, // 是否开启 Subsonic 在线全网搜索
-  'subsonic.onlineSearchMode': 'fallback', // 在线搜索模式: fallback | merge | local_only
-  'subsonic.onlineSearchSources': 'wy,tx', // 在线搜索默认平台
-  'subsonic.lyricTranslation': true, // 是否在 Subsonic 歌词中包含翻译
   'singer.sourcePriority': ['tx', 'wy'], // 歌手信息源优先级
   'artist.maxFetchPages': 20, // 歌手歌曲最大抓取页数
   'cache.namingPattern': 'simple', // 缓存命名规则

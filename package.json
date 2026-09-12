@@ -1,5 +1,5 @@
 {
-  "name": "lx-music-sync-server",
+  "name": "lx-music-web-server",
   "version": "2.0.0",
   "private": true,
   "scripts": {
@@ -35,8 +35,7 @@
     "socks-proxy-agent": "^10.1.0",
     "tunnel": "^0.0.6",
     "unzipper": "^0.12.5",
-    "vm2": "^3.12.1",
-    "webdav": "^5.9.0"
+    "vm2": "^3.12.1"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",

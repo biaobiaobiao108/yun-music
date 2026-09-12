@@ -9,7 +9,7 @@ import { serverStatus } from '../state'
 import { startupLog } from '@/utils/log4js'
 import { getUserDirname } from '@/user'
 import { resolveInside } from '@/utils/pathSecurity'
-import { normalizeOnlineSources } from '@/common/musicSources'
+import { createLocalBackup } from '../localBackupService'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -37,14 +37,6 @@ const normalizeConfiguredPath = (value: unknown, fallback: string, allowEmpty = 
   return normalized === '/' && allowEmpty ? '' : normalized
 }
 
-const validateHttpEndpoint = (value: unknown, field: string): string => {
-  if (typeof value !== 'string' || !value.trim()) return ''
-  const url = new URL(value.trim())
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error(`${field} 仅支持 http 或 https`)
-  if (url.username || url.password) throw new Error(`${field} 不应在 URL 中包含凭据`)
-  return url.toString().replace(/\/$/, '')
-}
-
 const redactUrlCredentials = (value: unknown): string => {
   if (typeof value !== 'string' || !value.trim()) return ''
   try {
@@ -69,17 +61,6 @@ export const reloadServerData = async (): Promise<void> => {
         if (key !== 'users') {
           ;(global.lx.config as any)[key] = rootConfig[key]
         }
-      }
-      if (global.lx.webdavSync) {
-        global.lx.webdavSync.updateConfig({
-          url: global.lx.config['webdav.url'],
-          username: global.lx.config['webdav.username'],
-          password: global.lx.config['webdav.password'],
-          syncPath: global.lx.config['webdav.syncPath'],
-          backupPath: global.lx.config['webdav.backupPath'],
-          interval: global.lx.config['sync.interval'],
-          backupInterval: global.lx.config['sync.backupInterval'],
-        })
       }
       startupLog.info('Config.js re-loaded and merged.')
     } catch (err: any) {
@@ -120,7 +101,7 @@ export const createSystemRouter = (): Router => {
     }
     const stats = {
       users: global.lx.config.users?.length ?? 0,
-      connectedDevices: serverStatus.devices.length,
+      connectedDevices: 0,
       serverStatus: serverStatus.status,
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
@@ -169,7 +150,7 @@ export const createSystemRouter = (): Router => {
 
     const status = {
       users: global.lx.config.users.length,
-      devices: serverStatus.devices.length,
+      devices: 0,
       uptime: process.uptime(),
       memory: process.memoryUsage().rss,
       totalMemory: totalMem,
@@ -182,7 +163,6 @@ export const createSystemRouter = (): Router => {
       cpus: os.cpus().length,
       cpuModel: os.cpus()[0]?.model || 'Unknown',
       cpuSpeed: os.cpus()[0]?.speed || 0,
-      isWebDAVConfigured: !!(global.lx.config['webdav.url'] && global.lx.config['webdav.url'].trim() !== ''),
     }
 
     return ctx.json(status)
@@ -234,25 +214,10 @@ export const createSystemRouter = (): Router => {
       'frontend.passwordConfigured': Boolean(c['frontend.password']),
       'player.enableAuth': c['player.enableAuth'] || false,
       'player.passwordConfigured': Boolean(c['player.password']),
-      'webdav.enable': c['webdav.enable'] ?? false,
-      'webdav.url': redactUrlCredentials(c['webdav.url']),
-      'webdav.username': c['webdav.username'] || '',
-      'webdav.passwordConfigured': Boolean(c['webdav.password']),
-      'webdav.syncPath': c['webdav.syncPath'] || '/lx-sync',
-      'webdav.backupPath': c['webdav.backupPath'] || '/lx-sync-backups',
-      'sync.interval': c['sync.interval'] || 60,
-      'sync.backupInterval': c['sync.backupInterval'] || 24,
       'proxy.all.enabled': c['proxy.all.enabled'] || false,
       'proxy.all.address': redactUrlCredentials(c['proxy.all.address']),
       'admin.path': c['admin.path'] ?? '',
       'player.path': c['player.path'] ?? '/music',
-      'subsonic.enable': c['subsonic.enable'] ?? true,
-      'subsonic.path': c['subsonic.path'] ?? '/rest',
-      'subsonic.enableDebug': c['subsonic.enableDebug'] ?? true,
-      'subsonic.onlineSearch': c['subsonic.onlineSearch'] ?? true,
-      'subsonic.onlineSearchMode': c['subsonic.onlineSearchMode'] ?? 'fallback',
-      'subsonic.onlineSearchSources': normalizeOnlineSources(c['subsonic.onlineSearchSources']).join(','),
-      'subsonic.lyricTranslation': c['subsonic.lyricTranslation'] ?? true,
       'singer.sourcePriority': (c['singer.sourcePriority'] || ['tx', 'wy']).join(','),
       'artist.maxFetchPages': c['artist.maxFetchPages'] ?? 20,
       'system.allowUnsafeVM': c['system.allowUnsafeVM'] || false,
@@ -304,19 +269,6 @@ export const createSystemRouter = (): Router => {
         }
       }
 
-      // WebDAV 配置
-      if (newConfig['webdav.enable'] !== undefined) c['webdav.enable'] = parseBoolean(newConfig['webdav.enable'], false)
-      if (newConfig['webdav.url'] !== undefined) {
-        const normalizedUrl = validateHttpEndpoint(newConfig['webdav.url'], 'WebDAV 地址')
-        const currentUrl = redactUrlCredentials(c['webdav.url'])
-        c['webdav.url'] = normalizedUrl && normalizedUrl === currentUrl ? c['webdav.url'] : normalizedUrl
-      }
-      if (newConfig['webdav.username'] !== undefined && typeof newConfig['webdav.username'] === 'string') c['webdav.username'] = newConfig['webdav.username'].slice(0, 256)
-      if (newConfig['webdav.password'] !== undefined && typeof newConfig['webdav.password'] === 'string' && newConfig['webdav.password']) c['webdav.password'] = newConfig['webdav.password']
-      if (newConfig['webdav.syncPath'] !== undefined) c['webdav.syncPath'] = normalizeConfiguredPath(newConfig['webdav.syncPath'], '/lx-sync')
-      if (newConfig['webdav.backupPath'] !== undefined) c['webdav.backupPath'] = normalizeConfiguredPath(newConfig['webdav.backupPath'], '/lx-sync-backups')
-      if (newConfig['sync.interval'] !== undefined) c['sync.interval'] = parseBoundedInteger(newConfig['sync.interval'], 5, 86400, 60)
-      if (newConfig['sync.backupInterval'] !== undefined) c['sync.backupInterval'] = parseBoundedInteger(newConfig['sync.backupInterval'], 1, 720, 24)
       if (newConfig['proxy.all.enabled'] !== undefined) c['proxy.all.enabled'] = parseBoolean(newConfig['proxy.all.enabled'], false)
       if (newConfig['proxy.all.address'] !== undefined && typeof newConfig['proxy.all.address'] === 'string') {
         const normalizedAddress = newConfig['proxy.all.address'].slice(0, 2048)
@@ -337,17 +289,6 @@ export const createSystemRouter = (): Router => {
         c['player.path'] = normalizedPlayer
       }
 
-      if (newConfig['subsonic.enable'] !== undefined) c['subsonic.enable'] = parseBoolean(newConfig['subsonic.enable'], true)
-      if (newConfig['subsonic.path'] !== undefined) {
-        c['subsonic.path'] = normalizeConfiguredPath(newConfig['subsonic.path'], '/rest')
-      }
-      if (newConfig['subsonic.enableDebug'] !== undefined) c['subsonic.enableDebug'] = parseBoolean(newConfig['subsonic.enableDebug'], true)
-      if (newConfig['subsonic.onlineSearch'] !== undefined) c['subsonic.onlineSearch'] = parseBoolean(newConfig['subsonic.onlineSearch'], true)
-      if (newConfig['subsonic.onlineSearchMode'] !== undefined) c['subsonic.onlineSearchMode'] = newConfig['subsonic.onlineSearchMode']
-      if (newConfig['subsonic.onlineSearchSources'] !== undefined) {
-        c['subsonic.onlineSearchSources'] = normalizeOnlineSources(newConfig['subsonic.onlineSearchSources']).join(',')
-      }
-      if (newConfig['subsonic.lyricTranslation'] !== undefined) c['subsonic.lyricTranslation'] = parseBoolean(newConfig['subsonic.lyricTranslation'], true)
       if (newConfig['singer.sourcePriority'] !== undefined) {
         const priority = String(newConfig['singer.sourcePriority']).split(',').filter(s => s === 'tx' || s === 'wy') as Array<'tx' | 'wy'>
         if (priority.length > 0) c['singer.sourcePriority'] = priority
@@ -357,18 +298,6 @@ export const createSystemRouter = (): Router => {
         c['artist.maxFetchPages'] = Number.isFinite(maxPages) && maxPages > 0 ? Math.min(Math.floor(maxPages), 100) : 20
       }
 
-      if (global.lx.webdavSync && (newConfig['webdav.enable'] !== undefined || newConfig['webdav.url'] || newConfig['webdav.username'] || newConfig['webdav.password'] || newConfig['webdav.syncPath'] || newConfig['webdav.backupPath'] || newConfig['sync.interval'] || newConfig['sync.backupInterval'])) {
-        global.lx.webdavSync.updateConfig({
-          enable: c['webdav.enable'],
-          url: c['webdav.url'],
-          username: c['webdav.username'],
-          password: c['webdav.password'],
-          syncPath: c['webdav.syncPath'],
-          backupPath: c['webdav.backupPath'],
-          interval: c['sync.interval'],
-          backupInterval: c['sync.backupInterval'],
-        })
-      }
 
       let warning = ''
       if (!c['user.enablePath'] && !c['user.enableRoot']) {
@@ -377,9 +306,6 @@ export const createSystemRouter = (): Router => {
       }
 
       if (global.lx.saveConfig) await global.lx.saveConfig()
-      if (global.lx.webdavSync && global.lx.webdavSync.isConfigured()) {
-        void global.lx.webdavSync.syncChangedFiles()
-      }
 
       return ctx.json({ success: true, warning })
     } catch (e: any) {
@@ -445,55 +371,11 @@ export const createSystemRouter = (): Router => {
     return ctx.json({ success: true, message: '服务器正在重启，请稍后刷新页面' })
   })
 
-  // 5. WebDAV 交互
-  router.post('/api/webdav/test', async (ctx) => {
-    if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const webdavSync = global.lx.webdavSync
-    if (!webdavSync) return ctx.json({ success: false, message: 'WebDAV not initialized' }, 500)
-    const result = await webdavSync.testConnection()
-    return ctx.json(result)
-  })
-
-  router.post('/api/webdav/backup', async (ctx) => {
-    if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const webdavSync = global.lx.webdavSync
-    if (!webdavSync) return ctx.json({ success: false, message: 'WebDAV not initialized' }, 500)
-    const body = await ctx.bodyJson<{ force?: boolean }>().catch(() => ({} as { force?: boolean }))
-    const success = await webdavSync.uploadBackup(body.force)
-    return ctx.json({ success })
-  })
-
-  router.post('/api/webdav/sync', async (ctx) => {
-    if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const webdavSync = global.lx.webdavSync
-    if (!webdavSync) return ctx.json({ success: false, message: 'WebDAV not initialized' }, 500)
-    const success = await webdavSync.syncAllFiles()
-    return ctx.json({ success })
-  })
-
-  router.post('/api/webdav/restore', async (ctx) => {
-    if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const webdavSync = global.lx.webdavSync
-    if (!webdavSync) return ctx.json({ success: false, message: 'WebDAV not initialized' }, 500)
-    const success = await webdavSync.downloadLatestBackup()
-    if (success) await reloadServerData()
-    return ctx.json({ success })
-  })
-
-  router.get('/api/webdav/logs', (ctx) => {
-    if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const webdavSync = global.lx.webdavSync
-    if (!webdavSync) return ctx.json({ success: false, message: 'WebDAV not initialized' }, 500)
-    return ctx.json({ success: true, logs: webdavSync.getSyncLogs() })
-  })
-
-  // 5.1 本地备份下载与上传
+  // 5. 本地备份下载
   router.get('/api/backup/download', async (ctx) => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
-      const webdavSync = global.lx.webdavSync
-      if (!webdavSync) throw new Error('Backup system not initialized')
-      const zipName = await webdavSync.createBackup()
+      const zipName = await createLocalBackup()
       if (!zipName) throw new Error('Backup creation failed')
       const zipPath = resolveInside(global.lx.dataPath, zipName)
       if (!fs.existsSync(zipPath)) throw new Error('ZIP file not found')

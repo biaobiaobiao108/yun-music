@@ -120,6 +120,13 @@ declare namespace LX {
       tempList: LX.Music.MusicInfo[]
     }
 
+    /** Web-only persisted playlist shape (temporary list is client-local). */
+    interface ListData {
+      defaultList: LX.Music.MusicInfo[]
+      loveList: LX.Music.MusicInfo[]
+      userList: UserListInfoFull[]
+    }
+
     type ListMusics = LX.Music.MusicInfo[]
   }
 }

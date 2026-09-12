@@ -49,25 +49,11 @@ describe('System Routes (routes/system.ts)', () => {
     expect(data.serverName).toBe('LX Server Test')
   })
 
-  test('GET /api/webdav/logs reads the WebDAV sync log accessor', async () => {
-    const previousWebdav = (global as any).lx.webdavSync
-    ;(global as any).lx.webdavSync = {
-      getSyncLogs: () => [{ timestamp: 1, type: 'sync', file: 'config.js', status: 'success' }],
-    }
-
-    try {
-      const router = createSystemRouter()
-      const req = new Request('http://localhost:9527/api/webdav/logs', {
-        headers: { 'x-frontend-auth': 'admin_secret' },
-      })
-      const res = await router.handle(req)
-      expect(res.status).toBe(200)
-      expect(await res.json()).toEqual({
-        success: true,
-        logs: [{ timestamp: 1, type: 'sync', file: 'config.js', status: 'success' }],
-      })
-    } finally {
-      ;(global as any).lx.webdavSync = previousWebdav
-    }
+  test('removed external protocol endpoints are unavailable', async () => {
+    const router = createSystemRouter()
+    const res = await router.handle(new Request('http://localhost:9527/api/webdav/logs', {
+      headers: { 'x-frontend-auth': 'admin_secret' },
+    }))
+    expect(res.status).toBe(404)
   })
 })

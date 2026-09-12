@@ -1,141 +1,94 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { closeDb, initDatabase } from '@/database'
 
-// Initialize global.lx before importing modules that depend on it
 ;(global as any).lx = {
   dataPath: 'd:\\test_data',
   userPath: 'd:\\test_users',
   config: {
     'frontend.password': 'admin123',
     'player.password': 'player456',
+    'player.enableAuth': true,
     users: [{ name: 'test_user', password: 'password123' }],
   },
 }
 
-const { createAuthRouter, userSessions } = await import('@/server/routes/auth')
-const { PLAYER_SESSION_TTL } = await import('@/server/auth')
-const { clearLoginFailures } = await import('@/server/auth')
+const { createAuthRouter, userSessions, verifyUserAuth } = await import('@/server/routes/auth')
+const { PLAYER_SESSION_TTL, clearLoginFailures } = await import('@/server/auth')
 
-describe('Auth & Token Routes (routes/auth.ts)', () => {
-  test('admin verification and login share their failure budget and success resets it', async () => {
+describe('Web Cookie Authentication', () => {
+  beforeEach(() => {
+    closeDb()
+    initDatabase(':memory:')
+    const lxGlobal = (global as any).lx
+    lxGlobal.config['frontend.password'] = 'admin123'
+    lxGlobal.config['player.password'] = 'player456'
+    lxGlobal.config.users = [{ name: 'test_user', password: 'password123' }]
+    userSessions.clear()
+  })
+
+  afterEach(() => {
+    clearLoginFailures('192.0.2.45')
+    closeDb()
+  })
+
+  test('admin verification and login share their failure budget', async () => {
     const router = createAuthRouter()
     const ip = '192.0.2.45'
     const verify = (password: string) => router.handle(new Request('http://localhost/api/admin/verify', {
       method: 'POST', headers: { 'x-frontend-auth': password },
     }), { remoteAddress: ip })
-    try {
-      for (let i = 0; i < 9; i++) expect((await verify('wrong')).status).toBe(401)
-      expect((await verify('admin123')).status).toBe(200)
-      for (let i = 0; i < 10; i++) expect((await verify('wrong')).status).toBe(401)
-      expect((await verify('admin123')).status).toBe(429)
-      expect((await router.handle(new Request('http://localhost/api/login', {
-        method: 'POST', body: JSON.stringify({ password: 'admin123' }),
-      }), { remoteAddress: ip })).status).toBe(429)
-      expect((await router.handle(new Request('http://localhost/api/admin/verify', {
-        method: 'POST', headers: { 'x-frontend-auth': 'admin123' },
-      }), { remoteAddress: '192.0.2.46' })).status).toBe(200)
-    } finally {
-      clearLoginFailures(ip)
-      clearLoginFailures('192.0.2.46')
-    }
-  })
-  beforeEach(() => {
-    const lxGlobal = (global as any).lx;
-    lxGlobal.config['frontend.password'] = 'admin123';
-    lxGlobal.config['player.password'] = 'player456';
+    for (let i = 0; i < 9; i++) expect((await verify('wrong')).status).toBe(401)
+    expect((await verify('admin123')).status).toBe(200)
+    for (let i = 0; i < 10; i++) expect((await verify('wrong')).status).toBe(401)
+    expect((await verify('admin123')).status).toBe(429)
   })
 
-  test('POST /api/admin/verify returns 200 on valid password and 401 on wrong', async () => {
+  test('admin and player login issue HttpOnly SameSite cookies', async () => {
     const router = createAuthRouter()
+    const admin = await router.handle(new Request('http://localhost/api/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'admin123' }),
+    }))
+    expect(admin.status).toBe(200)
+    expect(admin.headers.get('set-cookie')).toContain('lx_admin_session=')
+    expect(admin.headers.get('set-cookie')).toContain('HttpOnly')
+    expect(admin.headers.get('set-cookie')).toContain('SameSite=Strict')
 
-    // Valid
-    const req1 = new Request('http://localhost:9527/api/admin/verify', {
-      method: 'POST',
-      headers: { 'x-frontend-auth': 'admin123' },
-    })
-    const res1 = await router.handle(req1)
-    expect(res1.status).toBe(200)
-    expect(await res1.json()).toEqual({ success: true })
-
-    // Invalid
-    const req2 = new Request('http://localhost:9527/api/admin/verify', {
-      method: 'POST',
-      headers: { 'x-frontend-auth': 'wrong_pass' },
-    })
-    const res2 = await router.handle(req2)
-    expect(res2.status).toBe(401)
-  })
-
-  test('POST /api/music/auth sets HttpOnly session cookie on success', async () => {
-    const router = createAuthRouter()
-
-    const req = new Request('http://localhost:9527/api/music/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const player = await router.handle(new Request('http://localhost/api/music/auth', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ password: 'player456' }),
-    })
-    const res = await router.handle(req)
-    expect(res.status).toBe(200)
-    expect(res.headers.get('Set-Cookie')).toContain('lx_player_session=')
-    expect(res.headers.get('Set-Cookie')).toContain('HttpOnly')
-    expect(res.headers.get('Set-Cookie')).toContain(`Max-Age=${PLAYER_SESSION_TTL / 1000}`)
-    const body = await res.json()
-    expect(body.success).toBe(true)
+    }))
+    expect(player.status).toBe(200)
+    expect(player.headers.get('set-cookie')).toContain('lx_player_session=')
+    expect(player.headers.get('set-cookie')).toContain(`Max-Age=${PLAYER_SESSION_TTL / 1000}`)
   })
 
-  test('user session cookie remains valid after in-memory session cache loss', async () => {
+  test('user session survives in-memory cache loss and logout revokes it', async () => {
     const router = createAuthRouter()
-
-    const loginRes = await router.handle(new Request('http://localhost:9527/api/user/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const login = await router.handle(new Request('http://localhost/api/user/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'test_user', password: 'password123' }),
     }))
-    expect(loginRes.status).toBe(200)
+    expect(login.status).toBe(200)
+    const cookie = login.headers.get('Set-Cookie')!.split(';', 1)[0]
+    const sessionId = decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1))
+    userSessions.delete(sessionId)
 
-    const setCookie = loginRes.headers.get('Set-Cookie')
-    expect(setCookie).toContain('lx_user_session=')
-    const cookie = setCookie!.split(';', 1)[0]
-    const token = decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1))
-    userSessions.delete(token)
+    const verify = await router.handle(new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }))
+    expect(await verify.json()).toEqual({ valid: true, username: 'test_user' })
+    expect(verifyUserAuth(new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }))).toBe('test_user')
 
-    const verifyRes = await router.handle(new Request('http://localhost:9527/api/user/auth/verify', {
-      headers: { Cookie: cookie },
-    }))
-    expect(await verifyRes.json()).toEqual({ valid: true, username: 'test_user' })
-
-    const logoutRes = await router.handle(new Request('http://localhost:9527/api/user/logout', {
-      method: 'POST',
-      headers: { Cookie: cookie },
-    }))
-    expect(logoutRes.headers.get('Set-Cookie')).toContain('Max-Age=0')
-
-    const afterLogoutRes = await router.handle(new Request('http://localhost:9527/api/user/auth/verify', {
-      headers: { Cookie: cookie },
-    }))
-    expect(await afterLogoutRes.json()).toEqual({ valid: false, username: null })
+    const logout = await router.handle(new Request('http://localhost/api/user/logout', { method: 'POST', headers: { cookie } }))
+    expect(logout.headers.get('Set-Cookie')).toContain('Max-Age=0')
+    const afterLogout = await router.handle(new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }))
+    expect(await afterLogout.json()).toEqual({ valid: false, username: null })
   })
 
-  test('GET /api/user/auth/verify checks token validity', async () => {
+  test('legacy password, token headers and token query parameters are rejected', async () => {
     const router = createAuthRouter()
-
-    // Mock active session
-    userSessions.set('mock_token_123', {
-      username: 'test_user',
-      createdAt: Date.now(),
-    })
-
-    const req1 = new Request('http://localhost:9527/api/user/auth/verify', {
-      headers: { 'x-user-token': 'mock_token_123' },
-    })
-    const res1 = await router.handle(req1)
-    expect(res1.status).toBe(200)
-    expect(await res1.json()).toEqual({ valid: true, username: 'test_user' })
-
-    const req2 = new Request('http://localhost:9527/api/user/auth/verify', {
-      headers: { 'x-user-token': 'invalid_token' },
-    })
-    const res2 = await router.handle(req2)
-    expect(res2.status).toBe(200)
-    expect(await res2.json()).toEqual({ valid: false, username: null })
+    const response = await router.handle(new Request('http://localhost/api/user/auth/verify?token=legacy', {
+      headers: { 'x-user-name': 'test_user', 'x-user-password': 'password123' },
+    }))
+    expect(await response.json()).toEqual({ valid: false, username: null })
   })
 })

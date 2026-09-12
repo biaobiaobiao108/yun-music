@@ -111,7 +111,7 @@ declare namespace LX {
     'list.addMusicLocationType': AddMusicLocationType
 
     /**
-     * 同步用户
+     * Web 用户
      */
     users: UserConfig[]
 
@@ -119,46 +119,6 @@ declare namespace LX {
      * 前端访问密码
      */
     'frontend.password'?: string
-
-    /**
-     * 是否启用 WebDAV 同步服务
-     */
-    'webdav.enable'?: boolean
-
-    /**
-     * WebDAV URL
-     */
-    'webdav.url'?: string
-
-    /**
-     * WebDAV 用户名
-     */
-    'webdav.username'?: string
-
-    /**
-     * WebDAV 密码
-     */
-    'webdav.password'?: string
-
-    /**
-     * WebDAV 增量同步远端路径（默认 /lx-sync）
-     */
-    'webdav.syncPath'?: string
-
-    /**
-     * WebDAV 全量备份远端路径（默认 /lx-sync-backups）
-     */
-    'webdav.backupPath'?: string
-
-    /**
-     * 同步间隔(分钟)
-     */
-    'sync.interval'?: number
-
-    /**
-     * 全量备份间隔(小时)，默认 24
-     */
-    'sync.backupInterval'?: number
 
     /**
      * 是否开启Web播放器访问密码
@@ -194,41 +154,6 @@ declare namespace LX {
      * Web播放器访问路径，默认为 /music
      */
     'player.path'?: string
-
-    /**
-     * 是否启用 Subsonic 协议支持 (默认 true)
-     */
-    'subsonic.enable'?: boolean
-
-    /**
-     * Subsonic 访问路径 (默认 /rest)
-     */
-    'subsonic.path'?: string
-
-    /**
-     * 是否开启 Subsonic 调试日志模式 (默认 false/true)
-     */
-    'subsonic.enableDebug'?: boolean
-
-    /**
-     * 是否启用 Subsonic 在线全网搜索
-     */
-    'subsonic.onlineSearch'?: boolean
-
-    /**
-     * Subsonic 在线搜索模式 (fallback | merge | local_only)
-     */
-    'subsonic.onlineSearchMode'?: 'fallback' | 'merge' | 'local_only'
-
-    /**
-     * Subsonic 在线搜索默认平台 (wy,tx)
-     */
-    'subsonic.onlineSearchSources'?: string
-
-    /**
-     * Subsonic 歌词是否包含翻译 (默认 true)
-     */
-    'subsonic.lyricTranslation'?: boolean
 
     /**
      * 歌手信息源优先级

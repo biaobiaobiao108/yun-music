@@ -123,23 +123,6 @@ describe('Core Router & HttpContext', () => {
     expect(data.code).toBe(404)
   })
 
-  test('WebSocket upgrade rejected when auth fails', async () => {
-    const { handleSocketUpgrade } = await import('@/server/sync/socketServer')
-    const req = new Request('http://localhost:9527/socket?i=invalid&t=invalid', {
-      headers: {
-        upgrade: 'websocket',
-        connection: 'Upgrade',
-      },
-    })
-    const mockServer: any = {
-      requestIP() { return { address: '127.0.0.1' } },
-      upgrade() { return true },
-    }
-    const res = await handleSocketUpgrade(req, mockServer)
-    expect(res).not.toBeNull()
-    expect(res?.status).toBe(401)
-  })
-
   test('stopServer is exported and gracefully handles unstarted or running state', async () => {
     const { stopServer, getStatus } = await import('@/server')
     expect(typeof stopServer).toBe('function')
@@ -148,4 +131,3 @@ describe('Core Router & HttpContext', () => {
     expect(status.status).toBe(false)
   })
 })
-

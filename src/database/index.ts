@@ -18,6 +18,19 @@ export const initDatabase = (customDbPath?: string): Database => {
   const dbPath = customDbPath ?? getDbPath()
   const db = new Database(dbPath, { create: true })
 
+  const existingTables = db.query<{ name: string }, []>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+  ).all().map(row => row.name)
+  const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
+  if (currentVersion !== 0 && currentVersion !== 2) {
+    db.close()
+    throw new Error('数据库版本不兼容，请先执行 bun run reset:instance')
+  }
+  if (currentVersion === 0 && existingTables.includes('devices')) {
+    db.close()
+    throw new Error('检测到旧版同步数据库，请先执行 bun run reset:instance')
+  }
+
   // 启用 WAL 模式和外键支持
   db.run('PRAGMA journal_mode = WAL;')
   db.run('PRAGMA synchronous = NORMAL;')
@@ -46,21 +59,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   // never persist them in the structured database.
   db.run("UPDATE users SET password = '' WHERE password <> ''")
 
-  // 3. 设备密钥表
-  db.run(`
-    CREATE TABLE IF NOT EXISTS devices (
-      client_id TEXT PRIMARY KEY,
-      user_name TEXT NOT NULL,
-      key TEXT NOT NULL,
-      device_name TEXT NOT NULL,
-      is_mobile INTEGER DEFAULT 0,
-      last_connect_date INTEGER DEFAULT 0,
-      FOREIGN KEY (user_name) REFERENCES users(name) ON DELETE CASCADE
-    );
-  `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_name);')
-
-  // 4. 快照数据表 (歌单、黑名单)
+  // 3. 快照数据表 (歌单、黑名单)
   db.run(`
     CREATE TABLE IF NOT EXISTS snapshots (
       id TEXT NOT NULL,
@@ -74,7 +73,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_snapshots_lookup ON snapshots(user_name, module, created_at DESC);')
 
-  // 5. 快照元信息表 (记录最新快照)
+  // 4. 快照元信息表 (记录最新快照)
   db.run(`
     CREATE TABLE IF NOT EXISTS snapshot_meta (
       user_name TEXT NOT NULL,
@@ -85,18 +84,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     );
   `)
 
-  // 6. 客户端当前快照状态
-  db.run(`
-    CREATE TABLE IF NOT EXISTS device_snapshot_state (
-      client_id TEXT NOT NULL,
-      module TEXT NOT NULL,
-      snapshot_key TEXT NOT NULL,
-      last_sync_date INTEGER NOT NULL,
-      PRIMARY KEY (client_id, module)
-    );
-  `)
-
-  // 7. 用户设置与偏好表 (扩展配置、音效、曲库等)
+  // 5. 用户设置与偏好表 (扩展配置、音效、曲库等)
   db.run(`
     CREATE TABLE IF NOT EXISTS user_settings (
       user_name TEXT NOT NULL,
@@ -107,7 +95,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     );
   `)
 
-  // 8. 用户登录会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
+  // 6. 用户登录会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
   db.run(`
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_hash TEXT PRIMARY KEY,
@@ -117,7 +105,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_created_at ON user_sessions(created_at);')
 
-  // 9. 播放器访问会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
+  // 7. 播放器访问会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
   db.run(`
     CREATE TABLE IF NOT EXISTS player_sessions (
       session_hash TEXT PRIMARY KEY,
@@ -126,7 +114,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_player_sessions_created_at ON player_sessions(created_at);')
 
-  // 10. 缓存与下载元数据索引表
+  // 8. 缓存与下载元数据索引表
   db.run(`
     CREATE TABLE IF NOT EXISTS cache_index (
       location TEXT NOT NULL,
@@ -140,6 +128,8 @@ export const initDatabase = (customDbPath?: string): Database => {
     );
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_cache_query ON cache_index(location, user_name, folder, song_id);')
+
+  db.run('PRAGMA user_version = 2')
 
   dbInstance = db
   stmtCache.clear()
@@ -185,7 +175,7 @@ export const createDatabaseSnapshot = (destination: string): void => {
 export const restoreDatabaseSnapshot = (sourcePath: string): void => {
   const source = new Database(sourcePath, { readonly: true })
   const target = getDb()
-  const tables = ['system_info', 'users', 'devices', 'snapshots', 'snapshot_meta', 'device_snapshot_state', 'user_settings', 'cache_index']
+  const tables = ['system_info', 'users', 'snapshots', 'snapshot_meta', 'user_settings', 'player_sessions', 'user_sessions', 'cache_index']
   try {
     source.run('PRAGMA trusted_schema = OFF')
     const check = source.query<{ quick_check: string }, []>('PRAGMA quick_check').get()

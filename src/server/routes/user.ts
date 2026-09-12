@@ -14,7 +14,6 @@ import {
   deleteUserDataFromDatabase,
   releaseUserSpace,
 } from '@/user'
-import { File, SYNC_CLOSE_CODE } from '@/constants'
 import { startupLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
