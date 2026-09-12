@@ -1,4 +1,4 @@
-import { expect, spyOn, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,7 +9,67 @@ import { Readable } from 'node:stream'
 import * as identify from '@/server/utils/identify'
 import * as fileCache from '@/server/fileCache'
 import { createCacheRouter, createProxyResponseStream } from '@/server/routes/cache'
+import { userSessions } from '@/server/routes/auth'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
+import { closeDb, initDatabase } from '@/database'
+import { syncUsersToDatabase } from '@/user'
+
+describe('cache list user scope', () => {
+  const username = 'cache_owner'
+  const sessionId = 'cache-owner-session'
+  let previousLx: typeof global.lx
+
+  beforeEach(() => {
+    previousLx = global.lx
+    closeDb()
+    initDatabase(':memory:')
+    global.lx = {
+      userPath: process.cwd(),
+      config: {
+        users: [{ name: username, password: 'password' }],
+        'frontend.password': 'cache-admin',
+        'user.enablePublicNonAdminLocalMusic': false,
+      },
+    } as typeof global.lx
+    syncUsersToDatabase(global.lx.config.users)
+    userSessions.set(sessionId, { username, createdAt: Date.now() })
+  })
+
+  afterEach(() => {
+    userSessions.delete(sessionId)
+    closeDb()
+    global.lx = previousLx
+  })
+
+  test('uses the authenticated user cache when no public alias is requested', async () => {
+    const getCacheList = spyOn(fileCache, 'getCacheList').mockResolvedValue([])
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ success: true, data: [] })
+      expect(getCacheList).toHaveBeenCalledWith(username)
+    } finally {
+      getCacheList.mockRestore()
+    }
+  })
+
+  test('keeps an explicit public alias scoped to the public cache', async () => {
+    const getCacheList = spyOn(fileCache, 'getCacheList').mockResolvedValue([])
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=_open', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }))
+
+      expect(response.status).toBe(200)
+      expect(getCacheList).toHaveBeenCalledWith('_open')
+    } finally {
+      getCacheList.mockRestore()
+    }
+  })
+})
 
 test('proxy stream bounds unread data and cancels the upstream transport', async () => {
   let produced = 0

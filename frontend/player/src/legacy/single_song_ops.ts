@@ -1,6 +1,6 @@
 // Single-song operations keep their legacy window exports for inline handlers.
 // @ts-nocheck
-import { getDownloadManager } from '../player_services';
+import { getDownloadManager, isAdminSessionActive } from '../player_services';
 const globalState = window as any;
 function getSongQualitySize(song, quality) {
     const maps = [
@@ -297,7 +297,7 @@ export async function downloadSong(songOrId, forceQuality = null, suppressAlerts
     // 权限校验：公开受限模式下，如果管理员关闭了“缓存歌曲文件”功能，则下载/缓存歌曲需要验证管理员身份
     const isPublic = !globalState.isUserLoggedIn() || !window.currentListData?.username || window.currentListData?.username === 'default' || window.currentListData?.username === '_open';
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
-    const isAdmin = !!sessionStorage.getItem('lx_admin_password');
+    const isAdmin = isAdminSessionActive();
     const isServerCacheAllowed = window.settings?.enableServerCache === true;
 
     if (isPublic && enablePublicRestriction && !isServerCacheAllowed && !isAdmin) {
@@ -389,7 +389,7 @@ async function batchDownloadSongs(songsToDownload, batchOptions = {}) {
     // 权限校验：公开受限模式下，如果管理员关闭了“缓存歌曲文件”功能，则批量下载/缓存歌曲需要验证管理员身份
     const isPublic = !globalState.isUserLoggedIn() || !window.currentListData?.username || window.currentListData?.username === 'default' || window.currentListData?.username === '_open';
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
-    const isAdmin = !!sessionStorage.getItem('lx_admin_password');
+    const isAdmin = isAdminSessionActive();
     const isServerCacheAllowed = window.settings?.enableServerCache === true;
 
     if (isPublic && enablePublicRestriction && !isServerCacheAllowed && !isAdmin) {

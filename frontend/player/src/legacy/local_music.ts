@@ -1,6 +1,7 @@
 // @ts-nocheck
 // This legacy-compatible module is compiled as an isolated browser bundle.
 import { safeInlineString } from '../player_security';
+import { isAdminSessionActive } from '../player_services';
 /**
  * LocalMusicManager (本地音乐模块)
  * 处理在本地音乐Tab下的列表加载、刷选、删除功能
@@ -704,7 +705,7 @@ window.LocalMusicManager = {
         if (!btn) return;
         const enablePublicFavorites = !!window.lx_config?.['user.enablePublicFavorites'];
         const enablePublicNonAdminAccess = !!window.lx_config?.['user.enablePublicNonAdminAccess'];
-        const isAdmin = !!sessionStorage.getItem('lx_admin_password');
+        const isAdmin = isAdminSessionActive();
         const isLoggedIn = typeof window.isUserLoggedIn === 'function' ? window.isUserLoggedIn() : false;
         if (enablePublicFavorites && (isLoggedIn || isAdmin || enablePublicNonAdminAccess)) {
             btn.classList.remove('hidden');
@@ -913,7 +914,7 @@ window.LocalMusicManager = {
 
     async fetchData(silent = false) {
         const isLoggedIn = typeof window.isUserLoggedIn === 'function' ? window.isUserLoggedIn() : false;
-        const isAdmin = !!sessionStorage.getItem('lx_admin_password');
+        const isAdmin = isAdminSessionActive();
         const enablePublicNonAdminLocalMusic = !!window.lx_config?.['user.enablePublicNonAdminLocalMusic'];
 
         if (!isLoggedIn && !isAdmin && !enablePublicNonAdminLocalMusic) {
@@ -1705,7 +1706,7 @@ window.LocalMusicManager = {
 
         // 未登录个人账号 或 查看公开库 时删除文件需要管理员权限
         const isLoggedIn = typeof window.isUserLoggedIn === 'function' ? window.isUserLoggedIn() : false;
-        const isAdmin = !!sessionStorage.getItem('lx_admin_password');
+        const isAdmin = isAdminSessionActive();
         const requiresAdmin = this.isViewingPublicSongs || !isLoggedIn;
 
         if (requiresAdmin && !isAdmin) {
@@ -1735,7 +1736,7 @@ window.LocalMusicManager = {
 
         // 未登录个人账号 或 查看公开库 时删除文件需要管理员权限
         const isLoggedIn = typeof window.isUserLoggedIn === 'function' ? window.isUserLoggedIn() : false;
-        const isAdmin = !!sessionStorage.getItem('lx_admin_password');
+        const isAdmin = isAdminSessionActive();
         const requiresAdmin = this.isViewingPublicSongs || !isLoggedIn;
 
         if (requiresAdmin && !isAdmin) {

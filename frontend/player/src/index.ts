@@ -57,6 +57,7 @@ import { bindPlayerEvents, registerPlayerEventAction } from './player_events';
 import { DownloadManager } from './legacy/download_manager';
 import { createSongListManager, type SongListManagerApi } from './legacy/songlist_manager';
 import {
+    registerAdminSessionChecker,
     registerDownloadManager,
     registerSongListManager,
 } from './player_services';
@@ -96,6 +97,8 @@ let userName: string | null = localStorage.getItem('lx_user_name');
 let userSessionActive = false;
 let adminSessionActive = false;
 let authEnabled = false;
+
+registerAdminSessionChecker(() => adminSessionActive);
 
 let currentPage = 1;
 window.currentPage = 1;

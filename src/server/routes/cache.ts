@@ -549,13 +549,19 @@ export const createCacheRouter = (): Router => {
     const targetUserParam = ctx.query.get('user')
     const reqUsername = targetUserParam || ''
     const isAdmin = verifyAdminAuth(ctx.request)
-    const isPublic = !reqUsername || reqUsername === 'default' || reqUsername === '_open' || targetUserParam === '_open'
+    const verified = verifyUserAuth(ctx)
+    const isPublicAlias = reqUsername === 'default' || reqUsername === 'open' || reqUsername === '_open'
     let username = '_open'
 
-    if (isPublic) {
+    // An authenticated request without an explicit public alias means the
+    // current user's own cache. The previous implementation treated every
+    // empty `user` query as `_open`, making personal cached files invisible
+    // even though syncCacheIndex had correctly indexed them by username.
+    if (!reqUsername && verified) {
+      username = verified
+    } else if (!reqUsername || isPublicAlias) {
       const config = (global.lx?.config ?? {}) as any
       const enablePublicNonAdminLocalMusic = !!config['user.enablePublicNonAdminLocalMusic']
-      const verified = verifyUserAuth(ctx)
       if (!enablePublicNonAdminLocalMusic && !isAdmin && !verified) {
         return ctx.json({ success: false, message: '您没有权限查看此目录，请联系管理员设置' }, 403, {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -563,7 +569,6 @@ export const createCacheRouter = (): Router => {
       }
       username = '_open'
     } else {
-      const verified = verifyUserAuth(ctx)
       if (!verified) {
         return ctx.fail(401, '登录状态已失效，请重新登录', {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
