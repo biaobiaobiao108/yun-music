@@ -1,5 +1,5 @@
 /**
- * View Transitions & Motion Utilities for LX Music Web Player
+ * View Transitions & Motion Utilities for 云音播放器
  * Provides progressive enhancement for document.startViewTransition
  * with graceful fallback for browsers lacking full support or when reduced motion is preferred.
  */

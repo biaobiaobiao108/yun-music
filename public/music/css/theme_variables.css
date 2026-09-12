@@ -194,7 +194,7 @@ i {
 }
 
 /* Dynamic Logo Filtering - Applies to placeholder SVG or when transitioning to real image */
-.dynamic-logo[src*="logo.svg"],
+.dynamic-logo[src*="yun-yin.png"],
 .dynamic-logo.is-placeholder {
     filter: var(--logo-filter, none);
     transition: filter 0.3s ease;

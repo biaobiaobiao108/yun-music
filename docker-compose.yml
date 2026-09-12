@@ -1,9 +1,10 @@
 version: '3.8'
 
 services:
-  lx-music-web-server:
+  yun-yin:
     build: .
-    container_name: lx-music-web-server
+    container_name: yun-yin
+    user: "0:0"
     restart: always
     ports:
       - "9527:9527"

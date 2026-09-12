@@ -1,9 +1,9 @@
-# LX Music Web
+# 云音
 
 <div align="center">
-  <img src="/music/assets/logo.svg" width="120" height="120" alt="LX Music Logo">
+  <img src="/music/assets/yun-yin.png" width="120" height="120" alt="云音图标">
   <br>
-  <h1>LX Music Web</h1>
+  <h1>云音</h1>
   <p>
     <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build Status">
     <img src="https://img.shields.io/badge/hash-{{buildHash}}-%2310b981?style=flat-square" alt="Build Hash">
@@ -11,7 +11,7 @@
   </p>
 </div>
 
-LX Music Web Server 内置的高性能 Web 播放器，提供原生 App 般的音乐体验。
+云音内置的高性能 Web 播放器，提供原生 App 般的音乐体验。
 
 ## ✨ 核心特性
 
@@ -33,7 +33,7 @@ LX Music Web Server 内置的高性能 Web 播放器，提供原生 App 般的�
 
 本项目基于 Apache License 2.0 许可证发行，以下协议是对于 Apache License 2.0 的补充，如有冲突，以以下协议为准。
 
-**词语约定**：本协议中的“本项目”指 LX Music Web 播放器；“使用者”指签署本协议的使用者；“官方音乐平台”指对本项目内置的包括酷我、酷狗、咪咕等音乐源的官方平台统称；“版权数据”指包括但不限于图像、音频、名字等在内的他人拥有所属版权的数据。
+**词语约定**：本协议中的“本项目”指云音播放器；“使用者”指签署本协议的使用者；“官方音乐平台”指对本项目内置的音乐源平台统称；“版权数据”指包括但不限于图像、音频、名字等在内的他人拥有所属版权的数据。
 
 ### 一、数据来源
 

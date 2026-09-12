@@ -32,7 +32,7 @@ const startHttp = async (port = 9527, bindIp = '127.0.0.1'): Promise<void> => {
 }
 
 export const startServer = async (port: number, ip: string): Promise<void> => {
-  startupLog.info(`Starting lxserver in ${process.env.NODE_ENV === 'production' ? 'production' : 'development'}`)
+  startupLog.info(`Starting 云音 in ${process.env.NODE_ENV === 'production' ? 'production' : 'development'}`)
   await initMusicServices()
   try {
     await startHttp(port, ip)

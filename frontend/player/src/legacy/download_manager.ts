@@ -846,16 +846,16 @@ export class DownloadManager {
 
     // Helper to get song cover
     getSongCover(song) {
-        if (!song) return '/music/assets/logo.svg';
+        if (!song) return '/music/assets/yun-yin.png';
         return song.img || song.pic ||
             (song.meta && (song.meta.picUrl || song.meta.img)) ||
             (song.album && (song.album.picUrl || song.album.img)) ||
-            '/music/assets/logo.svg';
+            '/music/assets/yun-yin.png';
     }
 
     getSongInfoForServer(song) {
         const cover = this.getSongCover(song);
-        const normalizedCover = cover && cover !== '/music/assets/logo.svg' ? cover : '';
+        const normalizedCover = cover && cover !== '/music/assets/yun-yin.png' ? cover : '';
         return {
             ...song,
             img: song.img || normalizedCover,

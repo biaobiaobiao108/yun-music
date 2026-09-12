@@ -183,7 +183,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
             // 添加 user 参数
             const data = await app.request(`/api/data/snapshot?id=${id}&user=${encodeURIComponent(username)}`);
 
-            // 转换为 LX Music 备份格式
+            // 转换为兼容播放器的备份格式
             const defaultList = { id: 'default', name: 'list__name_default' };
             const loveList = { id: 'love', name: 'list__name_love' };
 
@@ -225,7 +225,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
             a.href = url;
             // 获取当前日期作为文件名建议
             const dateStr = new Date().toISOString().split('T')[0];
-            a.download = `lx-music-web-backup-${dateStr}.zip`;
+            a.download = `yun-yin-backup-${dateStr}.zip`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {

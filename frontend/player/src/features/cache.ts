@@ -313,7 +313,7 @@ function renderCacheList() {
         const username = (window.currentListData && window.currentListData.username) || '';
         const coverUrl = item.hasCover
             ? `/api/music/cache/cover?filename=${encodeURIComponent(item.filename)}&user=${encodeURIComponent(username)}`
-            : '/music/assets/logo.svg';
+            : '/music/assets/yun-yin.png';
         const itemName = escapeHtmlText(item.name || '未命名歌曲');
         const itemSinger = escapeHtmlText(item.singer || '未知歌手');
         const itemAlbum = escapeHtmlText(item.album || '');

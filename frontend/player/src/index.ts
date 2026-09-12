@@ -47,7 +47,12 @@ import { initLyricFeature } from './features/lyrics';
 import { initSearchFeature } from './features/search';
 import { initPlaybackFeature, type PlaybackState } from './features/playback';
 import { initShortcutsFeature } from './features/shortcuts';
-import { createTabSwitcher, prefersReducedPlayerMotion } from './features/navigation';
+import {
+    createTabSwitcher,
+    getPlayerViewDirection,
+    prefersReducedPlayerMotion,
+    transitionPlayerView,
+} from './features/navigation';
 import { bindPlayerEvents, registerPlayerEventAction } from './player_events';
 import { DownloadManager } from './legacy/download_manager';
 import { createSongListManager, type SongListManagerApi } from './legacy/songlist_manager';
@@ -2125,7 +2130,7 @@ audio.addEventListener('seeked', () => {
             lyricPlayer.pause();
             const time = audio.currentTime * 1000;
             // 找到当前行并高亮
-            const lineNum = lyricPlayer._findCurLineNum(time);
+            const lineNum = findCurrentLyricLine(time);
             if (lineNum !== undefined && lineNum >= 0) {
                 syncLyricByLineNum(lineNum);
             }
@@ -3047,6 +3052,7 @@ const {
     getLyricOffset,
     scrollToActiveLine,
     syncLyricByLineNum,
+    findCurrentLyricLine,
     startWordProgressUpdate,
     handleLyricScroll,
     updateScrollIndicator,

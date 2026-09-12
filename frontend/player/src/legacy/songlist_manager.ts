@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Song List Manager for LX Music Web
+ * Song List Manager for 云音
  * Handles fetching, rendering and interactions for the "Song List" (Playlist) feature.
  */
 import { toUserMessage } from '../player_notifications';
@@ -211,7 +211,7 @@ export function createSongListManager(context: SongListManagerContext) {
             const image = event.target;
             if (!(image instanceof HTMLImageElement) || image.dataset.fallbackImage === 'used') return;
             image.dataset.fallbackImage = 'used';
-            image.src = '/music/assets/logo.svg';
+            image.src = '/music/assets/yun-yin.png';
             image.classList.add('is-placeholder');
         }, true);
     }
@@ -426,10 +426,10 @@ export function createSongListManager(context: SongListManagerContext) {
             if (nameEl) nameEl.innerText = '正在加载...';
             const titleEl = document.getElementById('sl-detail-title');
             if (titleEl) titleEl.innerText = '加载中...';
-            if (window.setImg) window.setImg('sl-detail-cover', '/music/assets/logo.svg');
+            if (window.setImg) window.setImg('sl-detail-cover', '/music/assets/yun-yin.png');
             else {
                 const cover = document.getElementById('sl-detail-cover') as HTMLImageElement | null;
-                if (cover) cover.src = '/music/assets/logo.svg';
+                if (cover) cover.src = '/music/assets/yun-yin.png';
             }
             const authorEl = document.getElementById('sl-detail-author');
             if (authorEl) authorEl.innerText = '';
@@ -573,7 +573,7 @@ export function createSongListManager(context: SongListManagerContext) {
             <div role="button" tabindex="0" aria-label="打开歌单 ${item.name || ''}" class="playlist-card player-motion-item group cursor-pointer" style="--player-motion-index: ${Math.min(index, 7)};"
                  data-songlist-action="open-detail" data-id="${item.id}" data-source="${currentState.source}">
                 <div class="relative aspect-square overflow-hidden rounded-2xl shadow-md transition-all group-hover:shadow-xl group-hover:-translate-y-1">
-                    <img data-src="${item.img || '/music/assets/logo.svg'}" src="/music/assets/logo.svg" alt="${item.name || '歌单'}封面" width="320" height="320" loading="lazy" decoding="async"
+                    <img data-src="${item.img || '/music/assets/yun-yin.png'}" src="/music/assets/yun-yin.png" alt="${item.name || '歌单'}封面" width="320" height="320" loading="lazy" decoding="async"
                          class="lazy-image w-full h-full object-cover dynamic-logo is-placeholder"
                          data-fallback-image="pending">
                     <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -638,8 +638,8 @@ export function createSongListManager(context: SongListManagerContext) {
             titleEl.innerHTML = window.createMarqueeHtml ? window.createMarqueeHtml(info.name) : info.name;
         }
 
-        if (window.setImg) window.setImg('sl-detail-cover', info.img || info.cover || '/music/assets/logo.svg');
-        else document.getElementById('sl-detail-cover').src = info.img || info.cover || '/music/assets/logo.svg';
+        if (window.setImg) window.setImg('sl-detail-cover', info.img || info.cover || '/music/assets/yun-yin.png');
+        else document.getElementById('sl-detail-cover').src = info.img || info.cover || '/music/assets/yun-yin.png';
 
         const authorEl = document.getElementById('sl-detail-author');
         if (authorEl) {
@@ -757,7 +757,7 @@ export function createSongListManager(context: SongListManagerContext) {
                 <!-- Title & Info -->
                 <div class="player-track-title flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 md:w-12 md:h-12 flex-shrink-0 relative rounded-lg overflow-hidden shadow-sm border t-border-main group-hover:shadow-md transition-all group-hover:scale-105 duration-300">
-                        <img data-src="${window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg || '/music/assets/logo.svg')}" src="/music/assets/logo.svg" alt="${song.name || '歌曲'}专辑封面" width="48" height="48" loading="lazy" decoding="async"
+                        <img data-src="${window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg || '/music/assets/yun-yin.png')}" src="/music/assets/yun-yin.png" alt="${song.name || '歌曲'}专辑封面" width="48" height="48" loading="lazy" decoding="async"
                              class="lazy-image w-full h-full object-cover dynamic-logo is-placeholder"
                              data-fallback-image="pending">
                         <div class="absolute inset-0 bg-black/20 hidden group-hover:flex items-center justify-center transition-all">
@@ -1039,7 +1039,7 @@ export function createSongListManager(context: SongListManagerContext) {
                     <div role="button" tabindex="0" aria-label="打开歌单 ${item.name || ''}" class="flex items-center gap-4 p-3 rounded-xl hover:t-bg-main transition-all cursor-pointer group"
                          data-songlist-action="select-user-playlist" data-id="${item.id}">
                         <div class="relative flex-shrink-0">
-                            <img src="${item.img || '/music/assets/logo.svg'}" alt="${item.name || '歌单'}封面" width="48" height="48" loading="lazy" decoding="async" class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition-transform">
+                            <img src="${item.img || '/music/assets/yun-yin.png'}" alt="${item.name || '歌单'}封面" width="48" height="48" loading="lazy" decoding="async" class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition-transform">
                         </div>
                         <div class="flex-1 min-w-0">
                             <h4 class="text-sm font-bold t-text-main truncate">${item.name}</h4>

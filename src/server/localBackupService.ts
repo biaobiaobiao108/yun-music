@@ -13,8 +13,8 @@ const safeBackupName = (value: string): string => value.replace(/[^a-zA-Z0-9._-]
 export const createLocalBackup = async (): Promise<string> => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-local-backup-'))
-  const databasePath = path.join(tempDir, 'lxserver.db')
-  const archiveName = `lx-music-web-backup-${safeBackupName(timestamp)}.zip`
+  const databasePath = path.join(tempDir, 'yun-yin.db')
+  const archiveName = `yun-yin-backup-${safeBackupName(timestamp)}.zip`
   const archivePath = path.join(global.lx.dataPath, archiveName)
 
   try {
@@ -38,7 +38,7 @@ export const createLocalBackup = async (): Promise<string> => {
       output.on('error', fail)
       archive.on('error', fail)
       archive.pipe(output)
-      archive.file(databasePath, { name: 'database/lxserver.db' })
+      archive.file(databasePath, { name: 'database/yun-yin.db' })
 
       const configPath = process.env.CONFIG_PATH || path.join(global.lx.dataPath, 'config.js')
       if (fs.existsSync(configPath)) archive.file(configPath, { name: 'config.js' })

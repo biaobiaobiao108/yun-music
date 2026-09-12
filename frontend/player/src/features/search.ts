@@ -2010,7 +2010,7 @@ window.enterArtist = enterArtist;
 
 // Helper for loose image paths
 function getImgUrl(item) {
-    if (!item) return '/music/assets/logo.svg';
+    if (!item) return '/music/assets/yun-yin.png';
     const s = item;
     // 优先从标准 meta 获取
     if (s.meta && s.meta.picUrl) return safeImageUrl(s.meta.picUrl);
@@ -2019,7 +2019,7 @@ function getImgUrl(item) {
         (s.album && (s.album.picUrl || s.album.img || s.album.pic)) ||
         (s.al && (s.al.picUrl || s.al.img)) ||
         (s.meta && (s.meta.img || s.meta.pic)) ||
-        '/music/assets/logo.svg');
+        '/music/assets/yun-yin.png');
 }
 
 // List search logic is now handled by ListSearch service in list_search.js
@@ -2160,7 +2160,7 @@ function renderResults(list) {
             <!-- Title (Image + Text) -->
             <div class="player-track-title flex items-center overflow-hidden pr-2">
                 <div class="relative w-10 h-10 md:w-12 md:h-12 mr-3 md:mr-4 flex-shrink-0 group cursor-pointer">
-                     <img data-src="${escapeHtmlText(imgUrl)}" src="/music/assets/logo.svg" alt="${itemName}专辑封面" width="48" height="48"
+                     <img data-src="${escapeHtmlText(imgUrl)}" src="/music/assets/yun-yin.png" alt="${itemName}专辑封面" width="48" height="48"
                           loading="lazy" decoding="async"
                           class="lazy-image w-full h-full rounded-lg object-cover shadow-sm group-hover:shadow-md transition-all group-hover:scale-105 duration-300 dynamic-logo is-placeholder" 
                            data-event-error-action="fallback-image">
@@ -2319,7 +2319,7 @@ function lazyLoadImages(root = document) {
     const loadImage = (img) => {
         const src = img.getAttribute('data-src');
         if (!src) return;
-        if (img.src.includes('logo.svg')) {
+        if (img.src.includes('yun-yin.png')) {
             img.classList.add('is-placeholder');
         }
         img.src = src;
@@ -2328,7 +2328,7 @@ function lazyLoadImages(root = document) {
             img.removeAttribute('data-src');
         };
         img.onerror = () => {
-            img.src = '/music/assets/logo.svg';
+            img.src = '/music/assets/yun-yin.png';
             img.classList.add('is-placeholder');
             img.removeAttribute('data-src');
         };

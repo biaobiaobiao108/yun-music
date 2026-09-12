@@ -2,7 +2,7 @@
 // This legacy-compatible module is compiled as an isolated browser bundle.
 import { registerPlayerEventAction } from '../player_events';
 /**
- * Sound Effects Manager for LX Music Web Player
+ * Sound Effects Manager for 云音播放器
  * Handles EQ, 3D Surround, Pitch Shifting, and Environment Reverb.
  */
 window.soundEffects = (function () {

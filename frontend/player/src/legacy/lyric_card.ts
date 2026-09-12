@@ -125,7 +125,7 @@
             };
 
             // 如果 src 是本地占位符或者已经是 base64，不需要代理
-            if (src.includes('logo.svg') || src.startsWith('data:')) {
+            if (src.includes('yun-yin.png') || src.startsWith('data:')) {
                 img.src = src;
             } else {
                 img.src = src;
@@ -415,7 +415,7 @@
     function drawWatermark(ctx, W, H, colors) {
         const iconSize = Math.round(W * 0.028), fontSize = Math.round(W * 0.022);
         const padR = Math.round(W * 0.04), padB = Math.round(H * 0.04);
-        const text = 'LX Music Web';
+        const text = '云音';
         const iconColor = colors.isDark !== false ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,30,0.6)';
         const textColor = colors.isDark !== false ? 'rgba(255,255,255,0.6)' : 'rgba(30,30,30,0.5)';
 
@@ -477,9 +477,9 @@
         modal.classList.remove('hidden'); modal.classList.add('flex');
         requestAnimationFrame(() => content.classList.remove('translate-y-10', 'opacity-0'));
         const coverEl = document.getElementById('detail-cover') || document.getElementById('player-cover') ||
-            document.querySelector('#player-footer img[src]:not([src*="logo"])') || document.querySelector('img[id*="cover"]');
+            document.querySelector('#player-footer img[src]:not([src*="yun-yin"])') || document.querySelector('img[id*="cover"]');
         _coverImage = null;
-        if (coverEl && coverEl.src && !coverEl.src.includes('logo.svg') && !coverEl.src.startsWith('data:image/svg')) {
+        if (coverEl && coverEl.src && !coverEl.src.includes('yun-yin.png') && !coverEl.src.startsWith('data:image/svg')) {
             try { _coverImage = await loadImage(coverEl.src); state.albumColors = extractAlbumColors(_coverImage); }
             catch (err) { console.warn(err); }
         }

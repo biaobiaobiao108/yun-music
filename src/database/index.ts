@@ -9,7 +9,7 @@ export const getDbPath = (): string => {
   if (!fs.existsSync(dataPath)) {
     fs.mkdirSync(dataPath, { recursive: true })
   }
-  return path.join(dataPath, 'lxserver.db')
+  return path.join(dataPath, 'yun-yin.db')
 }
 
 export const initDatabase = (customDbPath?: string): Database => {

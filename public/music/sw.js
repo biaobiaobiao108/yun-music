@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lx-music-web-v30';
+const CACHE_NAME = 'yun-yin-web-v1';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -16,7 +16,7 @@ const ASSETS_TO_CACHE = [
     // 变调器
     './js/pitch-shifter/phase-vocoder.js',
     // 静态资源
-    './assets/logo.svg',
+    './assets/yun-yin.png',
 ];
 
 self.addEventListener('install', (event) => {

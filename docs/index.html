@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LX Music Sync Server - 现代高性能音乐中枢与演示</title>
+    <title>云音 - 现代 Web 音乐播放器与管理后台</title>
+    <link rel="icon" href="assets/yun-yin.png" type="image/png">
+    <link rel="apple-touch-icon" href="assets/yun-yin.png">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome CDN -->
@@ -12,7 +14,7 @@
 
     <style>
         /* ==========================================================================
-           LX Music Web 核心设计变量与色彩体系映射
+           云音核心设计变量与色彩体系映射
            ========================================================================== */
         :root {
             --theme-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -192,12 +194,9 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <!-- 品牌与 Logo -->
             <div class="flex items-center space-x-3 cursor-pointer" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
-                <svg aria-hidden="true" viewBox="0 0 447.942 447.943" class="w-8 h-8 rounded-lg shadow-sm">
-                    <path style="fill: var(--c-400)" d="M203.806.482c-19.668-3.346-35.76 11.139-35.76 31.086v206.166c-11.642-4.271-24.165-6.725-37.281-6.725-59.905 0-108.469 48.566-108.469 108.473 0 59.903 48.564 108.461 108.469 108.461 34.141 0 64.54-15.82 84.406-40.482l-49.658-49.664c-15.116-15.112-11.708-28.901-9.542-34.14 2.166-5.233 9.514-17.4 30.883-17.4h18.082v-56.885c0-21.132 14.617-38.862 34.266-43.745.032-44.373.032-81.808.032-81.808 140.147 0 131.724 83.974 115.325 132.196-6.42 18.884-2.601 22.05 10.893 7.354C536.473 77.106 298.38 16.566 203.806.482z" />
-                    <path style="fill: var(--c-600)" d="M301.061 223.876h-50.994c-3.911 0-7.574.95-10.889 2.523-8.616 4.09-14.615 12.798-14.615 22.973v76.51h-37.708c-14.082 0-17.428 8.071-7.466 18.029l46.893 46.898 31.25 31.246a25.424 25.424 0 0 0 18.033 7.474c6.523 0 13.052-2.484 18.029-7.474l78.152-78.145c9.951-9.958 6.608-18.029-7.47-18.029h-37.71v-76.51c.001-14.078-11.42-25.495-25.505-25.495z" />
-                </svg>
+                <img src="assets/yun-yin.png" width="32" height="32" class="w-8 h-8 rounded-lg shadow-sm" alt="云音图标">
                 <div class="flex flex-col">
-                    <span class="font-extrabold text-lg tracking-wider t-accent">LX MUSIC SERVER</span>
+                    <span class="font-extrabold text-lg tracking-wider t-accent">云音</span>
                     <span class="text-[10px] tracking-tight t-text-dim -mt-1 font-mono">v2.0 · Ultra-Slim Bun</span>
                 </div>
             </div>
@@ -207,7 +206,7 @@
                 <a href="#features" class="t-text-muted hover:text-[var(--c-500)] transition-colors">架构特性</a>
                 <a href="#player-demo" class="t-text-muted hover:text-[var(--c-500)] transition-colors">模拟播放器</a>
                 <a href="#deployment" class="t-text-muted hover:text-[var(--c-500)] transition-colors">Docker 部署</a>
-                <a href="#subsonic" class="t-text-muted hover:text-[var(--c-500)] transition-colors">Subsonic 兼容</a>
+                <a href="#security" class="t-text-muted hover:text-[var(--c-500)] transition-colors">安全与存储</a>
                 <a href="https://github.com/biaobiaobiao108/lxserver#readme" target="_blank" class="t-text-muted hover:text-[var(--c-500)] transition-colors">完整 README</a>
             </nav>
 
@@ -272,7 +271,7 @@
             </h1>
 
             <p class="max-w-2xl mx-auto text-base sm:text-lg t-text-muted mb-10 leading-relaxed">
-                专为 LX Music 打造的数据双向同步中枢与现代桌面级 Web 网页播放器。集成 Subsonic 全客户端兼容协议、全网音源无缝回退检索、SQLite WAL 原生持久化与轻量级 Docker 容器。
+                面向现代浏览器的云音 Web 播放器与管理后台。集成全网音源回退检索、SQLite WAL 原生持久化与轻量级 Docker 容器。
             </p>
 
             <!-- 快捷操作按钮 -->
@@ -319,11 +318,11 @@
                         <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
                         <span class="w-3 h-3 rounded-full bg-yellow-500/80 inline-block"></span>
                         <span class="w-3 h-3 rounded-full bg-green-500/80 inline-block"></span>
-                        <span class="text-xs font-semibold t-text-dim ml-3 font-mono">LX Music Web Player · Preview</span>
+                        <span class="text-xs font-semibold t-text-dim ml-3 font-mono">云音播放器 · Preview</span>
                     </div>
                     <div class="text-[11px] t-text-dim font-mono flex items-center space-x-2">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                        <span>WebSocket Sync Connected</span>
+                        <span>Web Player Ready</span>
                     </div>
                 </div>
 
@@ -385,7 +384,7 @@
                         <div class="mt-4 pt-3 border-t t-border flex items-center justify-between text-xs t-text-muted">
                             <span class="flex items-center space-x-1.5">
                                 <i class="fas fa-shield-alt t-accent"></i>
-                                <span>Subsonic 在线检索已就绪</span>
+                                <span>自定义音源已就绪</span>
                             </span>
                             <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">FLAC 96kHz</span>
                         </div>
@@ -496,7 +495,7 @@
             <div class="text-center max-w-3xl mx-auto mb-16">
                 <h2 class="text-3xl font-extrabold tracking-tight mb-4">全面进化的全栈架构</h2>
                 <p class="text-base t-text-muted">
-                    彻底剔除 Express，重塑为全栈 Bun + TypeScript 7.0+ 原生高性能体系，为音乐同步与流媒体提供最严谨的底座。
+                    彻底剔除 Express，重塑为全栈 Bun + TypeScript 7.0+ 原生高性能体系，为 Web 播放与管理后台提供轻量可靠的底座。
                 </p>
             </div>
 
@@ -515,22 +514,22 @@
                 <!-- 特性 2 -->
                 <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
                     <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-sync-alt"></i>
+                        <i class="fas fa-play-circle"></i>
                     </div>
-                    <h3 class="text-lg font-bold mb-2">原生 WebSocket 实时双向同步</h3>
+                    <h3 class="text-lg font-bold mb-2">流畅的 Web 播放体验</h3>
                     <p class="text-sm t-text-muted leading-relaxed">
-                        多端歌单实时广播驱动，支持版本冲突仲裁、快照回溯与连接心跳检测，桌面端与手机端歌单修改毫秒级同步入库。
+                        原生音频播放、队列管理、歌词展示和媒体 Range 请求协同工作，桌面与移动端都能保持顺滑的播放控制。
                     </p>
                 </div>
 
                 <!-- 特性 3 -->
                 <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
                     <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-broadcast-tower"></i>
+                        <i class="fas fa-sliders-h"></i>
                     </div>
-                    <h3 class="text-lg font-bold mb-2">Subsonic 协议全兼容与在线搜索</h3>
+                    <h3 class="text-lg font-bold mb-2">聚合搜索与自定义音源</h3>
                     <p class="text-sm t-text-muted leading-relaxed">
-                        完美支持 Symfonium、Feishin、Amperfy 等流行客户端。内置全网音源在线回退（Fallback）与聚合搜索，无本地音频也能畅享全网流媒体。
+                        保留内置音源与自定义音源管理，支持搜索、解析、歌词和封面服务，浏览器同源 API 统一收敛。
                     </p>
                 </div>
 
@@ -541,23 +540,23 @@
                     </div>
                     <h3 class="text-lg font-bold mb-2">bun:sqlite 原生持久化 (WAL 模式)</h3>
                     <p class="text-sm t-text-muted leading-relaxed">
-                        账户、设备密钥、歌单快照与元数据全面升级至 SQLite 原生持久化，严苛外键约束与预写日志模式，彻底杜绝数据损坏。
+                        账户、会话、歌单快照与元数据全面升级至 SQLite 原生持久化，严苛外键约束与预写日志模式，降低数据损坏风险。
                     </p>
                 </div>
 
                 <!-- 特性 5 -->
                 <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
                     <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-cloud-upload-alt"></i>
+                        <i class="fas fa-camera-retro"></i>
                     </div>
-                    <h3 class="text-lg font-bold mb-2">WebDAV 增量与全量冷备</h3>
+                    <h3 class="text-lg font-bold mb-2">本地快照与数据恢复</h3>
                     <p class="text-sm t-text-muted leading-relaxed">
-                        支持将歌单快照与关键数据无感归档至坚果云、Nextcloud 等任何标准 WebDAV 存储桶，支持定时自动归档与远程快速复原。
+                        管理后台提供本地快照、下载、上传和恢复能力，数据边界清晰，不依赖远程 WebDAV 服务。
                     </p>
                 </div>
 
                 <!-- 特性 6 -->
-                <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
+                <div id="security" class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
                     <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
                         <i class="fas fa-shield-virus"></i>
                     </div>
@@ -611,26 +610,23 @@
                     <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-compose">version: '3.8'
 
 services:
-  lx-sync-server:
+  yun-yin:
     image: ghcr.io/biaobiaobiao108/lxserver:latest
-    container_name: lx-sync-server
+    container_name: yun-yin
+    user: "0:0"
     restart: always
     ports:
       - "9527:9527"
     volumes:
-      # 持久化数据目录（包含数据库、快照、配置等）
       - ./data:/server/data
+      - ./cache:/server/cache
+      - ./music:/server/music
+      - ./cover_cache:/server/cover_cache
     environment:
       - NODE_ENV=production
       # 【必须设置】管理后台登录密码，禁止使用弱密码或 123456
       - FRONTEND_PASSWORD=YourStrongAdminPassword123!
-      # 服务端同步用户，格式: LX_USER_<用户名>=<密码>
-      - LX_USER_admin=UserPassword456!
-      # 启用 Web 播放器密码鉴权（可选）
-      - ENABLE_WEBPLAYER_AUTH=true
-      - WEBPLAYER_PASSWORD=PlayerPassword789!
-      # 开启 Subsonic 协议流媒体支持
-      - SUBSONIC_ENABLE=true</code></pre>
+      </code></pre>
                 </div>
 
                 <!-- Tab 2: Docker Run -->
@@ -643,15 +639,17 @@ services:
                         </button>
                     </div>
                     <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-run">docker run -d \
-  --name lx-sync-server \
+  --name yun-yin \
+  --user 0:0 \
   --restart always \
   -p 9527:9527 \
   -v $(pwd)/data:/server/data \
+  -v $(pwd)/cache:/server/cache \
+  -v $(pwd)/music:/server/music \
+  -v $(pwd)/cover_cache:/server/cover_cache \
   -e NODE_ENV=production \
   -e FRONTEND_PASSWORD=YourStrongAdminPassword123! \
-  -e LX_USER_admin=UserPassword456! \
   -e ENABLE_WEBPLAYER_AUTH=false \
-  -e SUBSONIC_ENABLE=true \
   ghcr.io/biaobiaobiao108/lxserver:latest</code></pre>
                 <!-- Tab 3: Bun Source Run -->
                 <div id="deploy-bun" class="relative hidden">
@@ -670,9 +668,7 @@ bun install
 # 2. 配置根目录 .env 文件 (Bun 原生自动加载)
 cat <<EOF > .env
 FRONTEND_PASSWORD=YourStrongAdminPassword123!
-LX_USER_admin=UserPassword456!
 PORT=9527
-SUBSONIC_ENABLE=true
 EOF
 
 # 3. 极速编译前端产物（仅需数十毫秒）
@@ -704,7 +700,7 @@ cd lxserver
 docker compose up -d --build
 
 # 4. 查看运行日志
-docker compose logs -f lx-sync-server</code></pre>
+docker compose logs -f yun-yin</code></pre>
                 </div>
             </div>
         </section>
@@ -732,7 +728,7 @@ docker compose logs -f lx-sync-server</code></pre>
                         <tr class="hover:t-bg-item-hover">
                             <td class="py-3 px-4 font-mono font-bold t-accent">LX_USER_&lt;name&gt;</td>
                             <td class="py-3 px-4 font-mono">无</td>
-                            <td class="py-3 px-4">声明同步用户账户，例如 <code class="px-1.5 py-0.5 rounded t-bg-panel border t-border font-mono">LX_USER_tom=pwd123</code></td>
+                            <td class="py-3 px-4">声明 Web 用户账户，例如 <code class="px-1.5 py-0.5 rounded t-bg-panel border t-border font-mono">LX_USER_tom=pwd123</code></td>
                         </tr>
                         <tr class="hover:t-bg-item-hover">
                             <td class="py-3 px-4 font-mono">PORT</td>
@@ -740,19 +736,9 @@ docker compose logs -f lx-sync-server</code></pre>
                             <td class="py-3 px-4">服务监听端口</td>
                         </tr>
                         <tr class="hover:t-bg-item-hover">
-                            <td class="py-3 px-4 font-mono">SUBSONIC_ENABLE</td>
-                            <td class="py-3 px-4 font-mono">true</td>
-                            <td class="py-3 px-4">开启 /rest Subsonic 协议接口支持</td>
-                        </tr>
-                        <tr class="hover:t-bg-item-hover">
                             <td class="py-3 px-4 font-mono">ENABLE_WEBPLAYER_AUTH</td>
                             <td class="py-3 px-4 font-mono">false</td>
                             <td class="py-3 px-4">是否强制 Web 网页播放器输入访问密码</td>
-                        </tr>
-                        <tr class="hover:t-bg-item-hover">
-                            <td class="py-3 px-4 font-mono">WEBDAV_ENABLE</td>
-                            <td class="py-3 px-4 font-mono">false</td>
-                            <td class="py-3 px-4">是否开启定时远程 WebDAV 增量与全量快照归档</td>
                         </tr>
                     </tbody>
                 </table>
@@ -764,7 +750,7 @@ docker compose logs -f lx-sync-server</code></pre>
     <footer class="t-bg-panel border-t t-border py-12 px-4 sm:px-6 lg:px-8 text-center text-xs t-text-dim transition-colors">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center space-x-2">
-                <span class="font-bold t-accent">LX MUSIC SERVER</span>
+                <span class="font-bold t-accent">云音</span>
                 <span>· Powered by Bun 1.1+ & TypeScript 7.0</span>
             </div>
             <div>

@@ -3,7 +3,7 @@
 import { safeInlineJson, safeInlineString } from '../player_security';
 import { toUserMessage } from '../player_notifications';
 /**
- * Leaderboard Manager for LX Music Web
+ * Leaderboard Manager for 云音
  * 排行榜功能模块 — 风格与 SongListManager 保持一致
  */
 
@@ -227,7 +227,7 @@ window.LeaderboardManager = (function () {
             const rank = index + 1;
             const rankClass = rank <= 3 ? 'text-emerald-600 dark:text-emerald-500 font-black text-base' : 'text-gray-400 font-mono text-xs';
 
-            const imgUrl = window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg || '/music/assets/logo.svg');
+            const imgUrl = window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg || '/music/assets/yun-yin.png');
 
             return `
             <div id="lb-row-${index}" role="button" tabindex="0" aria-label="${window.batchMode ? `${selectionLabel} ${song.name || '未命名歌曲'}` : `播放 ${song.name || '未命名歌曲'}`}" ${selectionAttributes}
@@ -249,7 +249,7 @@ window.LeaderboardManager = (function () {
                 <!-- 封面 + 歌名 -->
                 <div class="player-track-title flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 md:w-12 md:h-12 flex-shrink-0 relative rounded-lg overflow-hidden shadow-sm border t-border-main group-hover:shadow-md transition-all group-hover:scale-105 duration-300">
-                        <img data-src="${imgUrl}" src="/music/assets/logo.svg" alt="${song.name || '歌曲'}专辑封面" width="48" height="48" loading="lazy" decoding="async"
+                        <img data-src="${imgUrl}" src="/music/assets/yun-yin.png" alt="${song.name || '歌曲'}专辑封面" width="48" height="48" loading="lazy" decoding="async"
                              class="lazy-image w-full h-full object-cover dynamic-logo is-placeholder"
                              data-event-error-action="fallback-image">
                         <div class="absolute inset-0 bg-black/20 hidden group-hover:flex items-center justify-center transition-all">

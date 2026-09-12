@@ -57,9 +57,9 @@ export function initCommentsFeature(context: CommentsFeatureContext) {
     function createCommentItemHTML(comment: any, isReply = false): string {
         const timeStr = comment.timeStr || (comment.time ? new Date(comment.time).toLocaleString() : '');
         const location = comment.location ? ` • ${context.escapeHtmlText(comment.location)}` : '';
-        const defaultAvatar = '/music/assets/logo.svg';
+    const defaultAvatar = '/music/assets/yun-yin.png';
         const avatar = safeImageUrl(comment.avatar, defaultAvatar);
-        const isDefault = avatar.includes('logo.svg') || !comment.avatar;
+    const isDefault = avatar.includes('yun-yin.png') || !comment.avatar;
         const avatarClass = `w-8 h-8 md:w-10 md:h-10 rounded-full shadow-sm hover:scale-110 transition-transform t-bg-main flex-shrink-0 object-cover ${isDefault ? 'dynamic-logo is-placeholder p-1.5' : ''}`;
 
         let replyHtml = '';

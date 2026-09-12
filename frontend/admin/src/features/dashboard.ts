@@ -15,7 +15,7 @@ export function initDashboardFeature(context: AdminFeatureContext) {
 
             // 更新顶部概览卡片
             document.getElementById('stat-users').textContent = status.users;
-            document.getElementById('stat-devices').textContent = status.publicAccess ? '开' : '关';
+            document.getElementById('stat-public-access').textContent = status.publicAccess ? '开' : '关';
             document.getElementById('stat-cpu').textContent = status.cpuUsage + '%';
             document.getElementById('stat-memory').textContent = app.formatFileSize(status.memory);
 
@@ -141,10 +141,10 @@ export function initDashboardFeature(context: AdminFeatureContext) {
 
         // --- 状态与概览更新 ---
         const statUsers = document.getElementById('stat-users');
-        const statDevices = document.getElementById('stat-devices');
+        const statPublicAccess = document.getElementById('stat-public-access');
         const statUptime = document.getElementById('stat-uptime');
         if (statUsers) statUsers.textContent = status.users;
-        if (statDevices) statDevices.textContent = status.publicAccess ? '开' : '关';
+        if (statPublicAccess) statPublicAccess.textContent = status.publicAccess ? '开' : '关';
         if (statUptime) statUptime.textContent = app.formatUptime(status.uptime);
 
         // 更新硬件详情

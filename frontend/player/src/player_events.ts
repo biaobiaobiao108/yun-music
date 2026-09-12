@@ -167,7 +167,7 @@ function dispatchPlayerEvent(event: Event): void {
     if (actionName === 'fallback-image' && element instanceof HTMLImageElement) {
         if (element.dataset.fallbackImage === 'used') return;
         element.dataset.fallbackImage = 'used';
-        element.src = '/music/assets/logo.svg';
+        element.src = '/music/assets/yun-yin.png';
         element.classList.add('is-placeholder');
         return;
     }
@@ -175,7 +175,7 @@ function dispatchPlayerEvent(event: Event): void {
     if (actionName === 'fallback-comment-image' && element instanceof HTMLImageElement) {
         if (element.dataset.tried) return;
         element.dataset.tried = '1';
-        element.src = '/music/assets/logo.svg';
+        element.src = '/music/assets/yun-yin.png';
         element.classList.add('dynamic-logo', 'is-placeholder', 'p-1.5', 'bg-emerald-50');
         element.style.filter = 'var(--logo-filter, none)';
         return;

@@ -612,7 +612,7 @@ export const createUserRouter = (): Router => {
       try {
         const jsonData = JSON.parse(body)
         if (jsonData && jsonData.type === 'playList_v2' && Array.isArray(jsonData.data)) {
-          startupLog.info(`[Snapshot] Detected LX Music backup format for user ${verifiedUser}, converting...`)
+          startupLog.info(`[Snapshot] Detected legacy backup format for user ${verifiedUser}, converting...`)
           const defaultList = jsonData.data.find((l: any) => l.id === 'default')?.list || []
           const loveList = jsonData.data.find((l: any) => l.id === 'love')?.list || []
           const userList = jsonData.data.filter((l: any) => l.id !== 'default' && l.id !== 'love')

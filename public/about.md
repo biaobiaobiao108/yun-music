@@ -1,16 +1,16 @@
-# LX Music Web Server
+# 云音
 
 <div align="center">
-  <img src="/icon.svg" width="100" height="100" alt="LX Music Web Server Logo">
+  <img src="/assets/yun-yin.png" width="100" height="100" alt="云音图标">
   <br>
-  <h1>LX Music Web Server</h1>
+  <h1>云音</h1>
   <p>
     <img src="https://img.shields.io/badge/hash-{{buildHash}}-%2310b981?style=flat-square" alt="Build Hash">
     <a href="/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-orange?style=flat-square" alt="License"></a>
   </p>
 </div>
 
-面向现代浏览器的 LX Music Web 播放器与管理后台，使用 Bun、TypeScript 和 SQLite 构建。
+面向现代浏览器的云音播放器与管理后台，使用 Bun、TypeScript 和 SQLite 构建。
 
 项目提供同源的音乐搜索、播放、歌单、收藏、缓存和自定义音源能力，并提供用户、数据、快照、配置、日志和服务状态管理。
 

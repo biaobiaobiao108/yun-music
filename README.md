@@ -1,6 +1,6 @@
-# LX Music Web Server
+# 云音
 
-LX Music Web Server 是一个面向现代浏览器的 Web 音乐播放器与管理后台。项目使用 Bun、TypeScript、原生 DOM 和 SQLite，提供搜索、播放、歌词、歌单、收藏、缓存、本地音乐、自定义音源、用户管理、快照、配置、日志和服务状态。
+云音是一个面向现代浏览器的 Web 音乐播放器与管理后台。项目使用 Bun、TypeScript、原生 DOM 和 SQLite，提供搜索、播放、歌词、歌单、收藏、缓存、本地音乐、自定义音源、用户管理、快照、配置、日志和服务状态。
 
 项目已经收敛为 Web-only 产品，不再支持 LX 桌面/移动端同步协议、WebSocket 同步、Subsonic、WebDAV 或其他旧第三方接口。旧接口会返回明确的 `404` 或 `410`，旧数据库不会自动迁移。
 
@@ -12,7 +12,7 @@ LX Music Web Server 是一个面向现代浏览器的 Web 音乐播放器与管�
 - SQLite WAL：用户、会话、设置、快照元数据和缓存索引使用结构化存储。
 - Cookie 会话：认证使用 HttpOnly、SameSite Cookie；密码以 scrypt 哈希保存，不写入浏览器存储或日志。
 - 安全边界：同源策略、安全响应头、请求 ID、路径穿越防护、媒体 Range、流式下载和远程 URL 校验。
-- Docker Alpine 多阶段镜像，生产进程以非 root 用户运行。
+- Docker Alpine 多阶段镜像，生产进程按 root 用户运行。
 
 ## 快速开始
 
@@ -20,9 +20,9 @@ LX Music Web Server 是一个面向现代浏览器的 Web 音乐播放器与管�
 
 ```yaml
 services:
-  lx-music-web-server:
+  yun-yin:
     image: ghcr.io/biaobiaobiao108/lxserver:latest
-    container_name: lx-music-web-server
+    container_name: yun-yin
     restart: always
     ports:
       - "9527:9527"
@@ -41,10 +41,10 @@ services:
 
 ```bash
 docker compose up -d
-docker compose logs -f lx-music-web-server
+docker compose logs -f yun-yin
 ```
 
-挂载目录由宿主机负责授予容器用户写权限。生产环境建议同时使用只读根文件系统，并仅将 `/server/data`、`/server/cache`、`/server/music` 和 `/server/cover_cache` 作为可写目录挂载。
+容器按 root 用户运行，可直接使用宿主机挂载目录的权限。生产环境建议同时使用只读根文件系统，并仅将 `/server/data`、`/server/cache`、`/server/music` 和 `/server/cover_cache` 作为可写目录挂载。
 
 ### Bun 源码运行
 
@@ -80,7 +80,7 @@ BIND_IP=0.0.0.0
 DATA_PATH=/server/data
 PLAYER_PATH=/music
 ADMIN_PATH=
-SERVER_NAME=lx-music-web
+SERVER_NAME=yun-yin
 SINGER_SOURCE_PRIORITY=tx,wy
 ```
 
@@ -128,7 +128,7 @@ bun run build
 - 使用 HTTPS 反向代理，并透传 `Host`、真实 IP 和 `X-Forwarded-Proto`。
 - 管理后台和用户密码使用密码管理器生成的高强度随机值。
 - 将 `data/`、`cache/`、`music/`、`cover_cache/` 分开备份，并限制宿主机权限。
-- 容器运行时启用非 root、只读根文件系统和受限临时目录；需要写入的目录显式挂载。
+- 容器运行时按 root 用户运行，并启用只读根文件系统和受限临时目录；需要写入的目录显式挂载。
 - 不要把数据库、配置文件、会话 Cookie 或日志暴露到公共静态目录。
 
 ## 许可证

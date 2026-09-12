@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LX Music Web Server - 管理控制台</title>
+    <title>云音 - 管理控制台</title>
     <!-- Config MUST be loaded before PostHog -->
     <script>
         (function () {
@@ -19,7 +19,8 @@
     <script src="/js/config.js"></script>
     <link rel="preload" href="app.js" as="script">
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="icon" href="assets/yun-yin.png" type="image/png">
+    <link rel="apple-touch-icon" href="assets/yun-yin.png">
     <link rel="manifest" href="manifest.json">
     <script>
         if ('serviceWorker' in navigator) {
@@ -46,10 +47,8 @@
     <div id="login-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="login-title">
         <div class="login-box glass">
             <div class="login-header">
-                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18V5l12-2v13M6 15v8m6-8v8" />
-                </svg>
-                <h1 id="login-title">LX Music Web Server</h1>
+                <img class="logo-icon" src="/assets/yun-yin.png" width="48" height="48" alt="云音图标">
+                <h1 id="login-title">云音</h1>
             </div>
             <p class="login-subtitle">管理控制台</p>
             <label for="access-password" class="sr-only">访问密码</label>
@@ -68,9 +67,9 @@
         <aside class="sidebar glass">
             <div class="sidebar-header">
                 <div style="display: flex; align-items: center;">
-                    <img src="/icon.svg" class="logo-icon" alt="Logo"
+                    <img src="/assets/yun-yin.png" class="logo-icon" alt="云音图标"
                         style="width: 32px; height: 32px; margin-right: 8px;">
-                    <h2>LX Music Web</h2>
+                    <h2>云音</h2>
                 </div>
             </div>
 
@@ -220,7 +219,7 @@
                     <div id="dashboard-error" hidden></div>
                     <div class="welcome-section">
                         <h1><span id="greeting-text" class="greeting-text">你好</span>，管理员 👋</h1>
-                        <p id="dashboard-date">欢迎回到 LX Music Web Server 管理控制台</p>
+                        <p id="dashboard-date">欢迎回到云音管理控制台</p>
                     </div>
 
                     <div class="stats-grid">
@@ -248,7 +247,7 @@
                                 </div>
                                 <div class="stat-dual-info">
                                     <h3>开放访问</h3>
-                                    <p id="stat-devices" class="stat-value">—</p>
+                                    <p id="stat-public-access" class="stat-value">—</p>
                                 </div>
                             </div>
                         </div>
@@ -524,7 +523,7 @@
                                 <div class="config-field">
                                     <label class="config-label">服务器名称</label>
                                     <input type="text" name="serverName" class="form-input config-input"
-                                        placeholder="LX Music Web Server" />
+                                        placeholder="云音" />
                                 </div>
                                 <div class="config-field">
                                     <label class="config-label">最大快照数</label>

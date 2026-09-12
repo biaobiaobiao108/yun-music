@@ -1,5 +1,5 @@
 /**
- * Navigation & Tab Switcher Module for LX Music Web Player
+ * Navigation & Tab Switcher Module for 云音播放器
  */
 
 import {

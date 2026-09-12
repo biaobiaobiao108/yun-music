@@ -1,5 +1,5 @@
 /**
- * Global Keyboard Shortcuts Manager for LX Music Web Player
+ * Global Keyboard Shortcuts Manager for 云音播放器
  */
 
 export type ShortcutsFeatureContext = {

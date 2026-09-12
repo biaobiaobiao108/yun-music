@@ -896,7 +896,7 @@ window.setImg = (id, src) => {
     const el = document.getElementById(id);
     if (el) {
         // 如果是从占位图切换到真实图片，保留滤镜直到加载完成
-        if (el.src.includes('logo.svg') && src && !src.includes('logo.svg')) {
+        if (el.src.includes('yun-yin.png') && src && !src.includes('yun-yin.png')) {
             el.classList.add('is-placeholder');
             const handleLoad = () => {
                 el.classList.remove('is-placeholder');
@@ -905,7 +905,7 @@ window.setImg = (id, src) => {
             };
             el.addEventListener('load', handleLoad);
             el.addEventListener('error', handleLoad);
-        } else if (src && src.includes('logo.svg')) {
+        } else if (src && src.includes('yun-yin.png')) {
             el.classList.add('is-placeholder');
         } else {
             el.classList.remove('is-placeholder');
@@ -913,7 +913,7 @@ window.setImg = (id, src) => {
 
         if (src) el.src = src;
         el.onerror = () => {
-            el.src = '/music/assets/logo.svg';
+            el.src = '/music/assets/yun-yin.png';
             el.classList.add('is-placeholder');
         };
     }
@@ -982,7 +982,7 @@ function updatePlayerInfo(song, actualQuality) {
         if (albumSeparator) {
             albumSeparator.classList.add('hidden');
         }
-        const defaultLogo = '/music/assets/logo.svg';
+        const defaultLogo = '/music/assets/yun-yin.png';
         setImg('player-cover', defaultLogo);
         setImg('sidebar-cover', defaultLogo);
         setImg('detail-cover', defaultLogo);

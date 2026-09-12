@@ -51,7 +51,7 @@ describe('File Cache Path Traversal Defense', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
-    const dbPath = path.join(root, 'lxserver.db')
+    const dbPath = path.join(root, 'yun-yin.db')
     try {
       closeDb()
       ;(global as any).lx = { dataPath, config: {} }
@@ -115,7 +115,7 @@ describe('File Cache Path Traversal Defense', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-lyric-cache-before-audio-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
-    const dbPath = path.join(root, 'lxserver.db')
+    const dbPath = path.join(root, 'yun-yin.db')
     try {
       closeDb()
       ;(global as any).lx = { dataPath, config: {} }
@@ -151,7 +151,7 @@ describe('File Cache Path Traversal Defense', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-lyric-unknown-cleanup-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
-    const dbPath = path.join(root, 'lxserver.db')
+    const dbPath = path.join(root, 'yun-yin.db')
     try {
       closeDb()
       ;(global as any).lx = { dataPath, config: {} }
@@ -195,7 +195,7 @@ describe('File Cache Path Traversal Defense', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-collision-check-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
-    const dbPath = path.join(root, 'lxserver.db')
+    const dbPath = path.join(root, 'yun-yin.db')
     try {
       closeDb()
       ;(global as any).lx = { dataPath, config: {} }
@@ -249,7 +249,7 @@ describe('File Cache Path Traversal Defense', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-delete-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
-    const dbPath = path.join(root, 'lxserver.db')
+    const dbPath = path.join(root, 'yun-yin.db')
     try {
       closeDb()
       ;(global as any).lx = { dataPath, config: {} }
@@ -307,7 +307,7 @@ describe('File Cache Path Traversal Defense', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-clear-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
-    const dbPath = path.join(root, 'lxserver.db')
+    const dbPath = path.join(root, 'yun-yin.db')
     try {
       closeDb()
       ;(global as any).lx = { dataPath, config: {} }
@@ -355,7 +355,7 @@ describe('File Cache Path Traversal Defense', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-cleanup-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
-    const dbPath = path.join(root, 'lxserver.db')
+    const dbPath = path.join(root, 'yun-yin.db')
     try {
       closeDb()
       ;(global as any).lx = {

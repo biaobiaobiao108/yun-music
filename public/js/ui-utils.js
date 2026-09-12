@@ -1,5 +1,5 @@
 /* 
-   UI Utilities for LX Music Web Server Management Console
+   UI Utilities for 云音管理控制台
    Standardizes notifications (Toasts) and Dialogs
    Requires: Tailwind CSS, FontAwesome
 */

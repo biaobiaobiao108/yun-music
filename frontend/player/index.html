@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>LX Music Web</title>
+    <title>云音</title>
     <!-- Config MUST be loaded before PostHog -->
     <script>
         (function () {
@@ -17,7 +17,8 @@
         })();
     </script>
     <script src="/js/config.js"></script>
-    <link rel="icon" href="/music/assets/logo.svg" type="image/svg+xml">
+    <link rel="icon" href="/music/assets/yun-yin.png" type="image/png">
+    <link rel="apple-touch-icon" href="/music/assets/yun-yin.png">
     <link rel="manifest" href="/music/manifest.json">
     <link rel="modulepreload" href="app.js">
     <link rel="stylesheet" href="css/theme_variables.css">
@@ -42,10 +43,8 @@
         <aside id="main-sidebar" aria-label="主导航"
             class="w-56 shrink-0 min-w-0 t-bg-panel shadow-2xl flex flex-col z-[60] fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 md:z-30 h-full pb-28 pt-[env(safe-area-inset-top,0px)] transition-all duration-300">
             <div class="h-16 flex items-center px-6 border-b t-border-main relative gap-3">
-                <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 flex-shrink-0">
-                    <i class="fas fa-music text-sm"></i>
-                </div>
-                <h1 class="text-base font-black text-emerald-600 tracking-wider leading-none">LX MUSIC</h1>
+                <img src="/music/assets/yun-yin.png" width="32" height="32" class="w-8 h-8 rounded-lg object-cover shadow-md shadow-emerald-500/20 flex-shrink-0" alt="云音图标">
+                    <h1 class="text-base font-black text-emerald-600 tracking-wider leading-none">云音</h1>
                 <!-- Close button for mobile -->
                 <button data-event-click-action="toggleSidebar" aria-label="关闭导航菜单" class="md:hidden absolute right-4 text-gray-500 hover:text-red-500">
                     <i class="fas fa-times"></i>
@@ -126,7 +125,7 @@
             <!-- Mini Player Info (Optional, cover art here) -->
             <div class="hidden md:block [@media(max-height:535px)]:!hidden sidebar-song-info-wrapper mt-auto">
                 <div id="sidebar-song-info" class="p-4 border-t t-border-main hidden">
-                    <img id="sidebar-cover" src="/music/assets/logo.svg" loading="eager" decoding="async"
+                    <img id="sidebar-cover" src="/music/assets/yun-yin.png" loading="eager" decoding="async"
                         data-event-error-action="fallback-image" alt="当前歌曲封面"
                         width="192" height="192" class="w-full aspect-square rounded-lg shadow-md mb-3 dynamic-logo is-placeholder">
                     <div class="text-center flex flex-col items-center">
@@ -586,7 +585,7 @@
                                 <div class="relative flex-shrink-0">
                                     <img id="sl-detail-cover" loading="lazy" decoding="async" alt="歌单封面"
                                         class="w-24 h-24 md:w-44 md:h-44 rounded-2xl shadow-xl object-cover dynamic-logo is-placeholder"
-                                        src="/music/assets/logo.svg">
+                                        src="/music/assets/yun-yin.png">
                                 </div>
                                 <div class="flex flex-col justify-center gap-1 md:gap-2.5 flex-1 min-w-0 pr-8 md:pr-12">
                                     <h2 id="sl-detail-name"
@@ -957,7 +956,7 @@
                         </div>
                         <h2 class="text-2xl md:text-3xl font-bold t-text-main tracking-tight">开启云端收藏之旅</h2>
                         <p class="text-gray-500 mt-4 mb-10 text-center max-w-md leading-relaxed px-6">
-                            登录 Web 账号后，收藏和歌单会保存到当前 LX Music Web Server 实例。
+                            登录 Web 账号后，收藏和歌单会保存到当前云音实例。
                         </p>
                         <button
                             data-event-click-action="open-local-mode-settings"
@@ -3147,7 +3146,7 @@
                         <div id="vinyl-disc" class="vinyl-disc">
                             <!-- Center Rotating Cover -->
                             <div class="vinyl-disc-cover">
-                                <img id="detail-cover" src="/music/assets/logo.svg" loading="lazy" decoding="async" alt="正在播放歌曲封面"
+                                        <img id="detail-cover" src="/music/assets/yun-yin.png" loading="lazy" decoding="async" alt="正在播放歌曲封面"
                                     data-event-error-action="fallback-image"
                                     class="dynamic-logo is-placeholder">
                             </div>
@@ -3213,7 +3212,7 @@
             <div
                 class="w-11 h-11 md:w-12 md:h-12 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm relative group flex-shrink-0 cursor-pointer"
                 data-event-click-action="toggleLyrics">
-                <img id="player-cover" src="/music/assets/logo.svg" loading="eager" fetchpriority="high" decoding="async" width="48" height="48"
+                <img id="player-cover" src="/music/assets/yun-yin.png" loading="eager" fetchpriority="high" decoding="async" width="48" height="48"
                     data-event-error-action="fallback-image"
                     class="w-full h-full object-cover dynamic-logo is-placeholder transition-transform group-hover:scale-105" alt="专辑封面">
                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -4639,7 +4638,7 @@
             <h2 class="text-2xl font-black t-text-main text-center mb-4">项目使用声明</h2>
             <div
                 class="t-text-muted text-sm space-y-4 mb-8 leading-relaxed max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                <p>欢迎使用 LX Music Web 播放器。本项目是一个 <a href="https://github.com/XCQ0607/lxserver" target="_blank"
+                <p>欢迎使用云音播放器。本项目是一个 <a href="https://github.com/XCQ0607/lxserver" target="_blank"
                         class="t-text-main hover:text-emerald-500 underline decoration-dotted transition-colors">开源</a>
                     的 Web 音乐播放器，在您开始使用之前，请知晓以下声明：</p>
                 <ul class="list-disc pl-5 space-y-2">

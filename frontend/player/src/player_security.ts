@@ -8,7 +8,7 @@ export function escapeHtmlText(value) {
     })[ch]);
 }
 
-export function safeImageUrl(value, fallback = '/music/assets/logo.svg') {
+export function safeImageUrl(value, fallback = '/music/assets/yun-yin.png') {
     if (!value) return fallback;
     try {
         const parsed = new URL(String(value), window.location.origin);

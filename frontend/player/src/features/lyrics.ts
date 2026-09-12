@@ -553,6 +553,16 @@ function syncLyricByLineNum(lineNum) {
     scrollToActiveLine();
 }
 
+function findCurrentLyricLine(time: number): number {
+    const lines = state.currentLyricLines || [];
+    if (time <= 0 || lines.length === 0) return 0;
+
+    for (let index = 0; index < lines.length; index++) {
+        if (time < Number(lines[index]?.time)) return index === 0 ? 0 : index - 1;
+    }
+    return lines.length - 1;
+}
+
 /**
  * 启动逐字动画更新循环 (仅针对有逐字数据的行)
  * 极致性能重构：预提取/缓存节点数据，脏值比对避免无谓 DOM/CSS 变量写，消除微卡顿
@@ -1026,6 +1036,7 @@ function renderLyric(lines, emptyMsg = '暂无歌词') {
         getLyricOffset,
         scrollToActiveLine,
         syncLyricByLineNum,
+        findCurrentLyricLine,
         startWordProgressUpdate,
         handleLyricScroll,
         updateScrollIndicator,

@@ -6,20 +6,20 @@
 
 ## 1. 项目概览与架构
 
-本项目为 **LX Music 数据同步与 Web 播放器服务端**。后端全面基于 **全栈 Bun (1.1+) + TypeScript 7.0+** 原生架构，彻底移除了遗留的 Express 依赖，前端使用 **原生 Bun Bundler** 毫秒级打包，专注于 **Docker (Alpine)** 云端与私有化容器部署。
+本项目为 **云音 Web 播放器与管理后台服务端**。后端全面基于 **全栈 Bun (1.1+) + TypeScript 7.0+** 原生架构，彻底移除了遗留的 Express 依赖，前端使用 **原生 Bun Bundler** 毫秒级打包，专注于 **Docker (Alpine)** 云端与私有化容器部署。
 
 ### 核心架构层级
 - **后端服务 (`src/`)**：
   - **网络与核心运行时 (`src/server/core/`)**：
     - 完全基于原生 **`Bun.serve`** 与 Web 标准 Request/Response 抽象。
     - 自研轻量级高性能洋葱模型路由器 (`Router`) 与上下文 (`HttpContext`)，无任何外部 Node.js Web 框架开销。
-  - **原生 WebSocket 实时同步 (`src/server/sync/`)**：
-    - 基于 Bun 原生高效 WebSocket 驱动，负责客户端列表数据实时双向同步、版本控制、快照备份与多端冲突仲裁。
+  - **Web 播放与数据服务 (`src/server/services/`)**：
+    - 负责搜索、播放、歌词、缓存、快照和自定义音源等浏览器业务能力；服务端不再承载旧客户端同步协议。
   - **结构化持久化存储 (`src/database/`)**：
     - 全面采用 **`bun:sqlite`** 原生数据库引擎，开启 WAL 模式与外键约束。
-    - 结构化管理账户（`users`）、设备密钥（`devices`）、列表/黑名单快照（`snapshots`）、用户级设置（`user_settings`）及缓存索引（`cache_index`）。
+    - 结构化管理账户（`users`）、会话（`user_sessions`/`player_sessions`）、列表/黑名单快照（`snapshots`）、用户级设置（`user_settings`）及缓存索引（`cache_index`）。
   - **业务领域路由模块 (`src/server/routes/`)**：
-    - 采用领域驱动划分：`auth`（鉴权与 Session）、`system`（系统信息与配置）、`user`（用户增删改查）、`customSource`（自定义音源管理）、`elfinder`（文件管理器后端）、`music`（聚合搜索、音源解析、歌词服务）、`cache`（歌曲下载、音质转码与 USLT 歌词内嵌）、`subsonic`（兼容 Subsonic 协议接口与全网在线检索）、`static`（前端与 SPA 兜底静态资源分发）。
+    - 采用领域驱动划分：`auth`（鉴权与 Session）、`system`（系统信息与配置）、`user`（用户增删改查）、`customSource`（自定义音源管理）、`elfinder`（文件管理器后端）、`music`（聚合搜索、音源解析、歌词服务）、`cache`（歌曲下载、音质转码与 USLT 歌词内嵌）、`static`（前端与 SPA 兜底静态资源分发）。
   - **服务组装入口 (`src/server/server.ts` & `src/server/routes/index.ts`)**：
     - 精简至 70 余行的纯组装器，职责单一，纯净解耦。
 - **前端工程 (`frontend/`)**：
@@ -35,11 +35,10 @@
 ```text
 lxserver/
 ├── src/                    # 服务端核心 TypeScript 源码
-│   ├── server/             # HTTP 服务、路由、中间件与 WebSocket
+│   ├── server/             # HTTP 服务、路由、中间件与业务服务
 │   │   ├── core/           # Bun.serve 原生路由引擎、HttpContext、洋葱模型中间件
-│   │   ├── routes/         # 拆分的各领域业务路由 (auth, music, cache, subsonic 等)
+│   │   ├── routes/         # 拆分的各领域业务路由 (auth, music, cache 等)
 │   │   ├── services/       # 音乐子系统服务、歌词钩子注入、解析服务
-│   │   ├── sync/           # Bun 原生 WebSocket 同步服务器与协议处理
 │   │   └── server.ts       # 原生 Bun.serve 极简服务启动与组装入口 (≤80行)
 │   ├── database/           # 基于 bun:sqlite 的持久化数据库层 (WAL 模式)
 │   ├── modules/            # 核心业务模块、缓存、音源 SDK、Store
@@ -87,7 +86,7 @@ lxserver/
 - 跨域预检（OPTIONS）统一由全局 `corsMiddleware` 拦截处理，无需在子路由中重复编写。
 
 ### 2. 数据库与存储安全 (`bun:sqlite`)
-- 所有结构化数据（用户账户、令牌设备、歌单快照、配置信息）必须通过 `src/database/` 中的 SQLite 接口读写，严禁绕过外键约束或直接操作无保护的 JSON 文件。
+- 所有结构化数据（用户账户、会话、歌单快照、配置信息）必须通过 `src/database/` 中的 SQLite 接口读写，严禁绕过外键约束或直接操作无保护的 JSON 文件。
 - 音频媒体文件、封面与歌词等大文件继续保留在文件系统/缓存目录中。
 
 ### 3. 避免 `bun --watch` 触发死循环闪烁

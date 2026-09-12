@@ -1,15 +1,15 @@
 {
-    "name": "LX Music Web Server",
-    "short_name": "LX Music Web",
+    "name": "云音",
+    "short_name": "云音",
     "start_url": "./",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#10b981",
     "icons": [
         {
-            "src": "icon.svg",
-            "sizes": "any",
-            "type": "image/svg+xml"
+            "src": "assets/yun-yin.png",
+            "sizes": "1254x1254",
+            "type": "image/png"
         }
     ]
 }

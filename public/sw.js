@@ -1,10 +1,10 @@
-const CACHE_NAME = 'lx-music-web-admin-v6';
+const CACHE_NAME = 'yun-yin-admin-v1';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './style.css',
     './js/ui-utils.js',
-    './icon.svg',
+    './assets/yun-yin.png',
     './manifest.json',
     './tailwind.generated.css',
     './music/assets/fontawesome/css/all.min.css'
