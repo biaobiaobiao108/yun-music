@@ -571,6 +571,21 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(playbackContent).toContain('showSuccess(`[${song.name}] 命中${sourceText}`);');
     });
 
+    it('server cache playback failures temporarily bypass the broken cache in the current session', () => {
+        const songUrlContent = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/src/features/song_url.ts'), 'utf8');
+        const playbackContent = fs.readFileSync(playbackSrcPath, 'utf8');
+
+        expect(songUrlContent).toContain('const BROKEN_SERVER_CACHE_TTL = 10 * 60 * 1000;');
+        expect(songUrlContent).toContain('sessionStorage.getItem(key)');
+        expect(songUrlContent).toContain('!isServerCacheTemporarilyBypassed(cleanedSong, quality)');
+        expect(songUrlContent).toContain('markServerCacheFailure,');
+        expect(songUrlContent).toContain('getServerCacheFileDescriptor(serverCacheUrl, cacheResult.location)');
+        expect(playbackContent).toContain("if (resolvedSourceType === 'server_cache' && !playbackSong.isLocal)");
+        expect(playbackContent).toContain("if (state.currentSourceType === 'server_cache' && !song.isLocal)");
+        expect(playbackContent).toContain('location: cacheFile.location');
+        expect(playbackContent).toContain('markServerCacheFailure(playbackSong, resolvedQuality);');
+    });
+
     it('restored playback waits for the source load and can recover a source that fails after play starts', () => {
         const playbackContent = fs.readFileSync(playbackSrcPath, 'utf8');
 

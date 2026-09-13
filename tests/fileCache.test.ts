@@ -245,6 +245,113 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('should find indexed audio in the alternate cache root and record playback there', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-alternate-root-'))
+    const previousCwd = process.cwd()
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    const username = 'alternate-root-user'
+    const filename = 'alternate-song.mp3'
+    try {
+      process.chdir(root)
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const rootCacheDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.ROOT)
+      const audioPath = path.join(rootCacheDir, filename)
+      fs.writeFileSync(audioPath, Buffer.from('cached audio'))
+      fileCache.indexManager.update(username, {
+        id: 'wy_alternate-song',
+        songmid: 'alternate-song',
+        name: 'Alternate Song',
+        singer: 'Alternate Singer',
+        album: 'Alternate Album',
+        source: 'wy',
+        quality: 'flac',
+        filename,
+        folder: 'cache',
+        mtime: Date.now(),
+        size: 12,
+        ext: 'mp3',
+      }, 'cache', fileCache.CACHE_ROOTS.ROOT)
+
+      const result: any = fileCache.checkCache({
+        source: 'wy',
+        songmid: 'alternate-song',
+        id: 'alternate-song',
+        name: 'Alternate Song',
+        singer: 'Alternate Singer',
+        quality: 'flac',
+      }, username)
+      expect(result.exists).toBe(true)
+      expect(result.path).toBe(audioPath)
+      expect(result.location).toBe(fileCache.CACHE_ROOTS.ROOT)
+
+      expect(fileCache.markCachePlayback(filename, username, 'cache', result.location)).toBe(true)
+      const updated = fileCache.indexManager.get(username, 'wy_alternate-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.ROOT)
+      expect(updated?.lastPlayedAt).toBeGreaterThan(0)
+      expect(fileCache.indexManager.get(username, 'wy_alternate-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.DATA)?.lastPlayedAt).toBeUndefined()
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      process.chdir(previousCwd)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('should ignore an empty indexed cache file during playback lookup', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-empty-cache-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'empty-cache-user'
+      const cacheDir = fileCache.getCacheDir(username)
+      const filename = 'empty-song.mp3'
+      fs.writeFileSync(path.join(cacheDir, filename), '')
+      fileCache.indexManager.update(username, {
+        id: 'wy_empty-song',
+        songmid: 'empty-song',
+        name: 'Empty Song',
+        singer: 'Empty Singer',
+        album: '',
+        source: 'wy',
+        quality: '320k',
+        filename,
+        folder: 'cache',
+        mtime: Date.now(),
+        size: 0,
+        ext: 'mp3',
+      }, 'cache')
+
+      const result: any = fileCache.checkCache({
+        source: 'wy',
+        songmid: 'empty-song',
+        id: 'empty-song',
+        name: 'Empty Song',
+        singer: 'Empty Singer',
+        quality: '320k',
+        exactQuality: true,
+      }, username)
+      expect(result.exists).toBe(false)
+      expect(fileCache.indexManager.get(username, 'wy_empty-song', 'cache', '320k', true)).toBeUndefined()
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should remove SQLite index rows when cached files are deleted from disk', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-delete-'))
     const previousLx = (global as any).lx

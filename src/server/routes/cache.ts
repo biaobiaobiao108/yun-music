@@ -272,11 +272,14 @@ export const createCacheRouter = (): Router => {
     if (!target.ok) return target.error
 
     try {
-      const body = await ctx.bodyJson<{ filename?: string; folder?: fileCache.CacheFolder }>()
+      const body = await ctx.bodyJson<{ filename?: string; folder?: fileCache.CacheFolder; location?: string }>()
       if (!body.filename || typeof body.filename !== 'string') return ctx.fail(400, '缺少必要参数：filename')
       if (body.folder !== 'cache' && body.folder !== 'music') return ctx.fail(400, '目录类型不合法')
+      if (body.location && body.location !== fileCache.CACHE_ROOTS.DATA && body.location !== fileCache.CACHE_ROOTS.ROOT) return ctx.fail(400, '缓存位置不合法')
 
-      const marked = fileCache.markCachePlayback(body.filename, target.username, body.folder)
+      const marked = body.location
+        ? fileCache.markCachePlayback(body.filename, target.username, body.folder, body.location)
+        : fileCache.markCachePlayback(body.filename, target.username, body.folder)
       return ctx.json({ success: true, data: { marked } })
     } catch (err) {
       return ctx.fail(400, toUserMessage(err, '记录播放时间失败，请稍后重试'))
@@ -499,16 +502,41 @@ export const createCacheRouter = (): Router => {
       return ctx.fail(404, '文件不存在')
     }
 
+    let fileStats: fs.Stats
+    try {
+      fileStats = fs.statSync(filePath)
+    } catch {
+      return ctx.fail(404, '文件不存在')
+    }
+    if (!fileStats.isFile() || fileStats.size <= 0) {
+      return ctx.fail(404, '文件不存在')
+    }
+
     const bunFile = Bun.file(filePath)
-    const size = bunFile.size
-    const mtime = bunFile.lastModified
+    const size = fileStats.size
+    const mtime = fileStats.mtimeMs
     const etag = `W/"${size}-${mtime}"`
     const lastModified = new Date(mtime).toUTCString()
 
+    const rangeHeader = ctx.headers.get('range')
     const ifNoneMatch = ctx.headers.get('if-none-match')
     const ifModifiedSince = ctx.headers.get('if-modified-since')
     const cacheControl = normalizedUsername === '_open' ? 'public, max-age=86400' : 'private, max-age=86400'
-    if (ifNoneMatch === etag || (ifModifiedSince && ifModifiedSince === lastModified)) {
+    const unsatisfiableRangeResponse = () => new Response(null, {
+      status: 416,
+      headers: {
+        'Content-Range': `bytes */${size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': '0',
+        'ETag': etag,
+        'Last-Modified': lastModified,
+        'Cache-Control': cacheControl,
+      },
+    })
+    // A media client may combine validators with a Range request. Return the
+    // requested partial content in that case instead of a 304 response that
+    // cannot satisfy the media element's byte-range demand.
+    if (!rangeHeader && (ifNoneMatch === etag || (ifModifiedSince && ifModifiedSince === lastModified))) {
       return new Response(null, {
         status: 304,
         headers: {
@@ -519,29 +547,43 @@ export const createCacheRouter = (): Router => {
       })
     }
 
-    const rangeHeader = ctx.headers.get('range')
     const contentType = bunFile.type || 'audio/mpeg'
 
     if (rangeHeader) {
-      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
-      if (match) {
-        const start = parseInt(match[1], 10)
-        const end = match[2] ? parseInt(match[2], 10) : size - 1
-        if (start < size) {
-          const chunk = bunFile.slice(start, end + 1)
-          return new Response(chunk, {
-            status: 206,
-            headers: {
-              'Content-Range': `bytes ${start}-${end}/${size}`,
-              'Accept-Ranges': 'bytes',
-              'Content-Length': String(end - start + 1),
-              'Content-Type': contentType,
-              'ETag': etag,
-              'Last-Modified': lastModified,
-              'Cache-Control': cacheControl,
-            },
-          })
+      const match = rangeHeader.trim().match(/^bytes=(\d*)-(\d*)$/)
+      if (match && (match[1] || match[2])) {
+        let start: number
+        let end: number
+
+        if (!match[1]) {
+          const suffixLength = Number.parseInt(match[2], 10)
+          if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
+            return unsatisfiableRangeResponse()
+          }
+          start = Math.max(0, size - suffixLength)
+          end = size - 1
+        } else {
+          start = Number.parseInt(match[1], 10)
+          end = match[2] ? Number.parseInt(match[2], 10) : size - 1
+          if (!Number.isFinite(start) || !Number.isFinite(end) || start >= size || start > end) {
+            return unsatisfiableRangeResponse()
+          }
+          end = Math.min(end, size - 1)
         }
+
+        const chunk = bunFile.slice(start, end + 1)
+        return new Response(chunk, {
+          status: 206,
+          headers: {
+            'Content-Range': `bytes ${start}-${end}/${size}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': String(end - start + 1),
+            'Content-Type': contentType,
+            'ETag': etag,
+            'Last-Modified': lastModified,
+            'Cache-Control': cacheControl,
+          },
+        })
       }
     }
 

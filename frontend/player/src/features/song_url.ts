@@ -37,6 +37,32 @@ export function initSongUrlFeature(context: SongUrlFeatureContext) {
     const showInfo = context.showInfo;
     const showSuccess = context.showSuccess;
     const showError = context.showError;
+    const BROKEN_SERVER_CACHE_TTL = 10 * 60 * 1000;
+
+    const getServerCacheFailureKey = (song, quality) => {
+        const songId = String(cleanSongData(song)?.id || song?.id || song?.songmid || '');
+        const normalizedQuality = String(quality || '');
+        if (!songId || !normalizedQuality) return null;
+        return `lx_broken_server_cache_${encodeURIComponent(songId)}_${encodeURIComponent(normalizedQuality)}`;
+    };
+
+    const isServerCacheTemporarilyBypassed = (song, quality) => {
+        const key = getServerCacheFailureKey(song, quality);
+        if (!key) return false;
+        try {
+            const failedAt = Number(sessionStorage.getItem(key) || 0);
+            if (!failedAt) return false;
+            if (Date.now() - failedAt < BROKEN_SERVER_CACHE_TTL) return true;
+            sessionStorage.removeItem(key);
+        } catch (_) { }
+        return false;
+    };
+
+    const markServerCacheFailure = (song, quality) => {
+        const key = getServerCacheFailureKey(song, quality);
+        if (!key) return;
+        try { sessionStorage.setItem(key, String(Date.now())); } catch (_) { }
+    };
 function getSourceTypeText(sourceType) {
     const map = {
         'server_cache': '服务器本地缓存',
@@ -407,7 +433,7 @@ function getSourceName(source) {
  * 服务端缓存地址中的文件名可能包含子目录，整个文件名会先被
  * encodeURIComponent，所以这里不能只按普通 URL path 分段解码。
  */
-function getServerCacheFileDescriptor(url) {
+function getServerCacheFileDescriptor(url, location = '') {
     if (!url || typeof url !== 'string') return null;
     const prefix = '/api/music/cache/file/';
     try {
@@ -425,6 +451,7 @@ function getServerCacheFileDescriptor(url) {
             username: encodedUsername ? decodeURIComponent(encodedUsername) : '_open',
             filename: decodeURIComponent(encodedFilename),
             folder,
+            location,
         };
     } catch (_) {
         return null;
@@ -521,7 +548,9 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
 
     const shouldBypassServerCache = isRetry === 'local_retry' || isRetry === 'download';
 
-    const allowServerCache = settings.preferServerCache !== false && !shouldBypassServerCache;
+    const allowServerCache = settings.preferServerCache !== false &&
+        !shouldBypassServerCache &&
+        !isServerCacheTemporarilyBypassed(cleanedSong, quality);
     if (allowServerCache) {
         let cacheResult = await checkServerCache(cleanedSong, quality, !!isRetry);
         if (cacheResult.exists && !cacheResult.isCollision) {
@@ -534,7 +563,7 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
                 url: serverCacheUrl,
                 sourceType: 'server_cache',
                 quality: actualQuality,
-                cacheFile: getServerCacheFileDescriptor(serverCacheUrl),
+            cacheFile: getServerCacheFileDescriptor(serverCacheUrl, cacheResult.location),
             };
         }
     }
@@ -746,6 +775,7 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
         findOtherSourceMatches,
         applyAutoProxy,
         fetchSongUrl,
+        markServerCacheFailure,
         getNextIndex,
         prefetchNextSong,
     };

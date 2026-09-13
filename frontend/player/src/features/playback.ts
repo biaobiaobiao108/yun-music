@@ -40,6 +40,7 @@ export type PlaybackFeatureContext = {
     getCurrentListData: () => any;
     getUserAuthHeaders: () => Record<string, string>;
     resolveSongUrl: (...args: any[]) => any;
+    markServerCacheFailure?: (...args: any[]) => void;
     getSourceTypeText: (...args: any[]) => any;
     getSourceName: (...args: any[]) => any;
     findOtherSourceMatch: (...args: any[]) => any;
@@ -83,6 +84,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     });
     const getUserAuthHeaders = context.getUserAuthHeaders;
     const resolveSongUrl = context.resolveSongUrl;
+    const markServerCacheFailure = context.markServerCacheFailure || (() => { });
     const getSourceTypeText = context.getSourceTypeText;
     const getSourceName = context.getSourceName;
     const findOtherSourceMatch = context.findOtherSourceMatch;
@@ -129,7 +131,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let likePointerStartY = 0;
     let likeLongPressTriggered = false;
 
-    function reportServerCachePlayback(cacheFile: { username?: string; filename?: string; folder?: string } | null | undefined) {
+    function reportServerCachePlayback(cacheFile: { username?: string; filename?: string; folder?: string; location?: string } | null | undefined) {
         if (!cacheFile?.filename || (cacheFile.folder !== 'cache' && cacheFile.folder !== 'music')) return;
 
         const query = cacheFile.username ? `?user=${encodeURIComponent(cacheFile.username)}` : '';
@@ -138,7 +140,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         fetch(`${API_BASE}/cache/playback${query}`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ filename: cacheFile.filename, folder: cacheFile.folder }),
+            body: JSON.stringify({ filename: cacheFile.filename, folder: cacheFile.folder, location: cacheFile.location }),
         }).catch(() => {
             // 播放已经成功，播放时间记录失败不应打断当前歌曲。
         });
@@ -247,6 +249,9 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         clearManualPlaybackRecovery();
         // Bypass both browser/server URL caches after a source has already failed.
         // Keep the existing recovery state so quality/source fallback still works.
+        if (state.currentSourceType === 'server_cache' && !song.isLocal) {
+            markServerCacheFailure(song, state.currentQuality);
+        }
         state.currentLoadingSongId = null;
         void playSong(song, state.currentIndex, null, false, 'local_retry', null, resumeTime);
         return true;
@@ -654,6 +659,9 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 if (state.currentPlayingSong !== playbackSong || !isSameSource) return false;
                 retryStarted = true;
                 console.warn(`[Player] ${resolvedSourceType} link failed, retrying online...`);
+                if (resolvedSourceType === 'server_cache' && !playbackSong.isLocal) {
+                    markServerCacheFailure(playbackSong, resolvedQuality);
+                }
                 if (resolvedSourceType === 'cache') {
                     try {
                         localStorage.removeItem(`lx_url_${cleanSongData(playbackSong).id}_${resolvedQuality}`);

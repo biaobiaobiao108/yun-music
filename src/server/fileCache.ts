@@ -53,6 +53,11 @@ let currentCacheLocation = CACHE_ROOTS.ROOT
 const CACHE_LIST_SYNC_TTL = 30 * 1000
 const cacheListSyncState: Map<string, { lastSync: number, pending?: Promise<void> }> = new Map()
 
+const getCacheLocations = () => [
+    currentCacheLocation,
+    currentCacheLocation === CACHE_ROOTS.DATA ? CACHE_ROOTS.ROOT : CACHE_ROOTS.DATA,
+]
+
 // Helper to get actual directory path
 // [Unified Enhancement] Cache Progress Tracker
 export const cacheProgress: Map<string, { progress: number; status: string; total?: number; received?: number; speed?: number; updatedAt?: number; errorMsg?: string }> = new Map()
@@ -473,6 +478,16 @@ export const resolveCacheRelativePath = (dir: string, filename: string) => {
         return resolveInside(dir, filename)
     } catch {
         return null
+    }
+}
+
+const isUsableCacheFile = (filePath: string | null) => {
+    if (!filePath) return false
+    try {
+        const stats = fs.statSync(filePath)
+        return stats.isFile() && stats.size > 0
+    } catch {
+        return false
     }
 }
 
@@ -1669,11 +1684,11 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
 
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
     const candidateFolders: CacheFolder[] = requestedFolder ? [requestedFolder] : ['cache', 'music']
-    const matches = candidateFolders.map(folder => {
-        const dir = getCacheDir(normalizedUsername, folder === 'music')
+    const matches = getCacheLocations().flatMap(location => candidateFolders.map(folder => {
+        const dir = getCacheDir(normalizedUsername, folder === 'music', location)
         const filePath = resolveCacheRelativePath(dir, filename)
-        return filePath && fs.existsSync(filePath) ? { folder, dir, filePath } : null
-    }).filter((entry): entry is { folder: CacheFolder; dir: string; filePath: string } => entry !== null)
+        return filePath && fs.existsSync(filePath) ? { folder, dir, filePath, location } : null
+    })).filter((entry): entry is { folder: CacheFolder; dir: string; filePath: string; location: string } => entry !== null)
 
     // Older clients only sent a filename. Keep that format safe when the file has
     // a unique location, but never guess if cache and download both contain it.
@@ -1682,7 +1697,7 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
     }
     if (matches.length === 0) return { deleted: false }
 
-    const { folder, dir, filePath } = matches[0]
+    const { folder, dir, filePath, location } = matches[0]
     let coverCacheHash = ''
     try {
         coverCacheHash = getCoverCacheHash(filename, fs.statSync(filePath))
@@ -1708,16 +1723,18 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
         }
     }
 
-    const items = indexManager.getAll(normalizedUsername, folder)
+    const items = indexManager.getAll(normalizedUsername, folder, location)
     const item = items.find(i => i.filename === filename)
-    if (item) indexManager.remove(normalizedUsername, item.id, folder, item.quality)
+    if (item) indexManager.remove(normalizedUsername, item.id, folder, item.quality, location)
 
     // Cover cache is shared by filename. Preserve it while the same relative file
     // still exists in the other root so deleting cache does not affect downloads.
     const otherFolder: CacheFolder = folder === 'cache' ? 'music' : 'cache'
-    const otherDir = getCacheDir(normalizedUsername, otherFolder === 'music')
-    const otherPath = resolveCacheRelativePath(otherDir, filename)
-    const hasCounterpart = !!otherPath && fs.existsSync(otherPath)
+    const hasCounterpart = getCacheLocations().some(otherLocation => {
+        const otherDir = getCacheDir(normalizedUsername, otherFolder === 'music', otherLocation)
+        const otherPath = resolveCacheRelativePath(otherDir, filename)
+        return !!otherPath && fs.existsSync(otherPath)
+    })
     if (!hasCounterpart) {
         try {
             const coverCacheDir = getCoverCacheDir(normalizedUsername)
@@ -1740,28 +1757,30 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
  * 播放器只会在 audio.play() 成功后调用此方法，因此预读、搜索命中或
  * 单纯打开缓存管理页面都不会把歌曲误判为“最近播放”。
  */
-export const markCachePlayback = (filename: string, username?: string, requestedFolder?: CacheFolder): boolean => {
+export const markCachePlayback = (filename: string, username?: string, requestedFolder?: CacheFolder, requestedLocation?: string): boolean => {
     if (!filename || typeof filename !== 'string') return false
     if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') return false
+    if (requestedLocation && requestedLocation !== CACHE_ROOTS.DATA && requestedLocation !== CACHE_ROOTS.ROOT) return false
 
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
     const candidateFolders: CacheFolder[] = requestedFolder ? [requestedFolder] : ['cache', 'music']
-    const matches = candidateFolders.map(folder => {
-        const dir = getCacheDir(normalizedUsername, folder === 'music')
+    const candidateLocations = requestedLocation ? [requestedLocation] : getCacheLocations()
+    const matches = candidateLocations.flatMap(location => candidateFolders.map(folder => {
+        const dir = getCacheDir(normalizedUsername, folder === 'music', location)
         const filePath = resolveCacheRelativePath(dir, filename)
-        return filePath && fs.existsSync(filePath) ? { folder, filePath } : null
-    }).filter((entry): entry is { folder: CacheFolder; filePath: string } => entry !== null)
+        return filePath && fs.existsSync(filePath) ? { folder, filePath, location } : null
+    })).filter((entry): entry is { folder: CacheFolder; filePath: string; location: string } => entry !== null)
 
     // 播放器始终会传 folder；未传时不在 cache/music 同名文件之间猜测。
     if (!requestedFolder && matches.length !== 1) return false
     if (matches.length === 0) return false
 
-    const { folder } = matches[0]
-    const item = indexManager.getAll(normalizedUsername, folder).find(candidate => candidate.filename === filename)
+    const { folder, location } = matches[0]
+    const item = indexManager.getAll(normalizedUsername, folder, location).find(candidate => candidate.filename === filename)
     if (!item) return false
 
     item.lastPlayedAt = Date.now()
-    indexManager.update(normalizedUsername, item, folder)
+    indexManager.update(normalizedUsername, item, folder, location)
     return true
 }
 
@@ -1784,84 +1803,92 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
         // exactQuality=true 时：精确匹配，不允许 fallback 到不同音质
         const useExact = !!songInfo.exactQuality
         const folderTypes: Array<'cache' | 'music'> = ['cache', 'music']
-        for (const folder of folderTypes) {
-            const cached = indexManager.get(normalizedUsername, id, folder, quality, useExact)
-            if (cached) {
-                // 二次校验：exactQuality 模式下确保音质匹配
-                if (useExact && quality && cached.quality !== quality) continue
-                const dir = getCacheDir(normalizedUsername, folder === 'music')
-                const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
-                if (!fileName) continue
-                const filePath = resolveCacheRelativePath(dir, fileName)
-                if (filePath && fs.existsSync(filePath)) {
-                    return {
-                        exists: true,
-                        path: filePath,
-                        filename: fileName,
-                        foundIn: normalizedUsername,
-                        quality: cached.quality,
-                        folder: folder,
-                        url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+        for (const location of getCacheLocations()) {
+            for (const folder of folderTypes) {
+                const cached = indexManager.get(normalizedUsername, id, folder, quality, useExact, location)
+                if (cached) {
+                    // 二次校验：exactQuality 模式下确保音质匹配
+                    if (useExact && quality && cached.quality !== quality) continue
+                    const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+                    const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
+                    if (!fileName) continue
+                    const filePath = resolveCacheRelativePath(dir, fileName)
+                    if (isUsableCacheFile(filePath)) {
+                        return {
+                            exists: true,
+                            path: filePath,
+                            filename: fileName,
+                            foundIn: normalizedUsername,
+                            quality: cached.quality,
+                            folder: folder,
+                            location,
+                            url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+                        }
+                    } else {
+                        // Stale index entry, cleanup only in the location that was checked.
+                        if (!isLyricCheck) indexManager.remove(normalizedUsername, id, folder, cached.quality, location)
                     }
-                } else {
-                    // Stale index entry, cleanup
-                    if (!isLyricCheck) indexManager.remove(normalizedUsername, id, folder, cached.quality)
                 }
             }
         }
 
         // 2. Search for Naming Collisions (Same Name + Singer + Quality, but different ID)
-        const allItems = [
-            ...indexManager.getAll(normalizedUsername, 'cache'),
-            ...indexManager.getAll(normalizedUsername, 'music')
-        ]
+        for (const location of getCacheLocations()) {
+            const allItems = [
+                ...indexManager.getAll(normalizedUsername, 'cache', location),
+                ...indexManager.getAll(normalizedUsername, 'music', location)
+            ]
 
-        const collision = allItems.find(item =>
-            item.id !== id && // 排除当前正在查询的 ID 本身
-            item.name.toLowerCase() === String(songInfo.name || '').toLowerCase() &&
-            item.singer.toLowerCase() === String(songInfo.singer || '').toLowerCase() &&
-            item.quality === quality &&
-            (!isLyricCheck || item.hasLyric)
-        )
+            const collision = allItems.find(item =>
+                item.id !== id && // 排除当前正在查询的 ID 本身
+                item.name.toLowerCase() === String(songInfo.name || '').toLowerCase() &&
+                item.singer.toLowerCase() === String(songInfo.singer || '').toLowerCase() &&
+                item.quality === quality &&
+                (!isLyricCheck || item.hasLyric)
+            )
 
-        if (collision) {
-            const collisionDir = getCacheDir(normalizedUsername, collision.folder === 'music')
-            const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''
-            const collisionFilePath = collisionFileName ? resolveCacheRelativePath(collisionDir, collisionFileName) : null
-            if (collisionFileName && collisionFilePath && fs.existsSync(collisionFilePath)) {
-                return {
-                    exists: true,
-                    isCollision: true,
-                    collisionSource: collision.source,
-                    collisionSongmid: collision.songmid,
-                    filename: collisionFileName,
-                    path: collisionFilePath,
-                    url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(collisionFileName)}?folder=${collision.folder}`,
-                    quality: collision.quality,
-                    foundIn: normalizedUsername,
-                    folder: collision.folder
+            if (collision) {
+                const collisionDir = getCacheDir(normalizedUsername, collision.folder === 'music', location)
+                const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''
+                const collisionFilePath = collisionFileName ? resolveCacheRelativePath(collisionDir, collisionFileName) : null
+                if (collisionFileName && isUsableCacheFile(collisionFilePath)) {
+                    return {
+                        exists: true,
+                        isCollision: true,
+                        collisionSource: collision.source,
+                        collisionSongmid: collision.songmid,
+                        filename: collisionFileName,
+                        path: collisionFilePath,
+                        url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(collisionFileName)}?folder=${collision.folder}`,
+                        quality: collision.quality,
+                        foundIn: normalizedUsername,
+                        folder: collision.folder,
+                        location,
+                    }
                 }
             }
         }
 
         // 3. Fallback for non-exact (only if requested)
         if (!songInfo.exactQuality && !isLyricCheck) {
-            const folderTypes: Array<'cache' | 'music'> = ['cache', 'music']
-            for (const folder of folderTypes) {
-                const cachedAny = indexManager.get(normalizedUsername, id, folder)
-                if (cachedAny) {
-                    const dir = getCacheDir(normalizedUsername, folder === 'music')
-                    const fileName = cachedAny.filename
-                    const filePath = resolveCacheRelativePath(dir, fileName)
-                    if (filePath && fs.existsSync(filePath)) {
-                        return {
-                            exists: true,
-                            path: filePath,
-                            filename: fileName,
-                            foundIn: normalizedUsername,
-                            quality: cachedAny.quality,
-                            folder: folder,
-                            url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+            for (const location of getCacheLocations()) {
+                for (const folder of folderTypes) {
+                    const cachedAny = indexManager.get(normalizedUsername, id, folder, undefined, false, location)
+                    if (cachedAny) {
+                        const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+                        const fileName = cachedAny.filename
+                        const filePath = resolveCacheRelativePath(dir, fileName)
+                        if (isUsableCacheFile(filePath)) {
+                            return {
+                                exists: true,
+                                path: filePath,
+                                filename: fileName,
+                                foundIn: normalizedUsername,
+                                quality: cachedAny.quality,
+                                folder: folder,
+                                location,
+                                url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+                            }
                         }
                     }
                 }
@@ -2252,11 +2279,12 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
     if (result.exists && !result.isCollision) {
         const targetFolder: 'cache' | 'music' = isOnlyDownload ? 'music' : 'cache'
         if (result.folder === targetFolder && result.path) {
+            const existingPath = result.path
             await withCachePostProcess(signal, 'existing cache', async () => {
-                await ensureCachedLyrics(songInfo, quality || result.quality, username, isOnlyDownload, result.path!, targetFolder, shouldCacheLyric, shouldEmbedLyric)
+                await ensureCachedLyrics(songInfo, quality || result.quality, username, isOnlyDownload, existingPath, targetFolder, shouldCacheLyric, shouldEmbedLyric)
                 const existing = indexManager.getAll(normalizeCacheUsername(username), targetFolder)
                     .find(item => item.filename === result.filename)
-                if (existing) reconcileCacheItemFromDisk(normalizeCacheUsername(username), targetFolder, existing, result.path!)
+                if (existing) reconcileCacheItemFromDisk(normalizeCacheUsername(username), targetFolder, existing, existingPath)
             })
             console.log(`[FileCache] Song already exists in ${targetFolder}, skipping download: ${result.filename}`)
             // 通知前端轮询：目标目录文件已存在，视为立即完成
@@ -2266,16 +2294,17 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
         }
 
         if (isOnlyDownload && result.folder === 'cache' && result.path) {
+            const sourcePath = result.path
             return await withCachePostProcess(signal, 'copy cache', async () => {
             const requestedOrCachedQuality = quality || result.quality || 'unknown'
-            const inspection = inspectAudioFile(result.path, requestedOrCachedQuality)
+            const inspection = inspectAudioFile(sourcePath, requestedOrCachedQuality)
             const actualQuality = inspection.quality || requestedOrCachedQuality
-            const sourceExt = path.extname(result.filename || result.path) || '.mp3'
+            const sourceExt = path.extname(result.filename || sourcePath) || '.mp3'
             const ext = inspection.extension || sourceExt
             const finalBaseName = getFileName(songInfo, actualQuality, isOnlyDownload, username)
             const finalPath = path.join(dir, finalBaseName + ext)
             if (!fs.existsSync(finalPath)) {
-                fs.copyFileSync(result.path, finalPath)
+                fs.copyFileSync(sourcePath, finalPath)
             }
 
             const metadata = extractSongMetadata(songInfo)
@@ -2312,7 +2341,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             }
 
             let lyricFilename: string | undefined
-            const sourceLyricPath = result.path.substring(0, result.path.length - sourceExt.length) + '.lrc'
+            const sourceLyricPath = sourcePath.substring(0, sourcePath.length - sourceExt.length) + '.lrc'
             if (shouldCacheLyric && fs.existsSync(sourceLyricPath)) {
                 const targetLyricPath = path.join(dir, finalBaseName + '.lrc')
                 fs.copyFileSync(sourceLyricPath, targetLyricPath)

@@ -195,6 +195,40 @@ test('cache file routes honor the requested folder and keep personal media priva
     expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
     expect(await response.text()).toBe('music-file')
 
+    const etag = response.headers.get('etag')
+    const clampedRange = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=0-999' },
+    }))
+    expect(clampedRange.status).toBe(206)
+    expect(clampedRange.headers.get('content-range')).toMatch(/^bytes 0-9\/10$/)
+    expect(clampedRange.headers.get('content-length')).toBe('10')
+    expect(await clampedRange.text()).toBe('music-file')
+
+    const suffixRange = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=-4' },
+    }))
+    expect(suffixRange.status).toBe(206)
+    expect(suffixRange.headers.get('content-range')).toMatch(/^bytes 6-9\/10$/)
+    expect(await suffixRange.text()).toBe('file')
+
+    const rangedWithValidator = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=0-3', 'if-none-match': etag || '' },
+    }))
+    expect(rangedWithValidator.status).toBe(206)
+    expect(await rangedWithValidator.text()).toBe('musi')
+
+    const unsatisfiableRange = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=999-' },
+    }))
+    expect(unsatisfiableRange.status).toBe(416)
+    expect(unsatisfiableRange.headers.get('content-range')).toBe('bytes */10')
+
+    fs.writeFileSync(path.join(musicDir, 'empty.mp3'), '')
+    const emptyFile = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/empty.mp3?folder=music`, {
+      headers: { cookie: `lx_user_session=${sessionId}` },
+    }))
+    expect(emptyFile.status).toBe(404)
+
     const invalidFolder = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=other`, {
       headers: { cookie: `lx_user_session=${sessionId}` },
     }))
