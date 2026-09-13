@@ -65,9 +65,12 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).not.toContain('triggerServerCache(song, rawUrl, quality)');
         expect(playbackSource).toContain('const requestBackgroundCache = () =>');
         expect(playbackSource).toContain('Promise.resolve(triggerServerCache(playbackSong, urlResult.cacheUrl');
-        expect(playbackSource).toContain('requestBackgroundCache();\n\n        // [Sync]');
+        expect(playbackSource).not.toContain('requestBackgroundCache();\n\n        // [Sync]');
+        expect(playbackSource).toContain('await audio.play();');
+        expect(playbackSource).toContain('requestBackgroundCache();\n\n            // 只在真正开始播放后记录');
         expect(playerSource).toContain('const serverCacheRequests = new Set<string>();');
         expect(playerSource).toContain('background: true');
+        expect(playerSource).toContain('setTimeout(() => controller.abort(), 2500)');
     });
 
     it('bounds browser media lifecycles and releases transient download resources', () => {
@@ -92,14 +95,11 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('pendingRestoreCleanup?.();');
         expect(playbackSource).toContain('playbackErrorCleanup?.();');
         expect(playbackSource).toContain('const currentAudioUrls = [audio.currentSrc, audio.src].filter(Boolean);');
-        expect(playbackSource).toContain('waitForBackgroundCacheAndRetry');
+        expect(playbackSource).not.toContain('waitForBackgroundCacheAndRetry');
         expect(playbackSource).toContain('urlOverride = null');
         expect(playbackSource).toContain('retrying through the streaming proxy');
-        expect(playbackSource).toContain('const maxAttempts = 6;');
-        expect(playbackSource).toContain('const activeCacheGraceMs = 15 * 1000;');
-        expect(playbackSource).toContain('cacheResult?.processing');
         expect(playbackSource).toContain('let backgroundCacheRequested = false;');
-        expect(playbackSource).toContain('waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality');
+        expect(playbackSource).toContain('Cache is deliberately a post-play side effect.');
         expect(songUrlSource).toContain("console.warn(`[Resolve] ${msg}`);");
         expect(songUrlSource).not.toContain('else showError(msg);');
         expect(songUrlSource).toContain('buildServerPlaybackProxyUrl');

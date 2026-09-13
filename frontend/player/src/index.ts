@@ -1509,7 +1509,6 @@ const playbackFeature = initPlaybackFeature({
     getCurrentListData: () => currentListData,
     getUserAuthHeaders,
     resolveSongUrl,
-    checkServerCache: (...args) => checkServerCache(...args),
     triggerServerCache: (...args) => triggerServerCache(...args),
     markServerCacheFailure,
     getSourceTypeText,
@@ -1609,6 +1608,8 @@ function resetPlayer() {
 // 获取来源类型的中文描述
 // --- Server Cache Helpers ---
 async function checkServerCache(song, quality, exactQuality = false) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
     try {
         const username = currentListData?.username || '';
         const params = new URLSearchParams({
@@ -1623,12 +1624,16 @@ async function checkServerCache(song, quality, exactQuality = false) {
         const headers = {};
         Object.assign(headers, getUserAuthHeaders());
 
-        const res = await fetch(`/api/music/cache/check?${params}`, { headers });
+        const res = await fetch(`/api/music/cache/check?${params}`, { headers, signal: controller.signal });
         if (res.ok) {
             const data = await res.json();
             return data; // 返回完整数据对象，包含 exists, isCollision, url 等
         }
-    } catch (e) { console.error('[ServerCache] Check failed:', e); }
+    } catch (e) {
+        if (e?.name !== 'AbortError') console.error('[ServerCache] Check failed:', e);
+    } finally {
+        clearTimeout(timeoutId);
+    }
     return { exists: false };
 }
 

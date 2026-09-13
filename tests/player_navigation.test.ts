@@ -571,18 +571,20 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(playbackContent).toContain('showSuccess(`[${song.name}] 命中${sourceText}`);');
     });
 
-    it('recovers failed remote links through the fast proxy before waiting for cache', () => {
+    it('recovers failed remote links through the fast proxy without waiting for cache', () => {
         const playbackContent = fs.readFileSync(playbackSrcPath, 'utf8');
 
         expect(playbackContent).toContain("if (!playbackSong.isLocal && resolvedSourceType !== 'server_cache')");
         expect(playbackContent).toContain('urlResult.playbackProxyUrl');
-        expect(playbackContent).toContain('backgroundCacheRequested,');
-        expect(playbackContent).toContain('cacheRequestActive');
+        expect(playbackContent).toContain('hasDifferentPlaybackProxy');
+        expect(playbackContent).toContain("isRetry === 'proxy_retry'");
+        expect(playbackContent).toContain("isRetry !== 'proxy_retry'");
+        expect(playbackContent).not.toContain('backgroundCacheRequested,');
+        expect(playbackContent).not.toContain('cacheRequestActive');
 
-        const proxyRetry = playbackContent.indexOf('urlResult.playbackProxyUrl) {');
-        const cacheWait = playbackContent.indexOf('waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality');
+        const proxyRetry = playbackContent.indexOf('hasDifferentPlaybackProxy');
         expect(proxyRetry).toBeGreaterThan(-1);
-        expect(cacheWait).toBeGreaterThan(proxyRetry);
+        expect(playbackContent).not.toContain('waitForBackgroundCacheAndRetry');
     });
 
     it('server cache playback failures temporarily bypass the broken cache in the current session', () => {
