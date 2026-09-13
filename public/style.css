@@ -3749,10 +3749,9 @@ select {
     opacity: 1;
 }
 
-input::placeholder,
-textarea::placeholder {
-    color: var(--text-secondary);
-    opacity: 0.8;
+:where(input, textarea)::placeholder {
+    color: var(--text-muted, #87968f);
+    opacity: 0.62;
 }
 
 .config-panels-layout > .config-card {

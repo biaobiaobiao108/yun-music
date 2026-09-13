@@ -38,6 +38,13 @@
     outline-offset: 2px;
 }
 
+/* Placeholder text is guidance, not primary content. Keep it readable while
+   letting labels and entered values carry the visual emphasis. */
+:where(input, textarea)::placeholder {
+    color: var(--text-dim, #99a0ad);
+    opacity: 0.78;
+}
+
 body[data-overlay-open="true"] {
     overscroll-behavior: none;
 }
@@ -119,8 +126,8 @@ body.overlay-open > *:not(.skip-link) {
 }
 
 :where(#auth-form input, #user-login-form input)::placeholder {
-    color: var(--text-muted, #64748b) !important;
-    opacity: 0.85;
+    color: var(--text-dim, #99a0ad) !important;
+    opacity: 0.78;
 }
 
 /* Keep legacy utility classes in the player footer and settings view on the
@@ -2438,8 +2445,8 @@ aside {
 
 .lm-rich-search-input:empty::before {
     content: attr(data-placeholder);
-    color: var(--text-muted);
-    opacity: 0.65;
+    color: var(--text-dim, #99a0ad);
+    opacity: 0.78;
     pointer-events: none;
     white-space: nowrap;
     overflow: hidden;
