@@ -3189,14 +3189,7 @@ function refreshFavoritesChildrenHeight() {
     const list = document.getElementById('favorites-children');
     if (!list || list.style.height === '0px' || list.style.height === '') return;
 
-    const currentHeight = list.getBoundingClientRect().height;
     list.style.height = 'auto';
-    const targetHeight = list.scrollHeight;
-    list.style.height = currentHeight + 'px';
-
-    requestAnimationFrame(() => {
-        list.style.height = targetHeight + 'px';
-    });
 }
 
 function toggleFavorites() {
@@ -3212,11 +3205,20 @@ function toggleFavorites() {
         list.style.height = '0px';
         requestAnimationFrame(() => {
             list.style.height = targetHeight + 'px';
+            setTimeout(() => {
+                if (list.style.height !== '0px') {
+                    list.style.height = 'auto';
+                }
+            }, 320);
         });
         if (arrow) arrow.style.transform = 'rotate(0deg)'; // Arrow down
         trigger?.setAttribute('aria-expanded', 'true');
     } else {
-        list.style.height = '0px';
+        const currentH = list.scrollHeight;
+        list.style.height = currentH + 'px';
+        requestAnimationFrame(() => {
+            list.style.height = '0px';
+        });
         if (arrow) arrow.style.transform = 'rotate(-90deg)'; // Arrow right
         trigger?.setAttribute('aria-expanded', 'false');
     }
