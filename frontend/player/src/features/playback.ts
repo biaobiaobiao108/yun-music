@@ -135,6 +135,8 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let likePointerStartX = 0;
     let likePointerStartY = 0;
     let likeLongPressTriggered = false;
+    let playbackHistoryStack: number[] = [];
+    let isNavigatingHistory = false;
 
     function reportServerCachePlayback(cacheFile: { username?: string; filename?: string; folder?: string; location?: string } | null | undefined) {
         if (!cacheFile?.filename || (cacheFile.folder !== 'cache' && cacheFile.folder !== 'music')) return;
@@ -688,9 +690,14 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         }
     }
 
+    if (!isRetry && !isNavigatingHistory && typeof state.currentIndex === 'number' && state.currentIndex >= 0 && state.currentIndex !== index) {
+        playbackHistoryStack.push(state.currentIndex);
+        if (playbackHistoryStack.length > 50) playbackHistoryStack.shift();
+    }
+
     // [Crossfade] 如果开启了淡入淡出，则先执行淡出
     if (settings.enableCrossfade && !noPlay && audio && !audio.paused && !audio.ended && audio.src) {
-        await fadeVolume(0, 300);
+        await fadeVolume(0, 200);
     }
 
     if (!noPlay) {
@@ -905,7 +912,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             }
 
             if (settings.enableCrossfade && !isMuted && effectiveVol > 0) {
-                fadeVolume(effectiveVol, 1000);
+                fadeVolume(effectiveVol, 300);
             } else {
                 audio.volume = effectiveVol;
                 audio.muted = isMuted;
@@ -1605,9 +1612,16 @@ function playPrev(isManual = true) {
             break;
 
         case 'random':
-            // 随机播放：随机选择一首（避免重复播放当前歌曲）
-            if (state.currentPlaylist.length === 1) {
+            // 随机播放：优先从历史栈倒回刚才听过的歌曲
+            if (state.currentPlaylist.length <= 1) {
                 prevIndex = 0;
+            } else if (playbackHistoryStack.length > 0) {
+                const candidateIndex = playbackHistoryStack.pop()!;
+                if (candidateIndex >= 0 && candidateIndex < state.currentPlaylist.length) {
+                    prevIndex = candidateIndex;
+                } else {
+                    prevIndex = (state.currentIndex - 1 + state.currentPlaylist.length) % state.currentPlaylist.length;
+                }
             } else {
                 do {
                     prevIndex = Math.floor(Math.random() * state.currentPlaylist.length);
@@ -1624,7 +1638,12 @@ function playPrev(isManual = true) {
             break;
     }
 
-    playSong(state.currentPlaylist[prevIndex], prevIndex);
+    isNavigatingHistory = true;
+    try {
+        playSong(state.currentPlaylist[prevIndex], prevIndex);
+    } finally {
+        isNavigatingHistory = false;
+    }
 }
 
 // 音量淡入淡出辅助函数

@@ -1587,10 +1587,16 @@ function renderArtistSongsUI(list, page) {
 
                     <!-- Actions -->
                     <div class="player-track-actions flex items-center justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button class="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors" title="播放" data-event-click-action="playFromView" data-event-click-args="[${playlistIndex}]" data-event-stop="true">
+                        <button class="p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg text-emerald-600 transition-colors" title="播放" aria-label="播放" data-event-click-action="playFromView" data-event-click-args="[${playlistIndex}]" data-event-stop="true">
                             <i class="fas fa-play w-3.5 h-3.5"></i>
                         </button>
-                        <button class="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors" title="下载" data-event-click-action="downloadSong" data-event-click-args="[${safeInlineJson(item)}]" data-event-stop="true">
+                        <button class="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg text-purple-600 transition-colors" title="下一首播放" aria-label="下一首播放" data-event-click-action="addSongToNext" data-event-click-args="[${safeInlineJson(item)}]" data-event-stop="true">
+                            <i class="fas fa-indent w-3.5 h-3.5"></i>
+                        </button>
+                        <button class="p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg text-emerald-600 transition-colors" title="加入播放队列" aria-label="加入播放队列" data-event-click-action="addSongToQueue" data-event-click-args="[${safeInlineJson(item)}]" data-event-stop="true">
+                            <i class="fas fa-plus w-3.5 h-3.5"></i>
+                        </button>
+                        <button class="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg text-blue-600 transition-colors" title="下载" aria-label="下载" data-event-click-action="downloadSong" data-event-click-args="[${safeInlineJson(item)}]" data-event-stop="true">
                             <i class="fas fa-download w-3.5 h-3.5"></i>
                         </button>
                     </div>
@@ -2314,6 +2320,18 @@ function renderResults(list) {
                         aria-label="播放 ${itemName}"
                         data-event-click-action="playFromView" data-event-click-args="[${actualIndexInOriginal}]" data-event-stop="true">
                     <i class="fas fa-play text-xs sm:text-sm"></i>
+                </button>
+                <button class="p-2 sm:p-1.5 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg text-purple-600 transition-colors touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center" 
+                        title="下一首播放" 
+                        aria-label="下一首播放 ${itemName}"
+                        data-event-click-action="addSongToNext" data-event-click-args="[${safeInlineJson(item)}]" data-event-stop="true">
+                    <i class="fas fa-indent text-xs sm:text-sm"></i>
+                </button>
+                <button class="p-2 sm:p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg text-emerald-600 transition-colors touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center" 
+                        title="加入播放队列" 
+                        aria-label="加入播放队列 ${itemName}"
+                        data-event-click-action="addSongToQueue" data-event-click-args="[${safeInlineJson(item)}]" data-event-stop="true">
+                    <i class="fas fa-plus text-xs sm:text-sm"></i>
                 </button>
                 <button class="p-2 sm:p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg text-blue-600 transition-colors touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center" 
                         title="下载" 

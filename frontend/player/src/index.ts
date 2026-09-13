@@ -1153,13 +1153,19 @@ function startDragging(e, type) {
 }
 
 function stopDragging() {
-    if (isDragging === 'progress' && Number.isFinite(dragPercentage)) {
-        // 只有当最终位置与上次 seek 的位置差异较大时，才执行最后一次 seek
-        if (Math.abs(dragPercentage - lastSeekPct) > 0.001) {
-            audio.currentTime = dragPercentage * audio.duration;
-            if (typeof lyricPlayer !== 'undefined' && lyricPlayer) {
+    if (isDragging === 'progress' && Number.isFinite(dragPercentage) && audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+        audio.currentTime = dragPercentage * audio.duration;
+        if (typeof lyricPlayer !== 'undefined' && lyricPlayer) {
+            if (!audio.paused) {
                 lyricPlayer.play(audio.currentTime * 1000);
+            } else {
+                lyricPlayer.pause();
+                const lineNum = findCurrentLyricLine(audio.currentTime * 1000);
+                if (lineNum !== undefined && lineNum >= 0) {
+                    syncLyricByLineNum(lineNum);
+                }
             }
+            scrollToActiveLine(true);
         }
     }
     isDragging = null;
@@ -1182,28 +1188,17 @@ function handleDragMove(e) {
 
         dragPercentage = pct;
 
-        // 1. Update UI immediately (Always smooth)
+        // 1. Update UI immediately (Smooth preview without network Range request flood)
         document.getElementById('progress-bar').style.width = `${pct * 100}%`;
         document.getElementById('time-current').innerText = formatTime(pct * audio.duration);
         document.getElementById('progress-container')?.setAttribute('aria-valuenow', String(Math.round(pct * 100)));
 
-        // 2. Throttled update of audio position (Live Seeking)
-        const now = Date.now();
-        if (now - lastSeekTime > SEEK_THROTTLE_MS) {
-            // 只有当进度百分比发生较明显变化（大于 0.1%）时才执行 seek
-            // 这可以防止鼠标微小抖动导致的“原地复读”感，并允许停下时正常播放（预览）
-            if (Math.abs(pct - lastSeekPct) > 0.001) {
-                audio.currentTime = pct * audio.duration;
-
-                // 同步更新歌词进度
-                if (typeof lyricPlayer !== 'undefined' && lyricPlayer) {
-                    lyricPlayer.play(audio.currentTime * 1000);
-                    // 强制歌词对齐但不等待平滑滚动，保持灵敏度
-                    scrollToActiveLine(true);
-                }
-
-                lastSeekTime = now;
-                lastSeekPct = pct;
+        // 2. Synchronize lyric preview during scrubbing
+        if (typeof lyricPlayer !== 'undefined' && lyricPlayer && typeof findCurrentLyricLine === 'function') {
+            const previewTime = pct * audio.duration * 1000;
+            const lineNum = findCurrentLyricLine(previewTime);
+            if (lineNum !== undefined && lineNum >= 0) {
+                syncLyricByLineNum(lineNum);
             }
         }
     } else if (isDragging === 'volume') {
@@ -1930,15 +1925,6 @@ audio.addEventListener('timeupdate', () => {
     const current = audio.currentTime;
     const duration = audio.duration;
 
-    // [Crossfade] 自然播放接近结束时提前淡出
-    if (settings.enableCrossfade && duration > 5 && (duration - current < 1.0)) {
-        if (!window._isFadingOut) {
-            window._isFadingOut = true;
-            fadeVolume(0, 1000);
-        }
-    } else if (duration - current > 1.5) {
-        window._isFadingOut = false;
-    }
 
     document.getElementById('time-current').innerText = formatTime(current);
     document.getElementById('time-total').innerText = formatTime(duration);

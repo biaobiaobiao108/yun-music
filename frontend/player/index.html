@@ -3158,6 +3158,20 @@
                     <div id="detail-artist"
                         class="inline-block text-base md:text-xl t-text-muted font-medium truncate max-w-full">Artist
                     </div>
+                    <!-- Lyric Offset Adjustment Toolbar -->
+                    <div class="flex items-center justify-center md:justify-start gap-1.5 mt-2 text-xs select-none opacity-80 hover:opacity-100 transition-opacity">
+                        <span class="text-[11px] t-text-muted mr-0.5"><i class="fas fa-sliders-h mr-1 text-[10px]"></i>歌词微调:</span>
+                        <button type="button" data-event-click-action="adjustLyricOffset" data-event-click-args="[-500]"
+                            class="px-2 py-0.5 rounded-md t-bg-item hover:t-bg-item-hover text-[11px] t-text-muted hover:text-emerald-500 transition-colors border t-border-main"
+                            title="歌词快 0.5 秒">-0.5s</button>
+                        <span id="lyric-offset-display" class="font-mono text-[11px] t-text-muted px-1">0.0s</span>
+                        <button type="button" data-event-click-action="adjustLyricOffset" data-event-click-args="[500]"
+                            class="px-2 py-0.5 rounded-md t-bg-item hover:t-bg-item-hover text-[11px] t-text-muted hover:text-emerald-500 transition-colors border t-border-main"
+                            title="歌词慢 0.5 秒">+0.5s</button>
+                        <button type="button" data-event-click-action="resetLyricOffset"
+                            class="px-1.5 py-0.5 rounded-md t-bg-item hover:t-bg-item-hover text-[10px] text-gray-400 hover:text-red-500 transition-colors border t-border-main ml-0.5"
+                            title="重置歌词时间">重置</button>
+                    </div>
                 </div>
 
                 <!-- Scroll Indicator - 固定参考线 -->
@@ -3706,6 +3720,12 @@
                     <button data-event-click-action="cancelSleepTimer"
                         class="px-4 py-2 t-bg-panel text-red-500 text-xs font-bold rounded-xl shadow-sm hover:shadow-md transition-all">停止</button>
                 </div>
+
+                <!-- End of song option -->
+                <button data-event-click-action="setSleepTimerAfterCurrent" class="w-full py-3 mb-4 t-bg-item hover:t-bg-item-hover border t-border-main rounded-xl text-sm font-bold t-text-main flex items-center justify-center gap-2 transition-all shadow-sm">
+                    <i class="fas fa-step-forward text-emerald-500"></i>
+                    播完当前歌曲后停止
+                </button>
 
                 <!-- Presets -->
                 <div class="grid grid-cols-3 gap-3 mb-6">
@@ -4370,6 +4390,23 @@
                                     <input type="range" id="panner-distance" min="1" max="30" value="5"
                                         class="w-full h-1.5 rounded-full lc-range-input cursor-pointer">
                                 </div>
+                            </div>
+                        </section>
+
+                        <div class="h-px bg-t-border-main"></div>
+
+                        <!-- Dynamics Compressor (平稳音量) -->
+                        <section class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-xs font-black t-text-muted uppercase tracking-widest">平稳音量 (夜间防轰头)</h4>
+                                    <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">平抑不同歌曲与音源间的响度落差，防止大动态轰头</p>
+                                </div>
+                                <label
+                                    class="flex items-center gap-2 cursor-pointer group text-[11px] font-bold t-text-muted">
+                                    <input type="checkbox" id="se-compressor" class="w-3.5 h-3.5 accent-emerald-500">
+                                    启用
+                                </label>
                             </div>
                         </section>
                     </div>

@@ -761,6 +761,14 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
     }
 }
 
+let shufflePool: number[] = [];
+let lastPlaylistFingerprint = '';
+
+function getPlaylistFingerprint(list: any[]): string {
+    if (!list || list.length === 0) return '';
+    return `${list.length}_${list[0]?.id || ''}_${list[list.length - 1]?.id || ''}`;
+}
+
 function getNextIndex(isManual = false) {
     if (!currentPlaylist || currentPlaylist.length === 0) return -1;
 
@@ -787,9 +795,36 @@ function getNextIndex(isManual = false) {
             if (currentPlaylist.length === 1) {
                 nextIndex = 0;
             } else {
-                do {
-                    nextIndex = Math.floor(Math.random() * currentPlaylist.length);
-                } while (nextIndex === context.getCurrentIndex());
+                const currentFp = getPlaylistFingerprint(currentPlaylist);
+                if (currentFp !== lastPlaylistFingerprint) {
+                    lastPlaylistFingerprint = currentFp;
+                    shufflePool = [];
+                }
+
+                // 过滤掉超出范围的索引
+                shufflePool = shufflePool.filter(idx => idx >= 0 && idx < currentPlaylist.length);
+
+                // 洗牌池耗尽，重新进行 Fisher-Yates 洗牌填充
+                if (shufflePool.length === 0) {
+                    const pool: number[] = [];
+                    const currentIdx = context.getCurrentIndex();
+                    for (let i = 0; i < currentPlaylist.length; i++) {
+                        if (i !== currentIdx) pool.push(i);
+                    }
+                    // Fisher-Yates shuffle
+                    for (let i = pool.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        const temp = pool[i];
+                        pool[i] = pool[j];
+                        pool[j] = temp;
+                    }
+                    shufflePool = pool;
+                }
+
+                nextIndex = shufflePool.pop();
+                if (typeof nextIndex !== 'number' || nextIndex < 0 || nextIndex >= currentPlaylist.length) {
+                    nextIndex = (context.getCurrentIndex() + 1) % currentPlaylist.length;
+                }
             }
             break;
         case 'order':

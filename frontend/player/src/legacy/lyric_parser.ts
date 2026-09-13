@@ -95,7 +95,7 @@ export class LinePlayer {
     private performanceTime = 0;
     private startTime = 0;
     private rate: number;
-    private readonly offset: number;
+    public offset: number;
     private readonly timeoutTools = new TimeoutTools();
     private readonly onPlay: NonNullable<LinePlayerOptions['onPlay']>;
     private readonly onSetLyric: NonNullable<LinePlayerOptions['onSetLyric']>;
@@ -105,6 +105,15 @@ export class LinePlayer {
         this.rate = options.rate || 1;
         this.onPlay = options.onPlay || (() => undefined);
         this.onSetLyric = options.onSetLyric || (() => undefined);
+    }
+
+    setOffset(offset: number): void {
+        this.offset = offset || 0;
+        this.performanceTime = getNow() - Number(this.tags.offset || 0) - this.offset;
+        if (this.lines.length && this.isPlay) {
+            this.curLineNum = this.findCurrentLine(this.currentTime()) - 1;
+            this.refresh();
+        }
     }
 
     private currentTime(): number {

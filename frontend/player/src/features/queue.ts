@@ -271,6 +271,46 @@ export function initQueueFeature(context: QueueFeatureContext) {
         }
     }
 
+    function addSongToNext(song: any) {
+        if (!song) return;
+        const playlist = context.getPlaylist() ? [...context.getPlaylist()] : [];
+        if (playlist.length === 0) {
+            context.setPlaylist([song]);
+            context.setCurrentIndex(0);
+            renderQueue();
+            context.playSong(song, 0);
+            context.showSuccess(`正在播放: ${song.name || '歌曲'}`);
+            return;
+        }
+
+        const currentIndex = context.getCurrentIndex();
+        const insertIndex = currentIndex >= 0 ? currentIndex + 1 : playlist.length;
+        playlist.splice(insertIndex, 0, song);
+        context.setPlaylist(playlist);
+        renderQueue();
+        context.savePlaybackState();
+        context.showSuccess(`已设为下一首播放: ${song.name || '歌曲'}`);
+    }
+
+    function addSongToQueue(song: any) {
+        if (!song) return;
+        const playlist = context.getPlaylist() ? [...context.getPlaylist()] : [];
+        if (playlist.length === 0) {
+            context.setPlaylist([song]);
+            context.setCurrentIndex(0);
+            renderQueue();
+            context.playSong(song, 0);
+            context.showSuccess(`正在播放: ${song.name || '歌曲'}`);
+            return;
+        }
+
+        playlist.push(song);
+        context.setPlaylist(playlist);
+        renderQueue();
+        context.savePlaybackState();
+        context.showSuccess(`已添加到播放队列: ${song.name || '歌曲'}`);
+    }
+
     const feature = {
         renderQueue,
         updateQueueBadge,
@@ -279,6 +319,8 @@ export function initQueueFeature(context: QueueFeatureContext) {
         playSongFromQueue,
         removeFromQueue,
         clearQueue,
+        addSongToNext,
+        addSongToQueue,
         get isRendered() { return isQueueRendered; },
     };
 
@@ -289,6 +331,8 @@ export function initQueueFeature(context: QueueFeatureContext) {
         playSongFromQueue,
         removeFromQueue,
         clearQueue,
+        addSongToNext,
+        addSongToQueue,
     });
 
     return feature;

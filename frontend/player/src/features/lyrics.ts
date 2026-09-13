@@ -56,6 +56,7 @@ export function initLyricFeature(context: LyricFeatureContext) {
 let lyricHistoryClosePending = false;
 let lyricRequestController: AbortController | null = null;
 let lyricRequestSerial = 0;
+let currentLyricOffsetMs = 0;
 
 function toggleLyrics(fromPopState = false) {
     if (!fromPopState && state.isLyricViewOpen) {
@@ -211,6 +212,11 @@ async function fetchLyric(song, quality = null) {
     const isCurrentRequest = () => requestSerial === lyricRequestSerial && !requestController.signal.aborted;
 
     state.lastLyricSongId = currentLyricKey;
+
+    // 读取单曲持久化歌词偏移
+    const offsetKey = `lx_lyric_offset_${source}_${songmid}`;
+    currentLyricOffsetMs = parseInt(localStorage.getItem(offsetKey) || '0', 10) || 0;
+    updateLyricOffsetUI();
 
     document.getElementById('lyric-content').innerHTML = '<p class="t-text-muted text-lg animate-pulse">正在加载歌词...</p>';
     state.currentLyricLines = [];
@@ -426,7 +432,7 @@ function initLyricPlayer() {
 
     if (!state.lyricPlayer) {
         state.lyricPlayer = new window.LinePlayer({
-            offset: 0,
+            offset: currentLyricOffsetMs,
             rate: context.getCurrentPlaybackRate() || 1,
             onPlay: (lineNum, text, curTime) => {
                 syncLyricByLineNum(lineNum);
@@ -437,6 +443,8 @@ function initLyricPlayer() {
                 renderLyric(lines);
             }
         });
+    } else {
+        state.lyricPlayer.setOffset?.(currentLyricOffsetMs);
     }
 }
 
@@ -641,7 +649,7 @@ function startWordProgressUpdate(lineIndex, lineEl, lineData) {
             return;
         }
 
-        const curTimeMs = audio.currentTime * 1000;
+        const curTimeMs = audio.currentTime * 1000 + currentLyricOffsetMs;
         const relativeTime = curTimeMs - lineStartTime;
 
         let sungDuration = 0;
@@ -1027,6 +1035,56 @@ function renderLyric(lines, emptyMsg = '暂无歌词') {
 
 
 
+    function updateLyricOffsetUI() {
+        const el = document.getElementById('lyric-offset-display');
+        if (el) {
+            const sign = currentLyricOffsetMs > 0 ? '+' : '';
+            el.innerText = `${sign}${(currentLyricOffsetMs / 1000).toFixed(1)}s`;
+            el.classList.toggle('text-emerald-500', currentLyricOffsetMs !== 0);
+            el.classList.toggle('font-bold', currentLyricOffsetMs !== 0);
+        }
+    }
+
+    function adjustLyricOffset(deltaMs: number) {
+        currentLyricOffsetMs += deltaMs;
+        if (currentLyricOffsetMs > 10000) currentLyricOffsetMs = 10000;
+        if (currentLyricOffsetMs < -10000) currentLyricOffsetMs = -10000;
+
+        const currentSong = context.getCurrentPlayingSong();
+        if (currentSong) {
+            const songmid = currentSong.songmid || currentSong.songId || currentSong.id;
+            const source = currentSong.source;
+            if (songmid && source) {
+                const offsetKey = `lx_lyric_offset_${source}_${songmid}`;
+                if (currentLyricOffsetMs === 0) {
+                    localStorage.removeItem(offsetKey);
+                } else {
+                    localStorage.setItem(offsetKey, String(currentLyricOffsetMs));
+                }
+            }
+        }
+
+        if (state.lyricPlayer) {
+            state.lyricPlayer.setOffset?.(currentLyricOffsetMs);
+            if (!audio.paused) {
+                state.lyricPlayer.play(audio.currentTime * 1000);
+            }
+        }
+        updateLyricOffsetUI();
+        const sign = currentLyricOffsetMs > 0 ? '+' : '';
+        const msg = `歌词微调: ${sign}${(currentLyricOffsetMs / 1000).toFixed(1)}s`;
+        (window as any).showInfo?.(msg);
+    }
+
+    function resetLyricOffset() {
+        adjustLyricOffset(-currentLyricOffsetMs);
+    }
+
+    Object.assign(window, {
+        adjustLyricOffset,
+        resetLyricOffset,
+    });
+
     return {
         toggleLyrics,
         updateDetailInfo,
@@ -1041,5 +1099,8 @@ function renderLyric(lines, emptyMsg = '暂无歌词') {
         handleLyricScroll,
         updateScrollIndicator,
         renderLyric,
+        adjustLyricOffset,
+        resetLyricOffset,
+        updateLyricOffsetUI,
     };
 }

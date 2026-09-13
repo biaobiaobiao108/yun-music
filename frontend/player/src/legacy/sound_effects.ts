@@ -50,10 +50,12 @@ window.soundEffects = (function () {
         eq: Array(10).fill(0),
         pitch: 1.0,
         panner: { enable: false, speed: 25, distance: 5 },
-        reverb: { id: 'none', mainGain: 1.0, sendGain: 0 }
+        reverb: { id: 'none', mainGain: 1.0, sendGain: 0 },
+        compressor: false
     };
 
     let dryGainNode, wetGainNode, mixerNode;
+    let compressorNode, compressorBypassGain, compressorWetGain;
 
     function init() {
         if (audioContext) return;
@@ -88,6 +90,17 @@ window.soundEffects = (function () {
         pannerNode = audioContext.createPanner();
         // pannerNode.panningModel = 'HRTF';
 
+        // Dynamics Compressor (平稳音量 / 动态均衡)
+        compressorNode = audioContext.createDynamicsCompressor();
+        compressorNode.threshold.value = -24;
+        compressorNode.knee.value = 30;
+        compressorNode.ratio.value = 12;
+        compressorNode.attack.value = 0.003;
+        compressorNode.release.value = 0.25;
+
+        compressorBypassGain = audioContext.createGain();
+        compressorWetGain = audioContext.createGain();
+
 
         // 2. Connect Link: Source -> EQ -> Split(Dry/Wet)
         mediaSource.connect(eqFilters[0]);
@@ -106,10 +119,17 @@ window.soundEffects = (function () {
         convolverNode.connect(wetGainNode);
         wetGainNode.connect(mixerNode);
 
-        // Mixer -> [Pitch inserted later] -> Panner -> Analyser -> Destination
+        // Mixer -> [Pitch inserted later] -> Panner -> Analyser
         mixerNode.connect(pannerNode);
         pannerNode.connect(analyser);
-        analyser.connect(audioContext.destination);
+
+        // Analyser -> Split(Compressor / Bypass) -> Destination
+        analyser.connect(compressorBypassGain);
+        compressorBypassGain.connect(audioContext.destination);
+
+        analyser.connect(compressorNode);
+        compressorNode.connect(compressorWetGain);
+        compressorWetGain.connect(audioContext.destination);
 
         // Store gains for control
         window._soundEffectsGains = { dry: dryGainNode, wet: wetGainNode };
@@ -259,6 +279,23 @@ window.soundEffects = (function () {
         updatePanner();
         // Pitch
         applyPitch();
+        // Compressor (平稳音量)
+        updateCompressor();
+    }
+
+    function updateCompressor() {
+        if (!compressorBypassGain || !compressorWetGain || !audioContext) return;
+        const enabled = Boolean(settings.compressor);
+        const now = audioContext.currentTime;
+        if (enabled) {
+            compressorBypassGain.gain.setTargetAtTime(0, now, 0.02);
+            compressorWetGain.gain.setTargetAtTime(1.0, now, 0.02);
+        } else {
+            compressorBypassGain.gain.setTargetAtTime(1.0, now, 0.02);
+            compressorWetGain.gain.setTargetAtTime(0, now, 0.02);
+        }
+        const chk = document.getElementById('se-compressor') as HTMLInputElement | null;
+        if (chk) chk.checked = enabled;
     }
 
     function updateReverb() {
@@ -477,6 +514,11 @@ window.soundEffects = (function () {
             pannerDistanceInput.value = settings.panner.distance;
             document.getElementById('panner-distance-val').innerText = settings.panner.distance;
         }
+
+        const compressorInput = document.getElementById('se-compressor') as HTMLInputElement | null;
+        if (compressorInput) {
+            compressorInput.checked = Boolean(settings.compressor);
+        }
     }
 
     const manager = {
@@ -591,6 +633,12 @@ window.soundEffects = (function () {
             if (key === 'enable') settings.panner.enable = val;
             else settings.panner[key] = parseInt(val);
             updatePanner();
+            saveSettings();
+            renderUI();
+        },
+        setCompressor: function (val) {
+            settings.compressor = Boolean(val);
+            updateCompressor();
             saveSettings();
             renderUI();
         },
@@ -712,6 +760,9 @@ window.soundEffects = (function () {
 
         const pannerDist = document.getElementById('panner-distance');
         if (pannerDist) pannerDist.oninput = (e) => manager.setPanner('distance', e.target.value);
+
+        const compEnable = document.getElementById('se-compressor');
+        if (compEnable) compEnable.onchange = (e) => manager.setCompressor((e.target as HTMLInputElement).checked);
     }
 
     if (document.readyState === 'loading') {
