@@ -483,7 +483,7 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(player).toContain('function normalizeServerCacheUrl(value)');
         expect(player).toContain("parsed.pathname !== '/api/music/download'");
         expect(player).toContain('const remoteUrl = normalizeServerCacheUrl(url);');
-        expect(player).toContain('if (!remoteUrl) return;');
+        expect(player).toContain('if (!remoteUrl) return false;');
         expect(player).toContain('url: remoteUrl,');
     });
 
@@ -569,6 +569,20 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(playbackContent).toContain("localStorage.removeItem(`lx_url_${cleanSongData(playbackSong).id}_${resolvedQuality}`);");
         expect(playbackContent).toContain('if (!isPlaybackPermissionError && retryResolvedUrl?.()) return;');
         expect(playbackContent).toContain('showSuccess(`[${song.name}] 命中${sourceText}`);');
+    });
+
+    it('recovers failed remote links through the fast proxy before waiting for cache', () => {
+        const playbackContent = fs.readFileSync(playbackSrcPath, 'utf8');
+
+        expect(playbackContent).toContain("if (!playbackSong.isLocal && resolvedSourceType !== 'server_cache')");
+        expect(playbackContent).toContain('urlResult.playbackProxyUrl');
+        expect(playbackContent).toContain('backgroundCacheRequested,');
+        expect(playbackContent).toContain('cacheRequestActive');
+
+        const proxyRetry = playbackContent.indexOf('urlResult.playbackProxyUrl) {');
+        const cacheWait = playbackContent.indexOf('waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality');
+        expect(proxyRetry).toBeGreaterThan(-1);
+        expect(cacheWait).toBeGreaterThan(proxyRetry);
     });
 
     it('server cache playback failures temporarily bypass the broken cache in the current session', () => {

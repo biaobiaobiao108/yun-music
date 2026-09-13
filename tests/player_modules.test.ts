@@ -64,7 +64,7 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain("this.bufferer.preload = 'metadata'");
         expect(songUrlSource).not.toContain('triggerServerCache(song, rawUrl, quality)');
         expect(playbackSource).toContain('const requestBackgroundCache = () =>');
-        expect(playbackSource).toContain('void triggerServerCache(playbackSong, urlResult.cacheUrl');
+        expect(playbackSource).toContain('Promise.resolve(triggerServerCache(playbackSong, urlResult.cacheUrl');
         expect(playbackSource).toContain('requestBackgroundCache();\n\n        // [Sync]');
         expect(playerSource).toContain('const serverCacheRequests = new Set<string>();');
         expect(playerSource).toContain('background: true');
@@ -88,6 +88,7 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain('await response.body?.cancel()');
         expect(songUrlSource).toContain('this.bufferer.removeAttribute(\'src\')');
         expect(playbackSource).toContain('audio.error || audio.readyState === 0 || audio.networkState === 3');
+        expect(playbackSource).toContain('prefetchManager.delete(song.id);');
         expect(playbackSource).toContain('pendingRestoreCleanup?.();');
         expect(playbackSource).toContain('playbackErrorCleanup?.();');
         expect(playbackSource).toContain('const currentAudioUrls = [audio.currentSrc, audio.src].filter(Boolean);');
@@ -99,6 +100,8 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('cacheResult?.processing');
         expect(playbackSource).toContain('let backgroundCacheRequested = false;');
         expect(playbackSource).toContain('waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality');
+        expect(songUrlSource).toContain("console.warn(`[Resolve] ${msg}`);");
+        expect(songUrlSource).not.toContain('else showError(msg);');
         expect(songUrlSource).toContain('buildServerPlaybackProxyUrl');
         expect(songUrlSource).toContain('playbackProxyUrl: buildServerPlaybackProxyUrl');
         expect(playbackSource).toContain('const retryMode = state.currentSourceType === \'server_cache\'');

@@ -551,7 +551,7 @@ function setAudioSource(url) {
     audio.src = targetUrl;
 }
 
-async function playSong(song, index, forceQuality = null, noPlay = false, isRetry = false, shouldAddToDefault = null, resumeTime = null, urlOverride = null) {
+async function playSong(song, index, forceQuality = null, noPlay = false, isRetry = false, shouldAddToDefault = null, resumeTime = null, urlOverride = null, cacheRequestActive = false) {
     // 1. Debounce / Lock: If already loading this song, ignore click
     // [Fix] Allow retry to bypass this check
     if (state.currentLoadingSongId === song.id && !isRetry) {
@@ -690,7 +690,10 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             isPrefetchFound = true;
 
             // [Optimize] 既然主播放器即将接管该 URL，立即清空缓冲器 src 以停止其后台加载
-            if (typeof prefetchManager.stopBufferer === 'function') {
+            // 同时移除条目，避免播放失败后下一次点击再次复用同一个失效地址。
+            if (typeof prefetchManager.delete === 'function') {
+                prefetchManager.delete(song.id);
+            } else if (typeof prefetchManager.stopBufferer === 'function') {
                 prefetchManager.stopBufferer();
             } else {
                 prefetchManager.bufferer.src = '';
@@ -723,6 +726,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 quality: forceQuality || targetQuality,
                 cacheUrl: urlOverride,
                 isProxyRetry: true,
+                cacheRequestActive,
             };
         } else if (!urlResult) {
             if (!targetQuality) {
@@ -786,7 +790,15 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 return;
             }
             backgroundCacheRequested = true;
-            void triggerServerCache(playbackSong, urlResult.cacheUrl, state.currentQuality || targetQuality);
+            void Promise.resolve(triggerServerCache(playbackSong, urlResult.cacheUrl, state.currentQuality || targetQuality))
+                .then((accepted) => {
+                    // A rejected/unauthorized cache request must not make the
+                    // player wait for a cache that will never be produced.
+                    if (accepted === false) backgroundCacheRequested = false;
+                })
+                .catch(() => {
+                    backgroundCacheRequested = false;
+                });
         };
 
         requestBackgroundCache();
@@ -835,28 +847,23 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                     }
                 });
                 if (state.currentPlayingSong !== playbackSong || !isSameSource) return false;
-                // The browser may accept the source first and fail later while
-                // the remote stream is still being read. In that case the
-                // background cache was already requested as soon as the remote
-                // URL was resolved; wait for that known-good local copy instead
-                // of immediately showing a false failure and advancing the queue.
-                if (!isRetry && backgroundCacheRequested &&
-                    waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality, noPlay, shouldAddToDefault, resumeTime, true)) {
-                    retryStarted = true;
-                    cleanup();
-                    return true;
-                }
                 // A failed retry has already exhausted this source resolution.
                 // Only a broken server cache may still fall back once to a fresh
                 // online source; ordinary online failures must stop here instead
                 // of recursively calling playSong forever.
-                if (isRetry && resolvedSourceType !== 'server_cache') return false;
+                if (isRetry && resolvedSourceType !== 'server_cache') {
+                    cleanup();
+                    return false;
+                }
                 retryStarted = true;
                 cleanup();
                 if (resolvedSourceType === 'server_cache' && !playbackSong.isLocal) {
                     markServerCacheFailure(playbackSong, resolvedQuality);
                 }
-                if (resolvedSourceType === 'cache') {
+                // Both browser-link and freshly-resolved remote URLs can expire.
+                // Remove either one before recovery so a later click cannot
+                // silently reuse the same broken signed URL.
+                if (!playbackSong.isLocal && resolvedSourceType !== 'server_cache') {
                     try {
                         localStorage.removeItem(`lx_url_${cleanSongData(playbackSong).id}_${resolvedQuality}`);
                     } catch (_) { }
@@ -866,13 +873,21 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                     void playSong(
                         playbackSong,
                         index,
-                        targetQuality,
+                        resolvedQuality,
                         noPlay,
                         'proxy_retry',
                         shouldAddToDefault,
                         resumeTime,
                         urlResult.playbackProxyUrl,
+                        backgroundCacheRequested,
                     );
+                    return true;
+                }
+                // The proxy is the fast recovery path. Only wait for the
+                // background cache after that path is unavailable or failed.
+                if (!isRetry && backgroundCacheRequested &&
+                    waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality, noPlay, shouldAddToDefault, resumeTime, true)) {
+                    console.warn(`[Player] ${resolvedSourceType} link failed, waiting for background cache...`);
                     return true;
                 }
                 console.warn(`[Player] ${resolvedSourceType} link failed, retrying online...`);
@@ -1009,7 +1024,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             if (!isPlaybackPermissionError && retryResolvedUrl?.()) return;
 
             if (!isPlaybackPermissionError && isRetry === 'proxy_retry' && !noPlay &&
-                waitForBackgroundCacheAndRetry(playbackSong, index, targetQuality, noPlay, shouldAddToDefault, resumeTime)) {
+                waitForBackgroundCacheAndRetry(playbackSong, index, state.currentQuality || targetQuality, noPlay, shouldAddToDefault, resumeTime, Boolean(urlResult?.cacheRequestActive))) {
                 return;
             }
 

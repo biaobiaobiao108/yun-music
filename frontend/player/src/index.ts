@@ -1798,11 +1798,11 @@ function normalizeServerCacheUrl(value) {
 
 async function triggerServerCache(song, url, quality) {
     const remoteUrl = normalizeServerCacheUrl(url);
-    if (!remoteUrl) return;
+    if (!remoteUrl) return false;
 
     const cleanedSong = cleanSongData(song);
     const requestKey = `${cleanedSong?.id || song?.id || song?.songmid || song?.songId || ''}_${quality || 'unknown'}`;
-    if (!requestKey || serverCacheRequests.has(requestKey)) return;
+    if (!requestKey || serverCacheRequests.has(requestKey)) return false;
     serverCacheRequests.add(requestKey);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30 * 1000);
@@ -1823,7 +1823,7 @@ async function triggerServerCache(song, url, quality) {
             }
         };
 
-        await fetch('/api/music/cache/download', {
+        const response = await fetch('/api/music/cache/download', {
             method: 'POST',
             headers: headers,
             signal: controller.signal,
@@ -1836,8 +1836,16 @@ async function triggerServerCache(song, url, quality) {
                 embedLyric: !!(window.settings?.embedLyricToFile ?? true)
             })
         });
+        if (!response.ok) {
+            console.warn(`[ServerCache] Trigger rejected with HTTP ${response.status}`);
+            return false;
+        }
         // 移除 403 自动重试逻辑，API 不再报 403
-    } catch (e) { console.error('[ServerCache] Trigger failed:', e); }
+        return true;
+    } catch (e) {
+        console.error('[ServerCache] Trigger failed:', e);
+        return false;
+    }
     finally {
         clearTimeout(timeoutId);
         serverCacheRequests.delete(requestKey);

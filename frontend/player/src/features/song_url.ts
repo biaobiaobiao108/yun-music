@@ -686,7 +686,14 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
                 const songNamePrefix = attempt.name || song.name || '';
                 const msg = `[${songNamePrefix}] ${attempt.message || (attempt.status === 'success' ? '解析成功' : '解析失败')}`;
                 if (attempt.status === 'success') showSuccess(msg);
-                else showError(msg);
+                else {
+                    // A custom source may retry several APIs/requests before
+                    // the same resolver eventually returns a valid URL. Do
+                    // not surface an intermediate failure as a final parse
+                    // error; the caller will report only the completed
+                    // resolution failure if every attempt is exhausted.
+                    console.warn(`[Resolve] ${msg}`);
+                }
             } catch (_) { }
         };
     } catch (_) { }
