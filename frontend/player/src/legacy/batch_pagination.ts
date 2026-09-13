@@ -305,6 +305,24 @@ function scrollToSearchResultsTop() {
     }
 }
 
+// The search renderer owns the page state. Keep the legacy pagination actions
+// on the same state bridge so local lists cannot render with a stale page.
+function getCurrentPage() {
+    const page = Number(globalState.currentPage);
+    return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+}
+
+function setCurrentPage(page) {
+    const nextPage = Number(page);
+    const normalizedPage = Number.isFinite(nextPage) && nextPage > 0 ? Math.floor(nextPage) : 1;
+    if (typeof globalState.setPlayerPage === 'function') {
+        globalState.setPlayerPage(normalizedPage);
+    } else {
+        globalState.currentPage = normalizedPage;
+    }
+    return normalizedPage;
+}
+
 export function updatePaginationInfo(start, end, total, current, totalPages) {
     const currentPage = current || 1;
     const pageCount = totalPages || 1;
@@ -343,7 +361,7 @@ export function updatePaginationInfo(start, end, total, current, totalPages) {
 }
 
 function goToPage(page) {
-    currentPage = page;
+    setCurrentPage(page);
     globalState.renderResults(window.viewingPlaylist);
     scrollToSearchResultsTop();
 }
@@ -352,9 +370,10 @@ async function nextPage() {
     const totalItems = window.viewingPlaylist ? window.viewingPlaylist.length : 0;
     const itemsPerPage = globalState.settings.itemsPerPage === 'all' ? totalItems : parseInt(globalState.settings.itemsPerPage);
     const totalPages = Math.ceil((totalItems || 1) / (itemsPerPage || 1));
+    const currentPage = getCurrentPage();
 
     if (currentPage < totalPages) {
-        currentPage++;
+        setCurrentPage(currentPage + 1);
         globalState.renderResults(window.viewingPlaylist);
         scrollToSearchResultsTop();
     } else if (window.currentSearchScope === 'network' && window.searchHasMore !== false) {
@@ -382,14 +401,15 @@ async function nextPage() {
                 ? totalAfterLoad
                 : parseInt(globalState.settings.itemsPerPage);
             const totalPagesAfterLoad = Math.max(1, Math.ceil((totalAfterLoad || 1) / (itemsPerPageAfterLoad || 1)));
-            updatePaginationInfo(0, 0, totalAfterLoad, currentPage, totalPagesAfterLoad);
+            updatePaginationInfo(0, 0, totalAfterLoad, getCurrentPage(), totalPagesAfterLoad);
         }
     }
 }
 
 function prevPage() {
+    const currentPage = getCurrentPage();
     if (currentPage > 1) {
-        currentPage--;
+        setCurrentPage(currentPage - 1);
         globalState.renderResults(globalState.viewingPlaylist);
         scrollToSearchResultsTop();
     }
@@ -407,8 +427,9 @@ function jumpToPage() {
     if (isNaN(page) || page < 1) page = 1;
     if (page > totalPages) page = totalPages;
 
+    const currentPage = getCurrentPage();
     if (page !== currentPage) {
-        currentPage = page;
+        setCurrentPage(page);
         globalState.renderResults(window.viewingPlaylist);
         scrollToSearchResultsTop();
     }
@@ -424,7 +445,7 @@ function changeItemsPerPage(value) {
         globalState.settings.itemsPerPage = val;
         localStorage.setItem('lx_settings', JSON.stringify(globalState.settings));
     }
-    currentPage = 1; // Reset to first page
+    setCurrentPage(1); // Reset to first page
     if (window.ListSearch) {
         window.ListSearch.config.itemsPerPage = val === 'all' ? 999999 : val;
     }

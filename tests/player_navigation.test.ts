@@ -13,6 +13,7 @@ describe('Player Navigation and State Restoration Safety', () => {
     const accessibleOverlaysSrcPath = path.join(import.meta.dir, '../frontend/player/src/accessible_overlays.ts');
     const playlistModalSrcPath = path.join(import.meta.dir, '../frontend/player/src/features/playlist_modal.ts');
     const localMusicSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/local_music.ts');
+    const batchPaginationSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/batch_pagination.ts');
     const playerCssPath = path.join(import.meta.dir, '../public/music/css/app.css');
     const playerPublicDir = path.join(import.meta.dir, '../public/music');
     const getPlayerDistPath = () => path.join(playerPublicDir, fs.readdirSync(playerPublicDir).find(name => /^app-[a-z0-9]+\.js$/i.test(name)) || 'app.js');
@@ -432,6 +433,41 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(playerSrc.includes('window.togglePlayModeMenu = togglePlayModeMenu')).toBe(true);
         expect(playerSrc.includes('window.setPlaybackRate = setPlaybackRate')).toBe(true);
         expect(playerSrc.includes('window.togglePlaybackRateMenu = togglePlaybackRateMenu')).toBe(true);
+    });
+
+    it('selected song rows use an outer highlight without a left inset bar', () => {
+        const css = fs.readFileSync(playerCssPath, 'utf8');
+        const batchPagination = fs.readFileSync(batchPaginationSrcPath, 'utf8');
+        const search = fs.readFileSync(searchSrcPath, 'utf8');
+        const songList = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/src/legacy/songlist_manager.ts'), 'utf8');
+        const leaderboard = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/src/legacy/leaderboard_manager.ts'), 'utf8');
+        const rowSelectedRule = css.match(/\.row-selected\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+        const forcedColorsStart = css.indexOf('@media (forced-colors: active)');
+        const forcedColorsEnd = css.indexOf('/* Apply layout skipping', forcedColorsStart);
+        const forcedColorsSection = css.slice(forcedColorsStart, forcedColorsEnd > forcedColorsStart ? forcedColorsEnd : undefined);
+
+        expect(rowSelectedRule).not.toContain('inset');
+        expect(forcedColorsSection).not.toContain('box-shadow: inset');
+        for (const source of [search, songList, leaderboard]) {
+            const selectedClassExpressions = source.split('\n').filter(line => line.includes('row-selected'));
+            expect(selectedClassExpressions.join('\n')).not.toContain('ring-inset');
+        }
+        expect(batchPagination).toContain('function getCurrentPage()');
+        expect(batchPagination).toContain('function setCurrentPage(page)');
+        expect(batchPagination).not.toContain('currentPage++');
+        expect(batchPagination).not.toContain('currentPage--');
+    });
+
+    it('favorite list selection and pagination share one local-list state source', () => {
+        const player = fs.readFileSync(playerSrcPath, 'utf8');
+        const search = fs.readFileSync(searchSrcPath, 'utf8');
+        expect(player).toContain('(window as any).setPlayerPage = setPlayerPage');
+        expect(player).toContain('setPlayerPage(1); // Reset both renderer and legacy pagination state');
+        expect(player).toContain("window.currentSearchScope === 'local_list' || window.currentSearchScope === 'local_all'");
+        expect(player).toContain('currentListData = listData;');
+        expect(search).toContain('function getCurrentLocalSongList()');
+        expect(search).toContain("String(list?.id) === listId");
+        expect(search).toContain('else renderResults(localSongList);');
     });
 
     it('album detail navigation cancels stale searches and isolates history events', () => {

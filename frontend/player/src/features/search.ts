@@ -82,6 +82,29 @@ export function initSearchFeature(context: SearchFeatureContext) {
         return Boolean(container?.children.length && !container.querySelector('.fa-spinner'));
     }
 
+    function getCurrentLocalSongList() {
+        const listData = context.getCurrentListData();
+        if (!listData) return [];
+
+        if (window.currentSearchScope === 'local_all') {
+            return [
+                ...(Array.isArray(listData.defaultList) ? listData.defaultList : []),
+                ...(Array.isArray(listData.loveList) ? listData.loveList : []),
+                ...(Array.isArray(listData.userList) ? listData.userList : []).flatMap(list =>
+                    Array.isArray(list?.list) ? list.list : []
+                ),
+            ];
+        }
+
+        const listId = String(window.currentViewingListId || 'default');
+        if (listId === 'default') return Array.isArray(listData.defaultList) ? listData.defaultList : [];
+        if (listId === 'love') return Array.isArray(listData.loveList) ? listData.loveList : [];
+
+        const userList = (Array.isArray(listData.userList) ? listData.userList : [])
+            .find(list => String(list?.id) === listId);
+        return Array.isArray(userList?.list) ? userList.list : [];
+    }
+
     function ensureSearchContent() {
         const input = document.getElementById('search-input') as HTMLInputElement | null;
         if (!input?.value.trim()) return;
@@ -389,38 +412,23 @@ async function doSearch(page = 1, append = false, prefetch = false) {
     const isLocalSongSearch = type === 'song' && (window.currentSearchScope === 'local_list' || window.currentSearchScope === 'local_all');
 
     if (isLibrarySearch || isLocalSongSearch) {
+        const localSongList = isLocalSongSearch ? getCurrentLocalSongList() : [];
         if (!input) {
             if (window.currentSearchScope === 'lib_artists') renderLibraryArtists((window as any).getActiveLibraryList?.('artists') || window.libraryData.artists);
             else if (window.currentSearchScope === 'lib_albums') renderLibraryAlbums((window as any).getActiveLibraryList?.('albums') || window.libraryData.albums);
-            else renderResults((window as any).viewingPlaylist);
+            else renderResults(localSongList);
             return;
         }
 
         let targets = [];
         if (window.currentSearchScope === 'lib_artists') targets = (window as any).getActiveLibraryList?.('artists') || window.libraryData.artists;
         else if (window.currentSearchScope === 'lib_albums') targets = (window as any).getActiveLibraryList?.('albums') || window.libraryData.albums;
-        else if (window.currentSearchScope === 'local_list') {
-            const listId = window.currentViewingListId || 'default';
-            if (context.getCurrentListData()) {
-                if (listId === 'default') targets = context.getCurrentListData().defaultList;
-                else if (listId === 'love') targets = context.getCurrentListData().loveList;
-                else {
-                    const uList = context.getCurrentListData().userList.find(l => l.id === listId);
-                    if (uList) targets = uList.list;
-                }
-            }
-        } else {
-            if (context.getCurrentListData()) {
-                targets = [
-                    ...(context.getCurrentListData().defaultList || []),
-                    ...(context.getCurrentListData().loveList || []),
-                    ...(context.getCurrentListData().userList || []).flatMap(l => l.list)
-                ];
-            }
+        else {
+            targets = localSongList;
         }
 
         const lower = input.toLowerCase();
-        const filtered = targets.filter(item =>
+        const filtered = (Array.isArray(targets) ? targets : []).filter(item =>
             (item.name && item.name.toLowerCase().includes(lower)) ||
             (item.singer && item.singer.toLowerCase().includes(lower)) ||
             (item.artistName && item.artistName.toLowerCase().includes(lower)) ||

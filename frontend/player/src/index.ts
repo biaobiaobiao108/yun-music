@@ -102,6 +102,15 @@ registerAdminSessionChecker(() => adminSessionActive);
 
 let currentPage = 1;
 window.currentPage = 1;
+
+function setPlayerPage(page: number) {
+    const nextPage = Number(page);
+    currentPage = Number.isFinite(nextPage) && nextPage > 0 ? Math.floor(nextPage) : 1;
+    window.currentPage = currentPage;
+    return currentPage;
+}
+
+(window as any).setPlayerPage = setPlayerPage;
 let currentPlaylist = [];
 let currentIndex = -1;
 let preSelectedNextIndex = null; // 预先选定的下一首索引 (用于确保随机模式下的预读一致性)
@@ -401,8 +410,7 @@ const searchFeature = initSearchFeature({
     getSettings: () => settings,
     getCurrentPage: () => currentPage,
     setCurrentPage: (page) => {
-        currentPage = page;
-        window.currentPage = page;
+        setPlayerPage(page);
     },
     getCurrentListData: () => currentListData,
     getUserAuthHeaders: getPlayerUserAuthHeaders,
@@ -469,9 +477,15 @@ Object.assign(window, { getImgUrl, createMarqueeHtml, applyMarqueeChecks });
 
 // Initialize Unified Search for Global (Favorites/Search)
 window.goToPage = function (page) {
-    currentPage = page;
-    window.currentPage = page;
-    if (typeof doSearch === 'function') doSearch(page);
+    setPlayerPage(page);
+    // Local favorite lists are already loaded in memory. Sending their page
+    // through the network-search path can replace the list with unrelated
+    // results when this callback is used by local-list search navigation.
+    if (window.currentSearchScope === 'local_list' || window.currentSearchScope === 'local_all') {
+        renderResults(window.viewingPlaylist || []);
+        return;
+    }
+    if (typeof doSearch === 'function') void doSearch(currentPage);
 };
 
 function initGlobalListSearch() {
@@ -3213,6 +3227,23 @@ async function handleUserLogout(skipConfirm = false): Promise<void> {
     showSuccess('已退出登录');
 }
 
+function reconcileBatchSelectionWithList(list: any[]) {
+    if (!(window.selectedItems instanceof Set)) return;
+
+    const validIds = new Set((Array.isArray(list) ? list : [])
+        .map(song => String(song?.id ?? '').trim())
+        .filter(id => id && id !== 'undefined'));
+
+    for (const selectedId of window.selectedItems) {
+        if (!validIds.has(String(selectedId))) window.selectedItems.delete(selectedId);
+    }
+    if (window.selectedSongObjects instanceof Map) {
+        for (const selectedId of window.selectedSongObjects.keys()) {
+            if (!validIds.has(String(selectedId))) window.selectedSongObjects.delete(selectedId);
+        }
+    }
+}
+
 async function handleRemoveList(listId, event) {
     event.stopPropagation();
     if (!(await showSelect('删除歌单', '确定要删除歌单吗？', { danger: true }))) return;
@@ -3647,17 +3678,24 @@ function handleListClick(listId, skipAutoUpdate = false) {
     let title = '';
 
     if (listId === 'default') {
-        list = currentListData.defaultList;
+        list = Array.isArray(currentListData.defaultList) ? currentListData.defaultList : [];
         title = '默认列表';
     } else if (listId === 'love') {
-        list = currentListData.loveList;
+        list = Array.isArray(currentListData.loveList) ? currentListData.loveList : [];
         title = '我的收藏';
     } else {
-        const uList = currentListData.userList.find(l => l.id === listId);
+        const uList = (currentListData.userList || []).find(l => String(l.id) === String(listId));
         if (uList) {
-            list = uList.list;
+            list = Array.isArray(uList.list) ? uList.list : [];
             title = getFavoriteListDisplayName(uList.name);
         }
+    }
+
+    // Background refreshes intentionally preserve the batch selection, but only
+    // for songs that still exist in the refreshed list.
+    if (skipAutoUpdate) {
+        reconcileBatchSelectionWithList(list);
+        if (typeof updateBatchToolbar === 'function') updateBatchToolbar();
     }
 
     // Switch to Search View (as List View)
@@ -3707,11 +3745,11 @@ function handleListClick(listId, skipAutoUpdate = false) {
     }
 
     // Render
-    currentPage = 1; // Reset pagination
+    setPlayerPage(1); // Reset both renderer and legacy pagination state
     renderResults(list);
 
     // [New] Auto Update Logic: If it's a network playlist (has sourceListId) and setting is ON, refresh background
-    const uList = currentListData.userList ? currentListData.userList.find(l => l.id === listId) : null;
+    const uList = currentListData.userList ? currentListData.userList.find(l => String(l.id) === String(listId)) : null;
     if (!skipAutoUpdate && settings.autoUpdateNetworkList && uList && uList.sourceListId && uList.source) {
         console.log('[AutoUpdate] Triggering background refresh for list:', listId);
         handleRefreshList(listId, null, true); // true means silent/no-confirm
@@ -4152,6 +4190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const cachedList = await window.ListStore.get();
         if (cachedList && isUserLoggedIn()) {
             currentListData = cachedList;
+            window.currentListData = currentListData;
             if (userName && currentListData) {
                 currentListData.username = userName;
             }
@@ -4239,6 +4278,7 @@ async function refreshUserListData() {
         const response = await fetch('/api/user/list', { credentials: 'same-origin', cache: 'no-store' });
         if (!response.ok) return;
         const listData = await response.json();
+        currentListData = listData;
         window.currentListData = listData;
         if (listData && listData.username !== '_open') {
             window.myPersonalListData = listData;
