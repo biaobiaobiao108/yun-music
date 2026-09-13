@@ -496,7 +496,7 @@ export const createCacheRouter = (): Router => {
 
     for (const loc of locations) {
       for (const folder of roots) {
-        const dir = fileCache.getCacheDir(normalizedUsername, folder === 'music', loc)
+        const dir = fileCache.getCacheDir(normalizedUsername, folder === 'music', loc, false)
         const safeFilename = decodedFilename.replace(/\\/g, '/')
         let checkPath: string
         try {

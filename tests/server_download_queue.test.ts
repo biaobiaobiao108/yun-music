@@ -1,7 +1,14 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import * as fileCache from '@/server/fileCache'
 import {
   deduplicateDownloadTasks,
+  enqueue,
+  initialize,
   isDownloadTaskRunnable,
+  list,
   markDownloadTaskPausedIfAborted,
   pruneDownloadHistory,
   serializeDownloadTask,
@@ -187,5 +194,54 @@ describe('Server download queue deduplication', () => {
 
     expect(retained).toHaveLength(1)
     expect(retained[0]?.id).toBe('explicit')
+  })
+
+  test('refreshes a browser-supplied URL once when server-side cache download fails', async () => {
+    const previousLx = (global as any).lx
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-queue-retry-'))
+    const downloadAndCache = spyOn(fileCache, 'downloadAndCache')
+    let resolverCalls = 0
+    let downloadCalls = 0
+    downloadAndCache.mockImplementation(async () => {
+      downloadCalls++
+      if (downloadCalls === 1) throw new Error('expired supplied URL')
+    })
+
+    try {
+      ;(global as any).lx = { dataPath: path.join(root, 'data'), config: {} }
+      initialize(async task => {
+        resolverCalls++
+        return {
+          url: 'https://fresh.example/song.flac',
+          quality: task.requestedQuality,
+          songInfo: task.songInfo,
+        }
+      })
+      enqueue('retry-user', [{
+        id: 'wy_retry-song_flac',
+        songInfo: { source: 'wy', songmid: 'retry-song', name: 'Retry Song', singer: 'Singer' },
+        quality: 'flac',
+        resolvedUrl: 'https://expired.example/song.flac',
+        background: true,
+      }])
+
+      const deadline = Date.now() + 3000
+      let task = list('retry-user').find(item => item.id === 'wy_retry-song_flac')
+      while (Date.now() < deadline && task?.status !== 'finished') {
+        await new Promise(resolve => setTimeout(resolve, 20))
+        task = list('retry-user').find(item => item.id === 'wy_retry-song_flac')
+      }
+
+      expect(task?.status).toBe('finished')
+      expect(downloadCalls).toBe(2)
+      expect(resolverCalls).toBe(1)
+      expect(downloadAndCache.mock.calls[0]?.[1]).toBe('https://expired.example/song.flac')
+      expect(downloadAndCache.mock.calls[1]?.[1]).toBe('https://fresh.example/song.flac')
+    } finally {
+      await new Promise(resolve => setTimeout(resolve, 220))
+      downloadAndCache.mockRestore()
+      ;(global as any).lx = previousLx
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

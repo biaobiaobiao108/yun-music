@@ -399,7 +399,7 @@ const runTask = async (task: ServerDownloadTask) => {
     task.resolvedUrl = undefined
     task.resolvedUrlAt = undefined
     scheduleSave()
-    const resolved = suppliedUrl && suppliedUrlAt && Date.now() - suppliedUrlAt <= RESOLVED_URL_TTL
+    let resolved = suppliedUrl && suppliedUrlAt && Date.now() - suppliedUrlAt <= RESOLVED_URL_TTL
       ? {
         url: suppliedUrl,
         quality: task.quality,
@@ -411,18 +411,40 @@ const runTask = async (task: ServerDownloadTask) => {
       : await resolver(task)
     if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
     if (!resolved?.url) throw new Error('无法解析下载地址')
-    task.songInfo = sanitizeSongInfo(resolved.songInfo || task.songInfo)
-    task.quality = resolved.quality || task.requestedQuality
-    task.activeSongKey = fileCache.normalizeSongId(task.songInfo) + '_' + task.quality
-    task.updatedAt = Date.now()
-    scheduleSave()
 
-    await fileCache.downloadAndCache(task.songInfo, resolved.url, task.quality, task.username, controller.signal,
-      targetOnlyDownloadMode, task.cacheLyric, task.embedLyric, {
-        requestedSource: resolved.requestedSource,
-        downloadSource: resolved.downloadSource,
-        sourceName: resolved.sourceName,
-      })
+    const applyResolvedSong = (nextResolved: ResolveResult) => {
+      task.songInfo = sanitizeSongInfo(nextResolved.songInfo || task.songInfo)
+      task.quality = nextResolved.quality || task.requestedQuality
+      task.activeSongKey = fileCache.normalizeSongId(task.songInfo) + '_' + task.quality
+      task.updatedAt = Date.now()
+      scheduleSave()
+    }
+
+    const downloadResolvedSong = async (nextResolved: ResolveResult) => {
+      applyResolvedSong(nextResolved)
+      await fileCache.downloadAndCache(task.songInfo, nextResolved.url, task.quality, task.username, controller.signal,
+        targetOnlyDownloadMode, task.cacheLyric, task.embedLyric, {
+          requestedSource: nextResolved.requestedSource,
+          downloadSource: nextResolved.downloadSource,
+          sourceName: nextResolved.sourceName,
+        })
+    }
+
+    applyResolvedSong(resolved)
+    try {
+      await downloadResolvedSong(resolved)
+    } catch (firstError: any) {
+      // The URL supplied by the browser can expire or be reachable only with
+      // browser-specific request context. A successful foreground playback
+      // must still produce a server cache, so refresh the source once before
+      // marking the background task as failed. This is intentionally limited
+      // to one retry to avoid duplicate paid-source requests and retry loops.
+      if (!suppliedUrl || controller.signal.aborted) throw firstError
+      console.warn(`[ServerDownloadQueue] Supplied cache URL failed for ${task.songKey}; refreshing source once`)
+      resolved = await resolver(task)
+      if (!resolved?.url) throw firstError
+      await downloadResolvedSong(resolved)
+    }
 
     if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
 
@@ -441,7 +463,9 @@ const runTask = async (task: ServerDownloadTask) => {
       return
     }
 
-    const progress = fileCache.cacheProgress.get(task.activeSongKey)
+    const progress = task.activeSongKey
+      ? fileCache.cacheProgress.get(task.activeSongKey)
+      : undefined
     task.status = progress?.status === 'exists' ? 'exists' : 'finished'
     task.progress = 100
     task.total = Number(progress?.total || progress?.received || task.total || 0)
@@ -455,6 +479,7 @@ const runTask = async (task: ServerDownloadTask) => {
     } else {
       task.status = 'error'
       task.errorMsg = err?.message || '下载失败'
+      console.error(`[ServerDownloadQueue] Task failed ${task.songKey}: ${task.errorMsg}`)
     }
     task.speed = 0
   } finally {

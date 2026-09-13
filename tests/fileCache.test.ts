@@ -34,6 +34,39 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('does not create legacy cache roots while checking an empty cache', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-root-probe-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+
+      const result = fileCache.checkCache({
+        source: 'wy',
+        songmid: 'missing-song',
+        name: 'Missing Song',
+        singer: 'Missing Singer',
+        quality: 'flac',
+        exactQuality: true,
+      }, 'probe-user')
+
+      expect(result.exists).toBe(false)
+      expect(fs.existsSync(path.join(dataPath, 'cache'))).toBe(false)
+      expect(fs.existsSync(path.join(dataPath, 'music'))).toBe(false)
+      expect(fileCache.getCacheDir('probe-user', false, fileCache.CACHE_ROOTS.DATA, false))
+        .toBe(path.join(dataPath, 'cache', 'probe-user'))
+      expect(fs.existsSync(path.join(dataPath, 'cache'))).toBe(false)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should find a companion lyric file even when the extension casing differs', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-file-cache-'))
     try {

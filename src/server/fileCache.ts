@@ -261,12 +261,18 @@ type LyricFetcher = (songInfo: any) => Promise<string | null>
 let _lyricFetcher: LyricFetcher | null = null
 export const setLyricFetcher = (fn: LyricFetcher) => { _lyricFetcher = fn }
 
-export const getCacheDir = (username?: string, isOnlyDownload?: boolean, location?: string) => {
+export const getCacheDir = (
+    username?: string,
+    isOnlyDownload?: boolean,
+    location?: string,
+    create = true,
+) => {
     const folderName = isOnlyDownload ? 'music' : 'cache'
     const loc = location || currentCacheLocation
     let baseDir = ''
     if (loc === CACHE_ROOTS.DATA) {
-        baseDir = path.join(global.lx.dataPath, folderName)
+        const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
+        baseDir = path.join(dataPath, folderName)
     } else {
         baseDir = path.join(process.cwd(), folderName)
     }
@@ -275,10 +281,16 @@ export const getCacheDir = (username?: string, isOnlyDownload?: boolean, locatio
     const userDirName = (username && username !== '_open' && username !== 'default') ? assertSafePathSegment(username, 'username') : '_open'
 
     const fullPath = path.join(baseDir, userDirName)
-    if (!fs.existsSync(fullPath)) {
+    if (create && !fs.existsSync(fullPath)) {
         fs.mkdirSync(fullPath, { recursive: true })
     }
-    if (!isPathInside(fs.realpathSync.native(baseDir), fs.realpathSync.native(fullPath))) {
+    const resolvedBaseDir = fs.existsSync(baseDir)
+        ? fs.realpathSync.native(baseDir)
+        : path.resolve(baseDir)
+    const resolvedFullPath = fs.existsSync(fullPath)
+        ? fs.realpathSync.native(fullPath)
+        : path.resolve(fullPath)
+    if (!isPathInside(resolvedBaseDir, resolvedFullPath)) {
         throw new Error('Cache directory escapes allowed root')
     }
     return fullPath
@@ -628,6 +640,7 @@ const reconcileCacheItemFromDisk = (
     item: CacheItem,
     filePath: string,
     stats?: Stats,
+    location?: string,
 ) => {
     if (!fs.existsSync(filePath)) return false
 
@@ -639,7 +652,7 @@ const reconcileCacheItemFromDisk = (
         return false
     }
 
-    const root = getCacheDir(username, folder === 'music')
+    const root = getCacheDir(username, folder === 'music', location)
     const lyricFile = findCompanionLyricFile(root, item.filename)
     const hasLyric = !!lyricFile
     const hasEmbeddedCover = readEmbeddedCoverState(filePath)
@@ -675,7 +688,7 @@ const reconcileCacheItemFromDisk = (
     item.coverCheckedVersion = COVER_CHECK_VERSION
     item.coverCheckedMtime = actualStats.mtimeMs
     item.coverCheckedSize = actualStats.size
-    indexManager.update(username, item, folder)
+    indexManager.update(username, item, folder, location)
     invalidateCacheListSync(username)
     return true
 }
@@ -1704,7 +1717,7 @@ export const getCacheCover = async (filename: string, username?: string, request
 
     for (const loc of locations) {
         for (const folder of roots) {
-            const dir = getCacheDir(normalizedUsername, folder === 'music', loc)
+            const dir = getCacheDir(normalizedUsername, folder === 'music', loc, false)
             const filePath = resolveCacheRelativePath(dir, filename) // [Fix] Allow subfolders safely
 
             if (filePath && fs.existsSync(filePath)) {
@@ -1767,7 +1780,7 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
     const candidateFolders: CacheFolder[] = requestedFolder ? [requestedFolder] : ['cache', 'music']
     const matches = getCacheLocations().flatMap(location => candidateFolders.map(folder => {
-        const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+        const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
         const filePath = resolveCacheRelativePath(dir, filename)
         return filePath && fs.existsSync(filePath) ? { folder, dir, filePath, location } : null
     })).filter((entry): entry is { folder: CacheFolder; dir: string; filePath: string; location: string } => entry !== null)
@@ -1813,7 +1826,7 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
     // still exists in the other root so deleting cache does not affect downloads.
     const otherFolder: CacheFolder = folder === 'cache' ? 'music' : 'cache'
     const hasCounterpart = getCacheLocations().some(otherLocation => {
-        const otherDir = getCacheDir(normalizedUsername, otherFolder === 'music', otherLocation)
+        const otherDir = getCacheDir(normalizedUsername, otherFolder === 'music', otherLocation, false)
         const otherPath = resolveCacheRelativePath(otherDir, filename)
         return !!otherPath && fs.existsSync(otherPath)
     })
@@ -1848,7 +1861,7 @@ export const markCachePlayback = (filename: string, username?: string, requested
     const candidateFolders: CacheFolder[] = requestedFolder ? [requestedFolder] : ['cache', 'music']
     const candidateLocations = requestedLocation ? [requestedLocation] : getCacheLocations()
     const matches = candidateLocations.flatMap(location => candidateFolders.map(folder => {
-        const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+        const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
         const filePath = resolveCacheRelativePath(dir, filename)
         return filePath && fs.existsSync(filePath) ? { folder, filePath, location } : null
     })).filter((entry): entry is { folder: CacheFolder; filePath: string; location: string } => entry !== null)
@@ -1895,7 +1908,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                     // 指向最终文件，但文件仍可能被 tagger 原地修改；对外隐藏该条目，
                     // 避免播放器读到半成品后误触发换源/降级。
                     if (isCacheEntryProcessing(id, cached.quality)) continue
-                    const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+                    const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
                     const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
                     if (!fileName) continue
                     const filePath = resolveCacheRelativePath(dir, fileName)
@@ -1935,7 +1948,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
 
             if (collision) {
                 if (isCacheEntryProcessing(collision.id, collision.quality)) continue
-                const collisionDir = getCacheDir(normalizedUsername, collision.folder === 'music', location)
+                const collisionDir = getCacheDir(normalizedUsername, collision.folder === 'music', location, false)
                 const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''
                 const collisionFilePath = collisionFileName ? resolveCacheRelativePath(collisionDir, collisionFileName) : null
                 if (collisionFileName && isUsableCacheFile(collisionFilePath)) {
@@ -1965,7 +1978,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                         // 非精确音质查询也不能暴露仍在标签、封面或歌词后处理中的文件。
                         // 否则播放器会拿到已入索引但尚未稳定的文件，触发误判换源。
                         if (isCacheEntryProcessing(id, cachedAny.quality)) continue
-                        const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+                        const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
                         const fileName = cachedAny.filename
                         const filePath = resolveCacheRelativePath(dir, fileName)
                         if (isUsableCacheFile(filePath)) {
@@ -2374,7 +2387,14 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                 await ensureCachedLyrics(songInfo, quality || result.quality, username, isOnlyDownload, existingPath, targetFolder, shouldCacheLyric, shouldEmbedLyric)
                 const existing = indexManager.getAll(normalizeCacheUsername(username), targetFolder)
                     .find(item => item.filename === result.filename)
-                if (existing) reconcileCacheItemFromDisk(normalizeCacheUsername(username), targetFolder, existing, existingPath)
+                if (existing) reconcileCacheItemFromDisk(
+                    normalizeCacheUsername(username),
+                    targetFolder,
+                    existing,
+                    existingPath,
+                    undefined,
+                    result.location,
+                )
             })
             console.log(`[FileCache] Song already exists in ${targetFolder}, skipping download: ${result.filename}`)
             // 通知前端轮询：目标目录文件已存在，视为立即完成
@@ -2545,15 +2565,24 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     return
                 }
 
-                if (res.statusCode !== 200) {
+                const statusCode = res.statusCode || 0
+                const contentRange = String(res.headers['content-range'] || '')
+                const fullContentRange = /^bytes\s+0-(\d+)\/(\d+)$/i.exec(contentRange)
+                const contentLength = Number.parseInt(String(res.headers['content-length'] || '0'), 10) || 0
+                const isCompletePartialResponse = statusCode === 206 && !!fullContentRange &&
+                    Number(fullContentRange[1]) + 1 === Number(fullContentRange[2]) &&
+                    (!contentLength || contentLength === Number(fullContentRange[2]))
+                if (statusCode !== 200 && !isCompletePartialResponse) {
                     res.resume()
                     fs.unlink(tempPath, () => { })
-                    fail(new Error(`Status: ${res.statusCode}`))
+                    fail(new Error(`Status: ${statusCode}`))
                     return
                 }
 
                 setCacheProgress(songKey, { progress: 0, status: 'downloading', total: 0, received: 0, speed: 0, updatedAt: Date.now() })
-                const total = parseInt(res.headers['content-length'] || '0', 10)
+                const total = isCompletePartialResponse
+                    ? Number(fullContentRange![2])
+                    : contentLength
                 const maxAudioBytes = 500 * 1024 * 1024
                 if (total > maxAudioBytes) {
                     res.resume()
