@@ -2451,6 +2451,8 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
     return new Promise<void>((resolve, reject) => {
         const protocol = safeUrl.protocol === 'https:' ? https : http
         let req: http.ClientRequest
+        let activeResponse: http.IncomingMessage | null = null
+        let fileStream: fs.WriteStream | null = null
         let settled = false
 
         const fail = (err: Error) => {
@@ -2464,11 +2466,15 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             if (settled) return
             settled = true
             if (signal) signal.removeEventListener('abort', abortHandler)
+            activeResponse = null
+            fileStream = null
             fn()
         }
 
         const abortHandler = () => {
             if (req) req.destroy()
+            activeResponse?.destroy()
+            fileStream?.destroy()
             if (fs.existsSync(tempPath)) fs.unlink(tempPath, () => { })
             cacheProgress.delete(songKey)
             settle(() => reject(new Error('Aborted')))
@@ -2491,6 +2497,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                 },
             }
             req = currentProtocol.get(currentUrl, options, async (res) => {
+                activeResponse = res
                 if (res.statusCode && [301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
                     res.resume()
                     try {
@@ -2532,7 +2539,8 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             else if (contentType.includes('audio/x-m4a') || contentType.includes('audio/mp4')) headerExt = '.m4a'
             else if (contentType.includes('audio/wav')) headerExt = '.wav'
 
-            const fileStream = fs.createWriteStream(tempPath)
+            const currentFileStream = fs.createWriteStream(tempPath)
+            fileStream = currentFileStream
             let writeFinished = false
             res.on('data', (chunk) => {
                 received += chunk.length
@@ -2550,9 +2558,9 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                 setCacheProgress(songKey, { progress, status: 'downloading', total, received, speed: currentSpeed, updatedAt: now })
             })
 
-            res.pipe(fileStream)
-            fileStream.on('finish', () => { writeFinished = true })
-            fileStream.on('close', async () => {
+            res.pipe(currentFileStream)
+            currentFileStream.on('finish', () => { writeFinished = true })
+            currentFileStream.on('close', async () => {
                 if (settled) return
                 if (!writeFinished) {
                     fs.unlink(tempPath, () => { })
@@ -2575,6 +2583,8 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     }
                     if (signal?.aborted) {
                         releasePostProcess()
+                        fs.unlink(tempPath, () => { })
+                        fail(new Error('Aborted'))
                         return
                     }
                     reportCacheMemory(`download ${baseName} start`)
@@ -2605,18 +2615,19 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     // The audio file has been promoted to its final path. Metadata,
                     // cover and lyric enrichment are best-effort and must not turn a
                     // successfully downloaded audio file into a failed task.
-                    try {
-
                     let imageBuffer: Buffer | undefined
                     let imageMime = 'image/jpeg'
+                    try {
+
                     try {
                         const imageUrl = songInfo.img || (songInfo.meta && songInfo.meta.picUrl)
                         if (imageUrl && imageUrl.startsWith('http') && !isPlaceholderCoverUrl(imageUrl)) {
                             const safeImageUrl = await assertSafeRemoteHttpUrl(imageUrl)
                             const chunks: Buffer[] = []
                             const p = safeImageUrl.protocol === 'https:' ? https : http
-                            imageBuffer = await new Promise((resolveI, rejectI) => {
-                                const imgReq = p.get(safeImageUrl, { lookup: safeImageUrl.lookup, agent: false }, ires => {
+                            try {
+                                imageBuffer = await new Promise((resolveI, rejectI) => {
+                                const imgReq = p.get(safeImageUrl, { lookup: safeImageUrl.lookup, agent: false, signal }, ires => {
                                     if (ires.statusCode && ires.statusCode >= 400) {
                                         ires.resume()
                                         rejectI(new Error(`Cover status: ${ires.statusCode}`))
@@ -2641,9 +2652,14 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                                 imgReq.setTimeout(10000, () => {
                                     imgReq.destroy(new Error('Cover download timeout'))
                                 })
-                            })
+                                })
+                            } finally {
+                                chunks.length = 0
+                            }
                         }
                     } catch (e) { }
+
+                    if (signal?.aborted) throw new Error('Aborted')
 
                     const metadata = extractSongMetadata(songInfo)
                     const id = metadata.id || String(songInfo.id || songInfo.songmid)
@@ -2707,14 +2723,22 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                         indexManager.update(normalizedUsername, taggedItem, folderType)
                     }
 
+                    if (signal?.aborted) throw new Error('Aborted')
                     await ensureCachedLyrics(songInfo, actualQuality, username, isOnlyDownload, finalPath, folderType, shouldCacheLyric, shouldEmbedLyric)
                     const finalizedItem = indexManager.getAll(normalizedUsername, folderType)
                         .find(item => item.filename === finalBaseName + ext)
                     if (finalizedItem) reconcileCacheItemFromDisk(normalizedUsername, folderType, finalizedItem, finalPath)
                     } catch (postProcessError: any) {
-                        console.warn(`[FileCache] Optional post-processing failed for ${path.basename(finalPath)}: ${postProcessError?.message || postProcessError}`)
+                        if (!signal?.aborted) {
+                            console.warn(`[FileCache] Optional post-processing failed for ${path.basename(finalPath)}: ${postProcessError?.message || postProcessError}`)
+                        }
                     } finally {
+                        imageBuffer = undefined
                         releasePostProcess?.()
+                        if (signal?.aborted) {
+                            fail(new Error('Aborted'))
+                            return
+                        }
                         if (!fs.existsSync(finalPath)) {
                             fail(new Error('Downloaded file is missing after processing'))
                             return
@@ -2730,7 +2754,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     fail(error instanceof Error ? error : new Error(String(error)))
                 }
             })
-            fileStream.on('error', (err) => { fs.unlink(tempPath, () => { }); fail(err) })
+            currentFileStream.on('error', (err) => { fs.unlink(tempPath, () => { }); fail(err) })
           })
           req.on('error', (err) => { fs.unlink(tempPath, () => { }); fail(err) })
           req.setTimeout(30000, () => {

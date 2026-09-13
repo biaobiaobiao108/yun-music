@@ -77,6 +77,15 @@ const validStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', '
 const resumableStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', 'tagging', 'paused'])
 const terminalStatuses = new Set<ServerDownloadStatus>(['finished', 'exists'])
 
+export const markDownloadTaskPausedIfAborted = (task: ServerDownloadTask, aborted: boolean) => {
+  if (!aborted) return false
+  task.status = 'paused'
+  task.speed = 0
+  task.errorMsg = '已暂停'
+  task.updatedAt = Date.now()
+  return true
+}
+
 const SONG_INFO_FIELDS = [
   'id', 'songmid', 'songId', 'source', 'name', 'singer', 'albumName', 'albumId', 'album',
   'interval', 'img', 'pic', 'types', '_types', 'hash', 'strMediaMid', 'albumMid',
@@ -400,7 +409,7 @@ const runTask = async (task: ServerDownloadTask) => {
         sourceName: task.sourceName,
       }
       : await resolver(task)
-    if (controller.signal.aborted) return
+    if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
     if (!resolved?.url) throw new Error('无法解析下载地址')
     task.songInfo = sanitizeSongInfo(resolved.songInfo || task.songInfo)
     task.quality = resolved.quality || task.requestedQuality
@@ -415,7 +424,7 @@ const runTask = async (task: ServerDownloadTask) => {
         sourceName: resolved.sourceName,
       })
 
-    if (controller.signal.aborted) return
+    if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
 
     // If a new request changed the desired target while this download was in
     // flight, keep the same public task and run it once more for that target.
@@ -440,7 +449,7 @@ const runTask = async (task: ServerDownloadTask) => {
     task.speed = 0
     task.errorMsg = ''
   } catch (err: any) {
-    if (controller.signal.aborted || err?.message === 'Aborted') {
+    if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted) || err?.message === 'Aborted') {
       task.status = 'paused'
       task.errorMsg = '已暂停'
     } else {

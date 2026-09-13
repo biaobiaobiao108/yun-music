@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   deduplicateDownloadTasks,
   isDownloadTaskRunnable,
+  markDownloadTaskPausedIfAborted,
   pruneDownloadHistory,
   serializeDownloadTask,
   type ServerDownloadTask,
@@ -53,6 +54,18 @@ describe('Server download queue retention', () => {
     expect(retained.filter(task => task.username === 'user-b')).toHaveLength(2)
     expect(retained.some(task => task.id === 'active')).toBe(true)
     expect(retained.some(task => task.id === 'paused')).toBe(true)
+  })
+
+  test('marks a task paused when an in-flight worker observes cancellation', () => {
+    const task = makeTask('user-a', 'aborted', 'downloading', 10)
+
+    expect(markDownloadTaskPausedIfAborted(task, false)).toBe(false)
+    expect(task.status).toBe('downloading')
+
+    expect(markDownloadTaskPausedIfAborted(task, true)).toBe(true)
+    expect(task.status).toBe('paused')
+    expect(task.speed).toBe(0)
+    expect(task.errorMsg).toBe('已暂停')
   })
 })
 
