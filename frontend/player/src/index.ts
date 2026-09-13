@@ -1490,6 +1490,7 @@ const playbackFeature = initPlaybackFeature({
     performSearch,
     showOptions,
     openPlaylistAddModal,
+    toggleCurrentLike: () => toggleLove(),
     isUserLoggedIn,
     toggleDetailCover: (...args) => toggleDetailCover(...args),
     showInfo,
@@ -3985,8 +3986,10 @@ async function toggleLove() {
     const song = currentPlaylist[currentIndex];
     const formattedSong = formatSongToLxMusicStandard(song);
     let targetId = formattedSong.id || song.id;
+    activeListData.loveList ||= [];
 
     const index = activeListData.loveList.findIndex(s => s.id === targetId || s.id === song.id);
+    const previousSong = index >= 0 ? activeListData.loveList[index] : null;
     if (index >= 0) {
         activeListData.loveList.splice(index, 1);
     } else {
@@ -3996,7 +3999,16 @@ async function toggleLove() {
     updatePlayerInfo(song);
     try {
         await pushDataChange(activeListData);
+        renderMyLists(activeListData);
     } catch (e) {
+        if (index >= 0 && previousSong) {
+            activeListData.loveList.splice(index, 0, previousSong);
+        } else {
+            const addedIndex = activeListData.loveList.findIndex(s => s.id === targetId);
+            if (addedIndex >= 0) activeListData.loveList.splice(addedIndex, 1);
+        }
+        updatePlayerInfo(song);
+        renderMyLists(activeListData);
         console.error('[Love] 收藏保存失败:', e);
         showError(toUserMessage(e, '收藏保存失败，请稍后重试'));
     }

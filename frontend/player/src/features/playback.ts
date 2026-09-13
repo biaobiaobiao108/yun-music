@@ -59,6 +59,7 @@ export type PlaybackFeatureContext = {
     performSearch: (...args: any[]) => any;
     showOptions: (...args: any[]) => any;
     openPlaylistAddModal: (...args: any[]) => any;
+    toggleCurrentLike: (...args: any[]) => any;
     isUserLoggedIn: (...args: any[]) => boolean;
     toggleDetailCover: (...args: any[]) => any;
     showInfo: (...args: any[]) => any;
@@ -100,6 +101,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const performSearch = context.performSearch;
     const showOptions = context.showOptions;
     const openPlaylistAddModal = context.openPlaylistAddModal;
+    const toggleCurrentLike = context.toggleCurrentLike;
     const isUserLoggedIn = context.isUserLoggedIn;
     const toggleDetailCover = context.toggleDetailCover;
     const showInfo = context.showInfo;
@@ -118,6 +120,104 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let consecutivePlaybackFailures = 0;
     let noSourceHintShown = false;
     const MAX_CONSECUTIVE_PLAYBACK_FAILURES = 3;
+    const LIKE_LONG_PRESS_MS = 550;
+    let likeLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+    let likeSuppressNextClick = false;
+    let likeSuppressResetTimer: ReturnType<typeof setTimeout> | null = null;
+    let likePointerId: number | null = null;
+    let likePointerStartX = 0;
+    let likePointerStartY = 0;
+    let likeLongPressTriggered = false;
+
+    function clearLikeLongPressTimer() {
+        if (likeLongPressTimer) clearTimeout(likeLongPressTimer);
+        likeLongPressTimer = null;
+    }
+
+    function suppressLikeClick() {
+        likeSuppressNextClick = true;
+        if (likeSuppressResetTimer) clearTimeout(likeSuppressResetTimer);
+        likeSuppressResetTimer = setTimeout(() => {
+            likeSuppressNextClick = false;
+            likeSuppressResetTimer = null;
+        }, LIKE_LONG_PRESS_MS * 2);
+    }
+
+    function bindLikeButtonGesture() {
+        const btnLike = document.getElementById('player-like-btn');
+        if (!btnLike || btnLike.dataset.likeGestureBound === 'true') return;
+
+        btnLike.dataset.likeGestureBound = 'true';
+        btnLike.classList.add('select-none');
+        btnLike.style.touchAction = 'manipulation';
+
+        const finishPointer = (event: PointerEvent) => {
+            if (likePointerId !== event.pointerId) return;
+
+            clearLikeLongPressTimer();
+            if (likeLongPressTriggered) {
+                // Touch and pen browsers may synthesize a click after pointerup.
+                // Keep the long-press action from also toggling the collection.
+                suppressLikeClick();
+                event.preventDefault();
+            }
+            likeLongPressTriggered = false;
+            likePointerId = null;
+            btnLike.classList.remove('scale-110', 'ring-2', 'ring-red-200');
+        };
+
+        btnLike.addEventListener('pointerdown', (event) => {
+            if (event.button !== 0 || likePointerId !== null) return;
+
+            likePointerId = event.pointerId;
+            likePointerStartX = event.clientX;
+            likePointerStartY = event.clientY;
+            likeLongPressTriggered = false;
+            btnLike.setPointerCapture?.(event.pointerId);
+            likeLongPressTimer = setTimeout(() => {
+                likeLongPressTimer = null;
+                likeLongPressTriggered = true;
+                suppressLikeClick();
+                btnLike.classList.add('scale-110', 'ring-2', 'ring-red-200');
+                void openPlaylistAddModal();
+            }, LIKE_LONG_PRESS_MS);
+        });
+
+        btnLike.addEventListener('pointermove', (event) => {
+            if (likePointerId !== event.pointerId || likeLongPressTriggered) return;
+            const distance = Math.hypot(
+                event.clientX - likePointerStartX,
+                event.clientY - likePointerStartY,
+            );
+            if (distance > 12) {
+                clearLikeLongPressTimer();
+                likePointerId = null;
+            }
+        });
+
+        btnLike.addEventListener('pointerup', finishPointer);
+        btnLike.addEventListener('pointercancel', finishPointer);
+        btnLike.addEventListener('lostpointercapture', finishPointer);
+        btnLike.addEventListener('contextmenu', (event) => {
+            if (likeLongPressTriggered || likeSuppressNextClick) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }, true);
+
+        // This capture listener runs before the button's onclick handler and the
+        // document-level delegated click handlers.
+        btnLike.addEventListener('click', (event) => {
+            if (!likeSuppressNextClick) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            likeSuppressNextClick = false;
+            if (likeSuppressResetTimer) clearTimeout(likeSuppressResetTimer);
+            likeSuppressResetTimer = null;
+        }, true);
+    }
+
+    bindLikeButtonGesture();
 
     function clearManualPlaybackRecovery() {
         manualPlaybackRecoveryCleanup?.();
@@ -922,6 +1022,15 @@ function updatePlayerInfo(song, actualQuality) {
     const albumSeparator = document.getElementById('player-meta-separator');
 
     if (!song) {
+        const btnLike = document.getElementById('player-like-btn');
+        if (btnLike) {
+            btnLike.onclick = null;
+            btnLike.classList.remove('text-red-500', 'scale-110', 'ring-2', 'ring-red-200');
+            btnLike.classList.add('text-gray-300');
+            btnLike.setAttribute('aria-pressed', 'false');
+            btnLike.setAttribute('aria-label', '收藏当前歌曲');
+            btnLike.title = '请选择歌曲后收藏';
+        }
         if (titleEl) {
             titleEl.innerText = '暂无播放';
             titleEl.setAttribute('data-text', '暂无播放');
@@ -1110,6 +1219,10 @@ function updatePlayerInfo(song, actualQuality) {
 
     // Update Like Button State (Collection Status)
     const btnLike = document.getElementById('player-like-btn');
+    if (!btnLike) {
+        context.updateLyricDetailInfo?.(song);
+        return;
+    }
 
     let isCollected = false;
     const activeListData = isUserLoggedIn() ? (window.myPersonalListData || context.getCurrentListData()) : context.getCurrentListData();
@@ -1119,14 +1232,13 @@ function updatePlayerInfo(song, actualQuality) {
         if (cleanedSong) {
             const targetId = cleanedSong.id;
             if (activeListData.loveList && activeListData.loveList.some(s => s.id === targetId)) isCollected = true;
-            if (!isCollected && activeListData.userList && activeListData.userList.some(ul => ul.list.some(s => s.id === targetId))) isCollected = true;
         }
     }
 
-    // Bind click to Open Modal
+    // 单击直接切换“我的收藏”，长按由 bindLikeButtonGesture 打开歌单选择器。
     btnLike.onclick = (e) => {
         e.stopPropagation();
-        openPlaylistAddModal();
+        void toggleCurrentLike();
     };
 
     if (isCollected) {
@@ -1137,6 +1249,12 @@ function updatePlayerInfo(song, actualQuality) {
         btnLike.classList.add('text-gray-300');
     }
     btnLike.setAttribute('aria-pressed', String(isCollected));
+    btnLike.title = isCollected
+        ? '单击取消“我的收藏”，长按选择歌单'
+        : '单击收藏到“我的收藏”，长按选择歌单';
+    btnLike.setAttribute('aria-label', isCollected
+        ? '取消我的收藏，长按选择歌单'
+        : '收藏到我的收藏，长按选择歌单');
     context.updateLyricDetailInfo?.(song);
 }
 
