@@ -1528,15 +1528,7 @@ function renderArtistSongsUI(list, page) {
                      data-event-keydown-action="search-row-activate" data-event-keydown-args="[${itemIdArg}, ${playlistIndex}]" data-event-keys="Enter, " data-event-target-self="true" data-event-prevent="true">
                     <!-- Index -->
                     <div class="player-track-index text-center flex items-center justify-center font-mono text-xs t-text-muted group-hover:t-text-main">
-                        ${window.batchMode ? `
-                            <input type="checkbox" 
-                                   class="batch-checkbox"
-                                   data-song-id="${itemId}"
-                                   ${isSelected ? 'checked' : ''}
-                                   aria-checked="${isSelected}"
-                                   aria-label="${selectionLabel} ${itemName}"
-                            data-event-click-action="handleBatchSelect" data-event-click-args="[${itemIdArg}, &quot;@checked&quot;]" data-event-stop="true">
-                        ` : `<span class="index-num">${index + 1}</span>`}
+                        <span class="index-num">${index + 1}</span>
                     </div>
 
                     <!-- Title -->
@@ -2228,15 +2220,7 @@ function renderResults(list) {
         row.innerHTML = `
             <!-- Index -->
             <div class="player-track-index text-center font-mono t-text-muted text-xs md:text-sm flex items-center justify-center">
-                ${window.batchMode ? `
-                    <input type="checkbox" 
-                           class="batch-checkbox"
-                           data-song-id="${itemId}"
-                           ${isSelected ? 'checked' : ''}
-                           aria-checked="${isSelected}"
-                           aria-label="${selectionLabel} ${itemName}"
-                    data-event-click-action="handleBatchSelect" data-event-click-args="[${itemIdArg}, &quot;@checked&quot;]" data-event-stop="true">
-                ` : `<span class="index-num">${actualIndexInOriginal + 1}</span>`}
+                <span class="index-num">${actualIndexInOriginal + 1}</span>
             </div>
 
             <!-- Title (Image + Text) -->

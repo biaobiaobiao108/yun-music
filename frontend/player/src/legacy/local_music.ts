@@ -588,12 +588,21 @@ window.LocalMusicManager = {
                 case 'login':
                     this.openSyncLogin();
                     break;
+                case 'select-row': {
+                    if (!this.batchMode) break;
+                    const item = this.displayData[index];
+                    if (item) this.toggleSelect(index, !this.selectedItems.has(this.getItemKey(item)));
+                    break;
+                }
             }
         });
-        container.addEventListener('change', (event) => {
-            const target = event.target;
-            if (!target.matches('[data-lm-action="select"]')) return;
-            this.toggleSelect(parseInt(target.dataset.lmIndex || '', 10), target.checked);
+        container.addEventListener('keydown', (event) => {
+            const target = event.target.closest('[data-lm-action="select-row"]');
+            if (!target || !container.contains(target) || !['Enter', ' '].includes(event.key)) return;
+            event.preventDefault();
+            const index = parseInt(target.dataset.lmIndex || '', 10);
+            const item = this.displayData[index];
+            if (this.batchMode && item) this.toggleSelect(index, !this.selectedItems.has(this.getItemKey(item)));
         });
     },
 
@@ -1331,24 +1340,21 @@ window.LocalMusicManager = {
             const folderIcon = item.folder === 'music' ? '<i class="fas fa-download text-blue-500 mr-1" title="下载目录"></i>' : '<i class="fas fa-hdd text-emerald-500 mr-1" title="缓存目录"></i>';
 
             const deferredClass = pageIndex > 12 ? 'deferred-list-item ' : '';
+            const selectionAttributes = this.batchMode
+                ? `role="button" tabindex="0" aria-pressed="${isSelected}" aria-label="${isSelected ? '取消选择' : '选择'} ${this.escapeAttr(item.name || '未知歌曲')}" data-selection-state="${isSelected ? 'selected' : 'unselected'}"`
+                : '';
             html += `
-            <div class="player-track-grid player-track-grid--local player-motion-item p-3 md:p-2 items-center rounded-xl hover:t-bg-item-hover transition-all t-border-main border-b last:border-b-0 group relative ${deferredClass}${isSelected ? 't-bg-item-hover ring-1 ring-emerald-500/30' : ''}" style="--player-motion-index: ${Math.min(pageIndex, 7)};" data-lm-row-index="${index}">
+            <div class="player-track-grid player-track-grid--local player-motion-item p-3 md:p-2 items-center rounded-xl hover:t-bg-item-hover transition-all t-border-main border-b last:border-b-0 group relative ${deferredClass}${isSelected ? 't-bg-item-hover ring-1 ring-emerald-500/30' : ''}" style="--player-motion-index: ${Math.min(pageIndex, 7)};" data-lm-row-index="${index}" data-lm-index="${index}" ${this.batchMode ? 'data-lm-action="select-row"' : ''} ${selectionAttributes}>
                 <!-- # / Batch -->
                 <div class="player-track-index text-center text-xs font-mono t-text-muted flex-shrink-0 flex items-center justify-center">
-                    <div class="${this.batchMode ? 'hidden' : 'block'}">${index + 1}</div>
-                    <div class="${this.batchMode ? 'block' : 'hidden'}">
-                        <label class="flex items-center justify-center w-full h-full cursor-pointer">
-                            <input type="checkbox" data-lm-action="select" data-lm-index="${index}" ${isSelected ? 'checked' : ''}
-                                class="w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 mx-auto cursor-pointer transition-all">
-                        </label>
-                    </div>
+                    <div>${index + 1}</div>
                 </div>
 
                 <!-- Song & Cover -->
                 <div class="player-track-title flex items-center min-w-0 pr-2">
                     ${coverHtml}
                     <div class="min-w-0 flex-1 truncate">
-                        <div class="font-bold text-sm md:text-base t-text-main truncate group-hover:text-emerald-500 transition-colors cursor-pointer" data-lm-action="play" data-lm-index="${index}">
+                        <div class="font-bold text-sm md:text-base t-text-main truncate group-hover:text-emerald-500 transition-colors cursor-pointer" data-lm-action="${this.batchMode ? 'select-row' : 'play'}" data-lm-index="${index}">
                             ${safeName}
                         </div>
                         <div class="text-[10px] md:text-xs t-text-muted mt-0.5 truncate flex items-center gap-1.5 flex-wrap">
@@ -1535,7 +1541,7 @@ window.LocalMusicManager = {
         }
 
         this.updateBatchUI();
-        this.render(); // Re-render to show/hide checkboxes globally
+        this.render(); // Re-render to update the batch selection affordance globally
     },
 
     toggleReMapping() {

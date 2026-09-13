@@ -259,15 +259,7 @@ window.LeaderboardManager = (function () {
                  data-event-keydown-action="window.LeaderboardManager.handleRowClick" data-event-keydown-args="[${index}]" data-event-keys="Enter, " data-event-target-self="true" data-event-prevent="true">
                 <!-- 序号 -->
                 <div class="player-track-index text-center flex items-center justify-center">
-                    ${window.batchMode ? `
-                        <input type="checkbox"
-                               class="batch-checkbox"
-                               data-song-id="${String(song.id)}"
-                               ${isSelected ? 'checked' : ''}
-                               aria-checked="${isSelected}"
-                               aria-label="${selectionLabel} ${song.name || '未命名歌曲'}"
-                               data-event-click-action="handleBatchSelect" data-event-click-args="[${safeInlineString(String(song.id))}, &quot;@checked&quot;]" data-event-stop="true">
-                    ` : `<span class="${rankClass}">${rank}</span>`}
+                    <span class="${rankClass}">${rank}</span>
                 </div>
                 <!-- 封面 + 歌名 -->
                 <div class="player-track-title flex items-center gap-3 min-w-0">

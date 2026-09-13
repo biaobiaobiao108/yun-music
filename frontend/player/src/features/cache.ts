@@ -336,15 +336,6 @@ function renderCacheList() {
                 ${isSelected ? 't-bg-panel-light border-blue-500/30 ring-1 ring-blue-500/10' : ''}"
                 ${cacheBatchMode ? `data-event-click-action="toggleCacheSelection" data-event-click-args="[${idx}]"` : ''}>
                 
-                ${cacheBatchMode ? `
-                <div class="flex-shrink-0 w-5 flex items-center justify-center">
-                    <div class="w-4 h-4 rounded border-2 transition-all flex items-center justify-center
-                        ${isSelected ? 'bg-blue-500 border-blue-500 shadow-sm' : 'border-gray-300 dark:border-gray-600'}">
-                        ${isSelected ? '<i class="fas fa-check text-[8px] text-white"></i>' : ''}
-                    </div>
-                </div>
-                ` : ''}
-
                 <div class="relative w-12 h-12 flex-shrink-0 group-hover:scale-105 transition-transform duration-500">
                     <img class="w-full h-full object-cover rounded-xl shadow-md bg-gray-100" alt="${escapeHtmlText(item.filename || '缓存歌曲')}封面" width="48" height="48" loading="lazy" decoding="async"
                          src="${escapeHtmlText(coverUrl)}"

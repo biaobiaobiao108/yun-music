@@ -11,15 +11,13 @@ function ensureBatchSelectionState() {
 
 function syncSelectionPresentation(root = document) {
     ensureBatchSelectionState();
-    const rows = root.querySelectorAll('[role="button"][data-song-id]:not(.batch-checkbox)');
+    const rows = root.querySelectorAll('[role="button"][data-song-id]');
 
     rows.forEach(row => {
         if (!(row instanceof HTMLElement)) return;
         const id = String(row.dataset.songId || '');
         const isSelected = window.selectedItems.has(id);
         const isBatchMode = window.batchMode === true;
-        const checkbox = row.querySelector('input.batch-checkbox');
-
         row.classList.toggle('row-selected', isSelected);
         row.classList.toggle('is-selected', isSelected);
         row.dataset.selected = String(isSelected);
@@ -31,16 +29,11 @@ function syncSelectionPresentation(root = document) {
             row.removeAttribute('aria-pressed');
         }
 
-        if (checkbox instanceof HTMLInputElement) {
-            checkbox.checked = isSelected;
-            checkbox.setAttribute('aria-checked', String(isSelected));
-            if (isBatchMode && checkbox.getAttribute('aria-label')) {
-                const songLabel = checkbox.getAttribute('aria-label').replace(/^(选择|取消选择)\s*/, '');
-                const selectionLabel = `${isSelected ? '取消选择' : '选择'} ${songLabel}`;
-                checkbox.setAttribute('aria-label', selectionLabel);
-                row.setAttribute('aria-label', selectionLabel);
-            }
-        }
+        const currentLabel = row.getAttribute('aria-label') || '歌曲';
+        const songLabel = currentLabel.replace(/^(选择|取消选择|播放)\s*/, '');
+        row.setAttribute('aria-label', isBatchMode
+            ? `${isSelected ? '取消选择' : '选择'} ${songLabel}`
+            : `播放 ${songLabel}`);
     });
 }
 

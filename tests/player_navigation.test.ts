@@ -460,6 +460,24 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(batchPagination).not.toContain('currentPage--');
     });
 
+    it('batch song rows use the row state without redundant checkbox controls', () => {
+        const search = fs.readFileSync(searchSrcPath, 'utf8');
+        const songList = fs.readFileSync(songListSrcPath, 'utf8');
+        const leaderboard = fs.readFileSync(leaderboardSrcPath, 'utf8');
+        const localMusic = fs.readFileSync(localMusicSrcPath, 'utf8');
+        const cache = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/src/features/cache.ts'), 'utf8');
+
+        for (const source of [search, songList, leaderboard, cache]) {
+            expect(source).not.toContain('batch-checkbox');
+        }
+        expect(localMusic).not.toContain('data-lm-action="select"');
+        expect(localMusic).toContain('data-lm-action="select-row"');
+        expect(songList).toContain('window.handleBatchSelect(id, isChecked);');
+        expect(leaderboard).toContain('window.handleBatchSelect(id, isChecked);');
+        expect(search).toContain('playerWindow.handleBatchSelect?.');
+        expect(localMusic).toContain("case 'select-row':");
+    });
+
     it('favorite list selection and pagination share one local-list state source', () => {
         const player = fs.readFileSync(playerSrcPath, 'utf8');
         const search = fs.readFileSync(searchSrcPath, 'utf8');

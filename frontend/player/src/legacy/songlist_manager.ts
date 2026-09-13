@@ -758,15 +758,7 @@ export function createSongListManager(context: SongListManagerContext) {
                  class="${rowClass}" style="--player-motion-index: ${Math.min(displayIdx, 7)};" data-song-id="${String(song.id)}"
                  data-songlist-action="row" data-index="${index}">
                 <div class="player-track-index text-center text-gray-400 font-mono text-xs flex items-center justify-center">
-                    ${window.batchMode ? `
-                        <input type="checkbox" 
-                               class="batch-checkbox"
-                               data-song-id="${String(song.id)}"
-                               ${isSelected ? 'checked' : ''}
-                               aria-checked="${isSelected}"
-                               aria-label="${selectionLabel} ${song.name || '未命名歌曲'}"
-                               data-songlist-action="batch-select">
-                    ` : index + 1}
+                    ${index + 1}
                 </div>
                 <!-- Title & Info -->
                 <div class="player-track-title flex items-center gap-3 min-w-0">
