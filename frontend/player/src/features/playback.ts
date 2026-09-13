@@ -252,8 +252,11 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         }
 
         const expectedRequestCounter = state.loadingRequestCounter;
-        const maxAttempts = 40;
-        const interval = 750;
+        // This is only a last-resort grace period after both direct playback
+        // and the streaming proxy have failed. The primary playback path must
+        // never wait for a full background-cache download.
+        const maxAttempts = 6;
+        const interval = 500;
         let attempts = 0;
         let timer: ReturnType<typeof setTimeout> | null = null;
         let cancelled = false;
@@ -296,9 +299,17 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
             attempts += 1;
             if (attempts >= maxAttempts) {
                 cleanup();
-                // The background task did not finish in time; make one fresh
-                // online attempt so a temporary cache queue delay is not fatal.
-                void playSong(song, index, quality, noPlay, true, shouldAddToDefault, resumeTime);
+                const recoveryState = state.currentRecoveryState;
+                if (recoveryState?.currentSong === song && recoveryState.steps?.length) {
+                    // Let the existing quality/source recovery chain decide
+                    // what to try next instead of replaying the same broken
+                    // online URL in a loop.
+                    void runRecoveryFlow(new Error('播放中继和本地缓存均未及时就绪'));
+                } else {
+                    // Preserve the old final retry for callers that do not
+                    // have a recovery chain (for example local integrations).
+                    void playSong(song, index, quality, noPlay, true, shouldAddToDefault, resumeTime);
+                }
                 return;
             }
 
@@ -530,7 +541,7 @@ function setAudioSource(url) {
     audio.src = targetUrl;
 }
 
-async function playSong(song, index, forceQuality = null, noPlay = false, isRetry = false, shouldAddToDefault = null, resumeTime = null) {
+async function playSong(song, index, forceQuality = null, noPlay = false, isRetry = false, shouldAddToDefault = null, resumeTime = null, urlOverride = null) {
     // 1. Debounce / Lock: If already loading this song, ignore click
     // [Fix] Allow retry to bypass this check
     if (state.currentLoadingSongId === song.id && !isRetry) {
@@ -689,7 +700,15 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
 
     try {
         // 1. 智能音质选择与 URL 解析
-        if (!urlResult) {
+        if (urlOverride) {
+            urlResult = {
+                url: urlOverride,
+                sourceType: 'normal',
+                sourceName: '服务器流式中继',
+                quality: forceQuality || targetQuality,
+                isProxyRetry: true,
+            };
+        } else if (!urlResult) {
             if (!targetQuality) {
                 targetQuality = window.QualityManager.getBestQuality(song, settings.preferredQuality || 'flac');
             }
@@ -796,9 +815,18 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                         localStorage.removeItem(`lx_url_${cleanSongData(playbackSong).id}_${resolvedQuality}`);
                     } catch (_) { }
                 }
-                if (!isRetry && resolvedSourceType !== 'server_cache' && !playbackSong.isLocal &&
-                    waitForBackgroundCacheAndRetry(playbackSong, index, targetQuality, noPlay, shouldAddToDefault, resumeTime)) {
-                    console.warn(`[Player] ${resolvedSourceType} link failed, waiting for background cache...`);
+                if (!isRetry && resolvedSourceType !== 'server_cache' && !playbackSong.isLocal && urlResult.playbackProxyUrl) {
+                    console.warn(`[Player] ${resolvedSourceType} link failed, retrying through the streaming proxy...`);
+                    void playSong(
+                        playbackSong,
+                        index,
+                        targetQuality,
+                        noPlay,
+                        'proxy_retry',
+                        shouldAddToDefault,
+                        resumeTime,
+                        urlResult.playbackProxyUrl,
+                    );
                     return true;
                 }
                 console.warn(`[Player] ${resolvedSourceType} link failed, retrying online...`);
@@ -928,6 +956,16 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 playError.name === 'NotAllowedError' || playError.name === 'SecurityError'
             );
             if (!isPlaybackPermissionError && retryResolvedUrl?.()) return;
+
+            if (!isPlaybackPermissionError && isRetry === 'proxy_retry' && !noPlay &&
+                waitForBackgroundCacheAndRetry(playbackSong, index, targetQuality, noPlay, shouldAddToDefault, resumeTime)) {
+                return;
+            }
+
+            if (!isPlaybackPermissionError && isRetry && state.currentRecoveryState?.currentSong === playbackSong && !noPlay) {
+                await runRecoveryFlow(playError);
+                return;
+            }
 
             console.error('[Player] Playback blocked:', playError);
             setPlayerStatus('请点击播放按钮');

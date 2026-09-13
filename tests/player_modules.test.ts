@@ -87,6 +87,11 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('playbackErrorCleanup?.();');
         expect(playbackSource).toContain('const currentAudioUrls = [audio.currentSrc, audio.src].filter(Boolean);');
         expect(playbackSource).toContain('waitForBackgroundCacheAndRetry');
+        expect(playbackSource).toContain('urlOverride = null');
+        expect(playbackSource).toContain('retrying through the streaming proxy');
+        expect(playbackSource).toContain('const maxAttempts = 6;');
+        expect(songUrlSource).toContain('buildServerPlaybackProxyUrl');
+        expect(songUrlSource).toContain('playbackProxyUrl: buildServerPlaybackProxyUrl');
         expect(playbackSource).toContain('const retryMode = state.currentSourceType === \'server_cache\'');
         expect(playbackSource).toContain('_prefetchUnavailableUntil');
         expect(singleSongSource).toContain('const REMOTE_QUALITY_CACHE_MAX = 256;');

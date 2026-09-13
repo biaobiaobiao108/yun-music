@@ -615,6 +615,12 @@ async function applyAutoProxy(url, song) {
     return url;
 }
 
+function buildServerPlaybackProxyUrl(url, song) {
+    if (!/^https?:\/\//i.test(String(url || ''))) return null;
+    const filename = `${song?.singer || 'unknown'} - ${song?.name || 'download'}.mp3`;
+    return `/api/music/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}&inline=1`;
+}
+
 async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
     const cleanedSong = cleanSongData(song);
     const cacheKey = `lx_url_${cleanedSong.id}_${quality}`;
@@ -663,7 +669,12 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
             if (settings.enableServerCache && !isSilent && isRetry !== 'download' && !rawUrl.includes('/api/music/cache/file/')) {
                 triggerServerCache(song, rawUrl, quality);
             }
-            return { url: cachedUrl, sourceType: 'cache', quality };
+            return {
+                url: cachedUrl,
+                playbackProxyUrl: buildServerPlaybackProxyUrl(rawUrl, song),
+                sourceType: 'cache',
+                quality,
+            };
         }
     }
 
@@ -731,6 +742,10 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
             console.log(`[Resolve] Online Success: ${song.name} via ${result.sourceName || 'Unknown'}`);
             return {
                 url: finalUrl,
+                // If a direct media request is rejected by the browser, keep a
+                // streamable server fallback without making the first play wait
+                // for the background cache file to finish.
+                playbackProxyUrl: buildServerPlaybackProxyUrl(result.url, song),
                 sourceType: 'normal',
                 quality: result.type || quality,
                 sourceName: result.sourceName,
@@ -882,6 +897,7 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
         findOtherSourceMatches,
         applyAutoProxy,
         fetchSongUrl,
+        buildServerPlaybackProxyUrl,
         markServerCacheFailure,
         getNextIndex,
         prefetchNextSong,
