@@ -8,6 +8,7 @@ import { EventEmitter } from 'node:events'
 import { Readable } from 'node:stream'
 import * as identify from '@/server/utils/identify'
 import * as fileCache from '@/server/fileCache'
+import * as serverDownloadQueue from '@/server/serverDownloadQueue'
 import { createCacheRouter, createProxyResponseStream } from '@/server/routes/cache'
 import { userSessions } from '@/server/routes/auth'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
@@ -167,6 +168,36 @@ describe('cache list user scope', () => {
       expect(markCachePlayback).toHaveBeenCalledWith('album/song.mp3', username, 'cache')
     } finally {
       markCachePlayback.mockRestore()
+    }
+  })
+
+  test('reports queued cache work as processing before a file exists', async () => {
+    const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false })
+    const getActiveCacheProgress = spyOn(fileCache, 'getActiveCacheProgress').mockReturnValue(null)
+    const getActiveTaskProgress = spyOn(serverDownloadQueue, 'getActiveTaskProgress').mockReturnValue({
+      status: 'waiting',
+      progress: 0,
+      total: 0,
+      received: 0,
+      speed: 0,
+      updatedAt: Date.now(),
+    })
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/check?name=Song&singer=Singer&source=wy&songmid=123&quality=flac', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        exists: false,
+        processing: true,
+        progress: { status: 'waiting' },
+      })
+      expect(getActiveTaskProgress).toHaveBeenCalledWith(username, expect.objectContaining({ songmid: '123', source: 'wy' }), 'flac')
+    } finally {
+      getActiveTaskProgress.mockRestore()
+      getActiveCacheProgress.mockRestore()
+      checkCache.mockRestore()
     }
   })
 })

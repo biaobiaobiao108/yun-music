@@ -806,7 +806,6 @@ const {
     getSourceName,
     resolveSongUrl,
     resolveDownloadSongUrl,
-    markServerCacheFailure,
     findOtherSourceMatch,
     findOtherSourceMatches,
     applyAutoProxy,
@@ -1512,7 +1511,6 @@ const playbackFeature = initPlaybackFeature({
     getUserAuthHeaders,
     resolveSongUrl,
     triggerServerCache: (...args) => triggerServerCache(...args),
-    markServerCacheFailure,
     getSourceTypeText,
     getSourceName,
     findOtherSourceMatch,
@@ -1635,13 +1633,20 @@ async function checkServerCache(song, quality, exactQuality = false, timeoutMs =
             const data = await res.json();
             return data; // 返回完整数据对象，包含 exists, isCollision, url 等
         }
+        // 401/403 means cache playback is unavailable for this session, not
+        // that the cache service is broken. Other failures are kept distinct
+        // so the caller can avoid silently falling through to paid playback.
+        if (res.status === 401 || res.status === 403) {
+            return { exists: false, authRequired: true };
+        }
+        return { exists: false, unavailable: true, status: res.status };
     } catch (e) {
         if (e?.name !== 'AbortError') console.error('[ServerCache] Check failed:', e);
+        return { exists: false, unavailable: true };
     } finally {
         clearTimeout(timeoutId);
         externalSignal?.removeEventListener('abort', abortFromCaller);
     }
-    return { exists: false };
 }
 
 /**

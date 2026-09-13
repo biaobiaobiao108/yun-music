@@ -266,12 +266,13 @@ export const createCacheRouter = (): Router => {
       fileCache.normalizeSongId(cacheSong),
       exactQuality ? (quality || undefined) : undefined,
     )
-    if (activeProgress) {
+    const activeTaskProgress = serverDownloadQueue.getActiveTaskProgress(username, cacheSong, quality || undefined)
+    if (activeProgress || activeTaskProgress) {
       return ctx.json({
         ...result,
         exists: false,
         processing: true,
-        progress: activeProgress,
+        progress: activeProgress || activeTaskProgress,
       })
     }
     return ctx.json(result)

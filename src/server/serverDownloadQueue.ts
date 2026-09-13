@@ -638,6 +638,31 @@ export const list = (username: string) => {
     .map(task => getPublicTask(task))
 }
 
+/**
+ * Return the live cache task for a song/quality without exposing its resolved
+ * URL. The player uses this to distinguish "not cached" from "cache is still
+ * being downloaded" and must not start another paid source request while the
+ * latter is true.
+ */
+export const getActiveTaskProgress = (username: string, songInfo: any, quality?: string) => {
+  const songKey = `${fileCache.normalizeSongId(songInfo)}_${String(quality || 'unknown')}`
+  const activeStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', 'tagging'])
+  const task = Array.from(tasks.values()).find(candidate => (
+    candidate.username === username &&
+    activeStatuses.has(candidate.status) &&
+    (candidate.songKey === songKey || candidate.activeSongKey === songKey)
+  ))
+  if (!task) return null
+  return {
+    status: task.status,
+    progress: task.progress,
+    total: task.total,
+    received: task.received,
+    speed: task.speed,
+    updatedAt: task.updatedAt,
+  }
+}
+
 export const pause = (username: string, id?: string) => {
   for (const task of tasks.values()) {
     if (task.username !== username || (id && task.id !== id)) continue

@@ -73,8 +73,11 @@ describe('Player manager module boundaries', () => {
         expect(playerSource).toContain('const boundedTimeoutMs = Math.max(100, Math.min(Number(timeoutMs) || 2500, 2500));');
         expect(playerSource).toContain('externalSignal?.addEventListener');
         expect(playerSource).toContain('externalSignal?.removeEventListener');
-        expect(songUrlSource).toContain('const FOREGROUND_CACHE_CHECK_TIMEOUT = 700;');
-        expect(songUrlSource).toContain('const cacheCheckTimeout = isSilent ? 2500 : FOREGROUND_CACHE_CHECK_TIMEOUT;');
+        expect(songUrlSource).toContain('const FOREGROUND_CACHE_CHECK_TIMEOUT = 1500;');
+        expect(songUrlSource).toContain('const CACHE_PROCESSING_WAIT_TIMEOUT = 30 * 1000;');
+        expect(songUrlSource).toContain('const waitForServerCacheCheck = async');
+        expect(songUrlSource).toContain('SERVER_CACHE_PROCESSING');
+        expect(songUrlSource).toContain('settings.enableServerCache !== false');
         expect(songUrlSource).toContain('if (settings.enableAutoProxy && options.probe)');
         expect(songUrlSource).toContain('signal?: AbortSignal');
     });

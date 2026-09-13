@@ -35,32 +35,67 @@ export function initSongUrlFeature(context: SongUrlFeatureContext) {
     const updateStorageStatsUI = context.updateStorageStatsUI;
     const showError = context.showError;
     const showPlaybackStatus = context.showPlaybackStatus || (() => { });
-    const BROKEN_SERVER_CACHE_TTL = 10 * 60 * 1000;
-    const FOREGROUND_CACHE_CHECK_TIMEOUT = 700;
+    const FOREGROUND_CACHE_CHECK_TIMEOUT = 1500;
+    const CACHE_CHECK_RETRY_LIMIT = 3;
+    const CACHE_CHECK_RETRY_INTERVAL = 350;
+    const CACHE_PROCESSING_WAIT_TIMEOUT = 30 * 1000;
 
-    const getServerCacheFailureKey = (song, quality) => {
-        const songId = String(cleanSongData(song)?.id || song?.id || song?.songmid || '');
-        const normalizedQuality = String(quality || '');
-        if (!songId || !normalizedQuality) return null;
-        return `lx_broken_server_cache_${encodeURIComponent(songId)}_${encodeURIComponent(normalizedQuality)}`;
+    const createServerCacheGateError = (code: 'processing' | 'unavailable', message: string) => {
+        const error = new Error(message);
+        (error as any).code = `SERVER_CACHE_${code.toUpperCase()}`;
+        return error;
     };
 
-    const isServerCacheTemporarilyBypassed = (song, quality) => {
-        const key = getServerCacheFailureKey(song, quality);
-        if (!key) return false;
-        try {
-            const failedAt = Number(sessionStorage.getItem(key) || 0);
-            if (!failedAt) return false;
-            if (Date.now() - failedAt < BROKEN_SERVER_CACHE_TTL) return true;
-            sessionStorage.removeItem(key);
-        } catch (_) { }
-        return false;
-    };
+    const waitForServerCacheCheck = async (song, quality, isSilent, isRetry, signal?: AbortSignal) => {
+        const exactQuality = !!isRetry;
+        let result = await checkServerCache(song, quality, exactQuality, isSilent ? 2500 : FOREGROUND_CACHE_CHECK_TIMEOUT, signal);
+        const isCacheReady = (value) => value?.exists || value?.authRequired || (!value?.processing && !value?.unavailable);
+        if (isCacheReady(result)) return result;
 
-    const markServerCacheFailure = (song, quality) => {
-        const key = getServerCacheFailureKey(song, quality);
-        if (!key) return;
-        try { sessionStorage.setItem(key, String(Date.now())); } catch (_) { }
+        // Background prefetch must never create another paid resolver request
+        // while a cache task is already being prepared.
+        if (isSilent) {
+            throw createServerCacheGateError(
+                result?.processing ? 'processing' : 'unavailable',
+                result?.processing ? '本地缓存正在生成' : '本地缓存检查暂时不可用',
+            );
+        }
+
+        const deadline = Date.now() + (result?.processing ? CACHE_PROCESSING_WAIT_TIMEOUT : CACHE_CHECK_RETRY_LIMIT * (FOREGROUND_CACHE_CHECK_TIMEOUT + CACHE_CHECK_RETRY_INTERVAL));
+        let unavailableRetries = 0;
+        while (Date.now() < deadline) {
+            if (result?.processing) {
+                showPlaybackStatus('正在等待本地缓存', { type: 'info', loading: true });
+            } else if (result?.unavailable) {
+                showPlaybackStatus('正在确认本地缓存', { type: 'info', loading: true });
+                unavailableRetries++;
+                if (unavailableRetries > CACHE_CHECK_RETRY_LIMIT) break;
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                if (signal?.aborted) {
+                    reject(new DOMException('播放请求已取消', 'AbortError'));
+                    return;
+                }
+                const timeoutId = setTimeout(() => {
+                    signal?.removeEventListener('abort', onAbort);
+                    resolve();
+                }, CACHE_CHECK_RETRY_INTERVAL);
+                const onAbort = () => {
+                    clearTimeout(timeoutId);
+                    signal?.removeEventListener('abort', onAbort);
+                    reject(new DOMException('播放请求已取消', 'AbortError'));
+                };
+                signal?.addEventListener('abort', onAbort, { once: true });
+            });
+            result = await checkServerCache(song, quality, exactQuality, FOREGROUND_CACHE_CHECK_TIMEOUT, signal);
+            if (isCacheReady(result)) return result;
+        }
+
+        throw createServerCacheGateError(
+            result?.processing ? 'processing' : 'unavailable',
+            result?.processing ? '本地缓存仍在生成，请稍后重试' : '本地缓存检查失败，请稍后重试',
+        );
     };
 function getSourceTypeText(sourceType) {
     const map = {
@@ -234,6 +269,12 @@ async function resolveSongUrl(song, quality, isSilent = false, isRetry = false, 
         if (result.errorMsg) throw new Error(result.errorMsg);
         return result;
     } catch (error) {
+        // Cache processing/check failures are deliberate playback gates. Do
+        // not let the normal quality/source fallback turn them into another
+        // paid resolver request.
+        if (error?.code === 'SERVER_CACHE_PROCESSING' || error?.code === 'SERVER_CACHE_UNAVAILABLE') {
+            throw error;
+        }
         if (disableFallback) {
             throw error;
         }
@@ -645,12 +686,11 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false, si
 
     const shouldBypassServerCache = isRetry === 'local_retry' || isRetry === 'download';
 
-    const allowServerCache = settings.preferServerCache !== false &&
-        !shouldBypassServerCache &&
-        !isServerCacheTemporarilyBypassed(cleanedSong, quality);
+    const allowServerCache = settings.enableServerCache !== false &&
+        settings.preferServerCache !== false &&
+        !shouldBypassServerCache;
     if (allowServerCache) {
-        const cacheCheckTimeout = isSilent ? 2500 : FOREGROUND_CACHE_CHECK_TIMEOUT;
-        let cacheResult = await checkServerCache(cleanedSong, quality, !!isRetry, cacheCheckTimeout, signal);
+        let cacheResult = await waitForServerCacheCheck(cleanedSong, quality, isSilent, isRetry, signal);
         if (signal?.aborted) throw new DOMException('播放请求已取消', 'AbortError');
         if (cacheResult.exists && !cacheResult.isCollision) {
             const actualQuality = cacheResult.quality || quality;
@@ -963,7 +1003,6 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
         applyAutoProxy,
         fetchSongUrl,
         buildPlaybackProxyUrl,
-        markServerCacheFailure,
         getNextIndex,
         prefetchNextSong,
     };

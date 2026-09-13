@@ -41,7 +41,6 @@ export type PlaybackFeatureContext = {
     getUserAuthHeaders: () => Record<string, string>;
     resolveSongUrl: (...args: any[]) => any;
     triggerServerCache?: (...args: any[]) => any;
-    markServerCacheFailure?: (...args: any[]) => void;
     getSourceTypeText: (...args: any[]) => any;
     getSourceName: (...args: any[]) => any;
     findOtherSourceMatch: (...args: any[]) => any;
@@ -95,7 +94,6 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const getUserAuthHeaders = context.getUserAuthHeaders;
     const resolveSongUrl = context.resolveSongUrl;
     const triggerServerCache = context.triggerServerCache;
-    const markServerCacheFailure = context.markServerCacheFailure || (() => { });
     const getSourceTypeText = context.getSourceTypeText;
     const getSourceName = context.getSourceName;
     const findOtherSourceMatch = context.findOtherSourceMatch;
@@ -306,9 +304,6 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         clearManualPlaybackRecovery();
         // Bypass both browser/server URL caches after a source has already failed.
         // Keep the existing recovery state so quality/source fallback still works.
-        if (state.currentSourceType === 'server_cache' && !song.isLocal) {
-            markServerCacheFailure(song, state.currentQuality);
-        }
         state.currentLoadingSongId = null;
         // 在线链接或浏览器缓存链接失败时，允许重新检查服务端缓存：
         // 页面恢复期间后台缓存可能刚好完成，此时继续绕过服务端缓存会
@@ -847,9 +842,6 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 }
                 retryStarted = true;
                 cleanup();
-                if (resolvedSourceType === 'server_cache' && !playbackSong.isLocal) {
-                    markServerCacheFailure(playbackSong, resolvedQuality);
-                }
                 // Both browser-link and freshly-resolved remote URLs can expire.
                 // Remove either one before recovery so a later click cannot
                 // silently reuse the same broken signed URL.
@@ -1043,6 +1035,13 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         if (state.currentLoadingRequestId !== thisRequestId) return;
         playbackAttempt.stage = 'recovering';
         console.error('[Player] Error:', error);
+
+        if (error?.code === 'SERVER_CACHE_PROCESSING' || error?.code === 'SERVER_CACHE_UNAVAILABLE') {
+            setPlayerStatus(error.message || '本地缓存暂不可用');
+            showPlaybackStatus(error.message || '本地缓存暂不可用', { type: 'error', duration: 3200 });
+            updatePlayButton(false);
+            return;
+        }
 
         if (state.currentRecoveryState && state.currentRecoveryState.thisRequestId === thisRequestId && !noPlay) {
             await runRecoveryFlow(error);
