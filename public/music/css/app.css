@@ -807,9 +807,18 @@ html, body {
 }
 
 #search-results.artist-detail-active #artist-detail-content {
-    flex: 1 0 auto;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-block-size: 0;
     min-inline-size: 0;
     overflow: visible;
+    padding-block-end: 0 !important;
+}
+
+#search-results.artist-detail-active #artist-detail-content > .artist-songs-pagination,
+#search-results.artist-detail-active #artist-detail-content > .artist-albums-pagination {
+    margin-block-start: auto;
 }
 
 /* Library favorites (Artists & Albums) sticky header styling */
@@ -1472,7 +1481,7 @@ html, body {
 
 @keyframes player-list-item-enter {
     from {
-        opacity: 0;
+        opacity: 1;
         transform: translate3d(0, 0.5rem, 0);
     }
 
@@ -1484,7 +1493,7 @@ html, body {
 
 .player-detail-content-entering {
     animation: player-list-item-enter var(--motion-duration-standard) var(--motion-ease-emphasized) both;
-    will-change: transform, opacity;
+    will-change: transform;
 }
 
 .player-motion-item {
@@ -1493,7 +1502,7 @@ html, body {
     transition-property: transform, box-shadow, background-color, border-color, color, opacity;
     transition-duration: var(--motion-duration-standard);
     transition-timing-function: var(--motion-ease-standard);
-    will-change: transform, opacity;
+    will-change: transform;
 }
 
 @supports (view-transition-name: none) {
@@ -3548,12 +3557,12 @@ aside {
 }
 
 @keyframes leaderboard-page-next {
-    from { opacity: 0; transform: translate3d(1rem, 0, 0); }
+    from { opacity: 1; transform: translate3d(1rem, 0, 0); }
     to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @keyframes leaderboard-page-prev {
-    from { opacity: 0; transform: translate3d(-1rem, 0, 0); }
+    from { opacity: 1; transform: translate3d(-1rem, 0, 0); }
     to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
