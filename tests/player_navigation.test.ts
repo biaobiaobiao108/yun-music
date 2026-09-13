@@ -568,7 +568,8 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(playbackContent).toContain('let retryResolvedUrl: (() => boolean) | null = null;');
         expect(playbackContent).toContain("localStorage.removeItem(`lx_url_${cleanSongData(playbackSong).id}_${resolvedQuality}`);");
         expect(playbackContent).toContain('if (!isPlaybackPermissionError && retryResolvedUrl?.()) return;');
-        expect(playbackContent).toContain('showSuccess(`[${song.name}] 命中${sourceText}`);');
+        expect(playbackContent).toContain('showPlaybackStatus(');
+        expect(playbackContent).toContain("{ type: 'success', duration: 1600 }");
     });
 
     it('recovers failed remote links through the fast proxy without waiting for cache', () => {

@@ -70,12 +70,19 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('requestBackgroundCache();\n\n            // 只在真正开始播放后记录');
         expect(playerSource).toContain('const serverCacheRequests = new Set<string>();');
         expect(playerSource).toContain('background: true');
-        expect(playerSource).toContain('setTimeout(() => controller.abort(), 2500)');
+        expect(playerSource).toContain('const boundedTimeoutMs = Math.max(100, Math.min(Number(timeoutMs) || 2500, 2500));');
+        expect(playerSource).toContain('externalSignal?.addEventListener');
+        expect(playerSource).toContain('externalSignal?.removeEventListener');
+        expect(songUrlSource).toContain('const FOREGROUND_CACHE_CHECK_TIMEOUT = 700;');
+        expect(songUrlSource).toContain('const cacheCheckTimeout = isSilent ? 2500 : FOREGROUND_CACHE_CHECK_TIMEOUT;');
+        expect(songUrlSource).toContain('if (settings.enableAutoProxy && options.probe)');
+        expect(songUrlSource).toContain('signal?: AbortSignal');
     });
 
     it('bounds browser media lifecycles and releases transient download resources', () => {
         const songUrlSource = read('frontend/player/src/features/song_url.ts');
         const playerSource = read('frontend/player/src/index.ts');
+        const playerHtml = read('frontend/player/index.html');
         const playbackSource = read('frontend/player/src/features/playback.ts');
         const visualizerSource = read('frontend/player/src/legacy/visualizer.ts');
         const downloadSource = read('frontend/player/src/legacy/download_manager.ts');
@@ -102,8 +109,8 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('Cache is deliberately a post-play side effect.');
         expect(songUrlSource).toContain("console.warn(`[Resolve] ${msg}`);");
         expect(songUrlSource).not.toContain('else showError(msg);');
-        expect(songUrlSource).toContain('buildServerPlaybackProxyUrl');
-        expect(songUrlSource).toContain('playbackProxyUrl: buildServerPlaybackProxyUrl');
+        expect(songUrlSource).toContain('buildPlaybackProxyUrl');
+        expect(songUrlSource).toContain('playbackProxyUrl: buildPlaybackProxyUrl');
         expect(playbackSource).toContain('const retryMode = state.currentSourceType === \'server_cache\'');
         expect(playbackSource).toContain('_prefetchUnavailableUntil');
         expect(singleSongSource).toContain('const REMOTE_QUALITY_CACHE_MAX = 256;');
@@ -113,6 +120,12 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain('const allowLinkCache = !isRetry && settings.enableSongUrlCache !== false;');
         expect(searchSource).toContain('const ARTIST_SONG_PAGE_CACHE_MAX = 24;');
         expect(searchSource).toContain('const ARTIST_ALBUM_PAGE_CACHE_MAX = 12;');
+        expect(playbackSource).toContain('type PlaybackAttemptContext = {');
+        expect(playbackSource).toContain('activePlaybackAttempt');
+        expect(playbackSource).toContain('activePlaybackAttempt.abortController.abort();');
+        expect(playbackSource).toContain('Duplicate playback target rejected');
+        expect(playerHtml).toContain('id="player-playback-status"');
+        expect(playerSource).toContain('showPlaybackStatus');
 
         expect(visualizerSource).toContain('prototype.stop = function ()');
         expect(visualizerSource).toContain('window.cancelAnimationFrame');

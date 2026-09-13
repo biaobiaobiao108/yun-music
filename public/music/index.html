@@ -20,7 +20,7 @@
     <link rel="icon" href="/music/assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="/music/assets/yun-yin.png">
     <link rel="manifest" href="/music/manifest.json">
-    <link rel="modulepreload" href="app-x9d6tbmc.js">
+    <link rel="modulepreload" href="app-cf7b9brq.js">
     <link rel="stylesheet" href="css/theme_variables.css">
     <link rel="stylesheet" href="css/tailwind.generated.css">
     <script src="js/vendor-bridge.js"></script>
@@ -3204,7 +3204,7 @@
 
     <!-- Player Bar (NetEase 3-Column Modern Player Bar) -->
     <footer id="player-footer" aria-label="当前播放控制"
-        class="fixed bottom-0 left-0 w-full h-auto md:min-h-[4.75rem] py-1.5 md:py-2 t-bg-panel/95 backdrop-blur-xl border-t t-border-main shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex flex-col md:flex-row items-center px-3 md:px-6 z-[60] transition-all duration-300">
+        class="fixed bottom-0 left-0 w-full h-auto md:min-h-[4.75rem] py-1.5 md:py-2 t-bg-panel/95 backdrop-blur-xl border-t t-border-main shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex flex-col md:flex-row items-center px-3 md:px-6 z-[60] transition-all duration-300 relative">
 
         <!-- Left: Song Info (Cover + Title + Like) -->
         <div id="player-song-info"
@@ -3463,6 +3463,14 @@
                 <i class="fas fa-list"></i>
                 <span id="queue-badge-count" class="queue-badge hidden">0</span>
             </button>
+        </div>
+
+        <!-- Playback status: a single low-noise status pill instead of stacked toasts. -->
+        <div id="player-playback-status" role="status" aria-live="polite" aria-atomic="true"
+            class="hidden absolute right-3 md:right-8 bottom-[calc(100%+0.45rem)] max-w-[min(18rem,calc(100vw-1.5rem))] flex items-center gap-1.5 rounded-full border t-border-main t-bg-panel/90 px-2.5 py-1 text-[11px] t-text-muted shadow-sm backdrop-blur-md opacity-0 translate-y-1 transition-all duration-200 pointer-events-none"
+            data-state="info">
+            <i data-playback-status-icon class="fas fa-info-circle text-[10px] shrink-0" aria-hidden="true"></i>
+            <span data-playback-status-text class="truncate">正在准备播放</span>
         </div>
 
         <!-- Collapse Panel Button -->
@@ -4685,7 +4693,7 @@
     <audio id="audio-player" crossorigin="anonymous"></audio>
 
     <!-- The player module owns feature initialization and delegated events. -->
-    <script type="module" src="app-x9d6tbmc.js"></script>
+    <script type="module" src="app-cf7b9brq.js"></script>
 </body>
 
 </html>

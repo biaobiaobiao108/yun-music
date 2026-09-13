@@ -67,8 +67,17 @@ export type PlaybackFeatureContext = {
     showInfo: (...args: any[]) => any;
     showSuccess: (...args: any[]) => any;
     showError: (...args: any[]) => any;
+    showPlaybackStatus?: (...args: any[]) => any;
     pushDataChange: (...args: any[]) => any;
     renderMyLists: (...args: any[]) => any;
+};
+
+type PlaybackAttemptContext = {
+    rootSongId: string;
+    requestId: number;
+    abortController: AbortController;
+    stage: 'resolving' | 'loading' | 'playing' | 'recovering';
+    triedTargets: Set<string>;
 };
 
 export function initPlaybackFeature(context: PlaybackFeatureContext) {
@@ -111,6 +120,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const showInfo = context.showInfo;
     const showSuccess = context.showSuccess;
     const showError = context.showError;
+    const showPlaybackStatus = context.showPlaybackStatus || (() => { });
     const pushDataChange = context.pushDataChange;
     const renderMyLists = context.renderMyLists;
     const PLAYBACK_QUEUE_LIMIT = 99;
@@ -136,6 +146,47 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let likeLongPressTriggered = false;
     let playbackHistoryStack: number[] = [];
     let isNavigatingHistory = false;
+    let activePlaybackAttempt: PlaybackAttemptContext | null = null;
+
+    function getPlaybackTargetKey(song, sourceType, quality, url) {
+        return [
+            String(song?.id || song?.songmid || song?.songId || ''),
+            String(sourceType || ''),
+            String(quality || ''),
+            String(url || ''),
+        ].join('|');
+    }
+
+    function beginPlaybackAttempt(song, requestId, isRetry) {
+        const rootSong = state.currentRecoveryState?.originalSong || song;
+        const rootSongId = String(rootSong?.id || rootSong?.songmid || rootSong?.songId || '');
+        if (!isRetry || !activePlaybackAttempt || activePlaybackAttempt.rootSongId !== rootSongId) {
+            activePlaybackAttempt = {
+                rootSongId,
+                requestId,
+                abortController: new AbortController(),
+                stage: 'resolving',
+                triedTargets: new Set(),
+            };
+        } else {
+            activePlaybackAttempt.requestId = requestId;
+            activePlaybackAttempt.abortController = new AbortController();
+            activePlaybackAttempt.stage = 'resolving';
+        }
+        return activePlaybackAttempt;
+    }
+
+    function markPlaybackTarget(attempt: PlaybackAttemptContext, song, sourceType, quality, url) {
+        const key = getPlaybackTargetKey(song, sourceType, quality, url);
+        if (attempt.triedTargets.has(key)) return false;
+        attempt.triedTargets.add(key);
+        // A single recovery chain should never retain unbounded URL history.
+        if (attempt.triedTargets.size > 12) {
+            const oldest = attempt.triedTargets.values().next().value;
+            if (oldest) attempt.triedTargets.delete(oldest);
+        }
+        return true;
+    }
 
     function reportServerCachePlayback(cacheFile: { username?: string; filename?: string; folder?: string; location?: string } | null | undefined) {
         if (!cacheFile?.filename || (cacheFile.folder !== 'cache' && cacheFile.folder !== 'music')) return;
@@ -328,7 +379,7 @@ async function runRecoveryFlow(error) {
             
             const fromName = window.QualityManager.getQualityDisplayName(state.currentRecoveryState.triedQualities[state.currentRecoveryState.triedQualities.length - 2]);
             const toName = window.QualityManager.getQualityDisplayName(nextQuality);
-            showInfo(`从 ${fromName} 降级到 ${toName} 播放...`);
+            showPlaybackStatus(`切换音质 · ${toName}`, { type: 'info', loading: true });
             
             // Re-invoke playSong with isRetry = true so we don't reset recovery state
             playSong(state.currentRecoveryState.currentSong, state.currentRecoveryState.currentIndex, nextQuality, false, true);
@@ -339,7 +390,7 @@ async function runRecoveryFlow(error) {
         }
     } else if (currentStep === 'switch_platform') {
         if (state.currentRecoveryState.currentSong === state.currentRecoveryState.originalSong) {
-            showInfo('正在自动尝试换源匹配...');
+            showPlaybackStatus('正在切换音源', { type: 'info', loading: true });
             const matchedSong = await findOtherSourceMatch(state.currentRecoveryState.originalSong);
             if (matchedSong) {
                 state.currentRecoveryState.currentSong = matchedSong;
@@ -348,7 +399,7 @@ async function runRecoveryFlow(error) {
                 state.currentRecoveryState.currentQuality = bestNextQuality;
                 state.currentRecoveryState.triedQualities = [bestNextQuality];
                 
-                showInfo(`找到备选源，尝试从 ${getSourceName(matchedSong.source)} 播放...`);
+                showPlaybackStatus(`切换至 ${getSourceName(matchedSong.source)}`, { type: 'info', loading: true });
                 // Re-invoke playSong with isRetry = true
                 playSong(matchedSong, state.currentRecoveryState.currentIndex, bestNextQuality, false, true);
             } else {
@@ -470,6 +521,11 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         return;
     }
 
+    if (!isRetry && activePlaybackAttempt && state.currentLoadingRequestId !== 0) {
+        activePlaybackAttempt.abortController.abort();
+        activePlaybackAttempt.stage = 'recovering';
+    }
+
     if (!noPlay) {
         playAfterSourceReady = false;
         clearManualPlaybackRecovery();
@@ -491,6 +547,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
     const thisRequestId = ++state.loadingRequestCounter;
     state.currentLoadingSongId = thisRequestSongId;
     state.currentLoadingRequestId = thisRequestId;
+    const playbackAttempt = beginPlaybackAttempt(song, thisRequestId, isRetry);
 
     if (!isRetry) {
         const order = (settings.playbackErrorPriority || 'platform,quality,next').split(',');
@@ -558,11 +615,11 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         indicator.style.display = 'none';
     }
 
-    // Show persistent loading toast
+    // Show one compact playback status instead of stacking loading toasts.
     if (!isRetry) {
-        showInfo(`正在加载: ${song.name}...`);
+        showPlaybackStatus('正在连接', { type: 'info', loading: true });
     } else if (isRetry === true) {
-        showInfo(`链接过期或失效，正在为您重新在线解析: ${song.name}...`);
+        showPlaybackStatus('正在重新连接', { type: 'info', loading: true });
     }
 
     // 处理切换提示的显示与隐藏
@@ -584,7 +641,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
     }
 
     // 显示加载状态
-    setPlayerStatus('正在准备播放', null, true);
+    setPlayerStatus('正在连接', null, true);
 
     let targetQuality = forceQuality;
     let isPrefetchFound = false;
@@ -640,8 +697,15 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             if (!targetQuality) {
                 targetQuality = window.QualityManager.getBestQuality(song, settings.preferredQuality || 'flac');
             }
-            setPlayerStatus('正在获取播放链接', null, true);
-            urlResult = await resolveSongUrl(song, targetQuality, false, isRetry, !noPlay);
+            setPlayerStatus('正在获取链接', null, true);
+            urlResult = await resolveSongUrl(
+                song,
+                targetQuality,
+                false,
+                isRetry,
+                !noPlay,
+                playbackAttempt.abortController.signal,
+            );
         }
 
         // 2. Stale Check
@@ -655,11 +719,8 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         const shouldConfirmCacheAfterPlay = !urlResult.isPrefetch && urlResult.sourceType !== 'normal';
 
         if (urlResult.isPrefetch) {
-            let detail = '解析成功';
-            if (urlResult.sourceType === 'cache') detail = '命中缓存链接';
-            else if (urlResult.sourceType === 'server_cache') detail = '命中本地文件';
-            else if (sourceName) detail = `${sourceName} 解析成功`;
-            showSuccess(`[预读] ${song.name} ${detail}`);
+            // 预读是后台行为，不再打断用户当前播放；真正接管播放时统一提示。
+            console.log(`[Prefetch] Playback handoff ready: ${song.name} (${sourceName || sourceText})`);
         }
         // 普通播放的缓存提示延迟到 play() 成功后，避免失效链接先显示“命中”再静默失败。
         // 在线解析 (sourceType === 'normal') 的成功提示已由 fetchSongUrl 中的进度监听处理，此处不再重复显示
@@ -683,14 +744,37 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         }
         // Always refresh the bottom-player badge, including cache hits that keep the same song object.
         updatePlayerInfo(playbackSong, state.currentQuality);
+        playbackAttempt.stage = 'loading';
+        const targetWasAlreadyTried = !noPlay && isRetry && !markPlaybackTarget(
+            playbackAttempt,
+            playbackSong,
+            urlResult.sourceType,
+            state.currentQuality || targetQuality,
+            finalUrl,
+        );
+        if (!targetWasAlreadyTried && !noPlay) {
+            markPlaybackTarget(
+                playbackAttempt,
+                playbackSong,
+                urlResult.sourceType,
+                state.currentQuality || targetQuality,
+                finalUrl,
+            );
+        }
+        if (targetWasAlreadyTried) {
+            console.warn(`[Player] Duplicate playback target rejected: ${playbackSong.name}`);
+            playbackAttempt.stage = 'recovering';
+            if (state.currentRecoveryState?.thisRequestId === thisRequestId) {
+                await runRecoveryFlow(new Error('播放地址重复'));
+            }
+            return;
+        }
 
         let backgroundCacheRequested = false;
         const requestBackgroundCache = () => {
-            // Start caching as soon as a user-initiated remote URL is resolved.
-            // Some custom-source URLs pass resolution but are rejected when the
-            // browser starts reading the media stream. Starting the task here
-            // gives the error recovery path a real local copy to wait for,
-            // without delaying audio.play() or making silent prefetch cache.
+            // Start caching only after audio.play() succeeds. It is deliberately
+            // a post-play side effect and never participates in first-frame or
+            // error-recovery decisions.
             if (backgroundCacheRequested || noPlay || urlResult.isProxyRetry ||
                 typeof triggerServerCache !== 'function' ||
                 !urlResult.cacheUrl || playbackSong.isLocal || settings.enableServerCache === false ||
@@ -783,7 +867,11 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                         hasDifferentPlaybackProxy = playbackProxyUrl !== finalUrl;
                     }
                 }
-                if (isRetry !== 'proxy_retry' && resolvedSourceType !== 'server_cache' && !playbackSong.isLocal && hasDifferentPlaybackProxy) {
+                const proxyTargetKey = hasDifferentPlaybackProxy
+                    ? getPlaybackTargetKey(playbackSong, resolvedSourceType, resolvedQuality, playbackProxyUrl)
+                    : '';
+                const hasUnusedPlaybackProxy = hasDifferentPlaybackProxy && !activePlaybackAttempt?.triedTargets.has(proxyTargetKey);
+                if (isRetry !== 'proxy_retry' && resolvedSourceType !== 'server_cache' && !playbackSong.isLocal && hasUnusedPlaybackProxy) {
                     console.warn(`[Player] ${resolvedSourceType} link failed, retrying through the streaming proxy...`);
                     void playSong(
                         playbackSong,
@@ -861,6 +949,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             audio.muted = isMuted;
 
             await audio.play();
+            playbackAttempt.stage = 'playing';
             consecutivePlaybackFailures = 0;
             noSourceHintShown = false;
 
@@ -874,7 +963,14 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
 
             if (shouldConfirmCacheAfterPlay) {
                 // 非在线解析（如命中本地/服务器缓存），只有真正启动播放后才提示命中。
-                showSuccess(`[${song.name}] 命中${sourceText}`);
+                const qualityLabel = state.currentQuality
+                    ? window.QualityManager.getQualityDisplayName(state.currentQuality)
+                    : '';
+                const playbackLabel = sourceName || (urlResult.sourceType === 'normal' ? sourceText : `已命中${sourceText}`);
+                showPlaybackStatus(
+                    qualityLabel ? `${playbackLabel} · ${qualityLabel}` : playbackLabel,
+                    { type: 'success', duration: 1600 },
+                );
             }
 
             if (settings.enableCrossfade && !isMuted && effectiveVol > 0) {
@@ -918,6 +1014,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 }
             }
         } catch (playError) {
+            playbackAttempt.stage = 'recovering';
             // [Fix] 仅在请求仍有效且非 AbortError 时显示“请点击”提示，防止切歌太快导致旧请求的错误覆盖新请求的新状态
             if (state.currentLoadingRequestId !== thisRequestId) return;
             const isAbort = playError && (playError.name === 'AbortError' || playError.code === 20);
@@ -944,6 +1041,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
 
     } catch (error) {
         if (state.currentLoadingRequestId !== thisRequestId) return;
+        playbackAttempt.stage = 'recovering';
         console.error('[Player] Error:', error);
 
         if (state.currentRecoveryState && state.currentRecoveryState.thisRequestId === thisRequestId && !noPlay) {
@@ -985,8 +1083,19 @@ async function changePlaybackQuality(quality) {
  * @param {boolean} isLoading 是否显示加载/缓冲动画
  */
 function setPlayerStatus(status, isPlaying = null, isLoading = false) {
-    // 播放状态已经由播放/暂停按钮和进度条表达，不再占用底栏歌曲信息空间。
-    return;
+    const normalizedStatus = String(status || '').trim();
+    if (!normalizedStatus) {
+        const statusNode = document.getElementById('player-playback-status');
+        const shouldHide = isPlaying === false || (isPlaying === true && statusNode?.dataset.state !== 'success');
+        if (shouldHide) showPlaybackStatus('');
+        return;
+    }
+
+    const isError = /失败|错误|请点击/.test(normalizedStatus);
+    showPlaybackStatus(normalizedStatus, {
+        type: isError ? 'error' : 'info',
+        loading: isLoading,
+    });
 }
 
 

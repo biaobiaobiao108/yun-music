@@ -37,6 +37,10 @@ export function toUserMessage(error: any, fallback = '操作失败，请稍后�
  * 跑马灯逻辑由入口文件提供，避免通知模块反向依赖播放器渲染实现。
  */
 export function initPlayerNotifications(getMarqueeHelpers) {
+    let playbackStatusTimer: ReturnType<typeof setTimeout> | null = null;
+    let playbackStatusHideTimer: ReturnType<typeof setTimeout> | null = null;
+    let playbackStatusVersion = 0;
+
     // 通用 Toast 显示函数 (支持宽屏、滚动文字、点击关闭、动态堆叠)
     // duration <= 0 表示常驻提示，需要用户手动关闭。
     function showToast(type, message, duration, options: any = {}) {
@@ -56,7 +60,11 @@ export function initPlayerNotifications(getMarqueeHelpers) {
 
         const toast = document.createElement('div');
         // 添加 toast-item 类用于后续高度计算
-        toast.className = `toast-item fixed right-4 ${conf.bg} text-white px-4 py-3 rounded-lg shadow-lg z-[1000] animate-slide-in flex items-center gap-3 w-80 md:w-96 max-w-[90vw] cursor-pointer transition-all duration-300`;
+        const errorToastClasses = type === 'error'
+            ? 'bg-red-500/95 px-3 py-2.5 w-72 md:w-80'
+            : `${conf.bg} px-4 py-3 w-80 md:w-96`;
+        const iconClasses = type === 'error' ? 'text-lg' : 'text-xl';
+        toast.className = `toast-item fixed right-4 ${errorToastClasses} text-white rounded-lg shadow-lg z-[1000] animate-slide-in flex items-center gap-3 max-w-[calc(100vw-1.5rem)] cursor-pointer transition-all duration-300`;
         toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
         toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
         toast.setAttribute('aria-atomic', 'true');
@@ -71,7 +79,7 @@ export function initPlayerNotifications(getMarqueeHelpers) {
             : '';
 
         toast.innerHTML = `
-            <i class="fas ${conf.icon} text-xl shrink-0"></i>
+            <i class="fas ${conf.icon} ${iconClasses} shrink-0"></i>
             ${contentHtml}
             ${actionButtonHtml}
             ${closeButtonHtml}
@@ -164,6 +172,61 @@ export function initPlayerNotifications(getMarqueeHelpers) {
     function showError(message, options: any = {}) { showToast('error', message, options?.duration ?? 6000, options); }
 
     /**
+     * 播放专用状态提示：只复用播放器底栏附近的一个轻量节点，避免解析/换源
+     * 过程创建多个大 Toast。通用业务提示仍然继续使用 showInfo/showSuccess/showError。
+     */
+    function showPlaybackStatus(message: string, options: any = {}) {
+        const status = document.getElementById('player-playback-status');
+        if (!status) return;
+
+        playbackStatusVersion += 1;
+        const currentVersion = playbackStatusVersion;
+        if (playbackStatusTimer) clearTimeout(playbackStatusTimer);
+        if (playbackStatusHideTimer) clearTimeout(playbackStatusHideTimer);
+        playbackStatusTimer = null;
+        playbackStatusHideTimer = null;
+
+        const text = status.querySelector<HTMLElement>('[data-playback-status-text]');
+        const icon = status.querySelector<HTMLElement>('[data-playback-status-icon]');
+        const normalizedMessage = String(message || '').trim();
+        if (!normalizedMessage) {
+            status.classList.add('opacity-0', 'translate-y-1');
+            status.classList.remove('opacity-100', 'translate-y-0');
+            playbackStatusHideTimer = setTimeout(() => {
+                if (currentVersion !== playbackStatusVersion) return;
+                status.classList.add('hidden');
+            }, 220);
+            return;
+        }
+
+        const type = options?.type || 'info';
+        const isLoading = options?.loading === true;
+        const iconClass = isLoading
+            ? 'fa-circle-notch fa-spin'
+            : type === 'success'
+                ? 'fa-check-circle'
+                : type === 'error'
+                    ? 'fa-exclamation-circle'
+                    : 'fa-info-circle';
+
+        if (text) text.textContent = normalizedMessage;
+        if (icon) {
+            icon.className = `fas ${iconClass} text-[10px] shrink-0`;
+        }
+        status.dataset.state = type;
+        status.setAttribute('aria-label', normalizedMessage);
+        status.classList.remove('hidden', 'opacity-0', 'translate-y-1');
+        status.classList.add('opacity-100', 'translate-y-0');
+
+        if (options?.duration > 0) {
+            playbackStatusTimer = setTimeout(() => {
+                if (currentVersion !== playbackStatusVersion) return;
+                showPlaybackStatus('');
+            }, Number(options.duration));
+        }
+    }
+
+    /**
      * 全局加载提示 (showLoading)
      */
     function showLoading(message = '正在处理...') {
@@ -210,6 +273,7 @@ export function initPlayerNotifications(getMarqueeHelpers) {
         showSuccess,
         showInfo,
         showError,
+        showPlaybackStatus,
         showLoading,
         hideLoading,
         dismissAllToasts,
@@ -220,6 +284,7 @@ export function initPlayerNotifications(getMarqueeHelpers) {
         showSuccess,
         showInfo,
         showError,
+        showPlaybackStatus,
         showLoading,
         hideLoading,
         dismissAllToasts,

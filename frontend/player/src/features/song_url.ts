@@ -13,6 +13,7 @@ export interface SongUrlFeatureContext {
     showInfo: (message: string) => void;
     showSuccess: (message: string) => void;
     showError: (message: string) => void;
+    showPlaybackStatus?: (message: string, options?: Record<string, any>) => void;
 }
 
 export function initSongUrlFeature(context: SongUrlFeatureContext) {
@@ -32,10 +33,10 @@ export function initSongUrlFeature(context: SongUrlFeatureContext) {
     const cleanSongData = context.cleanSongData;
     const checkServerCache = context.checkServerCache;
     const updateStorageStatsUI = context.updateStorageStatsUI;
-    const showInfo = context.showInfo;
-    const showSuccess = context.showSuccess;
     const showError = context.showError;
+    const showPlaybackStatus = context.showPlaybackStatus || (() => { });
     const BROKEN_SERVER_CACHE_TTL = 10 * 60 * 1000;
+    const FOREGROUND_CACHE_CHECK_TIMEOUT = 700;
 
     const getServerCacheFailureKey = (song, quality) => {
         const songId = String(cleanSongData(song)?.id || song?.id || song?.songmid || '');
@@ -227,9 +228,9 @@ prefetchManager.init(); // 立即初始化缓冲器
  * 统一的歌曲解析入口，支持播放和预读调用
  * 包含：本地/服务器缓存检查、在线解析、自动降级逻辑
  */
-async function resolveSongUrl(song, quality, isSilent = false, isRetry = false, disableFallback = false) {
+async function resolveSongUrl(song, quality, isSilent = false, isRetry = false, disableFallback = false, signal?: AbortSignal) {
     try {
-        const result = await fetchSongUrl(song, quality, isRetry, isSilent);
+        const result = await fetchSongUrl(song, quality, isRetry, isSilent, signal);
         if (result.errorMsg) throw new Error(result.errorMsg);
         return result;
     } catch (error) {
@@ -263,9 +264,9 @@ async function resolveSongUrl(song, quality, isSilent = false, isRetry = false, 
                     if (!isSilent) {
                         const fromName = window.QualityManager.getQualityDisplayName(quality);
                         const toName = window.QualityManager.getQualityDisplayName(nextQuality);
-                        showInfo(`从 ${fromName} 降级到 ${toName} 播放...`);
+                        showPlaybackStatus(`切换音质 · ${toName}`, { type: 'info', loading: true });
                     }
-                    return await resolveSongUrl(song, nextQuality, isSilent, fallbackRetryMode, false);
+                    return await resolveSongUrl(song, nextQuality, isSilent, fallbackRetryMode, false, signal);
                 }
             } else if (step === 'switch_platform') {
                 if (!isSilent) {
@@ -274,10 +275,10 @@ async function resolveSongUrl(song, quality, isSilent = false, isRetry = false, 
                 const matchedSong = await findOtherSourceMatch(song, isSilent);
                 if (matchedSong) {
                     if (!isSilent) {
-                        showInfo(`找到备选源，尝试从 ${getSourceName(matchedSong.source)} 播放...`);
+                        showPlaybackStatus(`切换至 ${getSourceName(matchedSong.source)}`, { type: 'info', loading: true });
                     }
                     const bestNextQuality = window.QualityManager.getBestQuality(matchedSong, settings.preferredQuality || 'flac');
-                    const matchedResult = await fetchSongUrl(matchedSong, bestNextQuality, fallbackRetryMode, isSilent);
+                    const matchedResult = await fetchSongUrl(matchedSong, bestNextQuality, fallbackRetryMode, isSilent, signal);
                     return {
                         ...matchedResult,
                         songInfo: matchedSong,
@@ -452,7 +453,7 @@ async function findOtherSourceMatches(song, isSilent = false, options = {}) {
         const headers = { 'Content-Type': 'application/json' };
         Object.assign(headers, getUserAuthHeaders());
 
-        if (!isSilent) showInfo('正在自动尝试换源匹配...');
+        if (!isSilent) showPlaybackStatus('正在切换音源', { type: 'info', loading: true });
 
         const searchPromises = searchSources.map(s =>
             fetch(`${API_BASE}/search?name=${encodeURIComponent(query)}&source=${s}&page=1`, { headers })
@@ -539,10 +540,11 @@ function getServerCacheFileDescriptor(url, location = '') {
 }
 
 /**
- * 统一应用代理逻辑，处理 HTTPS 环境下的 HTTP 链接及跨域限制 (CORS) 问题
- * 增强：开启自动代理后，通过探测链接可用性（包括跨域兼容性）来自动决定是否启用服务器代理
+ * 统一应用代理逻辑，处理 HTTPS 环境下的 HTTP 链接及跨域限制 (CORS) 问题。
+ * 前台播放默认跳过探测，把真实媒体请求作为唯一权威判断，避免首播额外等待。
+ * 静默预读/下载仍可显式开启探测，以便后台筛掉明显失效的链接。
  */
-async function applyAutoProxy(url, song) {
+async function applyAutoProxy(url, song, options: { probe?: boolean } = {}) {
     if (!url) return url;
 
     // 已经过代理或为本地路径的无需处理
@@ -566,8 +568,13 @@ async function applyAutoProxy(url, song) {
     const isHttpsEnv = window.location.protocol === 'https:';
     const isHttpLink = url.startsWith('http://');
 
+    // HTTPS 页面无法直接加载 HTTP 音频，直接生成代理地址，不再浪费一次探测请求。
+    if (settings.enableAutoProxy && isHttpsEnv && isHttpLink) {
+        return buildPlaybackProxyUrl(url, song) || url;
+    }
+
     // 优先级 2：自动检测并处理跨域风险 (CORS) 或 混合内容 (Mixed Content)
-    if (settings.enableAutoProxy) {
+    if (settings.enableAutoProxy && options.probe) {
         // 探测流程：检测该 URL 是否能被当前浏览器直接访问
         // 如果是 HTTPS 环境下的 HTTP 链接，先尝试升级 https 探测，否则直接探测原链接
         const probeUrl = (isHttpsEnv && isHttpLink) ? url.replace('http://', 'https://') : url;
@@ -600,34 +607,34 @@ async function applyAutoProxy(url, song) {
         }
 
         // 回退逻辑：探测失败后根据设置启用自定义代理或服务器代理
-        if (settings.enableCustomProxy && settings.customProxyUrl) {
-            const proxyUrl = settings.customProxyUrl.replace('{url}', url);
-            console.log(`[Proxy] Custom proxy fallback: ${song.name} -> ${proxyUrl}`);
+        const proxyUrl = buildPlaybackProxyUrl(url, song);
+        if (proxyUrl) {
+            console.log(`[Proxy] Playback proxy fallback: ${song.name} -> ${proxyUrl}`);
             return proxyUrl;
         }
-
-        console.log(`[Proxy] Server proxy fallback: ${song.name}`);
-        const filename = `${song.singer} - ${song.name}.mp3`;
-        return `/api/music/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}&inline=1`;
     }
 
     return url;
 }
 
-function buildServerPlaybackProxyUrl(url, song) {
+function buildPlaybackProxyUrl(url, song) {
     if (!/^https?:\/\//i.test(String(url || ''))) return null;
+    if (settings.enableCustomProxy && settings.customProxyUrl) {
+        return settings.customProxyUrl.replace('{url}', url);
+    }
     const filename = `${song?.singer || 'unknown'} - ${song?.name || 'download'}.mp3`;
     return `/api/music/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}&inline=1`;
 }
 
-async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
+async function fetchSongUrl(song, quality, isRetry = false, isSilent = false, signal?: AbortSignal) {
+    if (signal?.aborted) throw new DOMException('播放请求已取消', 'AbortError');
     const cleanedSong = cleanSongData(song);
     const cacheKey = `lx_url_${cleanedSong.id}_${quality}`;
 
     // 0. 本地文件/带有本地播放 URL 的歌曲：直接播放本地文件，无需走在线 API 解析
     if ((song.isLocal || song.url?.startsWith('/api/music/cache/file/')) && song.url && !isRetry) {
         console.log(`[Cache] Direct Local File Hit: ${song.name}`);
-        let localUrl = await applyAutoProxy(song.url, song);
+        let localUrl = await applyAutoProxy(song.url, song, { probe: isSilent || isRetry === 'download' });
         return {
             url: localUrl,
             sourceType: 'server_cache',
@@ -642,18 +649,21 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
         !shouldBypassServerCache &&
         !isServerCacheTemporarilyBypassed(cleanedSong, quality);
     if (allowServerCache) {
-        let cacheResult = await checkServerCache(cleanedSong, quality, !!isRetry);
+        const cacheCheckTimeout = isSilent ? 2500 : FOREGROUND_CACHE_CHECK_TIMEOUT;
+        let cacheResult = await checkServerCache(cleanedSong, quality, !!isRetry, cacheCheckTimeout, signal);
+        if (signal?.aborted) throw new DOMException('播放请求已取消', 'AbortError');
         if (cacheResult.exists && !cacheResult.isCollision) {
             const actualQuality = cacheResult.quality || quality;
             console.log(`[Cache] Server Hit: ${cleanedSong.name} (${actualQuality})`);
             let serverCacheUrl = cacheResult.url;
             // 应用代理逻辑 (以防服务器缓存返回的是原始 HTTP 链接)
-            serverCacheUrl = await applyAutoProxy(serverCacheUrl, song);
+            serverCacheUrl = await applyAutoProxy(serverCacheUrl, song, { probe: isSilent || isRetry === 'download' });
             return {
                 url: serverCacheUrl,
                 sourceType: 'server_cache',
                 quality: actualQuality,
-            cacheFile: getServerCacheFileDescriptor(serverCacheUrl, cacheResult.location),
+                playbackProxyUrl: buildPlaybackProxyUrl(cacheResult.url, song),
+                cacheFile: getServerCacheFileDescriptor(serverCacheUrl, cacheResult.location),
             };
         }
     }
@@ -664,10 +674,10 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
         if (cachedUrl) {
             console.log(`[Cache] Link Hit: ${cleanedSong.name} (${quality})`);
             const rawUrl = cachedUrl;
-            cachedUrl = await applyAutoProxy(cachedUrl, song);
+            cachedUrl = await applyAutoProxy(cachedUrl, song, { probe: isSilent || isRetry === 'download' });
             return {
                 url: cachedUrl,
-                playbackProxyUrl: buildServerPlaybackProxyUrl(rawUrl, song),
+                playbackProxyUrl: buildPlaybackProxyUrl(rawUrl, song),
                 cacheUrl: rawUrl.includes('/api/music/cache/file/') ? null : rawUrl,
                 sourceType: 'cache',
                 quality,
@@ -685,7 +695,9 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
                 const attempt = JSON.parse(e.data);
                 const songNamePrefix = attempt.name || song.name || '';
                 const msg = `[${songNamePrefix}] ${attempt.message || (attempt.status === 'success' ? '解析成功' : '解析失败')}`;
-                if (attempt.status === 'success') showSuccess(msg);
+                if (attempt.status === 'success') {
+                    showPlaybackStatus(attempt.message || '解析成功', { type: 'info', duration: 1200 });
+                }
                 else {
                     // A custom source may retry several APIs/requests before
                     // the same resolver eventually returns a valid URL. Do
@@ -704,12 +716,28 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
     headers['x-req-id'] = reqId;
 
     // [Fix] 给予 SSE 连接极短的建连时间，确保并发请求下后端能优先捕获到 SSE 客户端
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException('播放请求已取消', 'AbortError'));
+            return;
+        }
+        const timeoutId = setTimeout(() => {
+            signal?.removeEventListener('abort', onAbort);
+            resolve();
+        }, 50);
+        const onAbort = () => {
+            clearTimeout(timeoutId);
+            signal?.removeEventListener('abort', onAbort);
+            reject(new DOMException('播放请求已取消', 'AbortError'));
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+    });
 
     try {
         const res = await fetch(`${API_BASE}/url`, {
             method: 'POST',
             headers,
+            signal,
             body: JSON.stringify({
                 songInfo: song,
                 quality,
@@ -730,7 +758,7 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
         const result = await res.json();
         if (result.url) {
             // 使用异步统一代理函数
-            const finalUrl = await applyAutoProxy(result.url, song);
+            const finalUrl = await applyAutoProxy(result.url, song, { probe: isSilent || isRetry === 'download' });
 
             if (settings.enableSongUrlCache !== false) {
                 try {
@@ -744,7 +772,7 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
                 // If a direct media request is rejected by the browser, keep a
                 // streamable server fallback without making the first play wait
                 // for the background cache file to finish.
-                playbackProxyUrl: buildServerPlaybackProxyUrl(result.url, song),
+                playbackProxyUrl: buildPlaybackProxyUrl(result.url, song),
                 // Keep the original remote URL for the post-play cache trigger;
                 // finalUrl may be a browser or server playback proxy.
                 cacheUrl: result.url,
@@ -934,7 +962,7 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
         findOtherSourceMatches,
         applyAutoProxy,
         fetchSongUrl,
-        buildServerPlaybackProxyUrl,
+        buildPlaybackProxyUrl,
         markServerCacheFailure,
         getNextIndex,
         prefetchNextSong,

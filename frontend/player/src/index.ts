@@ -183,6 +183,7 @@ const {
     showSuccess,
     showInfo,
     showError,
+    showPlaybackStatus,
     showLoading,
     hideLoading,
     dismissAllToasts,
@@ -798,6 +799,7 @@ const songUrlFeature = initSongUrlFeature({
     showInfo,
     showSuccess,
     showError,
+    showPlaybackStatus,
 });
 const {
     getSourceTypeText,
@@ -1536,6 +1538,7 @@ const playbackFeature = initPlaybackFeature({
     showInfo,
     showSuccess,
     showError,
+    showPlaybackStatus,
     pushDataChange: (...args) => pushDataChange(...args),
     renderMyLists: (...args) => renderMyLists(...args),
 });
@@ -1607,9 +1610,12 @@ function resetPlayer() {
 
 // 获取来源类型的中文描述
 // --- Server Cache Helpers ---
-async function checkServerCache(song, quality, exactQuality = false) {
+async function checkServerCache(song, quality, exactQuality = false, timeoutMs = 2500, externalSignal?: AbortSignal) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const boundedTimeoutMs = Math.max(100, Math.min(Number(timeoutMs) || 2500, 2500));
+    const timeoutId = setTimeout(() => controller.abort(), boundedTimeoutMs);
+    const abortFromCaller = () => controller.abort();
+    externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
     try {
         const username = currentListData?.username || '';
         const params = new URLSearchParams({
@@ -1633,6 +1639,7 @@ async function checkServerCache(song, quality, exactQuality = false) {
         if (e?.name !== 'AbortError') console.error('[ServerCache] Check failed:', e);
     } finally {
         clearTimeout(timeoutId);
+        externalSignal?.removeEventListener('abort', abortFromCaller);
     }
     return { exists: false };
 }
