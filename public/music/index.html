@@ -250,7 +250,7 @@
 
                 <!-- Search View -->
                 <div id="view-search"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-44 md:pb-32 overflow-hidden transition-all duration-300">
+                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-32 md:pb-24 overflow-hidden transition-all duration-300">
                     <!-- Search Input Area -->
                     <div class="player-search-toolbar flex flex-col md:flex-row gap-2 md:gap-4 mb-4 md:mb-6">
                         <!-- Search Input -->
@@ -457,7 +457,7 @@
 
                 <!-- Song List View -->
                 <div id="view-songlist"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-44 md:pb-32 hidden opacity-0 transition-all duration-300 overflow-hidden">
+                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-32 md:pb-24 hidden opacity-0 transition-all duration-300 overflow-hidden">
 
                     <!-- Song List Toolbar -->
                     <div class="flex flex-col md:flex-row gap-3 mb-4 md:mb-6">
@@ -523,14 +523,18 @@
                         </div>
                     </div>
 
-                    <!-- Song List Grid -->
-                    <div id="songlist-grid" class="flex-1 overflow-y-auto px-1 pb-6 custom-scrollbar">
-                        <div class="playlist-card-grid"
-                            id="songlist-container">
-                            <!-- Cards will be injected here -->
-                            <div class="col-span-full py-20 text-center t-text-muted animate-fade-in">
-                                <i class="fas fa-circle-notch fa-spin text-4xl mb-4 text-emerald-500"></i>
-                                <p class="font-bold tracking-wider">正在加载歌单...</p>
+                    <!-- Song List Container Card -->
+                    <div
+                        class="flex-1 t-bg-panel rounded-2xl shadow-sm border t-border-main overflow-hidden flex flex-col relative">
+                        <!-- Song List Grid -->
+                        <div id="songlist-grid" class="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar">
+                            <div class="playlist-card-grid"
+                                id="songlist-container">
+                                <!-- Cards will be injected here -->
+                                <div class="col-span-full py-20 text-center t-text-muted animate-fade-in">
+                                    <i class="fas fa-circle-notch fa-spin text-4xl mb-4 text-emerald-500"></i>
+                                    <p class="font-bold tracking-wider">正在加载歌单...</p>
+                                </div>
                             </div>
                         </div>
 
@@ -552,181 +556,184 @@
 
                     <!-- Song List Detail View (Overlay within the view) -->
                     <div id="songlist-detail-view"
-                        class="absolute inset-0 t-bg-main z-20 flex flex-col hidden translate-x-full transition-transform duration-300 pb-44 md:pb-32 overflow-hidden">
+                        class="absolute inset-0 t-bg-main z-20 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-32 md:pb-24 hidden translate-x-full transition-transform duration-300 overflow-hidden">
                         
-                        <div id="sl-detail-scroll-container" class="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-                            <!-- Info Section (Hero Header with floating Back and Collect buttons) -->
-                            <div id="sl-detail-header"
-                                class="relative p-4 md:p-6 flex gap-4 md:gap-6 border-b t-border-main t-bg-panel/30 overflow-hidden flex-shrink-0">
-                                <!-- Floating Back Button -->
-                                <button data-songlist-action="close-detail"
-                                    class="absolute top-2 left-2 md:top-4 md:left-4 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-emerald-500/80 hover:bg-emerald-500 text-white transition-all z-30 shadow-md active:scale-90"
-                                    title="返回歌单广场" aria-label="返回歌单广场">
-                                    <i class="fas fa-arrow-left"></i>
-                                </button>
-                                <!-- Floating Collect Button -->
-                                <button id="sl-detail-collect" data-event-click-action="collectCurrentSongList"
-                                    class="absolute top-2 right-2 md:top-4 md:right-4 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 t-text-main transition-all z-30 shadow-sm active:scale-90"
-                                    title="收藏歌单" aria-label="收藏歌单">
-                                    <i id="sl-detail-collect-icon" class="far fa-heart"></i>
-                                </button>
+                        <div
+                            class="flex-1 flex flex-col overflow-hidden t-bg-panel rounded-2xl shadow-sm border t-border-main relative">
+                            <div id="sl-detail-scroll-container" class="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+                                <!-- Info Section (Hero Header with floating Back and Collect buttons) -->
+                                <div id="sl-detail-header"
+                                    class="relative p-4 md:p-6 flex gap-4 md:gap-6 border-b t-border-main t-bg-panel/30 overflow-hidden flex-shrink-0">
+                                    <!-- Floating Back Button -->
+                                    <button data-songlist-action="close-detail"
+                                        class="absolute top-2 left-2 md:top-4 md:left-4 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-emerald-500/80 hover:bg-emerald-500 text-white transition-all z-30 shadow-md active:scale-90"
+                                        title="返回歌单广场" aria-label="返回歌单广场">
+                                        <i class="fas fa-arrow-left"></i>
+                                    </button>
+                                    <!-- Floating Collect Button -->
+                                    <button id="sl-detail-collect" data-event-click-action="collectCurrentSongList"
+                                        class="absolute top-2 right-2 md:top-4 md:right-4 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 dark:bg-white/10 dark:hover:bg-white/20 t-text-main transition-all z-30 shadow-sm active:scale-90"
+                                        title="收藏歌单" aria-label="收藏歌单">
+                                        <i id="sl-detail-collect-icon" class="far fa-heart"></i>
+                                    </button>
 
-                                <div class="relative flex-shrink-0">
-                                    <img id="sl-detail-cover" loading="lazy" decoding="async" alt="歌单封面"
-                                        class="w-24 h-24 md:w-44 md:h-44 rounded-2xl shadow-xl object-cover dynamic-logo is-placeholder"
-                                        src="/music/assets/yun-yin.png">
-                                </div>
-                                <div class="flex flex-col justify-center gap-1 md:gap-2.5 flex-1 min-w-0 pr-8 md:pr-12">
-                                    <h2 id="sl-detail-name"
-                                        class="text-lg md:text-2xl lg:text-3xl font-extrabold t-text-main line-clamp-2">
-                                    </h2>
-                                    <div class="flex items-center gap-2 flex-wrap">
-                                        <div id="sl-detail-author"
-                                            class="text-xs md:text-sm font-medium text-emerald-600"></div>
-                                        <div id="sl-detail-stats"
-                                            class="flex items-center gap-3 text-xs t-text-muted ml-1">
-                                            <!-- Stats injected here by JS -->
+                                    <div class="relative flex-shrink-0">
+                                        <img id="sl-detail-cover" loading="lazy" decoding="async" alt="歌单封面"
+                                            class="w-24 h-24 md:w-44 md:h-44 rounded-2xl shadow-xl object-cover dynamic-logo is-placeholder"
+                                            src="/music/assets/yun-yin.png">
+                                    </div>
+                                    <div class="flex flex-col justify-center gap-1 md:gap-2.5 flex-1 min-w-0 pr-8 md:pr-12">
+                                        <h2 id="sl-detail-name"
+                                            class="text-lg md:text-2xl lg:text-3xl font-extrabold t-text-main line-clamp-2">
+                                        </h2>
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <div id="sl-detail-author"
+                                                class="text-xs md:text-sm font-medium text-emerald-600"></div>
+                                            <div id="sl-detail-stats"
+                                                class="flex items-center gap-3 text-xs t-text-muted ml-1">
+                                                <!-- Stats injected here by JS -->
+                                            </div>
+                                        </div>
+                                        <div class="relative mt-1">
+                                            <p id="sl-detail-desc"
+                                                class="text-xs md:text-sm t-text-muted line-clamp-2 md:line-clamp-3 leading-relaxed max-w-4xl cursor-pointer hover:t-text-main transition-colors"
+                                                data-songlist-action="toggle-description" title="点击展开/收起简介">
+                                            </p>
+                                            <button id="sl-detail-desc-btn" data-songlist-action="toggle-description"
+                                                class="text-xs text-emerald-500 hover:text-emerald-600 mt-1 hidden font-medium">展开全部
+                                                <i class="fas fa-chevron-down text-[10px] ml-0.5"></i></button>
                                         </div>
                                     </div>
-                                    <div class="relative mt-1">
-                                        <p id="sl-detail-desc"
-                                            class="text-xs md:text-sm t-text-muted line-clamp-2 md:line-clamp-3 leading-relaxed max-w-4xl cursor-pointer hover:t-text-main transition-colors"
-                                            data-songlist-action="toggle-description" title="点击展开/收起简介">
-                                        </p>
-                                        <button id="sl-detail-desc-btn" data-songlist-action="toggle-description"
-                                            class="text-xs text-emerald-500 hover:text-emerald-600 mt-1 hidden font-medium">展开全部
-                                            <i class="fas fa-chevron-down text-[10px] ml-0.5"></i></button>
-                                    </div>
                                 </div>
-                            </div>
 
-                            <!-- Unified Sticky Controls & Header Block -->
-                            <div id="sl-detail-sticky-wrap" class="sticky top-0 z-30 t-bg-main flex-shrink-0">
-                                <!-- Sticky Action Bar -->
-                                <div id="sl-detail-tabs-bar"
-                                    class="px-3 md:px-6 py-2 t-bg-main/95 backdrop-blur border-b t-border-main shadow-sm flex items-center justify-between min-h-[44px]">
-                                    <div class="flex items-center gap-2 sm:gap-3">
-                                        <!-- 常驻紧凑返回按钮 -->
-                                        <button data-songlist-action="close-detail"
-                                            class="w-7 h-7 flex items-center justify-center rounded-lg t-bg-panel border t-border-main t-text-muted hover:text-emerald-500 transition-colors shrink-0"
-                                            title="返回歌单广场" aria-label="返回歌单广场">
-                                            <i class="fas fa-arrow-left text-xs"></i>
-                                        </button>
-                                        <!-- 播放全部 -->
-                                        <button id="sl-detail-play-all" data-songlist-action="play-all"
-                                            class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-all flex items-center gap-1.5 shrink-0 active:scale-95">
-                                            <i class="fas fa-play text-xs"></i>
-                                            <span>播放全部</span>
-                                        </button>
-                                        <span id="sl-detail-count-badge" class="text-xs t-text-muted font-medium ml-1 select-none"></span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <!-- 多选管理 & 列表搜索胶囊按钮 -->
-                                        <div class="flex items-center p-0.5 t-bg-panel rounded-lg border t-border-main shadow-sm">
-                                            <button type="button" data-event-click-action="toggleBatchMode" data-list-action="batch"
-                                                class="w-7 h-7 flex items-center justify-center rounded-md transition-all t-text-muted hover:t-text-main hover:t-bg-track"
-                                                title="多选操作" aria-label="多选操作">
-                                                <i class="fas fa-tasks text-xs" aria-hidden="true"></i>
+                                <!-- Unified Sticky Controls & Header Block -->
+                                <div id="sl-detail-sticky-wrap" class="sticky top-0 z-30 t-bg-panel flex-shrink-0">
+                                    <!-- Sticky Action Bar -->
+                                    <div id="sl-detail-tabs-bar"
+                                        class="px-3 md:px-6 py-2 t-bg-panel/95 backdrop-blur border-b t-border-main shadow-sm flex items-center justify-between min-h-[44px]">
+                                        <div class="flex items-center gap-2 sm:gap-3">
+                                            <!-- 常驻紧凑返回按钮 -->
+                                            <button data-songlist-action="close-detail"
+                                                class="w-7 h-7 flex items-center justify-center rounded-lg t-bg-panel border t-border-main t-text-muted hover:text-emerald-500 transition-colors shrink-0"
+                                                title="返回歌单广场" aria-label="返回歌单广场">
+                                                <i class="fas fa-arrow-left text-xs"></i>
                                             </button>
-                                            <button type="button" data-event-click-action="ListSearch.toggleBar" data-list-action="search"
-                                                class="w-7 h-7 flex items-center justify-center rounded-md transition-all t-text-muted hover:t-text-main hover:t-bg-track"
-                                                title="搜索当前歌单" aria-label="搜索当前歌单">
-                                                <i class="fas fa-search text-xs" aria-hidden="true"></i>
+                                            <!-- 播放全部 -->
+                                            <button id="sl-detail-play-all" data-songlist-action="play-all"
+                                                class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-all flex items-center gap-1.5 shrink-0 active:scale-95">
+                                                <i class="fas fa-play text-xs"></i>
+                                                <span>播放全部</span>
                                             </button>
+                                            <span id="sl-detail-count-badge" class="text-xs t-text-muted font-medium ml-1 select-none"></span>
                                         </div>
-                                    </div>
-                                </div>
-
-                                <!-- Batch Toolbar (Hidden by default) -->
-                                <div id="sl-batch-toolbar"
-                                    class="hidden bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 p-3 flex items-center justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <span data-batch-selection-status role="status" aria-live="polite" aria-atomic="true" class="text-sm text-emerald-700 dark:text-emerald-300">已选择: <span
-                                                id="sl-batch-selected-count" class="font-bold">0</span> 首</span>
-                                        <button type="button" data-batch-action="select-all" data-event-click-action="selectAllVisible"
-                                            aria-label="全选当前可见歌曲" aria-controls="sl-detail-list"
-                                            class="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded shadow-sm transition-all font-medium">全选</button>
-                                        <button type="button" data-event-click-action="deselectAll" aria-label="清空已选歌曲" aria-controls="sl-detail-list"
-                                            class="text-xs px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded shadow-sm transition-all font-medium">清空</button>
-                                        <button type="button" data-event-click-action="toggleBatchMode" aria-label="退出多选模式"
-                                            class="text-xs px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded shadow-sm transition-all font-medium">退出</button>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <button data-event-click-action="handleBatchCollect"
-                                            class="text-xs px-2 md:px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded transition-colors"
-                                            title="批量收藏">
-                                            <i class="fas fa-folder-plus md:mr-1"></i><span
-                                                class="hidden md:inline">批量收藏</span>
-                                        </button>
-                                        <button data-event-click-action="batchDownloadFromList"
-                                            class="text-xs px-2 md:px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-                                            title="批量下载">
-                                            <i class="fas fa-download md:mr-1"></i><span
-                                                class="hidden md:inline">批量下载</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Song List Local Search Bar (Hidden by default) -->
-                                <div id="sl-local-search-bar"
-                                    class="hidden p-3 t-bg-main border-b t-border-main animate-fade-in">
-                                    <div class="flex items-center gap-2 sm:gap-3">
-                                        <div class="relative flex-1 min-w-[24px]">
-                                            <label for="sl-local-search-input" class="sr-only">搜索当前歌单</label>
-                                            <input type="text" id="sl-local-search-input"
-                                                class="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border t-border-main rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 t-text-main transition-all"
-                                                placeholder="搜索当前歌单 (歌曲、歌手)..." data-event-input-action="ListSearch.handleSearch"
-                                                data-event-keydown-action="ListSearch.handleKeydown" data-event-keydown-args="[&quot;@event&quot;]">
-                                            <i
-                                                class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                                        </div>
-
-                                        <div id="sl-local-search-nav"
-                                            class="flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 opacity-0 pointer-events-none transition-opacity">
-                                            <div
-                                                class="flex border t-border-main rounded-lg overflow-hidden order-1 sm:order-2">
-                                                <button data-event-click-action="ListSearch.navigate" data-event-click-args="[-1]"
-                                                    class="p-1 sm:p-1.5 hover:t-bg-track t-text-main transition-colors border-r t-border-main"
-                                                    title="上一个">
-                                                    <i class="fas fa-chevron-left text-[10px]"></i>
+                                        <div class="flex items-center gap-2">
+                                            <!-- 多选管理 & 列表搜索胶囊按钮 -->
+                                            <div class="flex items-center p-0.5 t-bg-panel rounded-lg border t-border-main shadow-sm">
+                                                <button type="button" data-event-click-action="toggleBatchMode" data-list-action="batch"
+                                                    class="w-7 h-7 flex items-center justify-center rounded-md transition-all t-text-muted hover:t-text-main hover:t-bg-track"
+                                                    title="多选操作" aria-label="多选操作">
+                                                    <i class="fas fa-tasks text-xs" aria-hidden="true"></i>
                                                 </button>
-                                                <button data-event-click-action="ListSearch.navigate" data-event-click-args="[1]"
-                                                    class="p-1 sm:p-1.5 hover:t-bg-track t-text-main transition-colors"
-                                                    title="下一个">
-                                                    <i class="fas fa-chevron-right text-[10px]"></i>
+                                                <button type="button" data-event-click-action="ListSearch.toggleBar" data-list-action="search"
+                                                    class="w-7 h-7 flex items-center justify-center rounded-md transition-all t-text-muted hover:t-text-main hover:t-bg-track"
+                                                    title="搜索当前歌单" aria-label="搜索当前歌单">
+                                                    <i class="fas fa-search text-xs" aria-hidden="true"></i>
                                                 </button>
                                             </div>
-                                            <span id="sl-local-search-count"
-                                                class="text-[9px] sm:text-xs font-mono t-text-muted order-2 sm:order-1 leading-none">0/0</span>
                                         </div>
+                                    </div>
 
-                                        <div class="flex items-center gap-3 ml-auto">
-                                            <label class="flex items-center cursor-pointer group">
-                                                <span
-                                                    class="text-xs t-text-muted mr-2 group-hover:t-text-main transition-colors hidden sm:block">仅显示匹配项</span>
-                                                <div class="relative inline-flex items-center">
-                                                    <input type="checkbox" id="sl-local-search-filter" class="sr-only peer"
-                                                        data-event-change-action="ListSearch.toggleFilter">
-                                                    <div
-                                                        class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                                    </div>
-                                                </div>
-                                            </label>
-                                            <button data-event-click-action="ListSearch.toggleBar" data-event-click-args="[false]"
-                                                class="p-2 t-text-muted hover:text-red-500 transition-colors" title="关闭搜索"
-                                                aria-label="关闭搜索">
-                                                <i class="fas fa-times"></i>
+                                    <!-- Batch Toolbar (Hidden by default) -->
+                                    <div id="sl-batch-toolbar"
+                                        class="hidden bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 p-3 flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <span data-batch-selection-status role="status" aria-live="polite" aria-atomic="true" class="text-sm text-emerald-700 dark:text-emerald-300">已选择: <span
+                                                    id="sl-batch-selected-count" class="font-bold">0</span> 首</span>
+                                            <button type="button" data-batch-action="select-all" data-event-click-action="selectAllVisible"
+                                                aria-label="全选当前可见歌曲" aria-controls="sl-detail-list"
+                                                class="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded shadow-sm transition-all font-medium">全选</button>
+                                            <button type="button" data-event-click-action="deselectAll" aria-label="清空已选歌曲" aria-controls="sl-detail-list"
+                                                class="text-xs px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded shadow-sm transition-all font-medium">清空</button>
+                                            <button type="button" data-event-click-action="toggleBatchMode" aria-label="退出多选模式"
+                                                class="text-xs px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded shadow-sm transition-all font-medium">退出</button>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <button data-event-click-action="handleBatchCollect"
+                                                class="text-xs px-2 md:px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded transition-colors"
+                                                title="批量收藏">
+                                                <i class="fas fa-folder-plus md:mr-1"></i><span
+                                                    class="hidden md:inline">批量收藏</span>
+                                            </button>
+                                            <button data-event-click-action="batchDownloadFromList"
+                                                class="text-xs px-2 md:px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                                                title="批量下载">
+                                                <i class="fas fa-download md:mr-1"></i><span
+                                                    class="hidden md:inline">批量下载</span>
                                             </button>
                                         </div>
                                     </div>
+
+                                    <!-- Song List Local Search Bar (Hidden by default) -->
+                                    <div id="sl-local-search-bar"
+                                        class="hidden p-3 t-bg-panel border-b t-border-main animate-fade-in">
+                                        <div class="flex items-center gap-2 sm:gap-3">
+                                            <div class="relative flex-1 min-w-[24px]">
+                                                <label for="sl-local-search-input" class="sr-only">搜索当前歌单</label>
+                                                <input type="text" id="sl-local-search-input"
+                                                    class="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border t-border-main rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 t-text-main transition-all"
+                                                    placeholder="搜索当前歌单 (歌曲、歌手)..." data-event-input-action="ListSearch.handleSearch"
+                                                    data-event-keydown-action="ListSearch.handleKeydown" data-event-keydown-args="[&quot;@event&quot;]">
+                                                <i
+                                                    class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                                            </div>
+
+                                            <div id="sl-local-search-nav"
+                                                class="flex flex-col sm:flex-row items-center gap-0.5 sm:gap-2 opacity-0 pointer-events-none transition-opacity">
+                                                <div
+                                                    class="flex border t-border-main rounded-lg overflow-hidden order-1 sm:order-2">
+                                                    <button data-event-click-action="ListSearch.navigate" data-event-click-args="[-1]"
+                                                        class="p-1 sm:p-1.5 hover:t-bg-track t-text-main transition-colors border-r t-border-main"
+                                                        title="上一个">
+                                                        <i class="fas fa-chevron-left text-[10px]"></i>
+                                                    </button>
+                                                    <button data-event-click-action="ListSearch.navigate" data-event-click-args="[1]"
+                                                        class="p-1 sm:p-1.5 hover:t-bg-track t-text-main transition-colors"
+                                                        title="下一个">
+                                                        <i class="fas fa-chevron-right text-[10px]"></i>
+                                                    </button>
+                                                </div>
+                                                <span id="sl-local-search-count"
+                                                    class="text-[9px] sm:text-xs font-mono t-text-muted order-2 sm:order-1 leading-none">0/0</span>
+                                            </div>
+
+                                            <div class="flex items-center gap-3 ml-auto">
+                                                <label class="flex items-center cursor-pointer group">
+                                                    <span
+                                                        class="text-xs t-text-muted mr-2 group-hover:t-text-main transition-colors hidden sm:block">仅显示匹配项</span>
+                                                    <div class="relative inline-flex items-center">
+                                                        <input type="checkbox" id="sl-local-search-filter" class="sr-only peer"
+                                                            data-event-change-action="ListSearch.toggleFilter">
+                                                        <div
+                                                            class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 transition-all">
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                                <button data-event-click-action="ListSearch.toggleBar" data-event-click-args="[false]"
+                                                    class="p-2 t-text-muted hover:text-red-500 transition-colors" title="关闭搜索"
+                                                    aria-label="关闭搜索">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 </div>
 
-                            </div>
-
-                            <!-- Song items container -->
-                            <div id="sl-detail-list" role="list"
-                                class="player-track-list-content px-0 py-2 space-y-1 custom-scrollbar pb-20">
-                                <!-- Song items -->
+                                <!-- Song items container -->
+                                <div id="sl-detail-list" role="list"
+                                    class="player-track-list-content px-0 py-2 space-y-1 custom-scrollbar pb-20">
+                                    <!-- Song items -->
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -734,7 +741,7 @@
 
                 <!-- Leaderboard View -->
                 <div id="view-leaderboard"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-44 md:pb-32 hidden opacity-0 transition-all duration-300 overflow-hidden">
+                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-32 md:pb-24 hidden opacity-0 transition-all duration-300 overflow-hidden">
 
                     <!-- 顶部工具栏：增强手机端适配 -->
                     <div class="flex-shrink-0 flex items-center gap-2 md:gap-4 mb-4 md:mb-6">
@@ -930,7 +937,7 @@
 
                 <!-- Favorites View -->
                 <div id="view-favorites"
-                    class="absolute inset-0 flex flex-col px-6 pt-6 md:px-12 md:pt-12 pb-44 md:pb-32 hidden opacity-0 transition-all duration-300">
+                    class="absolute inset-0 flex flex-col px-6 pt-6 md:px-12 md:pt-12 pb-32 md:pb-24 hidden opacity-0 transition-all duration-300">
                     <div class="flex-1 flex flex-col items-center justify-center t-text-muted">
                         <div class="relative mb-8">
                             <div
@@ -957,7 +964,7 @@
 
                 <!-- Local Music View -->
                 <div id="view-localmusic"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-44 md:pb-32 hidden opacity-0 transition-all duration-300 overflow-hidden">
+                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-32 md:pb-24 hidden opacity-0 transition-all duration-300 overflow-hidden">
 
                     <!-- Settings and Filters Area -->
                     <div
@@ -1312,7 +1319,7 @@
 
                 <!-- Settings View -->
                 <div id="view-settings"
-                    class="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 pt-6 pb-44 md:pb-32 hidden opacity-0 transition-all duration-300">
+                    class="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 pt-6 pb-32 md:pb-24 hidden opacity-0 transition-all duration-300">
                     <div
                         class="t-bg-panel rounded-2xl shadow-sm border t-border-main p-4 sm:p-8 max-w-2xl mx-auto w-full">
                         <h2 class="text-2xl font-bold t-text-main mb-6">设置</h2>
@@ -3068,7 +3075,7 @@
                 </div>
                 <!-- About View -->
                 <div id="view-about"
-                    class="absolute inset-0 overflow-y-auto custom-scrollbar px-6 pt-6 pb-44 md:pb-32 hidden opacity-0 transition-all duration-300">
+                    class="absolute inset-0 overflow-y-auto custom-scrollbar px-6 pt-6 pb-32 md:pb-24 hidden opacity-0 transition-all duration-300">
                     <div
                         class="t-bg-panel rounded-2xl shadow-sm border t-border-main p-8 max-w-3xl mx-auto w-full prose prose-emerald">
                         <div id="about-content" class="animate-pulse">
