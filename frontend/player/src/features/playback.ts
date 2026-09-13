@@ -250,7 +250,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         manualPlaybackRecoveryCleanup = null;
     }
 
-    function waitForBackgroundCacheAndRetry(song, index, quality, noPlay, shouldAddToDefault, resumeTime) {
+    function waitForBackgroundCacheAndRetry(song, index, quality, noPlay, shouldAddToDefault, resumeTime, cacheRequestActive = false) {
         if (typeof checkServerCache !== 'function' || settings.preferServerCache === false || settings.enableServerCache === false) {
             return false;
         }
@@ -263,7 +263,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         const activeCacheGraceMs = 15 * 1000;
         const interval = 500;
         let attempts = 0;
-        let activeCacheDeadline = 0;
+        let activeCacheDeadline = cacheRequestActive ? Date.now() + activeCacheGraceMs : 0;
         let timer: ReturnType<typeof setTimeout> | null = null;
         let cancelled = false;
 
@@ -796,6 +796,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         // Pre-handle error for invalid cache links. A media element can report a
         // failed source through either the error event or a rejected play() promise.
         let retryResolvedUrl: (() => boolean) | null = null;
+        let backgroundCacheRequested = false;
         if (!noPlay && finalUrl) {
             const resolvedSourceType = state.currentSourceType;
             const resolvedQuality = state.currentQuality || targetQuality;
@@ -816,6 +817,17 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                     }
                 });
                 if (state.currentPlayingSong !== playbackSong || !isSameSource) return false;
+                // The browser may accept the source first and fail later while
+                // the remote stream is still being read. In that case the
+                // background cache was already requested after play() resolved;
+                // wait for that known-good local copy instead of immediately
+                // showing a false failure and advancing the queue.
+                if (!isRetry && backgroundCacheRequested &&
+                    waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality, noPlay, shouldAddToDefault, resumeTime, true)) {
+                    retryStarted = true;
+                    cleanup();
+                    return true;
+                }
                 // A failed retry has already exhausted this source resolution.
                 // Only a broken server cache may still fall back once to a fresh
                 // online source; ordinary online failures must stop here instead
@@ -917,6 +929,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             // a URL that immediately fails and later gets treated as a valid
             // fallback by another click.
             if (urlResult.cacheUrl && !urlResult.isPrefetch && !playbackSong.isLocal && settings.enableServerCache !== false) {
+                backgroundCacheRequested = true;
                 void triggerServerCache?.(playbackSong, urlResult.cacheUrl, state.currentQuality || targetQuality);
             }
 

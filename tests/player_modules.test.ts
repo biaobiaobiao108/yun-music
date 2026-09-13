@@ -94,6 +94,8 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('const maxAttempts = 6;');
         expect(playbackSource).toContain('const activeCacheGraceMs = 15 * 1000;');
         expect(playbackSource).toContain('cacheResult?.processing');
+        expect(playbackSource).toContain('let backgroundCacheRequested = false;');
+        expect(playbackSource).toContain('waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality');
         expect(songUrlSource).toContain('buildServerPlaybackProxyUrl');
         expect(songUrlSource).toContain('playbackProxyUrl: buildServerPlaybackProxyUrl');
         expect(playbackSource).toContain('const retryMode = state.currentSourceType === \'server_cache\'');
