@@ -260,7 +260,20 @@ export const createCacheRouter = (): Router => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
-    const result = fileCache.checkCache({ name, singer, source, songmid, songId, quality, exactQuality }, username)
+    const cacheSong = { name, singer, source, songmid, songId, quality, exactQuality }
+    const result = fileCache.checkCache(cacheSong, username)
+    const activeProgress = fileCache.getActiveCacheProgress(
+      fileCache.normalizeSongId(cacheSong),
+      exactQuality ? (quality || undefined) : undefined,
+    )
+    if (activeProgress) {
+      return ctx.json({
+        ...result,
+        exists: false,
+        processing: true,
+        progress: activeProgress,
+      })
+    }
     return ctx.json(result)
   })
 

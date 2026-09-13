@@ -352,6 +352,63 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('should hide a cache entry while background post-processing is still mutating the file', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-processing-cache-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    const username = 'processing-cache-user'
+    const songInfo = {
+      source: 'wy',
+      songmid: 'processing-song',
+      id: 'processing-song',
+      name: 'Processing Song',
+      singer: 'Processing Singer',
+      album: 'Processing Album',
+      quality: 'flac',
+    }
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const cacheDir = fileCache.getCacheDir(username)
+      const filename = 'processing-song.flac'
+      const audioPath = path.join(cacheDir, filename)
+      fs.writeFileSync(audioPath, Buffer.from('valid-enough-audio'))
+      const stats = fs.statSync(audioPath)
+      fileCache.indexManager.update(username, {
+        id: 'wy_processing-song',
+        songmid: 'processing-song',
+        name: songInfo.name,
+        singer: songInfo.singer,
+        album: songInfo.album,
+        source: songInfo.source,
+        quality: 'flac',
+        filename,
+        folder: 'cache',
+        mtime: stats.mtimeMs,
+        size: stats.size,
+        ext: 'flac',
+      }, 'cache')
+
+      const progressKey = `${fileCache.normalizeSongId(songInfo)}_flac`
+      setCacheProgress(progressKey, { progress: 100, status: 'tagging' })
+      expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username).exists).toBe(false)
+      expect(fileCache.checkCache({ ...songInfo, quality: '320k', exactQuality: false }, username).exists).toBe(false)
+
+      setCacheProgress(progressKey, { progress: 100, status: 'finished' })
+      expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username).exists).toBe(true)
+    } finally {
+      fileCache.cacheProgress.delete(`${fileCache.normalizeSongId(songInfo)}_flac`)
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should remove SQLite index rows when cached files are deleted from disk', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-delete-'))
     const previousLx = (global as any).lx

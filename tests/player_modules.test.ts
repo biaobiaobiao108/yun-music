@@ -61,13 +61,15 @@ describe('Player manager module boundaries', () => {
         const playerSource = read('frontend/player/src/index.ts');
 
         expect(songUrlSource).toContain("this.bufferer.preload = 'metadata'");
-        expect(songUrlSource).toContain('!isSilent && isRetry !== \'download\'');
+        expect(songUrlSource).not.toContain('triggerServerCache(song, rawUrl, quality)');
+        expect(read('frontend/player/src/features/playback.ts')).toContain('void triggerServerCache?.(playbackSong, urlResult.cacheUrl');
         expect(playerSource).toContain('const serverCacheRequests = new Set<string>();');
         expect(playerSource).toContain('background: true');
     });
 
     it('bounds browser media lifecycles and releases transient download resources', () => {
         const songUrlSource = read('frontend/player/src/features/song_url.ts');
+        const playerSource = read('frontend/player/src/index.ts');
         const playbackSource = read('frontend/player/src/features/playback.ts');
         const visualizerSource = read('frontend/player/src/legacy/visualizer.ts');
         const downloadSource = read('frontend/player/src/legacy/download_manager.ts');
@@ -90,6 +92,8 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('urlOverride = null');
         expect(playbackSource).toContain('retrying through the streaming proxy');
         expect(playbackSource).toContain('const maxAttempts = 6;');
+        expect(playbackSource).toContain('const activeCacheGraceMs = 15 * 1000;');
+        expect(playbackSource).toContain('cacheResult?.processing');
         expect(songUrlSource).toContain('buildServerPlaybackProxyUrl');
         expect(songUrlSource).toContain('playbackProxyUrl: buildServerPlaybackProxyUrl');
         expect(playbackSource).toContain('const retryMode = state.currentSourceType === \'server_cache\'');
@@ -97,6 +101,8 @@ describe('Player manager module boundaries', () => {
         expect(singleSongSource).toContain('const REMOTE_QUALITY_CACHE_MAX = 256;');
         expect(singleSongSource).toContain('const remoteQualitySizeInflight = new Map();');
         expect(playbackSource).toContain('void playSong(song, state.currentIndex, null, false, true, null, resumeTime);');
+        expect(playerSource).toContain("playSong(state.song, currentIndex, null, true, 'restore');");
+        expect(songUrlSource).toContain('const allowLinkCache = !isRetry && settings.enableSongUrlCache !== false;');
         expect(searchSource).toContain('const ARTIST_SONG_PAGE_CACHE_MAX = 24;');
         expect(searchSource).toContain('const ARTIST_ALBUM_PAGE_CACHE_MAX = 12;');
 

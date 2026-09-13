@@ -794,7 +794,6 @@ const songUrlFeature = initSongUrlFeature({
     fetchCustomSources,
     cleanSongData,
     checkServerCache: (...args) => checkServerCache(...args),
-    triggerServerCache: (...args) => triggerServerCache(...args),
     updateStorageStatsUI,
     showInfo,
     showSuccess,
@@ -1511,6 +1510,7 @@ const playbackFeature = initPlaybackFeature({
     getUserAuthHeaders,
     resolveSongUrl,
     checkServerCache: (...args) => checkServerCache(...args),
+    triggerServerCache: (...args) => triggerServerCache(...args),
     markServerCacheFailure,
     getSourceTypeText,
     getSourceName,
@@ -2113,8 +2113,10 @@ async function restorePlaybackState() {
 
         // 5. 延迟加载播放源（静默模式）但不强制切换 Tab 破坏默认入口设置
         setTimeout(() => {
-            // 初始化音频源但不立即播放（除非设置了自动播放，当前 playSong handles resumeTime）
-            playSong(state.song, currentIndex, null, true);
+            // 恢复时只复用服务端缓存或重新解析在线地址，不直接拿本地保存的远程链接。
+            // 这类签名 URL 可能已经过期；使用专用 restore 模式会跳过浏览器链接缓存，
+            // 但仍允许命中服务端缓存，避免用户第一次点击播放时才触发换源。
+            playSong(state.song, currentIndex, null, true, 'restore');
         }, 800);
 
     } catch (e) {

@@ -9,7 +9,6 @@ export interface SongUrlFeatureContext {
     fetchCustomSources: (...args: any[]) => Promise<any>;
     cleanSongData: (song: any) => any;
     checkServerCache: (...args: any[]) => Promise<any>;
-    triggerServerCache: (...args: any[]) => any;
     updateStorageStatsUI: (...args: any[]) => any;
     showInfo: (message: string) => void;
     showSuccess: (message: string) => void;
@@ -32,7 +31,6 @@ export function initSongUrlFeature(context: SongUrlFeatureContext) {
     const fetchCustomSources = context.fetchCustomSources;
     const cleanSongData = context.cleanSongData;
     const checkServerCache = context.checkServerCache;
-    const triggerServerCache = context.triggerServerCache;
     const updateStorageStatsUI = context.updateStorageStatsUI;
     const showInfo = context.showInfo;
     const showSuccess = context.showSuccess;
@@ -174,6 +172,7 @@ const prefetchManager = {
             switchedSource: data.switchedSource,
             originalSource: data.originalSource,
             cacheFile: data.cacheFile,
+            cacheUrl: data.cacheUrl,
             songInfo: projectPrefetchSongInfo(data.songInfo),
             timestamp: Date.now()
         };
@@ -666,12 +665,10 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
             console.log(`[Cache] Link Hit: ${cleanedSong.name} (${quality})`);
             const rawUrl = cachedUrl;
             cachedUrl = await applyAutoProxy(cachedUrl, song);
-            if (settings.enableServerCache && !isSilent && isRetry !== 'download' && !rawUrl.includes('/api/music/cache/file/')) {
-                triggerServerCache(song, rawUrl, quality);
-            }
             return {
                 url: cachedUrl,
                 playbackProxyUrl: buildServerPlaybackProxyUrl(rawUrl, song),
+                cacheUrl: rawUrl.includes('/api/music/cache/file/') ? null : rawUrl,
                 sourceType: 'cache',
                 quality,
             };
@@ -734,11 +731,6 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
                     updateStorageStatsUI();
                 } catch (e) { }
             }
-            if (settings.enableServerCache && !isSilent && isRetry !== 'download' && !finalUrl.includes('/api/music/cache/file/')) {
-                // [Fix] 传递原始 result.url 而非经过 applyAutoProxy 处理后的相对代理路径，
-                // 否则后端下载器会因无法识别相对路径而报 ERR_INVALID_URL 错误。
-                triggerServerCache(song, result.url, quality);
-            }
             console.log(`[Resolve] Online Success: ${song.name} via ${result.sourceName || 'Unknown'}`);
             return {
                 url: finalUrl,
@@ -746,6 +738,9 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
                 // streamable server fallback without making the first play wait
                 // for the background cache file to finish.
                 playbackProxyUrl: buildServerPlaybackProxyUrl(result.url, song),
+                // Keep the original remote URL for the post-play cache trigger;
+                // finalUrl may be a browser or server playback proxy.
+                cacheUrl: result.url,
                 sourceType: 'normal',
                 quality: result.type || quality,
                 sourceName: result.sourceName,

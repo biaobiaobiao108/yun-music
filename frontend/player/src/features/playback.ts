@@ -41,6 +41,7 @@ export type PlaybackFeatureContext = {
     getUserAuthHeaders: () => Record<string, string>;
     resolveSongUrl: (...args: any[]) => any;
     checkServerCache?: (...args: any[]) => Promise<any>;
+    triggerServerCache?: (...args: any[]) => any;
     markServerCacheFailure?: (...args: any[]) => void;
     getSourceTypeText: (...args: any[]) => any;
     getSourceName: (...args: any[]) => any;
@@ -86,6 +87,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const getUserAuthHeaders = context.getUserAuthHeaders;
     const resolveSongUrl = context.resolveSongUrl;
     const checkServerCache = context.checkServerCache;
+    const triggerServerCache = context.triggerServerCache;
     const markServerCacheFailure = context.markServerCacheFailure || (() => { });
     const getSourceTypeText = context.getSourceTypeText;
     const getSourceName = context.getSourceName;
@@ -258,8 +260,10 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         // and the streaming proxy have failed. The primary playback path must
         // never wait for a full background-cache download.
         const maxAttempts = 6;
+        const activeCacheGraceMs = 15 * 1000;
         const interval = 500;
         let attempts = 0;
+        let activeCacheDeadline = 0;
         let timer: ReturnType<typeof setTimeout> | null = null;
         let cancelled = false;
 
@@ -284,6 +288,10 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
 
             try {
                 const cacheResult = await checkServerCache(song, quality, true);
+                const progressStatus = cacheResult?.progress?.status;
+                if (!activeCacheDeadline && (cacheResult?.processing || progressStatus === 'downloading' || progressStatus === 'tagging')) {
+                    activeCacheDeadline = Date.now() + activeCacheGraceMs;
+                }
                 if (isCurrent() && cacheResult?.exists && !cacheResult.isCollision) {
                     cleanup();
                     void playSong(song, index, quality, noPlay, true, shouldAddToDefault, resumeTime);
@@ -299,7 +307,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
             }
 
             attempts += 1;
-            if (attempts >= maxAttempts) {
+            if (attempts >= maxAttempts && Date.now() >= activeCacheDeadline) {
                 cleanup();
                 const recoveryState = state.currentRecoveryState;
                 if (recoveryState?.currentSong === song && recoveryState.steps?.length) {
@@ -713,6 +721,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 sourceType: 'normal',
                 sourceName: '服务器流式中继',
                 quality: forceQuality || targetQuality,
+                cacheUrl: urlOverride,
                 isProxyRetry: true,
             };
         } else if (!urlResult) {
@@ -902,6 +911,14 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             await audio.play();
             consecutivePlaybackFailures = 0;
             noSourceHintShown = false;
+
+            // Only cache a remote source after the browser has actually
+            // accepted it for playback. This avoids creating a cache task for
+            // a URL that immediately fails and later gets treated as a valid
+            // fallback by another click.
+            if (urlResult.cacheUrl && !urlResult.isPrefetch && !playbackSong.isLocal && settings.enableServerCache !== false) {
+                void triggerServerCache?.(playbackSong, urlResult.cacheUrl, state.currentQuality || targetQuality);
+            }
 
             // 只在真正开始播放后记录，避免预读或切换页面时把缓存误标为最近使用。
             reportServerCachePlayback(urlResult.cacheFile);

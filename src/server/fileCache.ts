@@ -70,6 +70,30 @@ const CACHE_PROGRESS_ACTIVE_TTL = 10 * 60 * 1000
 const CACHE_PROGRESS_MAX_ENTRIES = 4096
 let cacheProgressCleanupTimer: ReturnType<typeof setTimeout> | null = null
 
+const ACTIVE_CACHE_PROGRESS_STATUSES = new Set(['downloading', 'tagging'])
+
+const getCacheProgressKey = (songId: string, quality?: string) => `${songId}_${quality || 'unknown'}`
+
+export const getActiveCacheProgress = (songId: string, quality?: string) => {
+    const prefix = `${songId}_`
+    const exactKey = quality ? getCacheProgressKey(songId, quality) : null
+    const now = Date.now()
+
+    for (const [key, progress] of cacheProgress) {
+        if ((exactKey && key !== exactKey) || (!exactKey && !key.startsWith(prefix))) continue
+        if (!ACTIVE_CACHE_PROGRESS_STATUSES.has(progress.status)) continue
+        const updatedAt = progress.updatedAt || 0
+        if (updatedAt > 0 && now - updatedAt > CACHE_PROGRESS_ACTIVE_TTL) continue
+        return { key, ...progress }
+    }
+
+    return null
+}
+
+export const isCacheEntryProcessing = (songId: string, quality?: string) => (
+    !!getActiveCacheProgress(songId, quality)
+)
+
 export const cleanupExpiredCacheProgress = (now = Date.now()) => {
     const expiredBefore = now - CACHE_PROGRESS_TTL
     let removed = 0
@@ -1867,6 +1891,10 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                 if (cached) {
                     // 二次校验：exactQuality 模式下确保音质匹配
                     if (useExact && quality && cached.quality !== quality) continue
+                    // 下载完成后还可能进入标签、封面和歌词后处理阶段。此时索引已经
+                    // 指向最终文件，但文件仍可能被 tagger 原地修改；对外隐藏该条目，
+                    // 避免播放器读到半成品后误触发换源/降级。
+                    if (isCacheEntryProcessing(id, cached.quality)) continue
                     const dir = getCacheDir(normalizedUsername, folder === 'music', location)
                     const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
                     if (!fileName) continue
@@ -1906,6 +1934,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
             )
 
             if (collision) {
+                if (isCacheEntryProcessing(collision.id, collision.quality)) continue
                 const collisionDir = getCacheDir(normalizedUsername, collision.folder === 'music', location)
                 const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''
                 const collisionFilePath = collisionFileName ? resolveCacheRelativePath(collisionDir, collisionFileName) : null
@@ -1933,6 +1962,9 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                 for (const folder of folderTypes) {
                     const cachedAny = indexManager.get(normalizedUsername, id, folder, undefined, false, location)
                     if (cachedAny) {
+                        // 非精确音质查询也不能暴露仍在标签、封面或歌词后处理中的文件。
+                        // 否则播放器会拿到已入索引但尚未稳定的文件，触发误判换源。
+                        if (isCacheEntryProcessing(id, cachedAny.quality)) continue
                         const dir = getCacheDir(normalizedUsername, folder === 'music', location)
                         const fileName = cachedAny.filename
                         const filePath = resolveCacheRelativePath(dir, fileName)
