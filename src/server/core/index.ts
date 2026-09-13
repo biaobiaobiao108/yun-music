@@ -101,6 +101,8 @@ const readCompressedCache = (key: string): Uint8Array | null => {
 }
 
 const writeCompressedCache = (key: string, value: Uint8Array): void => {
+  const previous = compressedCache.get(key)
+  if (previous) compressedCacheBytes -= previous.byteLength
   compressedCache.set(key, value)
   compressedCacheBytes += value.byteLength
   while (compressedCache.size > COMPRESS_CACHE_MAX_ENTRIES || compressedCacheBytes > COMPRESS_CACHE_MAX_BYTES) {

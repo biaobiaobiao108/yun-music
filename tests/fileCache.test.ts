@@ -619,6 +619,15 @@ describe('File Cache Progress Lifecycle', () => {
 
     fileCache.cacheProgress.delete(activeKey)
   })
+
+  it('eventually removes stale active progress left by an interrupted worker', () => {
+    const now = Date.now()
+    const staleActiveKey = `stale-active-${now}`
+    setCacheProgress(staleActiveKey, { progress: 12, status: 'downloading', updatedAt: now - 10 * 60 * 1000 - 1 })
+
+    expect(cleanupExpiredCacheProgress(now)).toBe(1)
+    expect(fileCache.cacheProgress.has(staleActiveKey)).toBe(false)
+  })
 })
 
 describe('File Cache Post-processing Limiter', () => {

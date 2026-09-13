@@ -351,12 +351,14 @@ const musicVisualizer = (function () {
     function clear(type) {
         if (type === 'footer' && waveFooter) {
             waveFooter.clearAnimations();
+            waveFooter.stop();
             if (footerCanvas) {
                 const ctx = footerCanvas.getContext('2d');
                 ctx.clearRect(0, 0, footerCanvas.width, footerCanvas.height);
             }
         } else if (type === 'detail' && waveDetail) {
             waveDetail.clearAnimations();
+            waveDetail.stop();
             if (detailCanvas) {
                 const ctx = detailCanvas.getContext('2d');
                 ctx.clearRect(0, 0, detailCanvas.width, detailCanvas.height);

@@ -12,6 +12,7 @@ import { formatPlayTime } from '../common/utils/common'
 import { getDb } from '@/database'
 import { assertSafePathSegment, isPathInside, resolveInside } from '@/utils/pathSecurity'
 import { assertSafeRemoteHttpUrl, type SafeRemoteHttpUrl } from './networkSecurity'
+import { LRUCache } from 'lru-cache'
 
 type MusicTagNative = {
     MusicTagger: new () => any
@@ -51,7 +52,10 @@ export const CACHE_ROOTS = {
 
 let currentCacheLocation = CACHE_ROOTS.ROOT
 const CACHE_LIST_SYNC_TTL = 30 * 1000
-const cacheListSyncState: Map<string, { lastSync: number, pending?: Promise<void> }> = new Map()
+const cacheListSyncState = new LRUCache<string, { lastSync: number, pending?: Promise<void> }>({
+    max: 2048,
+    ttl: 10 * 60 * 1000,
+})
 
 const getCacheLocations = () => [
     currentCacheLocation,
@@ -62,6 +66,8 @@ const getCacheLocations = () => [
 // [Unified Enhancement] Cache Progress Tracker
 export const cacheProgress: Map<string, { progress: number; status: string; total?: number; received?: number; speed?: number; updatedAt?: number; errorMsg?: string }> = new Map()
 const CACHE_PROGRESS_TTL = 30 * 1000
+const CACHE_PROGRESS_ACTIVE_TTL = 10 * 60 * 1000
+const CACHE_PROGRESS_MAX_ENTRIES = 4096
 let cacheProgressCleanupTimer: ReturnType<typeof setTimeout> | null = null
 
 export const cleanupExpiredCacheProgress = (now = Date.now()) => {
@@ -69,7 +75,9 @@ export const cleanupExpiredCacheProgress = (now = Date.now()) => {
     let removed = 0
     for (const [key, progress] of cacheProgress) {
         const updatedAt = progress.updatedAt || 0
-        if (updatedAt > 0 && updatedAt <= expiredBefore && ['error', 'finished', 'exists'].includes(progress.status)) {
+        const terminal = ['error', 'finished', 'exists'].includes(progress.status)
+        const expiry = terminal ? expiredBefore : now - CACHE_PROGRESS_ACTIVE_TTL
+        if (updatedAt > 0 && updatedAt <= expiry) {
             cacheProgress.delete(key)
             removed++
         }
@@ -96,6 +104,19 @@ export const setCacheProgress = (
     progress: { progress: number; status: string; total?: number; received?: number; speed?: number; updatedAt?: number; errorMsg?: string },
 ) => {
     cacheProgress.set(key, { ...progress, updatedAt: progress.updatedAt || Date.now() })
+    while (cacheProgress.size > CACHE_PROGRESS_MAX_ENTRIES) {
+        let oldestKey: string | undefined
+        let oldestUpdatedAt = Number.POSITIVE_INFINITY
+        for (const [candidateKey, candidate] of cacheProgress) {
+            const updatedAt = candidate.updatedAt || 0
+            if (updatedAt < oldestUpdatedAt) {
+                oldestUpdatedAt = updatedAt
+                oldestKey = candidateKey
+            }
+        }
+        if (oldestKey === undefined) break
+        cacheProgress.delete(oldestKey)
+    }
     scheduleCacheProgressCleanup()
 }
 

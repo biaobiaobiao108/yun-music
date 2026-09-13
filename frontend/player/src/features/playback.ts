@@ -118,6 +118,8 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     // play() against the previous (or empty) media source.
     let playAfterSourceReady = false;
     let manualPlaybackRecoveryCleanup: (() => void) | null = null;
+    let playbackErrorCleanup: (() => void) | null = null;
+    let pendingRestoreCleanup: (() => void) | null = null;
     // 连续播放失败计数：限制自动跳过次数，避免整张歌单不可播时无限循环。
     let consecutivePlaybackFailures = 0;
     let noSourceHintShown = false;
@@ -253,7 +255,18 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
             markServerCacheFailure(song, state.currentQuality);
         }
         state.currentLoadingSongId = null;
-        void playSong(song, state.currentIndex, null, false, 'local_retry', null, resumeTime);
+        // 在线链接或浏览器缓存链接失败时，允许重新检查服务端缓存：
+        // 页面恢复期间后台缓存可能刚好完成，此时继续绕过服务端缓存会
+        // 一直重试已经失效的远端 URL。已确认失效的服务端缓存则继续使用
+        // local_retry，避免再次命中同一个坏文件。
+        const retryMode = state.currentSourceType === 'server_cache' && !song.isLocal
+            ? 'local_retry'
+            : true;
+        if (retryMode === 'local_retry') {
+            void playSong(song, state.currentIndex, null, false, 'local_retry', null, resumeTime);
+        } else {
+            void playSong(song, state.currentIndex, null, false, true, null, resumeTime);
+        }
         return true;
     }
 
@@ -381,6 +394,9 @@ async function runRecoveryFlow(error) {
 }
 
 function restoreAudioPosition(position) {
+    pendingRestoreCleanup?.();
+    pendingRestoreCleanup = null;
+
     const requestedPosition = Number(position);
     if (!Number.isFinite(requestedPosition) || requestedPosition <= 0) return;
 
@@ -391,8 +407,27 @@ function restoreAudioPosition(position) {
             : requestedPosition;
     };
 
-    if (audio.readyState >= 1) applyPosition();
-    else audio.addEventListener('loadedmetadata', applyPosition, { once: true });
+    if (audio.readyState >= 1) {
+        applyPosition();
+        return;
+    }
+
+    let active = true;
+    const onLoadedMetadata = () => {
+        if (!active) return;
+        active = false;
+        audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+        if (pendingRestoreCleanup === cleanup) pendingRestoreCleanup = null;
+        applyPosition();
+    };
+    const cleanup = () => {
+        if (!active) return;
+        active = false;
+        audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+        if (pendingRestoreCleanup === cleanup) pendingRestoreCleanup = null;
+    };
+    pendingRestoreCleanup = cleanup;
+    audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
 }
 
 function setAudioSource(url) {
@@ -435,6 +470,11 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         playAfterSourceReady = false;
         clearManualPlaybackRecovery();
     }
+    playbackErrorCleanup?.();
+    playbackErrorCleanup = null;
+    pendingRestoreCleanup?.();
+    pendingRestoreCleanup = null;
+    delete song._prefetchUnavailableUntil;
 
     // 2. New Song Request: Update target
     const thisRequestSongId = song.id;
@@ -548,7 +588,8 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
 
     // 提前检查预读缓存，以便淡出逻辑使用
     if (!targetQuality && !isRetry) {
-        urlResult = prefetchManager.get(song.id);
+        const preferredQuality = window.QualityManager.getBestQuality(song, settings.preferredQuality || 'flac');
+        urlResult = prefetchManager.get(song.id, preferredQuality);
         if (urlResult) {
             urlResult.isPrefetch = true;
             isPrefetchFound = true;
@@ -672,22 +713,31 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                         localStorage.removeItem(`lx_url_${cleanSongData(playbackSong).id}_${resolvedQuality}`);
                     } catch (_) { }
                 }
+                const retryMode = resolvedSourceType === 'server_cache' && !playbackSong.isLocal
+                    ? 'local_retry'
+                    : true;
                 void playSong(
                     playbackSong,
                     index,
                     targetQuality,
                     noPlay,
-                    'local_retry',
+                    retryMode,
                     shouldAddToDefault,
                     resumeTime,
                 );
                 return true;
             };
             const retryHandler = () => {
+                cleanup();
                 retryResolvedUrl?.();
             };
             audio.addEventListener('error', retryHandler, { once: true });
-            const cleanup = () => audio.removeEventListener('error', retryHandler);
+            const cleanup = () => {
+                audio.removeEventListener('error', retryHandler);
+                audio.removeEventListener('pause', cleanup);
+                if (playbackErrorCleanup === cleanup) playbackErrorCleanup = null;
+            };
+            playbackErrorCleanup = cleanup;
             audio.addEventListener('pause', cleanup, { once: true });
         }
 
@@ -1396,8 +1446,9 @@ function playNext(depth = 0, isManual = true) {
     if (nextIndex !== -1 && state.currentPlaylist[nextIndex]) {
         const nextSong = state.currentPlaylist[nextIndex];
 
-        // [Logic Fix] 如果这首歌在预读中已经被确认不可解析，直接跳过到再下一首
-        if (nextSong._unplayable && nextIndex !== state.currentIndex) {
+        // A prefetch failure is only a short-lived hint; users can still retry
+        // the song after the network/source has had time to recover.
+        if (Number(nextSong._prefetchUnavailableUntil || 0) > Date.now() && nextIndex !== state.currentIndex) {
             console.log(`[Queue] Auto-skipping unplayable song [${nextIndex}]: ${nextSong.name}`);
             state.currentIndex = nextIndex; // 更新当前索引以便 getNextIndex() 能找到下一首
             return playNext(depth + 1, isManual);

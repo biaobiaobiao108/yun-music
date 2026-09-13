@@ -1032,6 +1032,7 @@ async function handleLogout() {
             audio.currentTime = 0;
             audio.src = '';
         }
+        prefetchManager.clear();
         if (window.ListStore && typeof window.ListStore.remove === 'function') {
             await window.ListStore.remove().catch(() => {});
         }
@@ -1567,6 +1568,7 @@ function resetPlayer() {
         audio.removeAttribute('src');
         audio.load();
     } catch (e) {}
+    prefetchManager.clear();
 
     currentPlayingSong = null;
     (window as any).currentPlayingSong = null;
@@ -1806,6 +1808,8 @@ async function triggerServerCache(song, url, quality) {
     const requestKey = `${cleanedSong?.id || song?.id || song?.songmid || song?.songId || ''}_${quality || 'unknown'}`;
     if (!requestKey || serverCacheRequests.has(requestKey)) return;
     serverCacheRequests.add(requestKey);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30 * 1000);
     try {
         console.log('[ServerCache] Triggering background download for:', song.name);
         const username = currentListData?.username || '';
@@ -1826,6 +1830,7 @@ async function triggerServerCache(song, url, quality) {
         await fetch('/api/music/cache/download', {
             method: 'POST',
             headers: headers,
+            signal: controller.signal,
             body: JSON.stringify({ 
                 songInfo: songInfoForCache,
                 url: remoteUrl,
@@ -1837,7 +1842,10 @@ async function triggerServerCache(song, url, quality) {
         });
         // 移除 403 自动重试逻辑，API 不再报 403
     } catch (e) { console.error('[ServerCache] Trigger failed:', e); }
-    finally { serverCacheRequests.delete(requestKey); }
+    finally {
+        clearTimeout(timeoutId);
+        serverCacheRequests.delete(requestKey);
+    }
 }
 
 let lastNamingPattern = window.settings?.serverCacheNamingPattern || 'simple';

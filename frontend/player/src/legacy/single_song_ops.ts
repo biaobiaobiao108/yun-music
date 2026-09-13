@@ -29,7 +29,10 @@ function getSongQualitySize(song, quality) {
     return null;
 }
 
+const REMOTE_QUALITY_CACHE_MAX = 256;
+const REMOTE_QUALITY_CACHE_TTL = 10 * 60 * 1000;
 const remoteQualitySizeCache = new Map();
+const remoteQualitySizeInflight = new Map();
 
 const QUALITY_SOURCE_LABELS = {
     tx: 'TX',
@@ -91,40 +94,66 @@ function applySongQualityProbe(song, quality, probe) {
 
 async function fetchRemoteQualitySize(song, quality) {
     const cacheKey = getSongQualityCacheKey(song, quality);
-    if (remoteQualitySizeCache.has(cacheKey)) {
-        const cachedProbe = remoteQualitySizeCache.get(cacheKey);
+    const cachedEntry = remoteQualitySizeCache.get(cacheKey);
+    if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
+        const cachedProbe = cachedEntry.probe;
         applySongQualityProbe(song, quality, cachedProbe);
         return cachedProbe;
     }
+    if (cachedEntry) remoteQualitySizeCache.delete(cacheKey);
+
+    const pending = remoteQualitySizeInflight.get(cacheKey);
+    if (pending) {
+        const probe = await pending;
+        if (probe) applySongQualityProbe(song, quality, probe);
+        return probe;
+    }
+
+    const request = (async () => {
+        try {
+            const authHeaders = typeof globalState.getUserAuthHeaders === 'function' ? globalState.getUserAuthHeaders() : {};
+            const res = await fetch('/api/music/quality/size', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders
+                },
+                body: JSON.stringify({ songInfo: song, quality })
+            });
+            if (!res.ok) throw new Error(await res.text());
+
+            const data = await res.json();
+            return {
+                size: data?.size || null,
+                bytes: Number(data?.bytes) || 0,
+                source: data?.source || null,
+                resolvedQuality: data?.type || quality,
+                sourceName: data?.sourceName || ''
+            };
+        } catch (e) {
+            console.warn(`[QualitySize] 获取 ${quality} 真实大小失败:`, e);
+            return null;
+        }
+    })();
+    remoteQualitySizeInflight.set(cacheKey, request);
 
     try {
-        const authHeaders = typeof globalState.getUserAuthHeaders === 'function' ? globalState.getUserAuthHeaders() : {};
-        const res = await fetch('/api/music/quality/size', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...authHeaders
-            },
-            body: JSON.stringify({ songInfo: song, quality })
-        });
-        if (!res.ok) throw new Error(await res.text());
-
-        const data = await res.json();
-        const probe = {
-            size: data?.size || null,
-            bytes: Number(data?.bytes) || 0,
-            source: data?.source || null,
-            resolvedQuality: data?.type || quality,
-            sourceName: data?.sourceName || ''
-        };
-        applySongQualityProbe(song, quality, probe);
-        remoteQualitySizeCache.set(cacheKey, probe);
+        const probe = await request;
+        if (probe) {
+            applySongQualityProbe(song, quality, probe);
+            remoteQualitySizeCache.set(cacheKey, {
+                probe,
+                expiresAt: Date.now() + REMOTE_QUALITY_CACHE_TTL,
+            });
+            while (remoteQualitySizeCache.size > REMOTE_QUALITY_CACHE_MAX) {
+                remoteQualitySizeCache.delete(remoteQualitySizeCache.keys().next().value);
+            }
+        }
         return probe;
-    } catch (e) {
-        console.warn(`[QualitySize] 获取 ${quality} 真实大小失败:`, e);
-        // Do not make a transient source/network failure permanent for this tab.
-        remoteQualitySizeCache.delete(cacheKey);
-        return null;
+    } finally {
+        if (remoteQualitySizeInflight.get(cacheKey) === request) {
+            remoteQualitySizeInflight.delete(cacheKey);
+        }
     }
 }
 

@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import * as fileCache from './fileCache'
 
 const MAX_REMASTER_ATTEMPTS = 3
+const REMASTER_TASK_TTL = 30 * 60 * 1000
 const QUALITY_ORDER = ['128k', '192k', '320k', 'flac', 'flac24bit', 'hires', 'atmos', 'atmos_plus', 'master'] as const
 const QUALITY_SET = new Set<string>(QUALITY_ORDER)
 
@@ -47,6 +48,15 @@ interface RemasterTask {
 
 const tasks = new Map<string, RemasterTask>()
 let resolver: RemasterResolver | null = null
+
+const pruneFinishedTasks = (now = Date.now()) => {
+  const expiredBefore = now - REMASTER_TASK_TTL
+  for (const [username, task] of tasks) {
+    if (task.status !== 'running' && task.updatedAt <= expiredBefore) {
+      tasks.delete(username)
+    }
+  }
+}
 
 export const initialize = (downloadResolver: RemasterResolver) => {
   resolver = downloadResolver
@@ -233,6 +243,7 @@ const runTask = async (task: RemasterTask, items: fileCache.CacheItem[], allItem
 }
 
 export const start = async (username: string, targetQuality: string, filenames: unknown) => {
+  pruneFinishedTasks()
   if (!resolver) throw new Error('洗版服务尚未就绪')
   if (!QUALITY_SET.has(targetQuality)) throw new Error('不支持该目标音质')
   const current = tasks.get(username)
@@ -280,6 +291,7 @@ export const start = async (username: string, targetQuality: string, filenames: 
 }
 
 export const cancel = (username: string) => {
+  pruneFinishedTasks()
   const task = tasks.get(username)
   if (!task || task.status !== 'running') return false
   task.controller.abort()
@@ -288,6 +300,7 @@ export const cancel = (username: string) => {
 }
 
 export const getStatus = (username: string, offset = 0, limit = 200) => {
+  pruneFinishedTasks()
   const task = tasks.get(username)
   if (!task) return {
     status: 'idle',

@@ -71,16 +71,31 @@ describe('Player manager module boundaries', () => {
         const playbackSource = read('frontend/player/src/features/playback.ts');
         const visualizerSource = read('frontend/player/src/legacy/visualizer.ts');
         const downloadSource = read('frontend/player/src/legacy/download_manager.ts');
+        const singleSongSource = read('frontend/player/src/legacy/single_song_ops.ts');
+        const searchSource = read('frontend/player/src/features/search.ts');
 
         expect(songUrlSource).toContain('const PREFETCH_CACHE_MAX = 5;');
         expect(songUrlSource).toContain('const PREFETCH_CACHE_TTL = 30 * 60 * 1000;');
+        expect(songUrlSource).toContain('requestedQuality: data.requestedQuality || data.quality');
+        expect(songUrlSource).toContain('this.stopBufferer();');
+        expect(songUrlSource).toContain('const PREFETCH_FAILURE_TTL = 60 * 1000;');
         expect(songUrlSource).toContain('inflight: new Map()');
         expect(songUrlSource).toContain('await response.body?.cancel()');
         expect(songUrlSource).toContain('this.bufferer.removeAttribute(\'src\')');
         expect(playbackSource).toContain('audio.error || audio.readyState === 0 || audio.networkState === 3');
+        expect(playbackSource).toContain('pendingRestoreCleanup?.();');
+        expect(playbackSource).toContain('playbackErrorCleanup?.();');
+        expect(playbackSource).toContain('const retryMode = state.currentSourceType === \'server_cache\'');
+        expect(playbackSource).toContain('_prefetchUnavailableUntil');
+        expect(singleSongSource).toContain('const REMOTE_QUALITY_CACHE_MAX = 256;');
+        expect(singleSongSource).toContain('const remoteQualitySizeInflight = new Map();');
+        expect(playbackSource).toContain('void playSong(song, state.currentIndex, null, false, true, null, resumeTime);');
+        expect(searchSource).toContain('const ARTIST_SONG_PAGE_CACHE_MAX = 24;');
+        expect(searchSource).toContain('const ARTIST_ALBUM_PAGE_CACHE_MAX = 12;');
 
         expect(visualizerSource).toContain('prototype.stop = function ()');
         expect(visualizerSource).toContain('window.cancelAnimationFrame');
+        expect(visualizerSource).toContain('waveFooter.stop();');
         expect(visualizerSource).toContain('waveFooter.start();');
 
         expect(downloadSource).toContain('activeReader.cancel()');

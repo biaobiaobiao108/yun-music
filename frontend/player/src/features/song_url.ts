@@ -111,6 +111,7 @@ async function probeUrl(url) {
 
 const PREFETCH_CACHE_MAX = 5;
 const PREFETCH_CACHE_TTL = 30 * 60 * 1000;
+const PREFETCH_FAILURE_TTL = 60 * 1000;
 const PREFETCH_SONG_FIELDS = [
     'id', 'songmid', 'songId', 'source', 'name', 'singer', 'albumName', 'albumId',
     'interval', 'img', 'pic', 'types', '_types', 'hash', 'strMediaMid', 'albumMid',
@@ -145,6 +146,7 @@ const prefetchManager = {
     cache: new Map(), // Map<songId, lightweight prefetch result>
     inflight: new Map(), // Map<songId:quality, Promise<void>>
     version: 0,
+    buffererSongId: null,
     bufferer: new Audio(), // 隐藏的缓冲器，仅用于加载媒体元数据
 
     init() {
@@ -156,12 +158,14 @@ const prefetchManager = {
         try { this.bufferer.pause(); } catch (_) { }
         this.bufferer.removeAttribute('src');
         try { this.bufferer.load(); } catch (_) { }
+        this.buffererSongId = null;
     },
 
     set(songId, data) {
         const key = String(songId);
         const entry = {
             url: data.url,
+            requestedQuality: data.requestedQuality || data.quality,
             quality: data.quality,
             sourceType: data.sourceType,
             sourceName: data.sourceName,
@@ -177,8 +181,15 @@ const prefetchManager = {
 
         // 核心升级：触发数据流预加载
         if (data.url) {
+            // Only one hidden Audio request may be active. Replacing src alone
+            // can leave the previous metadata request alive in some browsers.
+            const currentBuffererUrl = this.bufferer.currentSrc || this.bufferer.src;
+            if (currentBuffererUrl && currentBuffererUrl !== data.url) {
+                this.stopBufferer();
+            }
             console.log(`[Prefetch] Pre-loading metadata for ID: ${key}`);
             this.bufferer.src = data.url;
+            this.buffererSongId = key;
             this.bufferer.load();
         }
 
@@ -187,17 +198,20 @@ const prefetchManager = {
             this.cache.delete(oldestKey);
         }
     },
-    get(songId) {
+    get(songId, requestedQuality = null) {
         const key = String(songId);
         const data = this.cache.get(key);
-        if (data && (Date.now() - data.timestamp < PREFETCH_CACHE_TTL)) {
+        if (data && (Date.now() - data.timestamp < PREFETCH_CACHE_TTL) &&
+            (!requestedQuality || !data.requestedQuality || String(data.requestedQuality) === String(requestedQuality))) {
             return data;
         }
-        this.cache.delete(key);
+        this.delete(key);
         return null;
     },
     delete(songId) {
-        this.cache.delete(String(songId));
+        const key = String(songId);
+        this.cache.delete(key);
+        if (this.buffererSongId === key) this.stopBufferer();
     },
     clear() {
         this.version += 1;
@@ -794,21 +808,24 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
     if (!nextSong) return;
 
     // 如果这首已经被标记为不可播放，拉下一首
-    if (nextSong._unplayable) {
+    const prefetchUnavailableUntil = Number(nextSong._prefetchUnavailableUntil || 0);
+    if (prefetchUnavailableUntil > Date.now()) {
         const followingIndex = (targetIndex + 1) >= currentPlaylist.length ? 0 : targetIndex + 1;
         return prefetchNextSong(followingIndex, depth + 1);
     }
+    if (prefetchUnavailableUntil) delete nextSong._prefetchUnavailableUntil;
 
+    let prefetchVersion = prefetchManager.version;
     try {
         const targetQual = window.QualityManager.getBestQuality(nextSong, settings.preferredQuality || 'flac');
         const prefetchKey = `${String(nextSong.id)}:${String(targetQual)}`;
         const pending = prefetchManager.inflight.get(prefetchKey);
         if (pending) return pending;
 
-        const prefetchVersion = prefetchManager.version;
+        prefetchVersion = prefetchManager.version;
         const work = (async () => {
             // 1. 检查内存缓存
-            let result = prefetchManager.get(nextSong.id);
+            let result = prefetchManager.get(nextSong.id, targetQual);
             if (result) {
                 if (await probeUrl(result.url)) return;
                 prefetchManager.delete(nextSong.id);
@@ -824,7 +841,8 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
             }
 
             if (prefetchManager.version !== prefetchVersion) return;
-            prefetchManager.set(nextSong.id, result);
+            prefetchManager.set(nextSong.id, { ...result, requestedQuality: targetQual });
+            delete nextSong._prefetchUnavailableUntil;
             const sourceDesc = getSourceTypeText(result.sourceType);
             console.log(`[Prefetch] Readied: ${nextSong.name} (${result.quality} / ${sourceDesc})`);
         })();
@@ -838,8 +856,11 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
         }
 
     } catch (e) {
+        if (prefetchManager.version !== prefetchVersion) return;
         console.warn(`[Prefetch] Skip unplayable [${nextSong.name}]:`, e.message);
-        nextSong._unplayable = true; // 标记
+        // A transient resolver/network failure must not permanently poison the
+        // playlist item. Keep only a short-lived hint for automatic skipping.
+        nextSong._prefetchUnavailableUntil = Date.now() + PREFETCH_FAILURE_TTL;
 
         // 递归探测
         const followingIndex = (targetIndex + 1) >= currentPlaylist.length ? 0 : targetIndex + 1;

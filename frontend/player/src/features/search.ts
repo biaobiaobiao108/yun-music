@@ -1016,7 +1016,27 @@ let artistRequestController: AbortController | null = null;
 let artistSongsUsesServerPagination = false;
 let artistSongsTotal = 0;
 let artistSongsPageSize = 20;
+const ARTIST_SONG_PAGE_CACHE_MAX = 24;
 const artistSongsPageCache = new Map<number, any[]>();
+
+function getArtistSongsCachedPage(page) {
+    const cached = artistSongsPageCache.get(page);
+    if (cached) {
+        artistSongsPageCache.delete(page);
+        artistSongsPageCache.set(page, cached);
+    }
+    return cached;
+}
+
+function setArtistSongsCachedPage(page, list) {
+    artistSongsPageCache.delete(page);
+    artistSongsPageCache.set(page, list);
+    while (artistSongsPageCache.size > ARTIST_SONG_PAGE_CACHE_MAX) {
+        const oldestPage = artistSongsPageCache.keys().next().value;
+        if (oldestPage === undefined) break;
+        artistSongsPageCache.delete(oldestPage);
+    }
+}
 
 function getArtistSongsPageSize() {
     if (settings?.itemsPerPage === 'all') return 100;
@@ -1371,7 +1391,7 @@ async function loadArtistSongs(
 ) {
     const request = requestContext || beginArtistRequest();
     const page = Math.max(1, Number.parseInt(String(requestedPage), 10) || 1);
-    const cachedPage = artistSongsPageCache.get(page);
+    const cachedPage = getArtistSongsCachedPage(page);
     // Check if we can use cache to speed up UI transitions (like batch mode toggle)
     if (!forceFetch && cachedPage && String(window.currentArtistId) === String(id) && window.currentArtistOrder === order && window.currentArtistSource === source) {
         if (!isArtistRequestCurrent(request, id, source, 'songs', order)) return;
@@ -1414,7 +1434,7 @@ async function loadArtistSongs(
         artistSongsTotal = artistSongsUsesServerPagination
             ? Math.max(Number(data?.total) || 0, (page - 1) * artistSongsPageSize + list.length)
             : list.length;
-        artistSongsPageCache.set(page, list);
+        setArtistSongsCachedPage(page, list);
         window.currentArtistSongsCache = list;
         window.currentArtistId = id;
         window.currentArtistSource = source;
@@ -1657,10 +1677,30 @@ window.artistSongsGoToPage = artistSongsGoToPage;
 const ARTIST_ALBUM_PAGE_SIZE = 50;
 // 音源接口本身按 50 张专辑分页；详情页一次只渲染/请求一页。
 const ARTIST_ALBUM_RENDER_PAGE_SIZE = ARTIST_ALBUM_PAGE_SIZE;
+const ARTIST_ALBUM_PAGE_CACHE_MAX = 12;
 let artistAlbumsPage = 1;
 let artistAlbumsTotal = 0;
 let artistAlbumsUsesServerPagination = false;
 const artistAlbumsPageCache = new Map<number, any[]>();
+
+function getArtistAlbumsCachedPage(page) {
+    const cached = artistAlbumsPageCache.get(page);
+    if (cached) {
+        artistAlbumsPageCache.delete(page);
+        artistAlbumsPageCache.set(page, cached);
+    }
+    return cached;
+}
+
+function setArtistAlbumsCachedPage(page, list) {
+    artistAlbumsPageCache.delete(page);
+    artistAlbumsPageCache.set(page, list);
+    while (artistAlbumsPageCache.size > ARTIST_ALBUM_PAGE_CACHE_MAX) {
+        const oldestPage = artistAlbumsPageCache.keys().next().value;
+        if (oldestPage === undefined) break;
+        artistAlbumsPageCache.delete(oldestPage);
+    }
+}
 
 function renderArtistAlbumsLoading(loaded = 0, total = 0) {
     const content = document.getElementById('artist-detail-content');
@@ -1682,7 +1722,7 @@ function renderArtistAlbumsLoading(loaded = 0, total = 0) {
 async function loadArtistAlbums(id, source, forceFetch = false, requestContext: ArtistRequestContext | null = null, requestedPage = artistAlbumsPage || 1) {
     const request = requestContext || beginArtistRequest();
     const page = Math.max(1, Number.parseInt(String(requestedPage), 10) || 1);
-    const cachedPage = artistAlbumsPageCache.get(page);
+    const cachedPage = getArtistAlbumsCachedPage(page);
     if (!forceFetch && cachedPage && String(window.currentArtistId) === String(id) && window.currentArtistSource === source) {
         if (!isArtistRequestCurrent(request, id, source, 'albums')) return;
         window.currentArtistAlbumsCache = cachedPage;
@@ -1703,7 +1743,7 @@ async function loadArtistAlbums(id, source, forceFetch = false, requestContext: 
 
         artistAlbumsUsesServerPagination = true;
         artistAlbumsTotal = Math.max(Number(data.total) || 0, (page - 1) * ARTIST_ALBUM_PAGE_SIZE + list.length);
-        artistAlbumsPageCache.set(page, list);
+        setArtistAlbumsCachedPage(page, list);
         window.currentArtistAlbumsCache = list;
         window.currentArtistAlbumsTotal = artistAlbumsTotal;
         artistAlbumsPage = page;
@@ -1825,7 +1865,7 @@ function artistAlbumsGoToPage(page) {
         void loadArtistAlbums(window.currentArtistId, window.currentArtistSource || 'wy', false, null, targetPage);
         return;
     }
-    renderArtistAlbumsUI(artistAlbumsUsesServerPagination ? artistAlbumsPageCache.get(targetPage) || list : list, targetPage);
+    renderArtistAlbumsUI(artistAlbumsUsesServerPagination ? getArtistAlbumsCachedPage(targetPage) || list : list, targetPage);
     document.getElementById('artist-detail-view')?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 window.artistAlbumsGoToPage = artistAlbumsGoToPage;
