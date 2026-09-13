@@ -81,6 +81,20 @@ function getLibraryPage(kind: LibraryKind, list: any[], requestedPage?: number) 
     return { page, totalPages, visibleList: list.slice(startIndex, startIndex + pageSize) };
 }
 
+function reconcileLibraryBatchSelection(list: any[]) {
+    const validIds = new Set((Array.isArray(list) ? list : [])
+        .map(item => String(item?.id ?? '').trim())
+        .filter(id => id && id !== 'undefined'));
+    for (const selectedId of window.libraryBatchSelected) {
+        if (!validIds.has(String(selectedId))) window.libraryBatchSelected.delete(selectedId);
+    }
+}
+
+function resetLibraryBatchContext() {
+    window.libraryBatchMode = false;
+    window.libraryBatchSelected.clear();
+}
+
 function renderLibraryPagination(kind: LibraryKind, page: number, totalPages: number, total: number) {
     if (totalPages <= 1) return '';
     const label = kind === 'artists' ? '位' : '张';
@@ -499,11 +513,13 @@ function renderLibraryArtists(list, requestedPage?: number) {
     if (header) header.classList.add('hidden');
     if (paginationBar) paginationBar.classList.add('hidden');
 
-    window.libraryBatchMode = false;
-    window.libraryBatchSelected.clear();
-    window.viewingPlaylist = list;
+    const normalizedList = Array.isArray(list) ? list : [];
+    const isBatchActive = window.libraryBatchMode === 'artist';
+    reconcileLibraryBatchSelection(normalizedList);
+    window.viewingPlaylist = normalizedList;
 
-    if (!list || list.length === 0) {
+    if (normalizedList.length === 0) {
+        resetLibraryBatchContext();
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full t-text-muted space-y-4">
                 <i class="fas fa-user-slash text-6xl opacity-20"></i>
@@ -513,19 +529,19 @@ function renderLibraryArtists(list, requestedPage?: number) {
         return;
     }
 
-    const { page, totalPages, visibleList } = getLibraryPage('artists', list, requestedPage);
+    const { page, totalPages, visibleList } = getLibraryPage('artists', normalizedList, requestedPage);
     container.classList.add('lib-view-active');
     container.innerHTML = `
         <div class="lib-sticky-header sticky top-0 z-20 t-bg-main">
             <div class="px-3 py-1.5 min-h-[42px] border-b t-border-main flex items-center justify-between">
-                <span class="text-sm font-bold t-text-main">收藏歌手 <span class="text-emerald-500">${list.length}</span> 位</span>
+                <span class="text-sm font-bold t-text-main">收藏歌手 <span class="text-emerald-500">${normalizedList.length}</span> 位</span>
                 <div class="flex items-center gap-2">
                     <button data-event-click-action="enterLibraryArtistBatch" class="text-xs px-2.5 py-1 border t-border-main rounded-lg t-text-muted hover:text-emerald-600 hover:border-emerald-400 transition-all flex items-center gap-1">
                         <i class="fas fa-tasks"></i> 批量管理
                     </button>
                 </div>
             </div>
-            <div id="lib-artist-batch-bar" class="hidden bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 px-3 py-1.5 flex items-center justify-between">
+            <div id="lib-artist-batch-bar" class="${isBatchActive ? '' : 'hidden'} bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 px-3 py-1.5 flex items-center justify-between">
                 <div class="flex items-center gap-2 sm:gap-3">
                     <span class="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">已选: <span id="lib-artist-sel-count" class="font-bold">0</span></span>
                     <button data-event-click-action="libSelectAllArtists" class="text-xs px-2.5 py-0.5 sm:py-1 t-bg-panel border border-emerald-300 dark:border-emerald-700 rounded hover:bg-emerald-50 text-emerald-700 dark:text-emerald-300">全选</button>
@@ -538,7 +554,7 @@ function renderLibraryArtists(list, requestedPage?: number) {
             </div>
         </div>
         <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 md:gap-4 p-3 md:p-6" id="lib-artist-grid"></div>
-        ${renderLibraryPagination('artists', page, totalPages, list.length)}`;
+        ${renderLibraryPagination('artists', page, totalPages, normalizedList.length)}`;
 
     const grid = container.querySelector('#lib-artist-grid');
     visibleList.forEach(singer => {
@@ -566,7 +582,7 @@ function renderLibraryArtists(list, requestedPage?: number) {
                          data-event-error-action="fallback-image"
                          class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
                 </div>
-                <div class="lib-batch-check absolute inset-0 bg-black/40 hidden items-center justify-center rounded-full">
+                <div class="lib-batch-check absolute inset-0 bg-black/40 ${isBatchActive && window.libraryBatchSelected.has(singerId) ? 'flex' : 'hidden'} items-center justify-center rounded-full">
                     <i class="fas fa-check-circle text-white text-2xl"></i>
                 </div>
                 <button class="lib-fav-btn absolute -top-1 -right-1 w-6 h-6 md:w-7 md:h-7 rounded-full bg-red-400/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
@@ -579,6 +595,7 @@ function renderLibraryArtists(list, requestedPage?: number) {
             <div class="mt-1">${getSourceTag ? getSourceTag(singerSource) : escapeHtmlText(singerSource.toUpperCase())}</div>`;
         grid.appendChild(div);
     });
+    updateLibArtistBatchCount();
 }
 window.renderLibraryArtists = renderLibraryArtists;
 
@@ -591,11 +608,13 @@ function renderLibraryAlbums(list, requestedPage?: number) {
     if (header) header.classList.add('hidden');
     if (paginationBar) paginationBar.classList.add('hidden');
 
-    window.libraryBatchMode = false;
-    window.libraryBatchSelected.clear();
-    window.viewingPlaylist = list;
+    const normalizedList = Array.isArray(list) ? list : [];
+    const isBatchActive = window.libraryBatchMode === 'album';
+    reconcileLibraryBatchSelection(normalizedList);
+    window.viewingPlaylist = normalizedList;
 
-    if (!list || list.length === 0) {
+    if (normalizedList.length === 0) {
+        resetLibraryBatchContext();
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full t-text-muted space-y-4">
                 <i class="fas fa-compact-disc text-6xl opacity-20"></i>
@@ -605,12 +624,12 @@ function renderLibraryAlbums(list, requestedPage?: number) {
         return;
     }
 
-    const { page, totalPages, visibleList } = getLibraryPage('albums', list, requestedPage);
+    const { page, totalPages, visibleList } = getLibraryPage('albums', normalizedList, requestedPage);
     container.classList.add('lib-view-active');
     container.innerHTML = `
         <div class="lib-sticky-header sticky top-0 z-20 t-bg-main">
             <div class="px-3 py-1.5 min-h-[42px] border-b t-border-main flex items-center justify-between">
-                <span class="text-sm font-bold t-text-main">收藏专辑 <span class="text-emerald-500">${list.length}</span> 张</span>
+                <span class="text-sm font-bold t-text-main">收藏专辑 <span class="text-emerald-500">${normalizedList.length}</span> 张</span>
                 <div class="flex items-center gap-2">
                     <button id="sync-all-albums-btn" data-event-click-action="syncAllLibraryAlbums" class="text-xs px-2.5 py-1 border t-border-main rounded-lg t-text-muted hover:text-blue-500 hover:border-blue-400 transition-all flex items-center gap-1">
                         <i class="fas fa-sync-alt"></i> 同步所有
@@ -620,7 +639,7 @@ function renderLibraryAlbums(list, requestedPage?: number) {
                     </button>
                 </div>
             </div>
-            <div id="lib-album-batch-bar" class="hidden bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 px-3 py-1.5 flex items-center justify-between">
+            <div id="lib-album-batch-bar" class="${isBatchActive ? '' : 'hidden'} bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 px-3 py-1.5 flex items-center justify-between">
                 <div class="flex items-center gap-2 sm:gap-3">
                     <span class="text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">已选: <span id="lib-album-sel-count" class="font-bold">0</span></span>
                     <button data-event-click-action="libSelectAllAlbums" class="text-xs px-2.5 py-0.5 sm:py-1 t-bg-panel border border-emerald-300 dark:border-emerald-700 rounded hover:bg-emerald-50 text-emerald-700 dark:text-emerald-300">全选</button>
@@ -633,7 +652,7 @@ function renderLibraryAlbums(list, requestedPage?: number) {
             </div>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-6" id="lib-album-grid"></div>
-        ${renderLibraryPagination('albums', page, totalPages, list.length)}`;
+        ${renderLibraryPagination('albums', page, totalPages, normalizedList.length)}`;
 
     const grid = container.querySelector('#lib-album-grid');
     visibleList.forEach(item => {
@@ -659,7 +678,7 @@ function renderLibraryAlbums(list, requestedPage?: number) {
                 <img src="${escapeHtmlText(safeImageUrl(item.picUrl))}" alt="${escapeHtmlText(albumName)}封面" width="320" height="320" loading="lazy" decoding="async"
                      data-event-error-action="fallback-image"
                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                <div class="lib-batch-check absolute inset-0 bg-black/40 hidden items-center justify-center rounded-xl">
+                <div class="lib-batch-check absolute inset-0 bg-black/40 ${isBatchActive && window.libraryBatchSelected.has(albumId) ? 'flex' : 'hidden'} items-center justify-center rounded-xl">
                     <i class="fas fa-check-circle text-white text-3xl"></i>
                 </div>
                 <div class="absolute top-1.5 right-1.5 flex gap-1.5">
@@ -687,6 +706,7 @@ function renderLibraryAlbums(list, requestedPage?: number) {
         });
         grid.appendChild(div);
     });
+    updateLibAlbumBatchCount();
 }
 window.renderLibraryAlbums = renderLibraryAlbums;
 
@@ -703,6 +723,7 @@ window.libraryGoToPage = libraryGoToPage;
 async function handleArtistLibraryClick() {
     leaveSearchNavigation?.();
     exitListSecondaryModes && exitListSecondaryModes();
+    resetLibraryBatchContext();
     document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
     const activeView = document.getElementById('view-search');
     activeView.classList.remove('hidden');
@@ -738,6 +759,7 @@ window.handleArtistLibraryClick = handleArtistLibraryClick;
 async function handleAlbumLibraryClick() {
     leaveSearchNavigation?.();
     exitListSecondaryModes && exitListSecondaryModes();
+    resetLibraryBatchContext();
     document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
     const activeView = document.getElementById('view-search');
     activeView.classList.remove('hidden');

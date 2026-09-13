@@ -30,6 +30,17 @@ window.LeaderboardManager = (function () {
     let boardsRequestSerial = 0;
     let songsRequestSerial = 0;
 
+    function clearSongBatchSelection() {
+        if (typeof window.resetSharedBatchSelection === 'function') {
+            window.resetSharedBatchSelection();
+            return;
+        }
+        window.selectedItems?.clear();
+        window.selectedSongObjects?.clear();
+        const count = document.getElementById('lb-batch-selected-count');
+        if (count) count.textContent = '0';
+    }
+
     // ==================== 初始化 ====================
 
     function init() {
@@ -368,6 +379,7 @@ window.LeaderboardManager = (function () {
     // ==================== 提取的核心方法 ====================
 
     function selectBoard(bangid, name) {
+        clearSongBatchSelection();
         state.currentBangid = bangid;
         state.currentBoardName = name;
         state.page = 1;
@@ -384,12 +396,16 @@ window.LeaderboardManager = (function () {
             ? window.ListSearch.getDisplayList(state.songs).map(item => item.item)
             : state.songs;
 
-        const song = displayList[index];
+        const displayIndex = window.ListSearch && window.ListSearch.state && window.ListSearch.state.active && window.ListSearch.state.id === 'leaderboard'
+            ? window.ListSearch.getDisplayList(state.songs).findIndex(item => item.originalIndex === index)
+            : index;
+        if (displayIndex < 0) return;
+        const song = displayList[displayIndex];
         if (!song) return;
 
         if (typeof window.updatePlaylist === 'function') {
             const listWithSource = displayList.map(s => ({ ...s, source: s.source || state.source }));
-            window.updatePlaylist(listWithSource, index, 'leaderboard', true);
+            window.updatePlaylist(listWithSource, displayIndex, 'leaderboard', true);
         }
     }
 
@@ -443,6 +459,7 @@ window.LeaderboardManager = (function () {
     function changeSource() {
         const sel = document.getElementById('lb-source-select');
         if (!sel) return;
+        clearSongBatchSelection();
         state.source = sel.value;
 
         // 保存到缓存
@@ -509,6 +526,14 @@ function playAllLeaderboard() { window.LeaderboardManager.playAll(); }
 // ==================== 排行榜批量操作与搜索 ====================
 function toggleLbBatchMode() {
     window.batchMode = !window.batchMode;
+    // A leaderboard is a new song-list context. Never carry stale songs or
+    // cached song objects from search/favorites into its batch actions.
+    if (typeof window.resetSharedBatchSelection === 'function') {
+        window.resetSharedBatchSelection();
+    } else {
+        window.selectedItems.clear();
+        window.selectedSongObjects?.clear();
+    }
     const toolbar = document.getElementById('lb-batch-toolbar');
 
     // 隐藏其他干扰元素
@@ -520,7 +545,6 @@ function toggleLbBatchMode() {
     } else {
         toolbar.classList.add('hidden');
         if (prevNextBtn) prevNextBtn.classList.remove('hidden');
-        window.selectedItems.clear(); // 退出时清空选择
         document.getElementById('lb-batch-selected-count').innerText = '0';
     }
     window.LeaderboardManager.renderSongs();

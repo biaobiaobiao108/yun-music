@@ -53,6 +53,17 @@ export function createSongListManager(context: SongListManagerContext) {
     let listRequestSerial = 0;
     let detailRequestSerial = 0;
 
+    function resetSongBatchContext() {
+        window.batchMode = false;
+        if (typeof window.resetSharedBatchSelection === 'function') {
+            window.resetSharedBatchSelection();
+        } else {
+            window.selectedItems?.clear();
+            window.selectedSongObjects?.clear();
+        }
+        document.getElementById('sl-batch-toolbar')?.classList.add('hidden');
+    }
+
     // Bind the delegated handlers immediately, but defer remote data until the
     // user actually opens the song-list plaza.
     function init() {
@@ -875,10 +886,12 @@ export function createSongListManager(context: SongListManagerContext) {
         },
         openDetail: function (id, source) {
             init();
+            resetSongBatchContext();
             if (window.ListSearch) window.ListSearch.resetState();
             loadDetail(id, source);
         },
         closeDetail: function () {
+            resetSongBatchContext();
             detailRequestController?.abort();
             detailRequestSerial++;
             detailLoading = false;

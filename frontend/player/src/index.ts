@@ -111,6 +111,31 @@ function setPlayerPage(page: number) {
 }
 
 (window as any).setPlayerPage = setPlayerPage;
+
+function resetSharedBatchSelection() {
+    window.selectedItems?.clear();
+    window.selectedSongObjects?.clear();
+    for (const id of ['batch-selected-count', 'sl-batch-selected-count', 'lb-batch-selected-count']) {
+        const count = document.getElementById(id);
+        if (count) count.textContent = '0';
+    }
+    if (typeof updateBatchToolbar === 'function') updateBatchToolbar();
+    if (typeof (window as any).syncSelectionPresentation === 'function') (window as any).syncSelectionPresentation();
+}
+
+(window as any).resetSharedBatchSelection = resetSharedBatchSelection;
+
+function clearLibraryBatchContext() {
+    if (window.libraryBatchMode === 'artist' && typeof exitLibraryArtistBatch === 'function') {
+        exitLibraryArtistBatch();
+    } else if (window.libraryBatchMode === 'album' && typeof exitLibraryAlbumBatch === 'function') {
+        exitLibraryAlbumBatch();
+    } else {
+        window.libraryBatchMode = false;
+        window.libraryBatchSelected?.clear();
+    }
+}
+
 let currentPlaylist = [];
 let currentIndex = -1;
 let preSelectedNextIndex = null; // 预先选定的下一首索引 (用于确保随机模式下的预读一致性)
@@ -881,6 +906,8 @@ window.reloadUserFavorites = reloadUserFavorites;
 window.isViewingPublicFavorites = false;
 
 async function handleTogglePublicFavorites() {
+    clearLibraryBatchContext();
+    resetSharedBatchSelection();
     window.isViewingPublicFavorites = !window.isViewingPublicFavorites;
     if (window.isViewingPublicFavorites) {
         // 切换到公开列表之前，先保存当前个人数据
@@ -1353,6 +1380,7 @@ function exitListSecondaryModes() {
             if (typeof toggleLbBatchMode === 'function') toggleLbBatchMode();
         }
     }
+    if (window.libraryBatchMode) clearLibraryBatchContext();
 }
 
 // Load About Content
@@ -3214,6 +3242,8 @@ async function handleUserLogout(skipConfirm = false): Promise<void> {
     } catch (error) {
         console.warn('[Auth] 注销请求失败:', error);
     }
+    clearLibraryBatchContext();
+    resetSharedBatchSelection();
     userName = null;
     userSessionActive = false;
     localStorage.removeItem('lx_user_name');
@@ -3656,9 +3686,7 @@ function handleListClick(listId, skipAutoUpdate = false) {
     if (!skipAutoUpdate) {
         // Selections belong to the previously rendered list. Keeping them here makes
         // the toolbar count include invisible songs after opening another favorite list.
-        window.selectedItems?.clear();
-        window.selectedSongObjects?.clear();
-        if (typeof updateBatchToolbar === 'function') updateBatchToolbar();
+        resetSharedBatchSelection();
     }
 
     // Mobile: Close sidebar when a list is selected
@@ -3684,7 +3712,8 @@ function handleListClick(listId, skipAutoUpdate = false) {
         list = Array.isArray(currentListData.loveList) ? currentListData.loveList : [];
         title = '我的收藏';
     } else {
-        const uList = (currentListData.userList || []).find(l => String(l.id) === String(listId));
+        const uList = (Array.isArray(currentListData.userList) ? currentListData.userList : [])
+            .find(l => String(l.id) === String(listId));
         if (uList) {
             list = Array.isArray(uList.list) ? uList.list : [];
             title = getFavoriteListDisplayName(uList.name);
@@ -3696,6 +3725,7 @@ function handleListClick(listId, skipAutoUpdate = false) {
     if (skipAutoUpdate) {
         reconcileBatchSelectionWithList(list);
         if (typeof updateBatchToolbar === 'function') updateBatchToolbar();
+        if (typeof (window as any).syncSelectionPresentation === 'function') (window as any).syncSelectionPresentation();
     }
 
     // Switch to Search View (as List View)

@@ -380,6 +380,7 @@ function renderTrackListHeader({ includeBackToolbar = false, extraClass = '' } =
 //搜索歌曲
 async function doSearch(page = 1, append = false, prefetch = false) {
     if (prefetch && searchDetailOpen) return;
+    if (!append) (window as any).resetSharedBatchSelection?.();
     hotSearchStateSerial += 1;
     if (!prefetch) {
         setSearchDetailOpen(false);

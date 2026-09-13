@@ -14,6 +14,8 @@ describe('Player Navigation and State Restoration Safety', () => {
     const playlistModalSrcPath = path.join(import.meta.dir, '../frontend/player/src/features/playlist_modal.ts');
     const localMusicSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/local_music.ts');
     const batchPaginationSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/batch_pagination.ts');
+    const songListSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/songlist_manager.ts');
+    const leaderboardSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/leaderboard_manager.ts');
     const playerCssPath = path.join(import.meta.dir, '../public/music/css/app.css');
     const playerPublicDir = path.join(import.meta.dir, '../public/music');
     const getPlayerDistPath = () => path.join(playerPublicDir, fs.readdirSync(playerPublicDir).find(name => /^app-[a-z0-9]+\.js$/i.test(name)) || 'app.js');
@@ -468,6 +470,27 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(search).toContain('function getCurrentLocalSongList()');
         expect(search).toContain("String(list?.id) === listId");
         expect(search).toContain('else renderResults(localSongList);');
+    });
+
+    it('list context changes clear stale song selections while library pagination preserves its batch state', () => {
+        const player = fs.readFileSync(playerSrcPath, 'utf8');
+        const search = fs.readFileSync(searchSrcPath, 'utf8');
+        const songList = fs.readFileSync(songListSrcPath, 'utf8');
+        const leaderboard = fs.readFileSync(leaderboardSrcPath, 'utf8');
+        const library = fs.readFileSync(librarySrcPath, 'utf8');
+
+        expect(player).toContain('function resetSharedBatchSelection()');
+        expect(player).toContain('clearLibraryBatchContext();');
+        expect(search).toContain('if (!append) (window as any).resetSharedBatchSelection?.();');
+        expect(songList).toContain('function resetSongBatchContext()');
+        expect(songList).toContain('resetSongBatchContext();');
+        expect(leaderboard).toContain('function clearSongBatchSelection()');
+        expect(leaderboard).toContain('clearSongBatchSelection();');
+        expect(leaderboard).toContain('window.selectedSongObjects?.clear();');
+        expect(library).toContain("const isBatchActive = window.libraryBatchMode === 'artist';");
+        expect(library).toContain("const isBatchActive = window.libraryBatchMode === 'album';");
+        expect(library).toContain("${isBatchActive ? '' : 'hidden'}");
+        expect(library).toContain('reconcileLibraryBatchSelection(normalizedList);');
     });
 
     it('album detail navigation cancels stale searches and isolates history events', () => {
