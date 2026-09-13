@@ -59,10 +59,13 @@ describe('Player manager module boundaries', () => {
     it('keeps silent prefetch lightweight and marks playback cache requests as background work', () => {
         const songUrlSource = read('frontend/player/src/features/song_url.ts');
         const playerSource = read('frontend/player/src/index.ts');
+        const playbackSource = read('frontend/player/src/features/playback.ts');
 
         expect(songUrlSource).toContain("this.bufferer.preload = 'metadata'");
         expect(songUrlSource).not.toContain('triggerServerCache(song, rawUrl, quality)');
-        expect(read('frontend/player/src/features/playback.ts')).toContain('void triggerServerCache?.(playbackSong, urlResult.cacheUrl');
+        expect(playbackSource).toContain('const requestBackgroundCache = () =>');
+        expect(playbackSource).toContain('void triggerServerCache(playbackSong, urlResult.cacheUrl');
+        expect(playbackSource).toContain('requestBackgroundCache();\n\n        // [Sync]');
         expect(playerSource).toContain('const serverCacheRequests = new Set<string>();');
         expect(playerSource).toContain('background: true');
     });

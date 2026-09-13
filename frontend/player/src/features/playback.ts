@@ -772,6 +772,25 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         // Always refresh the bottom-player badge, including cache hits that keep the same song object.
         updatePlayerInfo(playbackSong, state.currentQuality);
 
+        let backgroundCacheRequested = false;
+        const requestBackgroundCache = () => {
+            // Start caching as soon as a user-initiated remote URL is resolved.
+            // Some custom-source URLs pass resolution but are rejected when the
+            // browser starts reading the media stream. Starting the task here
+            // gives the error recovery path a real local copy to wait for,
+            // without delaying audio.play() or making silent prefetch cache.
+            if (backgroundCacheRequested || noPlay || urlResult.isProxyRetry ||
+                typeof triggerServerCache !== 'function' ||
+                !urlResult.cacheUrl || playbackSong.isLocal || settings.enableServerCache === false ||
+                String(urlResult.cacheUrl).includes('/api/music/cache/file/')) {
+                return;
+            }
+            backgroundCacheRequested = true;
+            void triggerServerCache(playbackSong, urlResult.cacheUrl, state.currentQuality || targetQuality);
+        };
+
+        requestBackgroundCache();
+
         // [Sync] 确定了最终播放音质后，直接以正确音质重写服务器端歌词缓存文件名
         // 注意：不能再调用 fetchLyric(song)，因为歌词已就绪时 fetchLyric 会提前返回，
         // 永远不会走到写入服务器缓存的逻辑，导致文件名停留在音质未确定时的错误值。
@@ -796,7 +815,6 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         // Pre-handle error for invalid cache links. A media element can report a
         // failed source through either the error event or a rejected play() promise.
         let retryResolvedUrl: (() => boolean) | null = null;
-        let backgroundCacheRequested = false;
         if (!noPlay && finalUrl) {
             const resolvedSourceType = state.currentSourceType;
             const resolvedQuality = state.currentQuality || targetQuality;
@@ -819,9 +837,9 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 if (state.currentPlayingSong !== playbackSong || !isSameSource) return false;
                 // The browser may accept the source first and fail later while
                 // the remote stream is still being read. In that case the
-                // background cache was already requested after play() resolved;
-                // wait for that known-good local copy instead of immediately
-                // showing a false failure and advancing the queue.
+                // background cache was already requested as soon as the remote
+                // URL was resolved; wait for that known-good local copy instead
+                // of immediately showing a false failure and advancing the queue.
                 if (!isRetry && backgroundCacheRequested &&
                     waitForBackgroundCacheAndRetry(playbackSong, index, resolvedQuality, noPlay, shouldAddToDefault, resumeTime, true)) {
                     retryStarted = true;
@@ -924,14 +942,10 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             consecutivePlaybackFailures = 0;
             noSourceHintShown = false;
 
-            // Only cache a remote source after the browser has actually
-            // accepted it for playback. This avoids creating a cache task for
-            // a URL that immediately fails and later gets treated as a valid
-            // fallback by another click.
-            if (urlResult.cacheUrl && !urlResult.isPrefetch && !playbackSong.isLocal && settings.enableServerCache !== false) {
-                backgroundCacheRequested = true;
-                void triggerServerCache?.(playbackSong, urlResult.cacheUrl, state.currentQuality || targetQuality);
-            }
+            // Keep this call as a safety net for resolver results that become
+            // cacheable only while handing off from prefetch/playback. The
+            // normal path already requested it before audio.play().
+            requestBackgroundCache();
 
             // 只在真正开始播放后记录，避免预读或切换页面时把缓存误标为最近使用。
             reportServerCachePlayback(urlResult.cacheFile);
