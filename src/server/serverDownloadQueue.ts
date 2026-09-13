@@ -670,12 +670,13 @@ export const list = (username: string) => {
  * latter is true.
  */
 export const getActiveTaskProgress = (username: string, songInfo: any, quality?: string) => {
-  const songKey = `${fileCache.normalizeSongId(songInfo)}_${String(quality || 'unknown')}`
+  const requestedQuality = String(quality || 'unknown')
+  const songKeys = new Set(fileCache.getSongIdCandidates(songInfo).map(songId => `${songId}_${requestedQuality}`))
   const activeStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', 'tagging'])
   const task = Array.from(tasks.values()).find(candidate => (
     candidate.username === username &&
     activeStatuses.has(candidate.status) &&
-    (candidate.songKey === songKey || candidate.activeSongKey === songKey)
+    (songKeys.has(candidate.songKey) || songKeys.has(candidate.activeSongKey || ''))
   ))
   if (!task) return null
   return {

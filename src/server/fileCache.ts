@@ -835,12 +835,55 @@ const safeRenameSync = (src: string, dst: string) => {
  * 规范化歌曲 ID：确保带上 source 前缀，与索引中的 Key 保持一致
  */
 export const normalizeSongId = (songInfo: any): string => {
-    let id = String(songInfo.songmid || songInfo.songId || songInfo.id || '')
-    const source = songInfo.source || 'unknown'
+    let id = String(songInfo?.songmid || songInfo?.songId || songInfo?.id || '')
+    const source = String(songInfo?.source || 'unknown')
     if (id && !id.includes('_') && source !== 'unknown') {
         id = `${source}_${id}`
     }
     return id
+}
+
+const normalizeSongIdValue = (value: unknown, source: string) => {
+    const id = String(value || '').trim()
+    if (!id) return ''
+    if (id.includes('_') || source === 'unknown') return id
+    return `${source}_${id}`
+}
+
+/**
+ * Return all stable ID spellings that can refer to the same song.
+ *
+ * Different providers use `songmid`, `songId`, `id`, and nested `meta` fields
+ * inconsistently. The persisted cache index stores the source-prefixed form,
+ * while older client payloads can send either the raw or prefixed form. Keep
+ * the primary normalization unchanged and use these aliases only for lookup
+ * and task de-duplication.
+ */
+export const getSongIdCandidates = (songInfo: any): string[] => {
+    if (!songInfo || typeof songInfo !== 'object') return []
+
+    const source = String(songInfo.source || songInfo.meta?.source || 'unknown').trim() || 'unknown'
+    const candidates: string[] = []
+    const add = (value: unknown, valueSource = source) => {
+        const normalized = normalizeSongIdValue(value, valueSource)
+        if (normalized && !candidates.includes(normalized)) candidates.push(normalized)
+    }
+
+    // Preserve the exact historical primary ID first.
+    add(normalizeSongId(songInfo), 'unknown')
+    add(songInfo.songmid)
+    add(songInfo.songId)
+    add(songInfo.id)
+
+    const meta = songInfo.meta
+    if (meta && typeof meta === 'object') {
+        const metaSource = String(meta.source || source).trim() || source
+        add(meta.songmid, metaSource)
+        add(meta.songId, metaSource)
+        add(meta.id, metaSource)
+    }
+
+    return candidates
 }
 
 /**
@@ -1890,7 +1933,8 @@ export const getCacheLocation = () => currentCacheLocation
 
 export const checkCache = (songInfo: any, username?: string, isLyricCheck: boolean = false) => {
     try {
-        const id = normalizeSongId(songInfo)
+        const ids = getSongIdCandidates(songInfo)
+        const id = ids[0] || normalizeSongId(songInfo)
         const quality = songInfo.quality || 'unknown'
         const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
 
@@ -1900,32 +1944,34 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
         const folderTypes: Array<'cache' | 'music'> = ['cache', 'music']
         for (const location of getCacheLocations()) {
             for (const folder of folderTypes) {
-                const cached = indexManager.get(normalizedUsername, id, folder, quality, useExact, location)
-                if (cached) {
-                    // 二次校验：exactQuality 模式下确保音质匹配
-                    if (useExact && quality && cached.quality !== quality) continue
-                    // 下载完成后还可能进入标签、封面和歌词后处理阶段。此时索引已经
-                    // 指向最终文件，但文件仍可能被 tagger 原地修改；对外隐藏该条目，
-                    // 避免播放器读到半成品后误触发换源/降级。
-                    if (isCacheEntryProcessing(id, cached.quality)) continue
-                    const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
-                    const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
-                    if (!fileName) continue
-                    const filePath = resolveCacheRelativePath(dir, fileName)
-                    if (isUsableCacheFile(filePath)) {
-                        return {
-                            exists: true,
-                            path: filePath,
-                            filename: fileName,
-                            foundIn: normalizedUsername,
-                            quality: cached.quality,
-                            folder: folder,
-                            location,
-                            url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+                for (const candidateId of ids) {
+                    const cached = indexManager.get(normalizedUsername, candidateId, folder, quality, useExact, location)
+                    if (cached) {
+                        // 二次校验：exactQuality 模式下确保音质匹配
+                        if (useExact && quality && cached.quality !== quality) continue
+                        // 下载完成后还可能进入标签、封面和歌词后处理阶段。此时索引已经
+                        // 指向最终文件，但文件仍可能被 tagger 原地修改；对外隐藏该条目，
+                        // 避免播放器读到半成品后误触发换源/降级。
+                        if (isCacheEntryProcessing(cached.id, cached.quality)) continue
+                        const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
+                        const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
+                        if (!fileName) continue
+                        const filePath = resolveCacheRelativePath(dir, fileName)
+                        if (isUsableCacheFile(filePath)) {
+                            return {
+                                exists: true,
+                                path: filePath,
+                                filename: fileName,
+                                foundIn: normalizedUsername,
+                                quality: cached.quality,
+                                folder: folder,
+                                location,
+                                url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+                            }
+                        } else {
+                            // Stale index entry, cleanup only in the location that was checked.
+                            if (!isLyricCheck) indexManager.remove(normalizedUsername, cached.id, folder, cached.quality, location)
                         }
-                    } else {
-                        // Stale index entry, cleanup only in the location that was checked.
-                        if (!isLyricCheck) indexManager.remove(normalizedUsername, id, folder, cached.quality, location)
                     }
                 }
             }
@@ -1939,7 +1985,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
             ]
 
             const collision = allItems.find(item =>
-                item.id !== id && // 排除当前正在查询的 ID 本身
+                !ids.includes(item.id) && // 排除当前正在查询的所有 ID 变体
                 item.name.toLowerCase() === String(songInfo.name || '').toLowerCase() &&
                 item.singer.toLowerCase() === String(songInfo.singer || '').toLowerCase() &&
                 item.quality === quality &&
@@ -1952,9 +1998,36 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                 const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''
                 const collisionFilePath = collisionFileName ? resolveCacheRelativePath(collisionDir, collisionFileName) : null
                 if (collisionFileName && isUsableCacheFile(collisionFilePath)) {
+                    const requestedSource = String(songInfo.source || songInfo.meta?.source || '').trim().toLowerCase()
+                    const cachedSource = String(collision.source || '').trim().toLowerCase()
+                    const sameAlbum = Boolean(songInfo.albumName || songInfo.album || songInfo.meta?.albumName) &&
+                        Boolean(collision.album) &&
+                        String(songInfo.albumName || songInfo.album?.name || songInfo.album || songInfo.meta?.albumName || '').trim().toLowerCase() === String(collision.album).trim().toLowerCase()
+                    const parseDuration = (value: unknown) => {
+                        const text = String(value || '').trim()
+                        if (!text) return 0
+                        if (text.includes(':')) {
+                            const parts = text.split(':').map(Number)
+                            if (parts.every(Number.isFinite)) return parts.reduce((total, part) => total * 60 + part, 0)
+                        }
+                        const seconds = Number(text)
+                        return Number.isFinite(seconds) ? seconds : 0
+                    }
+                    const requestedDuration = parseDuration(songInfo.interval || songInfo.meta?.interval)
+                    const cachedDuration = parseDuration(collision.interval)
+                    const sameDuration = requestedDuration > 0 && cachedDuration > 0 && Math.abs(requestedDuration - cachedDuration) <= 3
+                    const sameSourceMetadata = requestedSource && cachedSource && requestedSource === cachedSource && (sameAlbum || sameDuration)
+
+                    // A source can expose the same track under a raw ID, a
+                    // prefixed ID, or a newly matched ID after auto-switching.
+                    // Only accept a collision as the requested cache when the
+                    // source and an independent song discriminator agree. A
+                    // cross-source same-title collision remains marked as such
+                    // and is intentionally left for the existing user policy.
                     return {
                         exists: true,
-                        isCollision: true,
+                        isCollision: !sameSourceMetadata,
+                        matchedBy: sameSourceMetadata ? 'metadata' : 'name_singer_quality',
                         collisionSource: collision.source,
                         collisionSongmid: collision.songmid,
                         filename: collisionFileName,
@@ -1973,24 +2046,26 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
         if (!songInfo.exactQuality && !isLyricCheck) {
             for (const location of getCacheLocations()) {
                 for (const folder of folderTypes) {
-                    const cachedAny = indexManager.get(normalizedUsername, id, folder, undefined, false, location)
-                    if (cachedAny) {
-                        // 非精确音质查询也不能暴露仍在标签、封面或歌词后处理中的文件。
-                        // 否则播放器会拿到已入索引但尚未稳定的文件，触发误判换源。
-                        if (isCacheEntryProcessing(id, cachedAny.quality)) continue
-                        const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
-                        const fileName = cachedAny.filename
-                        const filePath = resolveCacheRelativePath(dir, fileName)
-                        if (isUsableCacheFile(filePath)) {
-                            return {
-                                exists: true,
-                                path: filePath,
-                                filename: fileName,
-                                foundIn: normalizedUsername,
-                                quality: cachedAny.quality,
-                                folder: folder,
-                                location,
-                                url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+                    for (const candidateId of ids) {
+                        const cachedAny = indexManager.get(normalizedUsername, candidateId, folder, undefined, false, location)
+                        if (cachedAny) {
+                            // 非精确音质查询也不能暴露仍在标签、封面或歌词后处理中的文件。
+                            // 否则播放器会拿到已入索引但尚未稳定的文件，触发误判换源。
+                            if (isCacheEntryProcessing(cachedAny.id, cachedAny.quality)) continue
+                            const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
+                            const fileName = cachedAny.filename
+                            const filePath = resolveCacheRelativePath(dir, fileName)
+                            if (isUsableCacheFile(filePath)) {
+                                return {
+                                    exists: true,
+                                    path: filePath,
+                                    filename: fileName,
+                                    foundIn: normalizedUsername,
+                                    quality: cachedAny.quality,
+                                    folder: folder,
+                                    location,
+                                    url: `/api/music/cache/file/${encodeURIComponent(normalizedUsername)}/${encodeURIComponent(fileName)}?folder=${folder}`
+                                }
                             }
                         }
                     }

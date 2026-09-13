@@ -64,7 +64,8 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain("this.bufferer.preload = 'metadata'");
         expect(songUrlSource).not.toContain('triggerServerCache(song, rawUrl, quality)');
         expect(playbackSource).toContain('const requestBackgroundCache = () =>');
-        expect(playbackSource).toContain('Promise.resolve(triggerServerCache(playbackSong, urlResult.cacheUrl');
+        expect(playbackSource).toContain('const cacheSong = state.currentRecoveryState?.originalSong || song;');
+        expect(playbackSource).toContain('Promise.resolve(triggerServerCache(cacheSong, urlResult.cacheUrl');
         expect(playbackSource).not.toContain('requestBackgroundCache();\n\n        // [Sync]');
         expect(playbackSource).toContain('await audio.play();');
         expect(playbackSource).toContain('requestBackgroundCache();\n\n            // 只在真正开始播放后记录');

@@ -278,6 +278,124 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('should find a cache entry through compatible song ID fields', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-id-alias-cache-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'id-alias-user'
+      const cacheDir = fileCache.getCacheDir(username)
+      const filename = 'id-alias-song.flac'
+      fs.writeFileSync(path.join(cacheDir, filename), Buffer.from('cached audio'))
+      fileCache.indexManager.update(username, {
+        id: 'wy_canonical-id',
+        songmid: 'wy_canonical-id',
+        name: 'ID Alias Song',
+        singer: 'ID Alias Singer',
+        album: 'ID Alias Album',
+        source: 'wy',
+        quality: 'flac',
+        filename,
+        folder: 'cache',
+        mtime: Date.now(),
+        size: 12,
+        ext: 'flac',
+      }, 'cache')
+
+      const result: any = fileCache.checkCache({
+        source: 'wy',
+        songmid: 'not-the-indexed-value',
+        songId: 'canonical-id',
+        id: 'wy_canonical-id',
+        name: 'ID Alias Song',
+        singer: 'ID Alias Singer',
+        albumName: 'ID Alias Album',
+        quality: 'flac',
+        exactQuality: true,
+      }, username)
+
+      expect(result.exists).toBe(true)
+      expect(result.isCollision).toBeUndefined()
+      expect(result.filename).toBe(filename)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('should accept a same-source metadata alias but keep cross-source collisions guarded', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-source-alias-cache-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'source-alias-user'
+      const cacheDir = fileCache.getCacheDir(username)
+      const filename = 'source-alias-song.flac'
+      fs.writeFileSync(path.join(cacheDir, filename), Buffer.from('cached audio'))
+      fileCache.indexManager.update(username, {
+        id: 'wy_indexed-id',
+        songmid: 'wy_indexed-id',
+        name: 'Source Alias Song',
+        singer: 'Source Alias Singer',
+        album: 'Source Alias Album',
+        interval: '03:21',
+        source: 'wy',
+        quality: 'flac',
+        filename,
+        folder: 'cache',
+        mtime: Date.now(),
+        size: 12,
+        ext: 'flac',
+      }, 'cache')
+
+      const sameSource: any = fileCache.checkCache({
+        source: 'wy',
+        songmid: 'another-id',
+        name: 'Source Alias Song',
+        singer: 'Source Alias Singer',
+        albumName: 'Source Alias Album',
+        interval: '03:21',
+        quality: 'flac',
+        exactQuality: true,
+      }, username)
+      expect(sameSource.exists).toBe(true)
+      expect(sameSource.isCollision).toBe(false)
+      expect(sameSource.matchedBy).toBe('metadata')
+
+      const otherSource: any = fileCache.checkCache({
+        source: 'tx',
+        songmid: 'different-source-id',
+        name: 'Source Alias Song',
+        singer: 'Source Alias Singer',
+        albumName: 'Source Alias Album',
+        interval: '03:21',
+        quality: 'flac',
+        exactQuality: true,
+      }, username)
+      expect(otherSource.exists).toBe(true)
+      expect(otherSource.isCollision).toBe(true)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should find indexed audio in the alternate cache root and record playback there', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-alternate-root-'))
     const previousCwd = process.cwd()

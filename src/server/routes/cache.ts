@@ -250,22 +250,22 @@ export const createCacheRouter = (): Router => {
     const source = ctx.query.get('source')
     const songmid = ctx.query.get('songmid')
     const songId = ctx.query.get('songId')
+    const id = ctx.query.get('id')
     const quality = ctx.query.get('quality')
     const exactQuality = ctx.query.get('exactQuality') === '1' || ctx.query.get('exactQuality') === 'true'
 
-    if (!name || !singer || !source || (!songmid && !songId)) {
+    if (!name || !singer || !source || (!songmid && !songId && !id)) {
       return ctx.fail(400, '缺少必要参数')
     }
 
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
-    const cacheSong = { name, singer, source, songmid, songId, quality, exactQuality }
+    const cacheSong = { name, singer, source, songmid, songId, id: id || undefined, quality, exactQuality }
     const result = fileCache.checkCache(cacheSong, username)
-    const activeProgress = fileCache.getActiveCacheProgress(
-      fileCache.normalizeSongId(cacheSong),
-      exactQuality ? (quality || undefined) : undefined,
-    )
+    const activeProgress = fileCache.getSongIdCandidates(cacheSong)
+      .map(songId => fileCache.getActiveCacheProgress(songId, exactQuality ? (quality || undefined) : undefined))
+      .find(Boolean)
     const activeTaskProgress = serverDownloadQueue.getActiveTaskProgress(username, cacheSong, quality || undefined)
     if (activeProgress || activeTaskProgress) {
       return ctx.json({

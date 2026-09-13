@@ -777,7 +777,13 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 return;
             }
             backgroundCacheRequested = true;
-            void Promise.resolve(triggerServerCache(playbackSong, urlResult.cacheUrl, state.currentQuality || targetQuality))
+            // When auto-switching sources, the playable URL belongs to the
+            // matched provider but the user's song identity belongs to the
+            // original playlist item. Persist the cache under that original
+            // identity so the next click can hit it without another paid
+            // resolver request.
+            const cacheSong = state.currentRecoveryState?.originalSong || song;
+            void Promise.resolve(triggerServerCache(cacheSong, urlResult.cacheUrl, state.currentQuality || targetQuality))
                 .then((accepted) => {
                     // A rejected/unauthorized cache request must not make the
                     // player wait for a cache that will never be produced.

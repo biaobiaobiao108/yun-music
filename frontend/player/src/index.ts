@@ -1621,7 +1621,8 @@ async function checkServerCache(song, quality, exactQuality = false, timeoutMs =
             singer: song.singer,
             source: song.source,
             songmid: song.songmid || (song.meta && (song.meta.songmid || song.meta.songId)) || '',
-            songId: song.songId || (song.meta && song.meta.songId) || song.id,
+            songId: song.songId || (song.meta && song.meta.songId) || '',
+            id: song.id || '',
             quality: quality || ''
         });
         if (exactQuality) params.append('exactQuality', '1');
