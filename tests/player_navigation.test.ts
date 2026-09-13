@@ -478,6 +478,15 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(localMusic).toContain("case 'select-row':");
     });
 
+    it('server cache only receives remote URLs and unwraps automatic playback proxies', () => {
+        const player = fs.readFileSync(playerSrcPath, 'utf8');
+        expect(player).toContain('function normalizeServerCacheUrl(value)');
+        expect(player).toContain("parsed.pathname !== '/api/music/download'");
+        expect(player).toContain('const remoteUrl = normalizeServerCacheUrl(url);');
+        expect(player).toContain('if (!remoteUrl) return;');
+        expect(player).toContain('url: remoteUrl,');
+    });
+
     it('favorite list selection and pagination share one local-list state source', () => {
         const player = fs.readFileSync(playerSrcPath, 'utf8');
         const search = fs.readFileSync(searchSrcPath, 'utf8');

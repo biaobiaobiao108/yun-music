@@ -1770,7 +1770,36 @@ function updateAdminUI() {
 
 const serverCacheRequests = new Set<string>();
 
+function normalizeServerCacheUrl(value) {
+    if (typeof value !== 'string' || !value.trim()) return null;
+
+    try {
+        const parsed = new URL(value.trim(), window.location.origin);
+
+        // Auto-proxy playback stores a same-origin proxy path in the browser
+        // URL cache. Recover its original remote URL before asking the server
+        // cache to download it; the server cache endpoint only accepts a
+        // public absolute HTTP(S) URL.
+        if (parsed.origin === window.location.origin) {
+            if (parsed.pathname !== '/api/music/download') return null;
+            const nestedUrl = parsed.searchParams.get('url');
+            if (!nestedUrl) return null;
+            const nested = new URL(nestedUrl);
+            if (nested.protocol !== 'http:' && nested.protocol !== 'https:') return null;
+            return nested.toString();
+        }
+
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+        return parsed.toString();
+    } catch (_) {
+        return null;
+    }
+}
+
 async function triggerServerCache(song, url, quality) {
+    const remoteUrl = normalizeServerCacheUrl(url);
+    if (!remoteUrl) return;
+
     const cleanedSong = cleanSongData(song);
     const requestKey = `${cleanedSong?.id || song?.id || song?.songmid || song?.songId || ''}_${quality || 'unknown'}`;
     if (!requestKey || serverCacheRequests.has(requestKey)) return;
@@ -1797,7 +1826,7 @@ async function triggerServerCache(song, url, quality) {
             headers: headers,
             body: JSON.stringify({ 
                 songInfo: songInfoForCache,
-                url, 
+                url: remoteUrl,
                 quality,
                 background: true,
                 namingPattern: window.settings?.serverCacheNamingPattern || 'simple',
