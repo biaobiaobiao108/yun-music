@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { shouldPrefetchAfterPlayback } from '../frontend/player/src/features/playback';
+import { initSongUrlFeature } from '../frontend/player/src/features/song_url';
 
 const projectRoot = path.join(import.meta.dir, '..');
 
@@ -81,6 +83,84 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain('settings.enableServerCache !== false');
         expect(songUrlSource).toContain('if (settings.enableAutoProxy && options.probe)');
         expect(songUrlSource).toContain('signal?: AbortSignal');
+        expect(shouldPrefetchAfterPlayback('server_cache')).toBe(false);
+        expect(shouldPrefetchAfterPlayback('normal')).toBe(true);
+        expect(playbackSource).toContain('if (shouldPrefetchAfterPlayback(state.currentSourceType)) prefetchNextSong();');
+        expect(songUrlSource).toContain('if (result) return;');
+    });
+
+    it('reuses an unexpired prefetched URL without another remote Range probe', async () => {
+        const runtime = globalThis as any;
+        const previousAudio = runtime.Audio;
+        const previousWindow = runtime.window;
+        const previousLocalStorage = runtime.localStorage;
+        const previousFetch = runtime.fetch;
+        let fetchCalls = 0;
+
+        class FakeAudio {
+            muted = false;
+            preload = '';
+            src = '';
+            currentSrc = '';
+            load() { }
+            pause() { }
+            removeAttribute(name: string) {
+                if (name === 'src') this.src = '';
+            }
+        }
+
+        try {
+            runtime.Audio = FakeAudio;
+            runtime.window = {
+                location: { host: 'localhost', origin: 'http://localhost', protocol: 'http:' },
+                QualityManager: { getBestQuality: () => 'flac' },
+            };
+            runtime.localStorage = {
+                getItem: () => null,
+                setItem: () => { },
+                removeItem: () => { },
+            };
+            runtime.fetch = async () => {
+                fetchCalls++;
+                return new Response('', { status: 206 });
+            };
+
+            const playlist = [
+                { id: 'current', source: 'wy', name: 'Current' },
+                { id: 'next', source: 'wy', name: 'Next' },
+            ];
+            const feature = initSongUrlFeature({
+                getSettings: () => ({ enablePreloader: true, preferredQuality: 'flac' }),
+                getPlaylist: () => playlist,
+                getCurrentIndex: () => 0,
+                getPlayMode: () => 'list',
+                getPreSelectedNextIndex: () => null,
+                setPreSelectedNextIndex: () => { },
+                getUserAuthHeaders: () => ({}),
+                fetchCustomSources: async () => [],
+                cleanSongData: song => song,
+                checkServerCache: async () => ({ exists: false }),
+                updateStorageStatsUI: () => { },
+                showInfo: () => { },
+                showSuccess: () => { },
+                showError: () => { },
+            });
+            feature.prefetchManager.set('next', {
+                url: 'https://media.example/next.flac',
+                quality: 'flac',
+                requestedQuality: 'flac',
+                sourceType: 'normal',
+            });
+
+            await feature.prefetchNextSong();
+
+            expect(fetchCalls).toBe(0);
+        } finally {
+            runtime.Audio = previousAudio;
+            runtime.window = previousWindow;
+            runtime.localStorage = previousLocalStorage;
+            runtime.fetch = previousFetch;
+        }
     });
 
     it('bounds browser media lifecycles and releases transient download resources', () => {

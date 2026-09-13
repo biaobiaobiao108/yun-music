@@ -946,10 +946,9 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
         const work = (async () => {
             // 1. 检查内存缓存
             let result = prefetchManager.get(nextSong.id, targetQual);
-            if (result) {
-                if (await probeUrl(result.url)) return;
-                prefetchManager.delete(nextSong.id);
-            }
+            // get() 已经校验过 TTL；真正播放失败时会清理并重新解析，
+            // 这里重复 Range 探活只会额外消耗远端请求次数。
+            if (result) return;
 
             // 2. 复用统一解析逻辑 (resolveSongUrl)，且开启静默模式
             result = await resolveSongUrl(nextSong, targetQual, true);

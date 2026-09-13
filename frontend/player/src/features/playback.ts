@@ -79,6 +79,8 @@ type PlaybackAttemptContext = {
     triedTargets: Set<string>;
 };
 
+export const shouldPrefetchAfterPlayback = (sourceType: string) => sourceType !== 'server_cache';
+
 export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const API_BASE = '/api/music';
     const state = context.state;
@@ -1034,8 +1036,8 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             setPlayerStatus('请点击播放按钮');
         }
 
-        // [Trigger Prefetch] 确保即便 play() 被拦截也尝试发起下一首预读
-        prefetchNextSong();
+        // 本地缓存播放不需要用在线解析额度预读下一首；在线播放仍保留原有预读体验。
+        if (shouldPrefetchAfterPlayback(state.currentSourceType)) prefetchNextSong();
 
     } catch (error) {
         if (state.currentLoadingRequestId !== thisRequestId) return;

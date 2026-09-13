@@ -379,6 +379,9 @@ const getPublicTask = (task: ServerDownloadTask) => {
 const runTask = async (task: ServerDownloadTask) => {
   if (!resolver || task.status !== 'waiting') return
   const key = taskMapKey(task.username, task.id)
+  // A resolver may fall back to another provider, but the resulting cache file
+  // must remain addressable through the song the user originally requested.
+  const requestedSongInfo = sanitizeSongInfo(task.songInfo)
   const targetOnlyDownloadMode = task.enableOnlyDownloadMode === true
   const controller = new AbortController()
   controllers.set(key, controller)
@@ -412,17 +415,17 @@ const runTask = async (task: ServerDownloadTask) => {
     if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
     if (!resolved?.url) throw new Error('无法解析下载地址')
 
-    const applyResolvedSong = (nextResolved: ResolveResult) => {
-      task.songInfo = sanitizeSongInfo(nextResolved.songInfo || task.songInfo)
+    const applyResolvedTarget = (nextResolved: ResolveResult) => {
+      task.songInfo = requestedSongInfo
       task.quality = nextResolved.quality || task.requestedQuality
-      task.activeSongKey = fileCache.normalizeSongId(task.songInfo) + '_' + task.quality
+      task.activeSongKey = fileCache.normalizeSongId(requestedSongInfo) + '_' + task.quality
       task.updatedAt = Date.now()
       scheduleSave()
     }
 
     const downloadResolvedSong = async (nextResolved: ResolveResult) => {
-      applyResolvedSong(nextResolved)
-      await fileCache.downloadAndCache(task.songInfo, nextResolved.url, task.quality, task.username, controller.signal,
+      applyResolvedTarget(nextResolved)
+      await fileCache.downloadAndCache(requestedSongInfo, nextResolved.url, task.quality, task.username, controller.signal,
         targetOnlyDownloadMode, task.cacheLyric, task.embedLyric, {
           requestedSource: nextResolved.requestedSource,
           downloadSource: nextResolved.downloadSource,
@@ -430,7 +433,6 @@ const runTask = async (task: ServerDownloadTask) => {
         })
     }
 
-    applyResolvedSong(resolved)
     try {
       await downloadResolvedSong(resolved)
     } catch (firstError: any) {

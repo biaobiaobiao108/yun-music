@@ -196,7 +196,7 @@ describe('Server download queue deduplication', () => {
     expect(retained[0]?.id).toBe('explicit')
   })
 
-  test('refreshes a browser-supplied URL once when server-side cache download fails', async () => {
+  test('refreshes a browser-supplied URL once while retaining the requested cache identity', async () => {
     const previousLx = (global as any).lx
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-queue-retry-'))
     const downloadAndCache = spyOn(fileCache, 'downloadAndCache')
@@ -214,7 +214,9 @@ describe('Server download queue deduplication', () => {
         return {
           url: 'https://fresh.example/song.flac',
           quality: task.requestedQuality,
-          songInfo: task.songInfo,
+          songInfo: { source: 'tx', songmid: 'fallback-song', name: 'Fallback Song', singer: 'Singer' },
+          requestedSource: 'wy',
+          downloadSource: 'tx',
         }
       })
       enqueue('retry-user', [{
@@ -237,6 +239,9 @@ describe('Server download queue deduplication', () => {
       expect(resolverCalls).toBe(1)
       expect(downloadAndCache.mock.calls[0]?.[1]).toBe('https://expired.example/song.flac')
       expect(downloadAndCache.mock.calls[1]?.[1]).toBe('https://fresh.example/song.flac')
+      expect(downloadAndCache.mock.calls[1]?.[0]).toMatchObject({ source: 'wy', songmid: 'retry-song' })
+      expect(task?.songInfo).toMatchObject({ source: 'wy', songmid: 'retry-song' })
+      expect(task?.songKey).toBe('wy_retry-song_flac')
     } finally {
       await new Promise(resolve => setTimeout(resolve, 220))
       downloadAndCache.mockRestore()
