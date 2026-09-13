@@ -85,6 +85,8 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('audio.error || audio.readyState === 0 || audio.networkState === 3');
         expect(playbackSource).toContain('pendingRestoreCleanup?.();');
         expect(playbackSource).toContain('playbackErrorCleanup?.();');
+        expect(playbackSource).toContain('const currentAudioUrls = [audio.currentSrc, audio.src].filter(Boolean);');
+        expect(playbackSource).toContain('waitForBackgroundCacheAndRetry');
         expect(playbackSource).toContain('const retryMode = state.currentSourceType === \'server_cache\'');
         expect(playbackSource).toContain('_prefetchUnavailableUntil');
         expect(singleSongSource).toContain('const REMOTE_QUALITY_CACHE_MAX = 256;');

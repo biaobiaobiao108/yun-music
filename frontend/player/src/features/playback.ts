@@ -40,6 +40,7 @@ export type PlaybackFeatureContext = {
     getCurrentListData: () => any;
     getUserAuthHeaders: () => Record<string, string>;
     resolveSongUrl: (...args: any[]) => any;
+    checkServerCache?: (...args: any[]) => Promise<any>;
     markServerCacheFailure?: (...args: any[]) => void;
     getSourceTypeText: (...args: any[]) => any;
     getSourceName: (...args: any[]) => any;
@@ -84,6 +85,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     });
     const getUserAuthHeaders = context.getUserAuthHeaders;
     const resolveSongUrl = context.resolveSongUrl;
+    const checkServerCache = context.checkServerCache;
     const markServerCacheFailure = context.markServerCacheFailure || (() => { });
     const getSourceTypeText = context.getSourceTypeText;
     const getSourceName = context.getSourceName;
@@ -120,6 +122,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let manualPlaybackRecoveryCleanup: (() => void) | null = null;
     let playbackErrorCleanup: (() => void) | null = null;
     let pendingRestoreCleanup: (() => void) | null = null;
+    let pendingBackgroundCacheRetryCleanup: (() => void) | null = null;
     // 连续播放失败计数：限制自动跳过次数，避免整张歌单不可播时无限循环。
     let consecutivePlaybackFailures = 0;
     let noSourceHintShown = false;
@@ -241,6 +244,75 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     function clearManualPlaybackRecovery() {
         manualPlaybackRecoveryCleanup?.();
         manualPlaybackRecoveryCleanup = null;
+    }
+
+    function waitForBackgroundCacheAndRetry(song, index, quality, noPlay, shouldAddToDefault, resumeTime) {
+        if (typeof checkServerCache !== 'function' || settings.preferServerCache === false || settings.enableServerCache === false) {
+            return false;
+        }
+
+        const expectedRequestCounter = state.loadingRequestCounter;
+        const maxAttempts = 40;
+        const interval = 750;
+        let attempts = 0;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let cancelled = false;
+
+        const cleanup = () => {
+            cancelled = true;
+            if (timer) clearTimeout(timer);
+            timer = null;
+            if (pendingBackgroundCacheRetryCleanup === cleanup) {
+                pendingBackgroundCacheRetryCleanup = null;
+            }
+        };
+
+        const isCurrent = () => !cancelled
+            && state.currentPlayingSong === song
+            && state.loadingRequestCounter === expectedRequestCounter;
+
+        const poll = async () => {
+            if (!isCurrent()) {
+                cleanup();
+                return;
+            }
+
+            try {
+                const cacheResult = await checkServerCache(song, quality, true);
+                if (isCurrent() && cacheResult?.exists && !cacheResult.isCollision) {
+                    cleanup();
+                    void playSong(song, index, quality, noPlay, true, shouldAddToDefault, resumeTime);
+                    return;
+                }
+            } catch (_) {
+                // Cache status is best-effort while the background task is running.
+            }
+
+            if (!isCurrent()) {
+                cleanup();
+                return;
+            }
+
+            attempts += 1;
+            if (attempts >= maxAttempts) {
+                cleanup();
+                // The background task did not finish in time; make one fresh
+                // online attempt so a temporary cache queue delay is not fatal.
+                void playSong(song, index, quality, noPlay, true, shouldAddToDefault, resumeTime);
+                return;
+            }
+
+            timer = setTimeout(() => {
+                timer = null;
+                void poll();
+            }, interval);
+        };
+
+        pendingBackgroundCacheRetryCleanup?.();
+        pendingBackgroundCacheRetryCleanup = cleanup;
+        setPlayerStatus('正在等待本地缓存完成', null, true);
+        void poll();
+        return true;
     }
 
     function retryCurrentSongPlayback() {
@@ -470,6 +542,8 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
         playAfterSourceReady = false;
         clearManualPlaybackRecovery();
     }
+    pendingBackgroundCacheRetryCleanup?.();
+    pendingBackgroundCacheRetryCleanup = null;
     playbackErrorCleanup?.();
     playbackErrorCleanup = null;
     pendingRestoreCleanup?.();
@@ -692,19 +766,28 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             const resolvedQuality = state.currentQuality || targetQuality;
             let retryStarted = false;
             retryResolvedUrl = () => {
-                if (retryStarted) return false;
+                // The media error event and the rejected play() promise can
+                // report the same failure. Treat the second notification as
+                // already handled so it does not surface a false playback
+                // error after the recovery path has started.
+                if (retryStarted) return true;
                 if (state.currentLoadingRequestId !== 0 && state.currentLoadingRequestId !== thisRequestId) return false;
-                const currentAudioUrl = audio.currentSrc || audio.src;
-                const isSameSource = (() => {
+                const currentAudioUrls = [audio.currentSrc, audio.src].filter(Boolean);
+                const isSameSource = currentAudioUrls.some((currentAudioUrl) => {
                     try {
                         return new URL(currentAudioUrl, document.baseURI).href === new URL(finalUrl, document.baseURI).href;
                     } catch (_) {
                         return currentAudioUrl === finalUrl;
                     }
-                })();
+                });
                 if (state.currentPlayingSong !== playbackSong || !isSameSource) return false;
+                // A failed retry has already exhausted this source resolution.
+                // Only a broken server cache may still fall back once to a fresh
+                // online source; ordinary online failures must stop here instead
+                // of recursively calling playSong forever.
+                if (isRetry && resolvedSourceType !== 'server_cache') return false;
                 retryStarted = true;
-                console.warn(`[Player] ${resolvedSourceType} link failed, retrying online...`);
+                cleanup();
                 if (resolvedSourceType === 'server_cache' && !playbackSong.isLocal) {
                     markServerCacheFailure(playbackSong, resolvedQuality);
                 }
@@ -713,6 +796,12 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                         localStorage.removeItem(`lx_url_${cleanSongData(playbackSong).id}_${resolvedQuality}`);
                     } catch (_) { }
                 }
+                if (!isRetry && resolvedSourceType !== 'server_cache' && !playbackSong.isLocal &&
+                    waitForBackgroundCacheAndRetry(playbackSong, index, targetQuality, noPlay, shouldAddToDefault, resumeTime)) {
+                    console.warn(`[Player] ${resolvedSourceType} link failed, waiting for background cache...`);
+                    return true;
+                }
+                console.warn(`[Player] ${resolvedSourceType} link failed, retrying online...`);
                 const retryMode = resolvedSourceType === 'server_cache' && !playbackSong.isLocal
                     ? 'local_retry'
                     : true;

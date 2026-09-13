@@ -1515,6 +1515,7 @@ const playbackFeature = initPlaybackFeature({
     getCurrentListData: () => currentListData,
     getUserAuthHeaders,
     resolveSongUrl,
+    checkServerCache: (...args) => checkServerCache(...args),
     markServerCacheFailure,
     getSourceTypeText,
     getSourceName,
