@@ -408,9 +408,10 @@ function setAudioSource(url) {
         if (currentUrl && currentUrl === normalizedTargetUrl) {
             if (audio.ended) {
                 audio.currentTime = 0;
-            } else if (audio.error) {
-                // A failed request may keep the same src. Reload it before the
-                // cache fallback gets a chance to resolve a fresh URL.
+            } else if (audio.error || audio.readyState === 0 || audio.networkState === 3) {
+                // A failed request may keep the same src without exposing a
+                // MediaError. HAVE_NOTHING/NETWORK_NO_SOURCE is also a stale
+                // media state, so reload it before retrying the same URL.
                 audio.load();
             }
             return;

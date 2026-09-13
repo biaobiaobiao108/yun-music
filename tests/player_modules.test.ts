@@ -68,6 +68,7 @@ describe('Player manager module boundaries', () => {
 
     it('bounds browser media lifecycles and releases transient download resources', () => {
         const songUrlSource = read('frontend/player/src/features/song_url.ts');
+        const playbackSource = read('frontend/player/src/features/playback.ts');
         const visualizerSource = read('frontend/player/src/legacy/visualizer.ts');
         const downloadSource = read('frontend/player/src/legacy/download_manager.ts');
 
@@ -76,6 +77,7 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain('inflight: new Map()');
         expect(songUrlSource).toContain('await response.body?.cancel()');
         expect(songUrlSource).toContain('this.bufferer.removeAttribute(\'src\')');
+        expect(playbackSource).toContain('audio.error || audio.readyState === 0 || audio.networkState === 3');
 
         expect(visualizerSource).toContain('prototype.stop = function ()');
         expect(visualizerSource).toContain('window.cancelAnimationFrame');
