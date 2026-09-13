@@ -6,7 +6,20 @@ export function initShellFeature(context: AdminFeatureContext) {
 
     function bindShellEvents() {
         document.getElementById('login-btn')?.addEventListener('click', () => app.login());
-        document.getElementById('access-password')?.addEventListener('keypress', (event) => {
+        const passwordInput = document.getElementById('access-password') as HTMLInputElement | null;
+        const passwordToggle = document.getElementById('toggle-access-password') as HTMLButtonElement | null;
+        passwordToggle?.addEventListener('click', () => {
+            if (!passwordInput) return;
+            const isVisible = passwordInput.type === 'text';
+            passwordInput.type = isVisible ? 'password' : 'text';
+            passwordToggle.setAttribute('aria-pressed', String(!isVisible));
+            passwordToggle.setAttribute('aria-label', isVisible ? '显示密码' : '隐藏密码');
+            passwordToggle.title = isVisible ? '显示密码' : '隐藏密码';
+            const icon = passwordToggle.querySelector('i');
+            if (icon) icon.className = isVisible ? 'fas fa-eye' : 'fas fa-eye-slash';
+            passwordInput.focus({ preventScroll: true });
+        });
+        passwordInput?.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') app.login();
         });
         document.getElementById('logout-btn')?.addEventListener('click', () => app.logout());

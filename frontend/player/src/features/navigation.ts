@@ -72,6 +72,7 @@ export type NavigationContext = {
     toggleSidebar: (forceState?: boolean) => void;
     initGlobalListSearch: () => void;
     showInitialSearchState: () => void;
+    ensureSearchContent?: () => void;
     songListManager: { load: () => Promise<void> };
     ensureLeaderboardLoaded: () => Promise<void>;
     ensureLocalMusicLoaded: () => Promise<void>;
@@ -167,6 +168,8 @@ export function createTabSwitcher(context: NavigationContext) {
                 searchInput.placeholder = "搜索歌曲、歌手...";
                 if (!searchInput.value.trim()) {
                     context.showInitialSearchState();
+                } else if (!preserveSearchNavigation) {
+                    context.ensureSearchContent?.();
                 }
             }
             const pageTitle = document.getElementById('page-title');

@@ -987,8 +987,8 @@ html, body {
 .player-pagination-bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
+    justify-content: center;
+    gap: 0.625rem;
     inline-size: 100%;
     min-inline-size: 0;
     block-size: 3rem;
@@ -996,6 +996,8 @@ html, body {
     flex: 0 0 3rem;
     box-sizing: border-box;
     padding-inline: 0.75rem;
+    border-block-start: 1px solid var(--border-main);
+    background: var(--bg-main);
     overflow: hidden;
 }
 
@@ -1005,9 +1007,31 @@ html, body {
     justify-content: center;
     gap: 0.375rem;
     min-block-size: 2.25rem;
-    min-inline-size: 2.75rem;
+    min-inline-size: 5.75rem;
+    padding-inline: 0.875rem;
+    border: 1px solid var(--border-main);
+    border-radius: 0.75rem;
+    background: var(--bg-panel);
+    color: var(--text-muted);
     flex: 0 0 auto;
     white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.player-pagination-button:hover:not(:disabled) {
+    color: var(--c-600, #059669);
+    border-color: color-mix(in srgb, var(--c-500, #10b981) 45%, var(--border-main));
+    background: var(--bg-track);
+}
+
+.player-pagination-button:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.player-pagination-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
 }
 
 .player-pagination-center {
@@ -1016,7 +1040,7 @@ html, body {
     justify-content: center;
     gap: 0.75rem;
     min-inline-size: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     overflow: hidden;
 }
 
@@ -1033,6 +1057,10 @@ html, body {
     align-items: center;
     gap: 0.375rem;
     min-inline-size: max-content;
+    padding: 0.25rem 0.375rem;
+    border: 1px solid var(--border-main);
+    border-radius: 0.625rem;
+    background: color-mix(in srgb, var(--bg-panel) 88%, var(--bg-track));
     flex: 0 0 auto;
 }
 
@@ -1079,6 +1107,13 @@ html, body {
         flex-direction: row;
         gap: 0.375rem;
         margin-inline: 0;
+        flex: 0 1 auto;
+    }
+
+    .player-pagination-button {
+        min-inline-size: 2.75rem;
+        padding-inline: 0.5rem;
+        border-radius: 0.625rem;
     }
 
     .player-pagination-info {

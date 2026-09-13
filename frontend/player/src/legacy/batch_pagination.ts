@@ -306,25 +306,39 @@ function scrollToSearchResultsTop() {
 }
 
 export function updatePaginationInfo(start, end, total, current, totalPages) {
+    const currentPage = current || 1;
+    const pageCount = totalPages || 1;
     const infoEl = document.getElementById('pagination-info');
     if (infoEl) {
         if (total === 0) {
             infoEl.textContent = '无结果';
         } else {
             // 显示 第 X / 共 Y 页 (Z 条)
-            infoEl.textContent = `第 ${current || 1} /  ${totalPages || 1} 页 (${total} 条)`;
+            infoEl.textContent = `第 ${currentPage} / ${pageCount} 页 (${total} 条)`;
         }
     }
 
     // 更新跳转输入框的状态
     const jumpInput = document.getElementById('jump-page-input');
     if (jumpInput) {
-        const pageNum = current || 1;
-        jumpInput.max = totalPages || 1;
+        jumpInput.max = pageCount;
         // 只有当输入框未获得焦点时才强制更新值，避免干扰用户输入
         if (document.activeElement !== jumpInput) {
-            jumpInput.value = pageNum;
+            jumpInput.value = currentPage;
         }
+    }
+
+    const prevButton = document.querySelector('#search-pagination-bar [data-event-click-action="prevPage"]');
+    const nextButton = document.querySelector('#search-pagination-bar [data-event-click-action="nextPage"]');
+    if (prevButton) {
+        prevButton.disabled = currentPage <= 1;
+        prevButton.setAttribute('aria-label', '上一页');
+    }
+    if (nextButton) {
+        const hasLocalNextPage = currentPage < pageCount;
+        const hasRemoteNextPage = window.currentSearchScope === 'network' && window.searchHasMore !== false;
+        nextButton.disabled = !(hasLocalNextPage || hasRemoteNextPage);
+        nextButton.setAttribute('aria-label', '下一页');
     }
 }
 
@@ -343,7 +357,7 @@ async function nextPage() {
         currentPage++;
         globalState.renderResults(window.viewingPlaylist);
         scrollToSearchResultsTop();
-    } else if (window.currentSearchScope === 'network') {
+    } else if (window.currentSearchScope === 'network' && window.searchHasMore !== false) {
         const btn = document.querySelector('button[data-event-click-action="nextPage"]');
         const oldHtml = btn ? btn.innerHTML : '';
         if (btn) {
@@ -362,8 +376,13 @@ async function nextPage() {
         } finally {
             if (btn) {
                 btn.innerHTML = oldHtml;
-                btn.disabled = false;
             }
+            const totalAfterLoad = window.viewingPlaylist ? window.viewingPlaylist.length : 0;
+            const itemsPerPageAfterLoad = globalState.settings.itemsPerPage === 'all'
+                ? totalAfterLoad
+                : parseInt(globalState.settings.itemsPerPage);
+            const totalPagesAfterLoad = Math.max(1, Math.ceil((totalAfterLoad || 1) / (itemsPerPageAfterLoad || 1)));
+            updatePaginationInfo(0, 0, totalAfterLoad, currentPage, totalPagesAfterLoad);
         }
     }
 }

@@ -85,14 +85,16 @@ function renderLibraryPagination(kind: LibraryKind, page: number, totalPages: nu
     if (totalPages <= 1) return '';
     const label = kind === 'artists' ? '位' : '张';
     return `
-        <div class="player-pagination-bar library-pagination border-t t-border-main t-bg-main">
+        <div class="player-pagination-bar library-pagination">
             <button type="button" data-event-click-action="libraryGoToPage" data-event-click-args="[&quot;${kind}&quot;, ${page - 1}]"
-                class="player-pagination-button t-text-muted hover:t-text-main" ${page <= 1 ? 'disabled' : ''}>
+                class="player-pagination-button" aria-label="上一页" title="上一页" ${page <= 1 ? 'disabled' : ''}>
                 <i class="fas fa-chevron-left" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
             </button>
-            <span class="player-pagination-info t-text-muted">第 ${page} / ${totalPages} 页 (${total} ${label})</span>
+            <div class="player-pagination-center">
+                <span class="player-pagination-info t-text-muted">第 ${page} / ${totalPages} 页 (${total} ${label})</span>
+            </div>
             <button type="button" data-event-click-action="libraryGoToPage" data-event-click-args="[&quot;${kind}&quot;, ${page + 1}]"
-                class="player-pagination-button t-text-muted hover:t-text-main" ${page >= totalPages ? 'disabled' : ''}>
+                class="player-pagination-button" aria-label="下一页" title="下一页" ${page >= totalPages ? 'disabled' : ''}>
                 <span class="hidden sm:inline">下一页</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
             </button>
         </div>`;

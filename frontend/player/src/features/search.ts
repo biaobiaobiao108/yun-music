@@ -62,6 +62,35 @@ export function initSearchFeature(context: SearchFeatureContext) {
     const playFromView = context.playFromView;
     const hideSearchSuggestions = () => (window as any).hideSearchSuggestions?.();
     let currentSearch = { name: '', source: 'wy' };
+    let lastRenderedSearchKey: string | null = null;
+    let hotSearchStateSerial = 0;
+
+    function getSearchStateKey() {
+        const input = document.getElementById('search-input') as HTMLInputElement | null;
+        const type = document.getElementById('search-type') as HTMLSelectElement | null;
+        const source = document.getElementById('search-source') as HTMLSelectElement | null;
+        return [
+            String(window.currentSearchScope || 'network'),
+            String(type?.value || 'song'),
+            String(source?.value || 'wy'),
+            input?.value.trim() || '',
+        ].join('|');
+    }
+
+    function hasSearchContent() {
+        const container = document.getElementById('search-results');
+        return Boolean(container?.children.length && !container.querySelector('.fa-spinner'));
+    }
+
+    function ensureSearchContent() {
+        const input = document.getElementById('search-input') as HTMLInputElement | null;
+        if (!input?.value.trim()) return;
+
+        const stateKey = getSearchStateKey();
+        if (lastRenderedSearchKey === stateKey && hasSearchContent()) return;
+        if (searchRequestController && !searchRequestController.signal.aborted) return;
+        void doSearch();
+    }
 
     const applyArtistFavoriteToggle = async (element, args) => {
         const [id, source, name, image] = args.map(String);
@@ -328,6 +357,7 @@ function renderTrackListHeader({ includeBackToolbar = false, extraClass = '' } =
 //搜索歌曲
 async function doSearch(page = 1, append = false, prefetch = false) {
     if (prefetch && searchDetailOpen) return;
+    hotSearchStateSerial += 1;
     if (!prefetch) {
         setSearchDetailOpen(false);
         if (window.history.state?.page === 'search-detail') {
@@ -400,13 +430,16 @@ async function doSearch(page = 1, append = false, prefetch = false) {
         if (window.currentSearchScope === 'lib_artists') renderLibraryArtists(filtered);
         else if (window.currentSearchScope === 'lib_albums') renderLibraryAlbums(filtered);
         else renderResults(filtered);
+        lastRenderedSearchKey = getSearchStateKey();
         return;
     }
 
     // Network Search Logic
     const source = document.getElementById('search-source').value;
-    //翻页步长
-    const FETCH_PAGES_STEP = 1;
+    const SEARCH_PAGE_SIZE = 20;
+    const SEARCH_RESULT_LIMIT = 99;
+    const fetchPages = type === 'song' ? (append ? (prefetch ? 3 : 1) : 5) : 1;
+    const requestSearchKey = getSearchStateKey();
 
     // 保存到缓存
     localStorage.setItem('search-source', source);
@@ -451,9 +484,10 @@ async function doSearch(page = 1, append = false, prefetch = false) {
             );
             const results = await Promise.all(promises);
             list = results.flat();
+            (window as any).searchHasMore = false;
         } else {
             // Single Source Search — 支持前端决定拉取多少页
-            const res = await fetch(`${API_BASE}/search?name=${encodeURIComponent(input)}&source=${source}&type=${type}&page=${page}&pages=${FETCH_PAGES_STEP}`, {
+            const res = await fetch(`${API_BASE}/search?name=${encodeURIComponent(input)}&source=${source}&type=${type}&page=${page}&pages=${fetchPages}&limit=${SEARCH_RESULT_LIMIT}`, {
                 headers,
                 signal: request.controller.signal,
             });
@@ -471,10 +505,13 @@ async function doSearch(page = 1, append = false, prefetch = false) {
             }
 
             list = data.map(item => ({ ...item, source }));
+            const minimumPageResult = append ? SEARCH_PAGE_SIZE : SEARCH_RESULT_LIMIT;
+            (window as any).searchHasMore = list.length >= minimumPageResult;
         }
 
         // 进入专辑/歌手详情后，旧搜索请求即使晚返回也不能覆盖详情页。
         if (!isSearchRequestCurrent(request)) return;
+        window.currentNetworkPage = page + fetchPages - 1;
 
         // song/singer/album 统一支持 append 追加翻页
         if (append && (type === 'song' || type === 'singer' || type === 'album')) {
@@ -496,12 +533,17 @@ async function doSearch(page = 1, append = false, prefetch = false) {
                 else if (type === 'album') renderAlbumResults(combinedList);
                 else renderResults(combinedList);
             } else {
+                (window as any).searchHasMore = false;
+                updatePaginationInfo(0, 0, (window.viewingPlaylist || []).length, pageState.value, Math.max(1, pageState.value));
                 showInfo('没有更多搜索结果了');
             }
         } else {
             if (type === 'singer') renderSingerResults(list);
             else if (type === 'album') renderAlbumResults(list);
             else renderResults(list);
+        }
+        if (getSearchStateKey() === requestSearchKey) {
+            lastRenderedSearchKey = requestSearchKey;
         }
     } catch (e) {
         if (e?.name === 'AbortError' || !isSearchRequestCurrent(request)) return;
@@ -567,6 +609,7 @@ async function fetchHotSearch(source = 'wy') {
 function renderHotSearch(data) {
     const container = document.getElementById('search-results');
     const header = document.getElementById('search-results-header');
+    if (!container) return;
 
     // 隐藏表头
     if (header) {
@@ -574,7 +617,7 @@ function renderHotSearch(data) {
     }
 
     // [Fix] If limit is 0, treat as disabled and show default state
-    if (!container || !data || !data.list || data.list.length === 0 || settings.hotSearchLimit === 0) {
+    if (!data || !data.list || data.list.length === 0 || settings.hotSearchLimit === 0) {
         // 显示默认空白状态
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full t-text-muted space-y-4">
@@ -582,6 +625,7 @@ function renderHotSearch(data) {
                 <p>输入关键词开始搜索音乐</p>
             </div>
         `;
+        lastRenderedSearchKey = getSearchStateKey();
         return;
     }
 
@@ -624,6 +668,7 @@ function renderHotSearch(data) {
             </div>
         </div>
     `;
+    lastRenderedSearchKey = getSearchStateKey();
 
     // 动态检测溢出并应用滚动效果
     setTimeout(() => {
@@ -659,6 +704,12 @@ function handleHotSearchClick(keyword) {
 function showInitialSearchState() {
     const container = document.getElementById('search-results');
     const header = document.getElementById('search-results-header');
+    if (!container) return;
+
+    const requestSerial = ++hotSearchStateSerial;
+    invalidateSearchRequest();
+    lastRenderedSearchKey = null;
+    document.getElementById('search-pagination-bar')?.classList.add('hidden');
 
     // 隐藏表头
     if (header) {
@@ -678,8 +729,11 @@ function showInitialSearchState() {
     const source = sourceSelect ? sourceSelect.value : 'wy';
 
     fetchHotSearch(source).then(data => {
+        const input = document.getElementById('search-input') as HTMLInputElement | null;
+        if (requestSerial !== hotSearchStateSerial || input?.value.trim()) return;
         renderHotSearch(data);
     }).catch(err => {
+        if (requestSerial !== hotSearchStateSerial) return;
         console.error('[HotSearch] 显示热搜失败:', err);
         // 失败时显示默认状态
         container.innerHTML = `
@@ -688,6 +742,7 @@ function showInitialSearchState() {
                 <p>输入关键词开始搜索音乐</p>
             </div>
         `;
+        lastRenderedSearchKey = getSearchStateKey();
     });
 }
 
@@ -792,6 +847,8 @@ function isSearchResultFavoriteTarget(event?: Event) {
 
 function renderSingerResults(list) {
     const container = document.getElementById('search-results');
+    if (!container) return;
+    const normalizedList = Array.isArray(list) ? list : [];
     container.classList.remove('artist-detail-active');
     container.classList.remove('lib-view-active');
     const header = document.getElementById('search-results-header');
@@ -800,11 +857,16 @@ function renderSingerResults(list) {
     const paginationBar = document.getElementById('search-pagination-bar');
     if (paginationBar) paginationBar.classList.add('hidden');
 
-    window.viewingPlaylist = list;
+    window.viewingPlaylist = normalizedList;
+
+    if (normalizedList.length === 0) {
+        container.innerHTML = '<div class="flex items-center justify-center min-h-48 p-8 text-center t-text-muted">未找到相关歌手</div>';
+        return;
+    }
 
     container.innerHTML = '<div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 md:gap-4 p-3 md:p-6"></div>';
     const grid = container.querySelector('div');
-    list.forEach((singer, idx) => {
+    normalizedList.forEach((singer, idx) => {
         const singerId = String(singer.id ?? '');
         const singerSource = String(singer.source || 'wy');
         const singerName = String(singer.name || '未命名歌手');
@@ -856,6 +918,8 @@ function renderSingerResults(list) {
 
 function renderAlbumResults(list) {
     const container = document.getElementById('search-results');
+    if (!container) return;
+    const normalizedList = Array.isArray(list) ? list : [];
     container.classList.remove('artist-detail-active');
     container.classList.remove('lib-view-active');
     const header = document.getElementById('search-results-header');
@@ -864,11 +928,16 @@ function renderAlbumResults(list) {
     const paginationBar = document.getElementById('search-pagination-bar');
     if (paginationBar) paginationBar.classList.add('hidden');
 
-    window.viewingPlaylist = list;
+    window.viewingPlaylist = normalizedList;
+
+    if (normalizedList.length === 0) {
+        container.innerHTML = '<div class="flex items-center justify-center min-h-48 p-8 text-center t-text-muted">未找到相关专辑</div>';
+        return;
+    }
 
     container.innerHTML = '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-6"></div>';
     const grid = container.querySelector('div');
-    list.forEach((item, index) => {
+    normalizedList.forEach((item, index) => {
         const albumId = String(item.id ?? '');
         const albumSource = String(item.source || 'wy');
         const albumName = String(item.name || '未命名专辑');
@@ -1510,9 +1579,9 @@ function renderArtistSongsUI(list, page) {
         </div>
 
         <!-- 歌手详情内部分页控件 -->
-        <div class="player-pagination-bar artist-songs-pagination border-t t-border-main t-bg-main">
+        <div class="player-pagination-bar artist-songs-pagination">
             <button type="button" data-event-click-action="artistSongsPrevPage"
-                class="player-pagination-button t-text-muted hover:t-text-main"
+                class="player-pagination-button" aria-label="上一页" title="上一页"
                 ${artistPage <= 1 ? 'disabled' : ''}>
                 <i class="fas fa-chevron-left" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
             </button>
@@ -1528,7 +1597,7 @@ function renderArtistSongsUI(list, page) {
                 </div>
             </div>
             <button type="button" data-event-click-action="artistSongsNextPage"
-                class="player-pagination-button t-text-muted hover:t-text-main"
+                class="player-pagination-button" aria-label="下一页" title="下一页"
                 ${artistPage >= totalPages ? 'disabled' : ''}>
                 <span class="hidden sm:inline">下一页</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
             </button>
@@ -1702,14 +1771,16 @@ function renderArtistAlbumsUI(list, requestedPage = artistAlbumsPage) {
             }).join('')}
         </div>
         ${totalPages > 1 ? `
-        <div class="player-pagination-bar artist-albums-pagination border-t t-border-main t-bg-main">
+        <div class="player-pagination-bar artist-albums-pagination">
             <button type="button" data-event-click-action="artistAlbumsGoToPage" data-event-click-args="[${artistAlbumsPage - 1}]"
-                class="player-pagination-button t-text-muted hover:t-text-main" ${artistAlbumsPage <= 1 ? 'disabled' : ''}>
+                class="player-pagination-button" aria-label="上一页" title="上一页" ${artistAlbumsPage <= 1 ? 'disabled' : ''}>
                 <i class="fas fa-chevron-left" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
             </button>
-            <span class="player-pagination-info t-text-muted">第 ${artistAlbumsPage} / ${totalPages} 页 (${totalItems} 张)</span>
+            <div class="player-pagination-center">
+                <span class="player-pagination-info t-text-muted">第 ${artistAlbumsPage} / ${totalPages} 页 (${totalItems} 张)</span>
+            </div>
             <button type="button" data-event-click-action="artistAlbumsGoToPage" data-event-click-args="[${artistAlbumsPage + 1}]"
-                class="player-pagination-button t-text-muted hover:t-text-main" ${artistAlbumsPage >= totalPages ? 'disabled' : ''}>
+                class="player-pagination-button" aria-label="下一页" title="下一页" ${artistAlbumsPage >= totalPages ? 'disabled' : ''}>
                 <span class="hidden sm:inline">下一页</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
             </button>
         </div>` : ''}
@@ -1951,6 +2022,8 @@ function restoreSearchResults() {
         else if (window.currentSearchScope === 'lib_albums') pageInfoEl.innerText = `收藏专辑`;
         else pageInfoEl.innerText = `搜索结果`;
     }
+
+    lastRenderedSearchKey = getSearchStateKey();
 
     return true;
 }
@@ -2237,9 +2310,10 @@ function renderResults(list) {
     applyMarqueeChecks(container);
 
     // [Prefetch] 自动后台预加载逻辑
-    if (!searchDetailOpen && window.currentSearchScope === 'network' && pageState.value === totalPages) {
+    if (!searchDetailOpen && window.currentSearchScope === 'network'
+        && settings.itemsPerPage !== 'all' && pageState.value === totalPages) {
         const FETCH_PAGES_STEP = 3;
-        const nextNetPage = (window.currentNetworkPage || 1) + FETCH_PAGES_STEP;
+        const nextNetPage = (window.currentNetworkPage || 1) + 1;
 
         // 避免重复触发
         if (!window._prefetchingPending || window._prefetchingPending !== nextNetPage) {
@@ -2391,6 +2465,7 @@ window.unobserveLazyImages = function (root = document) {
         renderHotSearch,
         handleHotSearchClick,
         showInitialSearchState,
+        ensureSearchContent,
         getQualityTags,
         getSourceTag,
         makeKeyboardActivatable,

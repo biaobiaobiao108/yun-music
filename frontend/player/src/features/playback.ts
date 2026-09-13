@@ -107,6 +107,7 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const showError = context.showError;
     const pushDataChange = context.pushDataChange;
     const renderMyLists = context.renderMyLists;
+    const PLAYBACK_QUEUE_LIMIT = 99;
     let hintTimeout: ReturnType<typeof setTimeout> | null = null;
     // A restored source may still be resolving while the user presses play.
     // Keep the intent until that source has been installed instead of calling
@@ -822,6 +823,20 @@ function updatePlaylist(list, startIndex = 0, scope = 'local_list', shouldAddToD
 
         list = deduplicated;
     }
+
+    // 所有列表入口统一使用最多 99 首，且尽量保留当前点击的歌曲。
+    // 这样搜索页、歌单、榜单和本地音乐不会因为分页方式不同而出现
+    // “只加入当前 20 首”或一次加入过多歌曲的差异。
+    const normalizedStartIndex = Math.min(
+        Math.max(Number(startIndex) || 0, 0),
+        Math.max(list.length - 1, 0),
+    );
+    const queueOffset = Math.min(
+        normalizedStartIndex,
+        Math.max(list.length - PLAYBACK_QUEUE_LIMIT, 0),
+    );
+    list = list.slice(queueOffset, queueOffset + PLAYBACK_QUEUE_LIMIT);
+    startIndex = normalizedStartIndex - queueOffset;
 
     // [New] Use a shallow copy to prevent mutations from affecting the source list
     state.currentPlaylist = [...list];

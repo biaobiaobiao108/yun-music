@@ -52,8 +52,14 @@
             </div>
             <p class="login-subtitle">管理控制台</p>
             <label for="access-password" class="sr-only">访问密码</label>
-            <input type="password" id="access-password" name="password" placeholder="请输入访问密码" autocomplete="current-password" />
-            <button id="login-btn" class="btn-primary">
+            <div class="login-password-field">
+                <input type="password" id="access-password" name="password" placeholder="请输入访问密码" autocomplete="current-password" />
+                <button id="toggle-access-password" class="login-password-toggle" type="button"
+                        aria-label="显示密码" aria-pressed="false" title="显示密码">
+                    <i class="fas fa-eye" aria-hidden="true"></i>
+                </button>
+            </div>
+            <button id="login-btn" class="btn-primary" type="button">
                 <span>登录</span>
             </button>
             <p id="login-error" class="error-msg"></p>

@@ -20,7 +20,7 @@
     <link rel="icon" href="/music/assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="/music/assets/yun-yin.png">
     <link rel="manifest" href="/music/manifest.json">
-    <link rel="modulepreload" href="app-qcnsx6y1.js">
+    <link rel="modulepreload" href="app-jhayq0m9.js">
     <link rel="stylesheet" href="css/theme_variables.css">
     <link rel="stylesheet" href="css/tailwind.generated.css">
     <script src="js/vendor-bridge.js"></script>
@@ -423,37 +423,33 @@
                             </button>
                         </div>
                         <!-- Pagination -->
-                        <div id="search-pagination-bar"
-                            class="player-pagination-bar border-t t-border-main t-bg-main flex-shrink-0">
-                            <button data-event-click-action="prevPage"
-                                class="player-pagination-button text-gray-500 hover:text-emerald-600 disabled:opacity-30 transition-colors text-sm flex items-center gap-1">
-                                <i class="fas fa-chevron-left text-[10px]"></i> <span
+                        <div id="search-pagination-bar" class="player-pagination-bar">
+                            <button type="button" data-event-click-action="prevPage"
+                                class="player-pagination-button" aria-label="上一页" title="上一页">
+                                <i class="fas fa-chevron-left text-[10px]" aria-hidden="true"></i> <span
                                     class="hidden sm:inline">上一页</span>
                             </button>
 
-                            <div
-                                class="player-pagination-center flex flex-col sm:flex-row items-center gap-1 sm:gap-4 flex-1 justify-center min-w-0 mx-2">
+                            <div class="player-pagination-center">
                                 <span id="pagination-info"
                                     class="text-[10px] md:text-xs t-text-muted font-mono whitespace-nowrap">第 1 / 1
                                     页</span>
-                                <div id="page-jump-container"
-                                    class="player-pagination-jump flex items-center gap-1.5 bg-gray-500/5 px-2 py-0.5 rounded-lg border t-border-main">
+                                <div id="page-jump-container" class="player-pagination-jump">
                                     <input id="jump-page-input" type="number" min="1"
                                         aria-label="跳转到页码"
-                                        class="w-10 h-6 text-xs text-center bg-transparent focus:outline-none t-text-main"
+                                        class="player-pagination-jump-input"
                                         placeholder="页" data-event-keydown-action="jumpToPage" data-event-key="Enter">
-                                    <span class="w-[1px] h-3 bg-gray-300 dark:bg-gray-700"></span>
-                                    <button data-event-click-action="jumpToPage"
-                                        class="text-[10px] font-bold text-emerald-600 hover:text-emerald-500 transition-colors">
+                                    <span aria-hidden="true"></span>
+                                    <button type="button" data-event-click-action="jumpToPage">
                                         跳转
                                     </button>
                                 </div>
                             </div>
 
-                            <button data-event-click-action="nextPage"
-                                class="player-pagination-button text-gray-500 hover:text-emerald-600 disabled:opacity-30 transition-colors text-sm flex items-center gap-1">
+                            <button type="button" data-event-click-action="nextPage"
+                                class="player-pagination-button" aria-label="下一页" title="下一页">
                                 <span class="hidden sm:inline">下一页</span> <i
-                                    class="fas fa-chevron-right text-[10px]"></i>
+                                    class="fas fa-chevron-right text-[10px]" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -539,17 +535,17 @@
                         </div>
 
                         <!-- Pagination -->
-                        <div id="songlist-pagination" class="player-pagination-bar border-t t-border-main t-bg-main">
+                        <div id="songlist-pagination" class="player-pagination-bar">
                             <button data-songlist-action="change-page" data-delta="-1" id="btn-songlist-prev"
-                                class="player-pagination-button px-6 py-2 t-bg-panel border t-border-main rounded-xl hover:text-emerald-500 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-2 shadow-sm font-medium">
-                                <i class="fas fa-chevron-left text-xs"></i> 上一页
+                                class="player-pagination-button" aria-label="上一页" title="上一页">
+                                <i class="fas fa-chevron-left text-xs" aria-hidden="true"></i> <span class="hidden sm:inline">上一页</span>
                             </button>
                             <div class="player-pagination-center">
                                 <span id="songlist-page-info" class="player-pagination-info text-sm font-mono font-bold t-text-main">第 1 页</span>
                             </div>
                             <button data-songlist-action="change-page" data-delta="1" id="btn-songlist-next"
-                                class="player-pagination-button px-6 py-2 t-bg-panel border t-border-main rounded-xl hover:text-emerald-500 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-2 shadow-sm font-medium">
-                                下一页 <i class="fas fa-chevron-right text-xs"></i>
+                                class="player-pagination-button" aria-label="下一页" title="下一页">
+                                <span class="hidden sm:inline">下一页</span> <i class="fas fa-chevron-right text-xs" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -914,19 +910,18 @@
                             </div>
 
                             <!-- 分页 -->
-                            <div id="lb-pagination"
-                                class="player-pagination-bar border-t t-border-main t-bg-panel/80 flex-shrink-0">
+                            <div id="lb-pagination" class="player-pagination-bar">
                                 <button id="lb-btn-prev" data-event-click-action="leaderboardChangePage" data-event-click-args="[-1]" disabled
-                                    class="player-pagination-button px-2 md:px-4 py-1.5 text-xs md:text-sm t-bg-main border t-border-main rounded-lg hover:t-bg-track disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                                    <i class="fas fa-chevron-left md:mr-1"></i><span class="hidden sm:inline">上一页</span>
+                                    class="player-pagination-button" aria-label="上一页" title="上一页">
+                                    <i class="fas fa-chevron-left md:mr-1" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
                                 </button>
                                 <div class="player-pagination-center">
                                     <span id="lb-page-info" class="player-pagination-info text-[10px] md:text-sm t-text-muted font-medium">第 1 页</span>
                                 </div>
                                 <button id="lb-btn-next" data-event-click-action="leaderboardChangePage" data-event-click-args="[1]" disabled
-                                    class="player-pagination-button px-2 md:px-4 py-1.5 text-xs md:text-sm t-bg-main border t-border-main rounded-lg hover:t-bg-track disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                    class="player-pagination-button" aria-label="下一页" title="下一页">
                                     <span class="hidden sm:inline">下一页</span><i
-                                        class="fas fa-chevron-right md:ml-1"></i>
+                                        class="fas fa-chevron-right md:ml-1" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>
@@ -1300,18 +1295,17 @@
                             <p class="font-bold tracking-wider">正在加载本地音乐...</p>
                         </div>
                     </div>
-                    <div id="lm-pagination"
-                        class="player-pagination-bar border-x border-b t-border-main rounded-b-xl t-bg-panel/80 flex-shrink-0 hidden">
+                    <div id="lm-pagination" class="player-pagination-bar hidden">
                         <button id="lm-page-prev" data-event-click-action="LocalMusicManager.changePage" data-event-click-args="[-1]"
-                            class="player-pagination-button px-2 md:px-4 py-1.5 text-xs md:text-sm t-bg-main border t-border-main rounded-lg hover:t-bg-track disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                            <i class="fas fa-chevron-left md:mr-1"></i><span class="hidden sm:inline">上一页</span>
+                            class="player-pagination-button" aria-label="上一页" title="上一页">
+                            <i class="fas fa-chevron-left md:mr-1" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
                         </button>
                         <div class="player-pagination-center">
                             <span id="lm-page-info" class="player-pagination-info text-[10px] md:text-sm t-text-muted font-medium">第 1 / 1 页</span>
                         </div>
                         <button id="lm-page-next" data-event-click-action="LocalMusicManager.changePage" data-event-click-args="[1]"
-                            class="player-pagination-button px-2 md:px-4 py-1.5 text-xs md:text-sm t-bg-main border t-border-main rounded-lg hover:t-bg-track disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                            <span class="hidden sm:inline">下一页</span><i class="fas fa-chevron-right md:ml-1"></i>
+                            class="player-pagination-button" aria-label="下一页" title="下一页">
+                            <span class="hidden sm:inline">下一页</span><i class="fas fa-chevron-right md:ml-1" aria-hidden="true"></i>
                         </button>
                     </div>
                 </div>
@@ -4654,7 +4648,7 @@
     <audio id="audio-player" crossorigin="anonymous"></audio>
 
     <!-- The player module owns feature initialization and delegated events. -->
-    <script type="module" src="app-qcnsx6y1.js"></script>
+    <script type="module" src="app-jhayq0m9.js"></script>
 </body>
 
 </html>

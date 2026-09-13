@@ -15,7 +15,9 @@ export type SongListManagerContext = {
 export function createSongListManager(context: SongListManagerContext) {
     const manager = (function () {
     const API_BASE = '/api/music';
-    const DETAIL_PAGE_LIMIT = 50;
+    // 播放队列统一最多使用 99 首；详情页首批加载同样保持这个上限，
+    // 避免单曲点击时只能把当前较小分页放入队列。
+    const DETAIL_PAGE_LIMIT = 99;
     let initialized = false;
     let initialLoadPromise = null;
     let detailLoading = false;
