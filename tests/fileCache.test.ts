@@ -2,7 +2,7 @@ import { describe, it, expect } from 'bun:test'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
-import { resolveCompanionLyricFilename } from '../src/server/fileCache'
+import { cleanupExpiredCacheProgress, resolveCompanionLyricFilename, setCacheProgress } from '../src/server/fileCache'
 import { closeDb, initDatabase } from '../src/database'
 import * as fileCache from '../src/server/fileCache'
 
@@ -602,6 +602,22 @@ describe('File Cache Path Traversal Defense', () => {
       fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
       fs.rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('File Cache Progress Lifecycle', () => {
+  it('expires terminal progress entries through one bounded cleanup path', () => {
+    const now = Date.now()
+    const finishedKey = `finished-${now}`
+    const activeKey = `active-${now}`
+    setCacheProgress(finishedKey, { progress: 100, status: 'finished', updatedAt: now - 31_000 })
+    setCacheProgress(activeKey, { progress: 45, status: 'downloading', updatedAt: now - 31_000 })
+
+    expect(cleanupExpiredCacheProgress(now)).toBe(1)
+    expect(fileCache.cacheProgress.has(finishedKey)).toBe(false)
+    expect(fileCache.cacheProgress.has(activeKey)).toBe(true)
+
+    fileCache.cacheProgress.delete(activeKey)
   })
 })
 

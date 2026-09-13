@@ -872,6 +872,15 @@ const disposeLoadedApis = async (owner?: string) => {
     }
 }
 
+const clearReloadRelatedCaches = async (owner?: string) => {
+    try {
+        const { clearServerSourceMatchCache } = await import('./services/musicResolver')
+        clearServerSourceMatchCache(owner)
+    } catch (error: any) {
+        console.warn('[UserApi] 清理音源匹配缓存失败:', error?.message || error)
+    }
+}
+
 // 启动文件监控
 function startWatcher(sourceRoot: string) {
     if (fsWatcher) return
@@ -914,6 +923,7 @@ function startWatcher(sourceRoot: string) {
                     console.log(`[UserApi] [Watcher] 忽略近期更新的文件变动 (视为手动上传): ${filename}`)
                     return
                 }
+                lastReloadMap.delete(username)
 
                 console.log(`[UserApi] [Watcher] 检测到文件变动 (${eventType}): ${filename} -> 重新加载 ${username}`)
                 initUserApis(username).catch(err => {
@@ -951,6 +961,8 @@ async function initUserApisInternal(targetUser?: string) {
     // 如果根目录不存在，无需加载
     if (!fs.existsSync(sourceRoot)) {
         await disposeLoadedApis(targetUser)
+        await clearReloadRelatedCaches(targetUser)
+        if (!targetUser) apiStatus.clear()
         console.log(`[UserApi] Source root directory not found: ${sourceRoot}`)
         console.log(`[UserApi] ========================================`)
         return
@@ -965,6 +977,7 @@ async function initUserApisInternal(targetUser?: string) {
         console.log(`[UserApi] 重新加载用户源: ${targetUser}`)
         // 清理该用户的旧源和状态
         await disposeLoadedApis(targetUser)
+        await clearReloadRelatedCaches(targetUser)
         for (const key of apiStatus.keys()) {
             if (key.startsWith(`${targetUser}_`)) {
                 apiStatus.delete(key)
@@ -987,6 +1000,9 @@ async function initUserApisInternal(targetUser?: string) {
     } else {
         console.log(`[UserApi] 初始化所有自定义源...`)
         await disposeLoadedApis()
+        await clearReloadRelatedCaches()
+        apiStatus.clear()
+        lastReloadMap.clear()
 
         // 扫描 sourceRoot 下的所有子目录
         try {

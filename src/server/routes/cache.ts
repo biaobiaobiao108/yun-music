@@ -1167,10 +1167,7 @@ export const createCacheRouter = (): Router => {
                 }
                 const markProgressError = (message: string) => {
                   if (!taskId) return
-                  fileCache.cacheProgress.set(taskId, { progress: 0, status: 'error', errorMsg: message, updatedAt: Date.now() })
-                  setTimeout(() => {
-                    if (fileCache.cacheProgress.get(taskId)?.status === 'error') fileCache.cacheProgress.delete(taskId)
-                  }, 30000)
+                  fileCache.setCacheProgress(taskId, { progress: 0, status: 'error', errorMsg: message, updatedAt: Date.now() })
                 }
                 tempStream.on('error', (error) => {
                   tempStreamError = error
@@ -1178,7 +1175,7 @@ export const createCacheRouter = (): Router => {
                 })
 
                 if (taskId) {
-                  fileCache.cacheProgress.set(taskId, { progress: 0, status: 'downloading', total, received: 0, speed: 0, updatedAt: Date.now() })
+                  fileCache.setCacheProgress(taskId, { progress: 0, status: 'downloading', total, received: 0, speed: 0, updatedAt: Date.now() })
                 }
 
                 proxyRes.on('data', (c: any) => {
@@ -1199,7 +1196,7 @@ export const createCacheRouter = (): Router => {
                       lastSpeedBytes = received
                     }
                     const progress = total > 0 ? Math.round((received / total) * 100) : 0
-                    fileCache.cacheProgress.set(taskId, { progress, status: 'downloading', total, received, speed: currentSpeed, updatedAt: now })
+                    fileCache.setCacheProgress(taskId, { progress, status: 'downloading', total, received, speed: currentSpeed, updatedAt: now })
                   }
                 })
                 proxyRes.pipe(tempStream)
@@ -1214,12 +1211,11 @@ export const createCacheRouter = (): Router => {
                 proxyRes.on('end', async () => {
                   if (taggedResponseSettled) return
                   if (taskId) {
-                    fileCache.cacheProgress.set(taskId, { progress: 100, status: 'tagging', total, received, speed: 0, updatedAt: Date.now() })
+                    fileCache.setCacheProgress(taskId, { progress: 100, status: 'tagging', total, received, speed: 0, updatedAt: Date.now() })
                   }
                   const finishProgress = () => {
                     if (!taskId) return
-                    fileCache.cacheProgress.set(taskId, { progress: 100, status: 'finished', total: total || received, received, speed: 0, updatedAt: Date.now() })
-                    setTimeout(() => fileCache.cacheProgress.delete(taskId), 30000)
+                    fileCache.setCacheProgress(taskId, { progress: 100, status: 'finished', total: total || received, received, speed: 0, updatedAt: Date.now() })
                   }
 
                   let tagger: any = null

@@ -1,6 +1,7 @@
 import { httpFetch } from '../../request'
 import { dateFormat2 } from '../../index'
 import getMusicInfo from './musicInfo'
+import { LRUCache } from 'lru-cache'
 
 const emojis = {
   e400846: '😘',
@@ -71,7 +72,10 @@ const emojis = {
   e400432: '👑',
 } satisfies Record<string, string>
 
-const songIdMap = new Map()
+const songIdMap = new LRUCache<string, any>({
+  max: 2048,
+  ttl: 2 * 60 * 60 * 1000,
+})
 const promises = new Map()
 
 export default {
@@ -79,15 +83,20 @@ export default {
   _requestObj2: null as any,
   async getSongId({ songId, songmid }: any) {
     if (songId) return songId
-    if (songIdMap.has(songmid)) return songIdMap.get(songmid)
-    if (promises.has(songmid)) return (await promises.get(songmid)).songId
+    const key = String(songmid)
+    const cachedSongId = songIdMap.get(key)
+    if (cachedSongId !== undefined) return cachedSongId
+    if (promises.has(key)) return (await promises.get(key)).songId
     const promise = getMusicInfo(songmid)
-    promises.set(songmid, promise)
-    const info = await promise
-    if (!info) throw new Error('获取歌曲信息失败')
-    songIdMap.set(songmid, info.songId)
-    promises.delete(songmid)
-    return info.songId
+    promises.set(key, promise)
+    try {
+      const info = await promise
+      if (!info) throw new Error('获取歌曲信息失败')
+      songIdMap.set(key, info.songId)
+      return info.songId
+    } finally {
+      promises.delete(key)
+    }
   },
   async getComment(mInfo: any, page: any= 1, limit: any= 20) {
     if (this._requestObj) this._requestObj.cancelHttp()

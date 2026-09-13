@@ -553,7 +553,11 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             isPrefetchFound = true;
 
             // [Optimize] 既然主播放器即将接管该 URL，立即清空缓冲器 src 以停止其后台加载
-            prefetchManager.bufferer.src = '';
+            if (typeof prefetchManager.stopBufferer === 'function') {
+                prefetchManager.stopBufferer();
+            } else {
+                prefetchManager.bufferer.src = '';
+            }
         }
     }
 

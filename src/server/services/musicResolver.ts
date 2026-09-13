@@ -3,6 +3,7 @@ import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import { isSourceSupported, callUserApiGetMusicUrl } from '../userApi'
 import { getDownloadQualityCandidates } from '../downloadQuality'
 import * as fileCache from '../fileCache'
+import { LRUCache } from 'lru-cache'
 
 export interface ServerSongResolveResult {
   url: string
@@ -74,7 +75,20 @@ export const normalizeSongInfo = (songInfo: any) => {
 
 const AUTO_SOURCE_ORDER = ['wy', 'tx'] as const
 const SOURCE_MATCH_CACHE_TTL = 60_000
-const sourceMatchCache = new Map<string, { expiresAt: number, promise: Promise<any[]> }>()
+const sourceMatchCache = new LRUCache<string, Promise<any[]>>({
+  max: 512,
+  ttl: SOURCE_MATCH_CACHE_TTL,
+})
+
+export const clearServerSourceMatchCache = (username?: string) => {
+  if (!username) {
+    sourceMatchCache.clear()
+    return
+  }
+  for (const key of sourceMatchCache.keys()) {
+    if (key.startsWith(`${username}:`)) sourceMatchCache.delete(key)
+  }
+}
 
 export const normalizeSongMatchText = (value: unknown) => String(value || '')
   .toLowerCase()
@@ -157,13 +171,8 @@ export const findServerSourceMatches = async (songInfo: any, username: string) =
     normalizeSongMatchText(songInfo.singer),
     getSongDurationSeconds(songInfo.interval),
   ].join(':')
-  const now = Date.now()
   const cached = sourceMatchCache.get(cacheKey)
-  if (cached && cached.expiresAt > now) return cached.promise
-
-  for (const [key, value] of sourceMatchCache) {
-    if (value.expiresAt <= now) sourceMatchCache.delete(key)
-  }
+  if (cached) return cached
 
   const searchSources = AUTO_SOURCE_ORDER.filter(source => (
     source !== songInfo.source && isSourceSupported(source, username) && getBuiltinSource(source)?.musicSearch?.search
@@ -185,9 +194,13 @@ export const findServerSourceMatches = async (songInfo: any, username: string) =
     .filter(item => item.score >= 0)
     .sort((a, b) => b.score - a.score)
     .map(item => item.candidate))
+  const trackedPromise = promise.catch(error => {
+    sourceMatchCache.delete(cacheKey)
+    throw error
+  })
 
-  sourceMatchCache.set(cacheKey, { expiresAt: now + SOURCE_MATCH_CACHE_TTL, promise })
-  return promise
+  sourceMatchCache.set(cacheKey, trackedPromise)
+  return trackedPromise
 }
 
 /**

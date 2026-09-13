@@ -88,23 +88,63 @@ async function probeUrl(url) {
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
 
         // 使用 Range 请求 0-1 字节，以最小代价触发 CORS 检查和链接有效性验证
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: { 'Range': 'bytes=0-1' },
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Range': 'bytes=0-1' },
+                signal: controller.signal
+            });
 
-        // 返回 200 或 206 表示链接依然可用
-        return response.ok;
+            // 探测请求不消费响应体，主动取消可以避免浏览器继续保留连接和缓冲区。
+            try { await response.body?.cancel(); } catch (_) { }
+
+            // 返回 200 或 206 表示链接依然可用
+            return response.ok;
+        } finally {
+            clearTimeout(timeoutId);
+        }
     } catch (e) {
         console.warn(`[Probe] URL probe failed: ${url.substring(0, 40)}...`, e.message);
         return false;
     }
 }
 
+const PREFETCH_CACHE_MAX = 5;
+const PREFETCH_CACHE_TTL = 30 * 60 * 1000;
+const PREFETCH_SONG_FIELDS = [
+    'id', 'songmid', 'songId', 'source', 'name', 'singer', 'albumName', 'albumId',
+    'interval', 'img', 'pic', 'types', '_types', 'hash', 'strMediaMid', 'albumMid',
+    'copyrightId', 'lrcUrl', 'mrcUrl', 'trcUrl'
+];
+const PREFETCH_META_FIELDS = [
+    'source', 'songId', 'name', 'songName', 'singer', 'singerName', 'albumName',
+    'albumId', 'picUrl', 'img', 'interval', 'qualitys', 'types', '_types',
+    'strMediaMid', 'albumMid', 'lrcUrl', 'mrcUrl', 'trcUrl'
+];
+
+function projectPrefetchSongInfo(songInfo) {
+    if (!songInfo || typeof songInfo !== 'object') return undefined;
+
+    const projected = {};
+    PREFETCH_SONG_FIELDS.forEach(key => {
+        if (songInfo[key] !== undefined && songInfo[key] !== null) projected[key] = songInfo[key];
+    });
+
+    if (songInfo.meta && typeof songInfo.meta === 'object') {
+        const meta = {};
+        PREFETCH_META_FIELDS.forEach(key => {
+            if (songInfo.meta[key] !== undefined && songInfo.meta[key] !== null) meta[key] = songInfo.meta[key];
+        });
+        if (Object.keys(meta).length > 0) projected.meta = meta;
+    }
+
+    return Object.keys(projected).length > 0 ? projected : undefined;
+}
+
 const prefetchManager = {
-    cache: new Map(), // Map<songId, {url, quality, sourceType, timestamp}>
+    cache: new Map(), // Map<songId, lightweight prefetch result>
+    inflight: new Map(), // Map<songId:quality, Promise<void>>
+    version: 0,
     bufferer: new Audio(), // 隐藏的缓冲器，仅用于加载媒体元数据
 
     init() {
@@ -112,31 +152,58 @@ const prefetchManager = {
         this.bufferer.preload = 'metadata'; // 预读地址与元数据，不主动缓冲整首歌曲
     },
 
+    stopBufferer() {
+        try { this.bufferer.pause(); } catch (_) { }
+        this.bufferer.removeAttribute('src');
+        try { this.bufferer.load(); } catch (_) { }
+    },
+
     set(songId, data) {
-        this.cache.set(songId, { ...data, timestamp: Date.now() });
+        const key = String(songId);
+        const entry = {
+            url: data.url,
+            quality: data.quality,
+            sourceType: data.sourceType,
+            sourceName: data.sourceName,
+            requestedSource: data.requestedSource,
+            downloadSource: data.downloadSource,
+            switchedSource: data.switchedSource,
+            originalSource: data.originalSource,
+            cacheFile: data.cacheFile,
+            songInfo: projectPrefetchSongInfo(data.songInfo),
+            timestamp: Date.now()
+        };
+        this.cache.set(key, entry);
 
         // 核心升级：触发数据流预加载
         if (data.url) {
-            console.log(`[Prefetch] Pre-loading metadata for ID: ${songId}`);
+            console.log(`[Prefetch] Pre-loading metadata for ID: ${key}`);
             this.bufferer.src = data.url;
             this.bufferer.load();
         }
 
-        if (this.cache.size > 5) {
+        while (this.cache.size > PREFETCH_CACHE_MAX) {
             const oldestKey = this.cache.keys().next().value;
             this.cache.delete(oldestKey);
         }
     },
     get(songId) {
-        const data = this.cache.get(songId);
-        if (data && (Date.now() - data.timestamp < 30 * 60 * 1000)) {
+        const key = String(songId);
+        const data = this.cache.get(key);
+        if (data && (Date.now() - data.timestamp < PREFETCH_CACHE_TTL)) {
             return data;
         }
+        this.cache.delete(key);
         return null;
     },
+    delete(songId) {
+        this.cache.delete(String(songId));
+    },
     clear() {
+        this.version += 1;
         this.cache.clear();
-        this.bufferer.src = '';
+        this.inflight.clear();
+        this.stopBufferer();
     }
 };
 prefetchManager.init(); // 立即初始化缓冲器
@@ -499,16 +566,20 @@ async function applyAutoProxy(url, song) {
             const timeoutId = setTimeout(() => controller.abort(), 2000); // 2秒探测超时
 
             // 如果此处 fetch 报错（如 CORS policy block），则会进入 catch
-            const response = await fetch(probeUrl, {
-                method: 'GET',
-                headers: { 'Range': 'bytes=0-1' }, // 轻量探测
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
+            try {
+                const response = await fetch(probeUrl, {
+                    method: 'GET',
+                    headers: { 'Range': 'bytes=0-1' }, // 轻量探测
+                    signal: controller.signal
+                });
+                try { await response.body?.cancel(); } catch (_) { }
 
-            if (response.ok) {
-                console.log(`[Proxy] Probe Success (Direct Play): ${song.name} via ${probeUrl}`);
-                return probeUrl;
+                if (response.ok) {
+                    console.log(`[Proxy] Probe Success (Direct Play): ${song.name} via ${probeUrl}`);
+                    return probeUrl;
+                }
+            } finally {
+                clearTimeout(timeoutId);
             }
         } catch (e) {
             // 探测失败：可能是跨域拦截、证书错误、或者源不支持 HTTPS
@@ -730,26 +801,41 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
 
     try {
         const targetQual = window.QualityManager.getBestQuality(nextSong, settings.preferredQuality || 'flac');
+        const prefetchKey = `${String(nextSong.id)}:${String(targetQual)}`;
+        const pending = prefetchManager.inflight.get(prefetchKey);
+        if (pending) return pending;
 
-        // 1. 检查内存缓存
-        let result = prefetchManager.get(nextSong.id);
-        if (result) {
-            if (await probeUrl(result.url)) return;
-            prefetchManager.cache.delete(nextSong.id);
+        const prefetchVersion = prefetchManager.version;
+        const work = (async () => {
+            // 1. 检查内存缓存
+            let result = prefetchManager.get(nextSong.id);
+            if (result) {
+                if (await probeUrl(result.url)) return;
+                prefetchManager.delete(nextSong.id);
+            }
+
+            // 2. 复用统一解析逻辑 (resolveSongUrl)，且开启静默模式
+            result = await resolveSongUrl(nextSong, targetQual, true);
+
+            // 3. 探活获取到的链接
+            if (!(await probeUrl(result.url))) {
+                localStorage.removeItem(`lx_url_${cleanSongData(nextSong).id}_${targetQual}`);
+                result = await resolveSongUrl(nextSong, targetQual, true, true);
+            }
+
+            if (prefetchManager.version !== prefetchVersion) return;
+            prefetchManager.set(nextSong.id, result);
+            const sourceDesc = getSourceTypeText(result.sourceType);
+            console.log(`[Prefetch] Readied: ${nextSong.name} (${result.quality} / ${sourceDesc})`);
+        })();
+        prefetchManager.inflight.set(prefetchKey, work);
+        try {
+            return await work;
+        } finally {
+            if (prefetchManager.inflight.get(prefetchKey) === work) {
+                prefetchManager.inflight.delete(prefetchKey);
+            }
         }
-
-        // 2. 复用统一解析逻辑 (resolveSongUrl)，且开启静默模式
-        result = await resolveSongUrl(nextSong, targetQual, true);
-
-        // 3. 探活获取到的链接
-        if (!(await probeUrl(result.url))) {
-            localStorage.removeItem(`lx_url_${cleanSongData(nextSong).id}_${targetQual}`);
-            result = await resolveSongUrl(nextSong, targetQual, true, true);
-        }
-
-        prefetchManager.set(nextSong.id, result);
-        const sourceDesc = getSourceTypeText(result.sourceType);
-        console.log(`[Prefetch] Readied: ${nextSong.name} (${result.quality} / ${sourceDesc})`);
 
     } catch (e) {
         console.warn(`[Prefetch] Skip unplayable [${nextSong.name}]:`, e.message);

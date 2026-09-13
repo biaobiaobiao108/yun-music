@@ -61,6 +61,43 @@ const getCacheLocations = () => [
 // Helper to get actual directory path
 // [Unified Enhancement] Cache Progress Tracker
 export const cacheProgress: Map<string, { progress: number; status: string; total?: number; received?: number; speed?: number; updatedAt?: number; errorMsg?: string }> = new Map()
+const CACHE_PROGRESS_TTL = 30 * 1000
+let cacheProgressCleanupTimer: ReturnType<typeof setTimeout> | null = null
+
+export const cleanupExpiredCacheProgress = (now = Date.now()) => {
+    const expiredBefore = now - CACHE_PROGRESS_TTL
+    let removed = 0
+    for (const [key, progress] of cacheProgress) {
+        const updatedAt = progress.updatedAt || 0
+        if (updatedAt > 0 && updatedAt <= expiredBefore && ['error', 'finished', 'exists'].includes(progress.status)) {
+            cacheProgress.delete(key)
+            removed++
+        }
+    }
+    if (cacheProgress.size === 0 && cacheProgressCleanupTimer) {
+        clearTimeout(cacheProgressCleanupTimer)
+        cacheProgressCleanupTimer = null
+    }
+    return removed
+}
+
+const scheduleCacheProgressCleanup = () => {
+    if (cacheProgressCleanupTimer || cacheProgress.size === 0) return
+    cacheProgressCleanupTimer = setTimeout(() => {
+        cacheProgressCleanupTimer = null
+        cleanupExpiredCacheProgress()
+        if (cacheProgress.size > 0) scheduleCacheProgressCleanup()
+    }, CACHE_PROGRESS_TTL)
+    ;(cacheProgressCleanupTimer as any)?.unref?.()
+}
+
+export const setCacheProgress = (
+    key: string,
+    progress: { progress: number; status: string; total?: number; received?: number; speed?: number; updatedAt?: number; errorMsg?: string },
+) => {
+    cacheProgress.set(key, { ...progress, updatedAt: progress.updatedAt || Date.now() })
+    scheduleCacheProgressCleanup()
+}
 
 const CACHE_POST_PROCESS_CONCURRENCY = 1
 const CACHE_MEMORY_GC_THRESHOLD = 256 * 1024 * 1024
@@ -2288,8 +2325,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             })
             console.log(`[FileCache] Song already exists in ${targetFolder}, skipping download: ${result.filename}`)
             // 通知前端轮询：目标目录文件已存在，视为立即完成
-            cacheProgress.set(songKey, { progress: 100, status: 'exists' })
-            setTimeout(() => cacheProgress.delete(songKey), 30000)
+            setCacheProgress(songKey, { progress: 100, status: 'exists' })
             return Promise.resolve()
         }
 
@@ -2318,15 +2354,18 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             let hasEmbedLyric = false
             let metadataWritable = false
             const audioContainer = inspection.audioContainer
+            let tagger: any
             try {
-                const tagger = new (getMusicTagNative().MusicTagger)()
+                tagger = new (getMusicTagNative().MusicTagger)()
                 tagger.loadPath(finalPath)
                 hasCover = hasValidEmbeddedCover(tagger.pictures)
                 const lyricsInTag = tagger.lyrics
                 hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
                 metadataWritable = true
-                tagger.dispose()
             } catch (e) { }
+            finally {
+                try { tagger?.dispose() } catch { }
+            }
 
             let coverType: CacheItem['coverType'] = hasCover ? 'embedded' : 'none'
             if (!hasCover) {
@@ -2375,15 +2414,13 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             if (finalizedItem) reconcileCacheItemFromDisk(normalizedUsername, 'music', finalizedItem, finalPath)
 
             console.log(`[FileCache] Copied cached song to music folder: ${path.basename(finalPath)}`)
-            cacheProgress.set(songKey, { progress: 100, status: 'finished', total: stat.size, received: stat.size })
-            setTimeout(() => cacheProgress.delete(songKey), 30000)
+            setCacheProgress(songKey, { progress: 100, status: 'finished', total: stat.size, received: stat.size })
             return Promise.resolve()
             })
         }
 
         console.log(`[FileCache] Song already exists in ${result.folder}, skipping download: ${result.filename}`)
-        cacheProgress.set(songKey, { progress: 100, status: 'exists' })
-        setTimeout(() => cacheProgress.delete(songKey), 30000)
+        setCacheProgress(songKey, { progress: 100, status: 'exists' })
         return Promise.resolve()
     }
 
@@ -2398,10 +2435,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
         const fail = (err: Error) => {
             if (settled) return
             const message = err.message || 'Download failed'
-            cacheProgress.set(songKey, { progress: 0, status: 'error', errorMsg: message })
-            setTimeout(() => {
-                if (cacheProgress.get(songKey)?.status === 'error') cacheProgress.delete(songKey)
-            }, 30000)
+            setCacheProgress(songKey, { progress: 0, status: 'error', errorMsg: message })
             settle(() => reject(err))
         }
 
@@ -2458,7 +2492,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     return
                 }
 
-                cacheProgress.set(songKey, { progress: 0, status: 'downloading', total: 0, received: 0, speed: 0, updatedAt: Date.now() })
+                setCacheProgress(songKey, { progress: 0, status: 'downloading', total: 0, received: 0, speed: 0, updatedAt: Date.now() })
                 const total = parseInt(res.headers['content-length'] || '0', 10)
                 const maxAudioBytes = 500 * 1024 * 1024
                 if (total > maxAudioBytes) {
@@ -2492,7 +2526,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     lastSpeedBytes = received
                 }
                 const progress = total > 0 ? Math.round((received / total) * 100) : 0
-                cacheProgress.set(songKey, { progress, status: 'downloading', total, received, speed: currentSpeed, updatedAt: now })
+                setCacheProgress(songKey, { progress, status: 'downloading', total, received, speed: currentSpeed, updatedAt: now })
             })
 
             res.pipe(fileStream)
@@ -2523,7 +2557,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                         return
                     }
                     reportCacheMemory(`download ${baseName} start`)
-                cacheProgress.set(songKey, { progress: 100, status: 'tagging', total, received, speed: 0, updatedAt: Date.now() })
+                setCacheProgress(songKey, { progress: 100, status: 'tagging', total, received, speed: 0, updatedAt: Date.now() })
 
                 let ext = headerExt
                 if (fs.existsSync(tempPath)) {
@@ -2665,8 +2699,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                             return
                         }
 
-                        cacheProgress.set(songKey, { progress: 100, status: 'finished', total: total || received, received, speed: 0, updatedAt: Date.now() })
-                        setTimeout(() => cacheProgress.delete(songKey), 30000)
+                        setCacheProgress(songKey, { progress: 100, status: 'finished', total: total || received, received, speed: 0, updatedAt: Date.now() })
                         settle(() => { resolve(); void checkAndCleanupCache(username) })
                     }
                 })

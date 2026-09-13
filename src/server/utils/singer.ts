@@ -4,6 +4,7 @@
  */
 
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
+import { LRUCache } from 'lru-cache'
 
 export interface SingerDetail {
     name: string
@@ -13,7 +14,10 @@ export interface SingerDetail {
     desc: string
 }
 
-const singerCache = new Map<string, SingerDetail>()
+const singerCache = new LRUCache<string, SingerDetail>({
+    max: 512,
+    ttl: 30 * 60 * 1000,
+})
 
 /**
  * 根据歌手名称检索其在指定源或最优源的 MID
@@ -39,9 +43,8 @@ export async function getSingerPic(singerName: string, sourcePriority?: Array<'t
 export async function getSingerDetail(singerName: string, sourcePriority?: Array<'tx' | 'wy'>): Promise<SingerDetail | null> {
     const priority = sourcePriority || global.lx.config['singer.sourcePriority'] || ['tx', 'wy']
     const cacheKey = `${singerName}_${priority.join('_')}`
-    if (singerCache.has(cacheKey)) {
-        return singerCache.get(cacheKey)!
-    }
+    const cached = singerCache.get(cacheKey)
+    if (cached) return cached
 
     // 尝试每一个平台
     for (const source of priority) {

@@ -1135,6 +1135,9 @@ export class DownloadManager {
         task.controller = new AbortController();
         this.renderTask(task);
 
+        let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+        let downloadChunks: Uint8Array[] | null = null;
+
         try {
             // 1. Resolve URL and Quality
             const quality = task.quality || (window.QualityManager ? window.QualityManager.getBestQuality(task.song, window.settings?.preferredQuality || 'flac') : 'flac');
@@ -1247,22 +1250,23 @@ export class DownloadManager {
                 task.totalBytes = 0;
             }
 
-            const reader = response.body.getReader();
+            if (!response.body) throw new Error('响应不包含可读取的数据流');
+            activeReader = response.body.getReader();
             let receivedLength = 0;
-            const chunks = [];
+            downloadChunks = [];
 
             // Time tracking for speed calc using short intervals
             let lastUpdate = performance.now();
             let downloadedSinceLastUpdate = 0;
 
             while (true) {
-                const { done, value } = await reader.read();
+                const { done, value } = await activeReader.read();
 
                 if (done) {
                     break;
                 }
 
-                chunks.push(value);
+                downloadChunks.push(value);
                 receivedLength += value.length;
                 task.downloadedBytes = receivedLength;
                 downloadedSinceLastUpdate += value.length;
@@ -1283,6 +1287,9 @@ export class DownloadManager {
                 }
             }
 
+            activeReader.releaseLock();
+            activeReader = null;
+
             // 3. Complete and Merge Chunks to Blob
             task.progress = 100;
             task.speed = 0;
@@ -1290,11 +1297,10 @@ export class DownloadManager {
             task.status = 'finished';
             this.renderTask(task);
 
-            this.activeCount--;
-            this.saveTasks();
-
             // Construct Blob and trigger browser download
-            const blob = new Blob(chunks);
+            const blob = new Blob(downloadChunks);
+            // Blob 已经接管数据后不再保留逐块数组，降低大文件下载的峰值存活时间。
+            downloadChunks = null;
             const blobUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = blobUrl;
@@ -1305,15 +1311,25 @@ export class DownloadManager {
 
             // 标记真正结束
             task.status = 'finished';
+            task.controller = null;
             this.renderTask(task);
 
             // Clean up to free memory
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+
+            this.activeCount--;
+            this.saveTasks();
 
             // Trigger next
             this.processQueue();
 
         } catch (error) {
+            if (activeReader) {
+                try { await activeReader.cancel(); } catch (_) { }
+                try { activeReader.releaseLock(); } catch (_) { }
+                activeReader = null;
+            }
+            downloadChunks = null;
             this.activeCount--;
             if (task.controller && task.controller.signal.aborted) {
                 task.status = 'paused';

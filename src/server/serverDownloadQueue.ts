@@ -77,12 +77,48 @@ const validStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', '
 const resumableStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', 'tagging', 'paused'])
 const terminalStatuses = new Set<ServerDownloadStatus>(['finished', 'exists'])
 
+const SONG_INFO_FIELDS = [
+  'id', 'songmid', 'songId', 'source', 'name', 'singer', 'albumName', 'albumId', 'album',
+  'interval', 'img', 'pic', 'types', '_types', 'hash', 'strMediaMid', 'albumMid',
+  'copyrightId', 'lrcUrl', 'mrcUrl', 'trcUrl', 'quality', 'requestedSource',
+  'downloadSource', 'sourceName',
+] as const
+
+const SONG_META_FIELDS = [
+  'source', 'songId', 'name', 'songName', 'singer', 'singerName', 'albumName', 'albumId',
+  'picUrl', 'img', 'interval', 'qualitys', '_qualitys', 'types', '_types', 'strMediaMid', 'albumMid',
+  'lrcUrl', 'mrcUrl', 'trcUrl',
+] as const
+
+const copySongField = (source: any, target: Record<string, any>, key: string) => {
+  const value = source?.[key]
+  if (value === undefined || value === null) return
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    target[key] = value
+    return
+  }
+  if (key === 'types' || key === '_types' || key === 'qualitys') {
+    if (Array.isArray(value)) {
+      target[key] = value.slice(0, 32)
+    } else if (typeof value === 'object') {
+      target[key] = Object.fromEntries(Object.entries(value).slice(0, 32))
+    }
+  }
+}
+
 const sanitizeSongInfo = (songInfo: any) => {
-  if (!songInfo || typeof songInfo !== 'object') return songInfo
-  const { url: _url, meta, ...safeSongInfo } = songInfo
-  if (!meta || typeof meta !== 'object') return safeSongInfo
-  const { url: _metaUrl, ...safeMeta } = meta
-  return { ...safeSongInfo, meta: safeMeta }
+  if (!songInfo || typeof songInfo !== 'object') return {}
+  const safeSongInfo: Record<string, any> = {}
+  for (const key of SONG_INFO_FIELDS) copySongField(songInfo, safeSongInfo, key)
+
+  if (songInfo.meta && typeof songInfo.meta === 'object') {
+    const safeMeta: Record<string, any> = {}
+    for (const key of SONG_META_FIELDS) copySongField(songInfo.meta, safeMeta, key)
+    // Preserve the lightweight meta container for callers that read
+    // `songInfo.meta`, while still dropping URL and raw payload fields.
+    safeSongInfo.meta = safeMeta
+  }
+  return safeSongInfo
 }
 
 export const serializeDownloadTask = (task: ServerDownloadTask) => {

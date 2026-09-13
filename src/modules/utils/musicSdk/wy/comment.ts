@@ -1,6 +1,7 @@
 import { httpFetch } from '../../request'
 import { weapi } from './utils/crypto'
 import { dateFormat2 } from '../../index'
+import { LRUCache } from 'lru-cache'
 
 const emojis = [
   ['大笑', '😃'],
@@ -70,11 +71,19 @@ const applyEmoji = (text: any) => {
   return text
 }
 
-let cursorTools = {
-  cache: {} as Record<string, any>,
+const cursorCache = new LRUCache<string, Record<string, any>>({
+  max: 2048,
+  ttl: 30 * 60 * 1000,
+})
+
+const cursorTools = {
   getCursor(id: any, page: any, limit: any) {
-    let cacheData = this.cache[id]
-    if (!cacheData) cacheData = this.cache[id] = {}
+    const key = String(id)
+    let cacheData = cursorCache.get(key)
+    if (!cacheData) {
+      cacheData = {}
+      cursorCache.set(key, cacheData)
+    }
     let orderType
     let cursor
     let offset
@@ -104,8 +113,12 @@ let cursorTools = {
     }
   },
   setCursor(id: any, cursor: any, orderType: any, offset: any, page: any) {
-    let cacheData = this.cache[id]
-    if (!cacheData) cacheData = this.cache[id] = {}
+    const key = String(id)
+    let cacheData = cursorCache.get(key)
+    if (!cacheData) {
+      cacheData = {}
+      cursorCache.set(key, cacheData)
+    }
     cacheData.prevCursor = cacheData.cursor
     cacheData.cursor = cursor
     cacheData.orderType = orderType

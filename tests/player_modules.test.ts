@@ -66,6 +66,26 @@ describe('Player manager module boundaries', () => {
         expect(playerSource).toContain('background: true');
     });
 
+    it('bounds browser media lifecycles and releases transient download resources', () => {
+        const songUrlSource = read('frontend/player/src/features/song_url.ts');
+        const visualizerSource = read('frontend/player/src/legacy/visualizer.ts');
+        const downloadSource = read('frontend/player/src/legacy/download_manager.ts');
+
+        expect(songUrlSource).toContain('const PREFETCH_CACHE_MAX = 5;');
+        expect(songUrlSource).toContain('const PREFETCH_CACHE_TTL = 30 * 60 * 1000;');
+        expect(songUrlSource).toContain('inflight: new Map()');
+        expect(songUrlSource).toContain('await response.body?.cancel()');
+        expect(songUrlSource).toContain('this.bufferer.removeAttribute(\'src\')');
+
+        expect(visualizerSource).toContain('prototype.stop = function ()');
+        expect(visualizerSource).toContain('window.cancelAnimationFrame');
+        expect(visualizerSource).toContain('waveFooter.start();');
+
+        expect(downloadSource).toContain('activeReader.cancel()');
+        expect(downloadSource).toContain('downloadChunks = null;');
+        expect(downloadSource).toContain('URL.revokeObjectURL(blobUrl), 1000');
+    });
+
     it('defers songlist loading and paginates detail requests', () => {
         const songListSource = read('frontend/player/src/legacy/songlist_manager.ts');
         const indexSource = read('frontend/player/src/index.ts');

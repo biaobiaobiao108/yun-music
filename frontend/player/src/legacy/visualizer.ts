@@ -9,11 +9,73 @@ const musicVisualizer = (function () {
     let audioContext, audioSource, audioAnalyser;
     let waveFooter, waveDetail;
     let isInitialized = false;
+    let waveLifecycleInstalled = false;
 
     const audio = document.getElementById('audio-player');
     const footerCanvas = document.getElementById('footer-visualizer');
     const detailCanvas = document.getElementById('detail-visualizer');
     const playerFooter = document.getElementById('player-footer');
+
+    /**
+     * The vendored Wave runtime starts a RAF loop from its constructor and
+     * historically had no way to cancel it. Patch the integration boundary
+     * once so hidden/reduced-motion visualizers can release their frame loop
+     * without rebuilding the third-party bundle.
+     */
+    function installWaveLifecycle() {
+        const WaveConstructor = window.Wave;
+        if (!WaveConstructor || waveLifecycleInstalled) return;
+
+        const prototype = WaveConstructor.prototype;
+        if (prototype.__lxLifecycleInstalled) {
+            waveLifecycleInstalled = true;
+            return;
+        }
+
+        prototype._play = function () {
+            const instance = this;
+            if (instance.__lxWaveRafId !== null && instance.__lxWaveRafId !== undefined) return;
+
+            if (instance._audioSource && !instance.__lxWaveConnected) {
+                instance._audioSource.connect(instance._audioAnalyser);
+                if (!instance._muteAudio) instance._audioSource.connect(instance._audioContext.destination);
+                instance.__lxWaveConnected = true;
+            }
+
+            instance._audioAnalyser.smoothingTimeConstant = 0.85;
+            instance._audioAnalyser.fftSize = 1024;
+            instance.__lxWaveData ||= new Uint8Array(instance._audioAnalyser.frequencyBinCount);
+            instance.__lxWaveStopped = false;
+
+            const draw = () => {
+                instance.__lxWaveRafId = null;
+                if (instance.__lxWaveStopped) return;
+                instance._audioAnalyser.getByteFrequencyData(instance.__lxWaveData);
+                instance._canvasContext.clearRect(0, 0, instance._canvasContext.canvas.width, instance._canvasContext.canvas.height);
+                instance._activeAnimations.forEach(animation => animation.draw(instance.__lxWaveData, instance._canvasContext));
+                instance.__lxWaveRafId = window.requestAnimationFrame(draw);
+            };
+
+            instance.__lxWaveDraw = draw;
+            draw();
+        };
+
+        prototype.start = function () {
+            this.__lxWaveStopped = false;
+            if (this.__lxWaveRafId === null || this.__lxWaveRafId === undefined) this._play();
+        };
+
+        prototype.stop = function () {
+            this.__lxWaveStopped = true;
+            if (this.__lxWaveRafId !== null && this.__lxWaveRafId !== undefined) {
+                window.cancelAnimationFrame(this.__lxWaveRafId);
+                this.__lxWaveRafId = null;
+            }
+        };
+
+        prototype.__lxLifecycleInstalled = true;
+        waveLifecycleInstalled = true;
+    }
 
     /**
      * Initialize AudioContext and AnalyserNode.
@@ -23,6 +85,7 @@ const musicVisualizer = (function () {
 
         try {
             console.log('[Visualizer] Initializing AudioContext...');
+            installWaveLifecycle();
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
             // 如果音效管理器已存在，使用它的分析器
@@ -76,6 +139,8 @@ const musicVisualizer = (function () {
         if (document.hidden || reducedMotion) {
             waveFooter?.clearAnimations();
             waveDetail?.clearAnimations();
+            waveFooter?.stop();
+            waveDetail?.stop();
             if (footerCanvas) footerCanvas.style.opacity = '0';
             if (detailCanvas) detailCanvas.style.opacity = '0';
             return;
@@ -152,6 +217,7 @@ const musicVisualizer = (function () {
             }
 
             waveFooter.addAnimation(new AnimationClass(options));
+            waveFooter.start();
             footerCanvas.style.opacity = opacity;
 
             // 调整内容区域高度
@@ -220,6 +286,7 @@ const musicVisualizer = (function () {
                 sidebar.style.paddingBottom = targetPb;
             }
         } else if (footerCanvas && visualizerContainer) {
+            waveFooter.stop();
             footerCanvas.style.opacity = '0';
             visualizerContainer.style.height = ''; // 复原 (h-12 / 48px)
             footerCanvas.style.width = '100%'; // 复原宽度
@@ -269,8 +336,10 @@ const musicVisualizer = (function () {
             }
 
             waveDetail.addAnimation(new AnimationClass(options));
+            waveDetail.start();
             detailCanvas.style.opacity = opacity;
         } else if (detailCanvas) {
+            waveDetail.stop();
             detailCanvas.style.opacity = '0';
         }
     }
@@ -322,4 +391,3 @@ const musicVisualizer = (function () {
 })();
 
 window.musicVisualizer = musicVisualizer;
-

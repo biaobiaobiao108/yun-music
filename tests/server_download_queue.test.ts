@@ -115,6 +115,43 @@ describe('Server download queue deduplication', () => {
     expect((serialized.songInfo as Record<string, any>).meta.url).toBeUndefined()
   })
 
+  test('keeps resolver metadata while dropping large transient song payloads', () => {
+    const task = makeTask('user-a', 'trimmed', 'waiting', 10)
+    task.songInfo = {
+      source: 'tx',
+      songmid: 'mid-1',
+      name: 'Trimmed Song',
+      singer: 'Singer',
+      albumName: 'Album',
+      albumId: 'album-1',
+      img: 'https://img.example.test/cover.jpg',
+      hash: 'hash-1',
+      strMediaMid: 'media-1',
+      url: 'https://cdn.example.test/song.flac?signature=secret',
+      lyric: 'very large lyric payload'.repeat(1000),
+      rawResponse: { nested: 'payload' },
+      meta: {
+        songId: 'mid-1',
+        picUrl: 'https://img.example.test/cover.jpg',
+        url: 'https://cdn.example.test/meta.flac?signature=secret',
+        lyric: 'large meta lyric payload'.repeat(1000),
+      },
+    }
+
+    const serialized = serializeDownloadTask(task) as Record<string, any>
+    expect(serialized.songInfo).toMatchObject({
+      source: 'tx',
+      songmid: 'mid-1',
+      name: 'Trimmed Song',
+      strMediaMid: 'media-1',
+    })
+    expect(serialized.songInfo.url).toBeUndefined()
+    expect(serialized.songInfo.lyric).toBeUndefined()
+    expect(serialized.songInfo.rawResponse).toBeUndefined()
+    expect(serialized.songInfo.meta.url).toBeUndefined()
+    expect(serialized.songInfo.meta.lyric).toBeUndefined()
+  })
+
   test('limits background cache work to one active task and keeps explicit work eligible', () => {
     const background = makeTask('user-a', 'background', 'waiting', 10)
     background.background = true
