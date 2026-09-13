@@ -149,6 +149,26 @@ describe('cache list user scope', () => {
       getCacheCover.mockRestore()
     }
   })
+
+  test('records playback time in the authenticated user cache scope', async () => {
+    const markCachePlayback = spyOn(fileCache, 'markCachePlayback').mockReturnValue(true)
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/playback', {
+        method: 'POST',
+        headers: {
+          cookie: `lx_user_session=${sessionId}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ filename: 'album/song.mp3', folder: 'cache' }),
+      }))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ success: true, data: { marked: true } })
+      expect(markCachePlayback).toHaveBeenCalledWith('album/song.mp3', username, 'cache')
+    } finally {
+      markCachePlayback.mockRestore()
+    }
+  })
 })
 
 test('cache file routes honor the requested folder and keep personal media private', async () => {

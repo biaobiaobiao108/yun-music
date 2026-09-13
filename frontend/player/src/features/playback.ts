@@ -129,6 +129,21 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let likePointerStartY = 0;
     let likeLongPressTriggered = false;
 
+    function reportServerCachePlayback(cacheFile: { username?: string; filename?: string; folder?: string } | null | undefined) {
+        if (!cacheFile?.filename || (cacheFile.folder !== 'cache' && cacheFile.folder !== 'music')) return;
+
+        const query = cacheFile.username ? `?user=${encodeURIComponent(cacheFile.username)}` : '';
+        const headers = { 'Content-Type': 'application/json' };
+        Object.assign(headers, getUserAuthHeaders());
+        fetch(`${API_BASE}/cache/playback${query}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ filename: cacheFile.filename, folder: cacheFile.folder }),
+        }).catch(() => {
+            // 播放已经成功，播放时间记录失败不应打断当前歌曲。
+        });
+    }
+
     function clearLikeLongPressTimer() {
         if (likeLongPressTimer) clearTimeout(likeLongPressTimer);
         likeLongPressTimer = null;
@@ -700,6 +715,9 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             await audio.play();
             consecutivePlaybackFailures = 0;
             noSourceHintShown = false;
+
+            // 只在真正开始播放后记录，避免预读或切换页面时把缓存误标为最近使用。
+            reportServerCachePlayback(urlResult.cacheFile);
 
             if (shouldConfirmCacheAfterPlay) {
                 // 非在线解析（如命中本地/服务器缓存），只有真正启动播放后才提示命中。

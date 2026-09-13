@@ -264,7 +264,26 @@ export const createCacheRouter = (): Router => {
     return ctx.json(result)
   })
 
-  // 4. 服务端持久化下载队列
+  // 4. 播放触达记录：仅由播放器在 audio.play() 成功后调用，供缓存上限
+  // 按最近播放时间做 LRU 清理。请求目标由 user 查询参数限定在当前用户
+  // 或公共空间，不能跨用户写入播放记录。
+  router.post('/api/music/cache/playback', async (ctx) => {
+    const target = resolveCacheTarget(ctx)
+    if (!target.ok) return target.error
+
+    try {
+      const body = await ctx.bodyJson<{ filename?: string; folder?: fileCache.CacheFolder }>()
+      if (!body.filename || typeof body.filename !== 'string') return ctx.fail(400, '缺少必要参数：filename')
+      if (body.folder !== 'cache' && body.folder !== 'music') return ctx.fail(400, '目录类型不合法')
+
+      const marked = fileCache.markCachePlayback(body.filename, target.username, body.folder)
+      return ctx.json({ success: true, data: { marked } })
+    } catch (err) {
+      return ctx.fail(400, toUserMessage(err, '记录播放时间失败，请稍后重试'))
+    }
+  })
+
+  // 5. 服务端持久化下载队列
   router.get('/api/music/cache/queue', (ctx) => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
@@ -411,7 +430,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  // 7. 分发缓存文件（基于 Bun.file 零拷贝高性能分发）
+  // 8. 分发缓存文件（基于 Bun.file 零拷贝高性能分发）
   router.get('/api/music/cache/file/*', async (ctx) => {
     const parts = ctx.pathname.replace('/api/music/cache/file/', '').split('/')
     let reqUsername = '_open'
@@ -539,7 +558,7 @@ export const createCacheRouter = (): Router => {
     })
   })
 
-  // 8. 缓存统计与清理
+  // 9. 缓存统计与清理
   router.get('/api/music/cache/stats', (ctx) => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')

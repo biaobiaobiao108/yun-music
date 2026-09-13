@@ -246,6 +246,8 @@ export interface CacheItem {
     bitrate?: number
     sampleRate?: number
     bitDepth?: number
+    /** 最近一次真正开始播放的时间；未播放过的旧索引没有此字段。 */
+    lastPlayedAt?: number
 }
 
 export type CacheFolder = 'cache' | 'music'
@@ -1732,6 +1734,37 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
     return { deleted: true, folder }
 }
 
+/**
+ * 记录缓存文件最近一次开始播放的时间。
+ *
+ * 播放器只会在 audio.play() 成功后调用此方法，因此预读、搜索命中或
+ * 单纯打开缓存管理页面都不会把歌曲误判为“最近播放”。
+ */
+export const markCachePlayback = (filename: string, username?: string, requestedFolder?: CacheFolder): boolean => {
+    if (!filename || typeof filename !== 'string') return false
+    if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') return false
+
+    const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
+    const candidateFolders: CacheFolder[] = requestedFolder ? [requestedFolder] : ['cache', 'music']
+    const matches = candidateFolders.map(folder => {
+        const dir = getCacheDir(normalizedUsername, folder === 'music')
+        const filePath = resolveCacheRelativePath(dir, filename)
+        return filePath && fs.existsSync(filePath) ? { folder, filePath } : null
+    }).filter((entry): entry is { folder: CacheFolder; filePath: string } => entry !== null)
+
+    // 播放器始终会传 folder；未传时不在 cache/music 同名文件之间猜测。
+    if (!requestedFolder && matches.length !== 1) return false
+    if (matches.length === 0) return false
+
+    const { folder } = matches[0]
+    const item = indexManager.getAll(normalizedUsername, folder).find(candidate => candidate.filename === filename)
+    if (!item) return false
+
+    item.lastPlayedAt = Date.now()
+    indexManager.update(normalizedUsername, item, folder)
+    return true
+}
+
 export const setCacheLocation = (location: string) => {
     if (location === CACHE_ROOTS.DATA || location === CACHE_ROOTS.ROOT) {
         currentCacheLocation = location
@@ -2908,14 +2941,14 @@ export const getCacheStats = (username?: string) => {
     const roots = ['cache', 'music']
     const result: any = { cache: { totalSize: 0, fileCount: 0 }, music: { totalSize: 0, fileCount: 0 }, totalSize: 0, fileCount: 0 }
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
-    const extensions = ['.mp3', '.flac', '.m4a', '.ogg', '.wav', '.lrc']
+    const extensions = CACHE_SIZE_EXTENSIONS
     for (const folder of roots) {
         const dir = getCacheDir(normalizedUsername, folder === 'music')
         if (!fs.existsSync(dir)) continue
         const files = getCacheFilesRecursively(dir)
         for (const filePath of files) {
             const ext = path.extname(filePath).toLowerCase()
-            if (extensions.includes(ext)) {
+            if (extensions.has(ext)) {
                 try {
                     const stats = fs.statSync(filePath)
                     result[folder].totalSize += stats.size
@@ -2927,6 +2960,8 @@ export const getCacheStats = (username?: string) => {
     }
     return result
 }
+
+const CACHE_SIZE_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.ogg', '.wav', '.lrc'])
 
 const getCacheFilesRecursively = (root: string): string[] => {
     const files: string[] = []
@@ -3011,15 +3046,62 @@ export const checkAndCleanupCache = async (username?: string) => {
     const dir = getCacheDir(normalizedUsername, false)
     if (!fs.existsSync(dir)) return
 
-    const allFiles: Array<{ path: string, size: number, mtime: number }> = []
+    type CleanupCandidate = {
+        path: string
+        size: number
+        mtime: number
+        lastPlayedAt: number
+    }
+    const allFiles: CleanupCandidate[] = []
+    const indexedFiles = new Set<string>()
+    const indexedItems = indexManager.getAll(normalizedUsername, 'cache')
+
+    // 以歌曲为清理单元，把同名歌词一起计入大小，避免先删掉歌词、
+    // 后删音频时出现索引状态和实际占用不一致。
+    for (const item of indexedItems) {
+        const audioPath = resolveCacheRelativePath(dir, item.filename)
+        if (!audioPath || !fs.existsSync(audioPath)) continue
+        if (!CACHE_SIZE_EXTENSIONS.has(path.extname(audioPath).toLowerCase())) continue
+
+        const relatedPaths = [audioPath]
+        const lyricFilename = item.lyricFilename || resolveCompanionLyricFilename(dir, item.filename)
+        const lyricPath = lyricFilename ? resolveCacheRelativePath(dir, lyricFilename) : null
+        if (lyricPath && fs.existsSync(lyricPath)) relatedPaths.push(lyricPath)
+
+        let size = 0
+        let mtime = Number.POSITIVE_INFINITY
+        for (const relatedPath of relatedPaths) {
+            try {
+                const fileStat = fs.statSync(relatedPath)
+                size += fileStat.size
+                mtime = Math.min(mtime, fileStat.mtime.getTime())
+                indexedFiles.add(relatedPath)
+            } catch (e) { }
+        }
+        if (size > 0) {
+            const lastPlayedAt = Number(item.lastPlayedAt)
+            allFiles.push({
+                path: audioPath,
+                size,
+                mtime: Number.isFinite(mtime) ? mtime : 0,
+                // 旧缓存没有播放记录时按“从未播放”处理，优先清理；
+                // 同为从未播放时再沿用 mtime 作为稳定的次级排序。
+                lastPlayedAt: Number.isFinite(lastPlayedAt) && lastPlayedAt >= 0 ? lastPlayedAt : 0,
+            })
+        }
+    }
+
+    // 没有索引的历史文件也要纳入清理，并按从未播放处理。
     for (const filePath of getCacheFilesRecursively(dir)) {
+        if (indexedFiles.has(filePath)) continue
+        if (!CACHE_SIZE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue
         try {
             const fileStat = fs.statSync(filePath)
-            allFiles.push({ path: filePath, size: fileStat.size, mtime: fileStat.mtime.getTime() })
+            allFiles.push({ path: filePath, size: fileStat.size, mtime: fileStat.mtime.getTime(), lastPlayedAt: 0 })
         } catch (e) { }
     }
 
-    allFiles.sort((a, b) => a.mtime - b.mtime)
+    allFiles.sort((a, b) => a.lastPlayedAt - b.lastPlayedAt || a.mtime - b.mtime)
     let currentSize = cacheSize
     const targetSize = limitBytes * 0.95
     let deletedCount = 0
@@ -3044,7 +3126,7 @@ export const checkAndCleanupCache = async (username?: string) => {
     if (deletedCount > 0) {
         invalidateCacheListSync(normalizedUsername)
     }
-    console.log(`[FileCache] Cleaned up ${deletedCount} cache files for ${normalizedUsername}`)
+    console.log(`[FileCache] Cleaned up ${deletedCount} least-recently-played cache entries for ${normalizedUsername}`)
 }
 /**
  * Switch files between 'cache' and 'music' folders

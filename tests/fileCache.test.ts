@@ -429,6 +429,73 @@ describe('File Cache Path Traversal Defense', () => {
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('should evict the least recently played cache entry instead of the oldest mtime', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-lru-cleanup-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = {
+        dataPath,
+        config: {
+          'user.enableCacheSizeLimit': true,
+          'user.cacheSizeLimit': 0.001,
+        },
+      }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'test-lru-user'
+      const cacheDir = fileCache.getCacheDir(username, false)
+      const recentlyPlayedFile = path.join(cacheDir, 'recently_played.mp3')
+      const leastRecentlyPlayedFile = path.join(cacheDir, 'least_recently_played.mp3')
+      fs.writeFileSync(recentlyPlayedFile, Buffer.alloc(600, 1))
+      fs.writeFileSync(leastRecentlyPlayedFile, Buffer.alloc(600, 2))
+
+      // 故意让最近播放的文件 mtime 更早，验证清理依据确实是播放时间而非 mtime。
+      const oldMtime = new Date(Date.now() - 100000)
+      fs.utimesSync(recentlyPlayedFile, oldMtime, oldMtime)
+
+      const baseItem = {
+        name: 'Test',
+        singer: 'Singer',
+        album: 'Album',
+        source: 'wy',
+        quality: '128k',
+        folder: 'cache' as const,
+        mtime: Date.now(),
+        size: 600,
+        ext: 'mp3',
+      }
+      fileCache.indexManager.update(username, {
+        ...baseItem,
+        id: 'wy_recent',
+        filename: 'recently_played.mp3',
+      }, 'cache')
+      fileCache.indexManager.update(username, {
+        ...baseItem,
+        id: 'wy_stale',
+        filename: 'least_recently_played.mp3',
+        lastPlayedAt: Date.now() - 100000,
+      }, 'cache')
+
+      expect(fileCache.markCachePlayback('recently_played.mp3', username, 'cache')).toBe(true)
+
+      await fileCache.checkAndCleanupCache(username)
+
+      expect(fs.existsSync(leastRecentlyPlayedFile)).toBe(false)
+      expect(fs.existsSync(recentlyPlayedFile)).toBe(true)
+      expect(fileCache.indexManager.get(username, 'wy_stale', 'cache')).toBeUndefined()
+      expect(fileCache.indexManager.get(username, 'wy_recent', 'cache')).toBeDefined()
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('File Cache Post-processing Limiter', () => {

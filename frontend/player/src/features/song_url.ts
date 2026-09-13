@@ -403,6 +403,35 @@ function getSourceName(source) {
 }
 
 /**
+ * 从服务端缓存播放地址提取播放触达所需的信息。
+ * 服务端缓存地址中的文件名可能包含子目录，整个文件名会先被
+ * encodeURIComponent，所以这里不能只按普通 URL path 分段解码。
+ */
+function getServerCacheFileDescriptor(url) {
+    if (!url || typeof url !== 'string') return null;
+    const prefix = '/api/music/cache/file/';
+    try {
+        const parsed = new URL(url, window.location.origin);
+        if (!parsed.pathname.startsWith(prefix)) return null;
+
+        const encodedTarget = parsed.pathname.slice(prefix.length);
+        const separator = encodedTarget.indexOf('/');
+        const encodedUsername = separator >= 0 ? encodedTarget.slice(0, separator) : '';
+        const encodedFilename = separator >= 0 ? encodedTarget.slice(separator + 1) : encodedTarget;
+        const folder = parsed.searchParams.get('folder');
+        if (!encodedFilename || (folder !== 'cache' && folder !== 'music')) return null;
+
+        return {
+            username: encodedUsername ? decodeURIComponent(encodedUsername) : '_open',
+            filename: decodeURIComponent(encodedFilename),
+            folder,
+        };
+    } catch (_) {
+        return null;
+    }
+}
+
+/**
  * 统一应用代理逻辑，处理 HTTPS 环境下的 HTTP 链接及跨域限制 (CORS) 问题
  * 增强：开启自动代理后，通过探测链接可用性（包括跨域兼容性）来自动决定是否启用服务器代理
  */
@@ -482,7 +511,12 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
     if ((song.isLocal || song.url?.startsWith('/api/music/cache/file/')) && song.url && !isRetry) {
         console.log(`[Cache] Direct Local File Hit: ${song.name}`);
         let localUrl = await applyAutoProxy(song.url, song);
-        return { url: localUrl, sourceType: 'server_cache', quality: song.quality || quality };
+        return {
+            url: localUrl,
+            sourceType: 'server_cache',
+            quality: song.quality || quality,
+            cacheFile: getServerCacheFileDescriptor(localUrl),
+        };
     }
 
     const shouldBypassServerCache = isRetry === 'local_retry' || isRetry === 'download';
@@ -496,7 +530,12 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false) {
             let serverCacheUrl = cacheResult.url;
             // 应用代理逻辑 (以防服务器缓存返回的是原始 HTTP 链接)
             serverCacheUrl = await applyAutoProxy(serverCacheUrl, song);
-            return { url: serverCacheUrl, sourceType: 'server_cache', quality: actualQuality };
+            return {
+                url: serverCacheUrl,
+                sourceType: 'server_cache',
+                quality: actualQuality,
+                cacheFile: getServerCacheFileDescriptor(serverCacheUrl),
+            };
         }
     }
 
