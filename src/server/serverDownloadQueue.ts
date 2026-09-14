@@ -60,7 +60,7 @@ type DownloadResolver = (task: ServerDownloadTask) => Promise<ResolveResult>
 const DEFAULT_CONCURRENT = 3
 const MAX_CONCURRENT_PER_USER = 5
 export const MAX_BACKGROUND_CONCURRENT = 1
-const RESOLVED_URL_TTL = 60 * 1000
+const RESOLVED_URL_TTL = 10 * 60 * 1000
 export const MAX_PENDING_TASKS_PER_USER = 500
 export const MAX_HISTORY_PER_USER = 200
 const tasks = new Map<string, ServerDownloadTask>()

@@ -47,7 +47,7 @@ export function initSongUrlFeature(context: SongUrlFeatureContext) {
     };
 
     const waitForServerCacheCheck = async (song, quality, isSilent, isRetry, signal?: AbortSignal) => {
-        const exactQuality = !!isRetry;
+        const exactQuality = isRetry === 'download';
         let result = await checkServerCache(song, quality, exactQuality, isSilent ? 2500 : FOREGROUND_CACHE_CHECK_TIMEOUT, signal);
         const isCacheReady = (value) => value?.exists || value?.authRequired || (!value?.processing && !value?.unavailable);
         if (isCacheReady(result)) return result;

@@ -352,6 +352,19 @@ export const createMusicRouter = (): Router => {
         throw new Error('Invalid songInfo')
       }
 
+      // 优先前置检查服务端本地缓存（命中则直接返回，避免消耗外部第三方音源解析额度）
+      const cacheTargetUser = verifiedUsername === 'open' ? '_open' : verifiedUsername
+      const cached = fileCache.checkCache({ ...songInfo, quality }, cacheTargetUser)
+      if (cached.exists && !cached.isCollision && cached.url) {
+        return ctx.json({
+          url: cached.url,
+          type: cached.quality || quality || '128k',
+          quality: cached.quality || quality || '128k',
+          sourceName: '本地缓存',
+          fromCache: true,
+        })
+      }
+
       const source = songInfo.source
       if (isRetiredOnlineSource(source)) throw new UnsupportedSourceError(source)
       let result: any

@@ -10,6 +10,7 @@ import * as identify from '@/server/utils/identify'
 import * as fileCache from '@/server/fileCache'
 import * as serverDownloadQueue from '@/server/serverDownloadQueue'
 import { createCacheRouter, createProxyResponseStream } from '@/server/routes/cache'
+import { createMusicRouter } from '@/server/routes/music'
 import { userSessions } from '@/server/routes/auth'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 import { closeDb, initDatabase } from '@/database'
@@ -424,5 +425,60 @@ test('local identification resolves its module and forwards a bounded file path'
     global.lx = previousLx
     fs.unlinkSync(file)
     fs.rmdirSync(dir)
+  }
+})
+
+test('checkCache allows logged in users to fallback to _open shared cache', () => {
+  const checkCacheSpy = spyOn(fileCache.indexManager, 'get').mockImplementation((username, songId) => {
+    if (username === '_open' && songId === 'wy_12345') {
+      return {
+        id: 'wy_12345',
+        name: 'Test Song',
+        singer: 'Test Singer',
+        quality: '128k',
+        folder: 'cache',
+        filename: 'test.mp3',
+      } as any
+    }
+    return undefined
+  })
+  const isUsable = spyOn(fs, 'statSync').mockReturnValue({ isFile: () => true, size: 1000 } as any)
+  try {
+    const res = fileCache.checkCache({ source: 'wy', songmid: '12345', name: 'Test Song', singer: 'Test Singer', quality: '320k' }, 'user_alice')
+    expect(res.exists).toBe(true)
+    expect(res.foundIn).toBe('_open')
+    expect(res.url).toContain('/api/music/cache/file/_open/test.mp3')
+  } finally {
+    checkCacheSpy.mockRestore()
+    isUsable.mockRestore()
+  }
+})
+
+test('/api/music/url intercepts request when cache exists and avoids online resolution', async () => {
+  const checkCacheSpy = spyOn(fileCache, 'checkCache').mockReturnValue({
+    exists: true,
+    url: '/api/music/cache/file/_open/cached.mp3',
+    quality: '128k',
+    folder: 'cache',
+    filename: 'cached.mp3',
+  } as any)
+  try {
+    const router = createMusicRouter()
+    const req = new Request('http://localhost/api/music/url', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        songInfo: { source: 'wy', songmid: '12345', name: 'Test Song', singer: 'Test Singer' },
+        quality: '320k',
+      }),
+    })
+    const res = await router.handle(req)
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.fromCache).toBe(true)
+    expect(data.url).toBe('/api/music/cache/file/_open/cached.mp3')
+    expect(data.sourceName).toBe('本地缓存')
+  } finally {
+    checkCacheSpy.mockRestore()
   }
 })
