@@ -264,52 +264,65 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
             return ctx.json({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }, 403)
         }
 
-        // 辅助函数：支持重定向且具备超时保护的下载
+        // 辅助函数：使用 Bun 原生 fetch 实现具备超时保护、SSRF 防御与流式字节限制的下载
         const download = async (targetUrl: string, depth = 0): Promise<string> => {
             if (depth > 5) throw new Error('Too many redirects')
             const safeUrl = await assertSafeRemoteHttpUrl(targetUrl)
-            const protocol = safeUrl.protocol === 'https:' ? require('https') : require('http')
 
-            return new Promise((resolve, reject) => {
-                const req = protocol.get(safeUrl, (response: any) => {
-                    const { statusCode } = response
-
-                    // 处理重定向
-                    if (statusCode >= 300 && statusCode < 400 && response.headers.location) {
-                        const redirectUrl = new URL(response.headers.location, safeUrl).toString()
-                        return resolve(download(redirectUrl, depth + 1))
-                    }
-
-                    if (statusCode !== 200) {
-                        return reject(new Error(`Failed to download: status code ${statusCode}`))
-                    }
-
-                    const maxBytes = 5 * 1024 * 1024
-                    const declaredLength = Number(response.headers['content-length'] || 0)
-                    if (declaredLength > maxBytes) return reject(new Error('Remote script is too large'))
-                    const chunks: any[] = []
-                    let totalBytes = 0
-                    response.on('data', (chunk: any) => {
-                        totalBytes += Buffer.byteLength(chunk)
-                        if (totalBytes > maxBytes) {
-                            response.destroy()
-                            reject(new Error('Remote script is too large'))
-                            return
-                        }
-                        chunks.push(chunk)
-                    })
-                    response.on('end', () => {
-                        const buffer = Buffer.concat(chunks)
-                        resolve(buffer.toString('utf-8'))
-                    })
-                    response.on('error', reject)
-                })
-
-                req.setTimeout(10000, () => {
-                    req.destroy(new Error('Download timeout'))
-                })
-                req.on('error', reject)
+            const response = await fetch(safeUrl.href, {
+                method: 'GET',
+                redirect: 'manual',
+                signal: AbortSignal.timeout(10000),
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                },
             })
+
+            // 手动处理重定向，确保逐跳经过 assertSafeRemoteHttpUrl 校验防止 SSRF 绕过
+            if (response.status >= 300 && response.status < 400) {
+                const location = response.headers.get('location')
+                if (location) {
+                    const redirectUrl = new URL(location, safeUrl).toString()
+                    return download(redirectUrl, depth + 1)
+                }
+            }
+
+            if (!response.ok) {
+                throw new Error(`Failed to download: status code ${response.status}`)
+            }
+
+            const maxBytes = 5 * 1024 * 1024
+            const declaredLength = Number(response.headers.get('content-length') || 0)
+            if (declaredLength > maxBytes) {
+                throw new Error('Remote script is too large')
+            }
+
+            // 使用 Web Streams 流式读取并限制最大尺寸，超限立即 cancel 中止底层连接
+            const reader = response.body?.getReader()
+            if (!reader) {
+                const text = await response.text()
+                if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+                    throw new Error('Remote script is too large')
+                }
+                return text
+            }
+
+            const chunks: Uint8Array[] = []
+            let totalBytes = 0
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                if (value) {
+                    totalBytes += value.byteLength
+                    if (totalBytes > maxBytes) {
+                        await reader.cancel('Remote script is too large')
+                        throw new Error('Remote script is too large')
+                    }
+                    chunks.push(value)
+                }
+            }
+
+            return Buffer.concat(chunks).toString('utf-8')
         }
 
         const content = await download(url)

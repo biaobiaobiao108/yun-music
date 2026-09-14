@@ -96,6 +96,52 @@ describe('Custom Source Security and Isolation', () => {
     expect(json.error).toContain('管理员权限不足')
   })
 
+  test('handleImport uses Bun native download and enforces 5MB size limit', async () => {
+    const router = createCustomSourceRouter()
+    const prevFetch = globalThis.fetch
+    const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+
+    try {
+      // 模拟一个超过 5MB 的响应流
+      const largeChunk = new Uint8Array(2 * 1024 * 1024) // 2MB chunk
+      let chunksServed = 0
+      globalThis.fetch = async () => {
+        return new Response(new ReadableStream({
+          pull(controller) {
+            if (chunksServed < 3) {
+              chunksServed++
+              controller.enqueue(largeChunk)
+            } else {
+              controller.close()
+            }
+          },
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/javascript' },
+        })
+      }
+
+      const req = new Request('http://localhost:9527/api/custom-source/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: adminCookie,
+        },
+        body: JSON.stringify({
+          url: 'https://example.com/oversized-script.js',
+          username: 'open',
+        }),
+      })
+
+      const res = await router.handle(req)
+      const json = await res.json()
+      expect(json.success).toBe(false)
+      expect(json.error).toContain('Remote script is too large')
+    } finally {
+      globalThis.fetch = prevFetch
+    }
+  })
+
   test('router middleware blocks anonymous access when user.enablePublicRestriction is true', async () => {
     ;(global as any).lx.config['user.enablePublicRestriction'] = true
     const router = createCustomSourceRouter()
@@ -111,3 +157,4 @@ describe('Custom Source Security and Isolation', () => {
     expect(json.error).toContain('当前系统已开启访问限制')
   })
 })
+
