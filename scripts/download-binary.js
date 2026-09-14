@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const unzipper = require('unzipper');
 
 /**
  * 自动下载 Chromaprint fpcalc 二进制文件 (基于 Bun 现代化网络与文件 I/O)
@@ -41,12 +40,10 @@ async function downloadFile(url, dest) {
 }
 
 async function extractZip(filePath, destDir) {
-    return new Promise((resolve, reject) => {
-        fs.createReadStream(filePath)
-            .pipe(unzipper.Extract({ path: destDir }))
-            .on('close', resolve)
-            .on('error', reject);
-    });
+    const result = Bun.spawnSync(['tar', '-xf', filePath, '-C', destDir]);
+    if (result.exitCode !== 0) {
+        throw new Error(`解压 zip 失败: ${result.stderr.toString()}`);
+    }
 }
 
 function findFile(dir, fileName) {

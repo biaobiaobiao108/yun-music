@@ -156,5 +156,60 @@ describe('Custom Source Security and Isolation', () => {
     expect(json.success).toBe(false)
     expect(json.error).toContain('当前系统已开启访问限制')
   })
+
+  test('sandbox lx.request dispatches request via native fetch and delivers parsed JSON', async () => {
+    const { loadUserApi } = await import('@/server/userApi')
+    const prevFetch = globalThis.fetch
+    try {
+      globalThis.fetch = async (input: any) => {
+        return new Response(JSON.stringify({ code: 0, message: 'hello from test' }), {
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Custom-Header': 'lx-music',
+          },
+        })
+      }
+
+      let capturedResp: any = null
+      let capturedBody: any = null
+
+      const script = `
+        lx.on('request', ({ action, source, info }) => {
+          return new Promise((resolve, reject) => {
+            lx.request(info.url, { method: 'get' }, (err, resp, body) => {
+              if (err) reject(err)
+              else resolve({ resp, body })
+            })
+          })
+        })
+        lx.send('inited', { status: true, sources: {} })
+      `
+
+      const { success, apiInstance: api } = await loadUserApi({
+        id: 'test_req_source.js',
+        name: 'Test Request Source',
+        description: 'Testing lx.request',
+        version: 1,
+        author: 'Tester',
+        homepage: '',
+        script,
+        sources: {},
+        enabled: true,
+      })
+
+      expect(success).toBe(true)
+      expect(api).toBeDefined()
+
+      const result = await api!.callRequest('test', 'test_src', { url: 'https://api.example.com/data' })
+      expect(result.resp.statusCode).toBe(200)
+      expect(result.resp.statusMessage).toBe('OK')
+      expect(result.resp.headers['x-custom-header']).toBe('lx-music')
+      expect(result.body).toEqual({ code: 0, message: 'hello from test' })
+    } finally {
+      globalThis.fetch = prevFetch
+    }
+  })
 })
 

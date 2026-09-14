@@ -1,10 +1,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-import needle from 'needle'
 import * as crypto from 'crypto'
 
-import * as tunnel from 'tunnel'
 import { assertSafeRemoteHttpUrl } from './networkSecurity'
 import { assertSafePathSegment, resolveInside } from '@/utils/pathSecurity'
 import { isRetiredOnlineSource, UnsupportedSourceError } from '@/common/musicSources'
@@ -124,7 +122,7 @@ export function extractMetadata(script: string): Partial<UserApiInfo> {
     return meta
 }
 
-// 创建 lx.request 包装器（使用 needle）
+// 创建 lx.request 包装器（基于 Bun 原生 fetch）
 type CleanupRegistration = (cleanup: () => void) => () => void
 
 function createLxRequest(isUnsafe: boolean = false, registerCleanup?: CleanupRegistration) {
@@ -132,28 +130,38 @@ function createLxRequest(isUnsafe: boolean = false, registerCleanup?: CleanupReg
         const safeOptions = decontextify(options || {})
         const { method = 'get', timeout, headers, body, form, formData } = safeOptions
 
-        let requestOptions: any = {
-            headers,
-            follow_max: 0,
-            max_size: 5 * 1024 * 1024,
-            response_timeout: typeof timeout === 'number' && timeout > 0 ? Math.min(timeout, 60000) : 60000
+        let fetchBody: any = undefined
+        const fetchHeaders: Record<string, string> = {}
+        if (headers && typeof headers === 'object') {
+            for (const [k, v] of Object.entries(headers)) {
+                if (v != null) fetchHeaders[k] = String(v)
+            }
         }
 
-        let data = body
-        if (form) {
-            data = form
-            requestOptions.json = false
+        if (body != null) {
+            fetchBody = typeof body === 'object' && !Buffer.isBuffer(body) && !(body instanceof Uint8Array)
+                ? JSON.stringify(body)
+                : body
+            const hasContentType = Object.keys(fetchHeaders).some(k => k.toLowerCase() === 'content-type')
+            if (typeof body === 'object' && !Buffer.isBuffer(body) && !(body instanceof Uint8Array) && !hasContentType) {
+                fetchHeaders['Content-Type'] = 'application/json'
+            }
+        } else if (form) {
+            const params = new URLSearchParams()
+            for (const [k, v] of Object.entries(form)) {
+                params.append(k, String(v ?? ''))
+            }
+            fetchBody = params
         } else if (formData) {
-            data = formData
-            requestOptions.json = false
+            fetchBody = formData
         }
 
         try {
-            const bodyBytes = Buffer.isBuffer(data)
-                ? data.length
-                : typeof data === 'string'
-                    ? Buffer.byteLength(data, 'utf8')
-                    : data == null ? 0 : Buffer.byteLength(JSON.stringify(data), 'utf8')
+            const bodyBytes = Buffer.isBuffer(fetchBody)
+                ? fetchBody.length
+                : typeof fetchBody === 'string'
+                    ? Buffer.byteLength(fetchBody, 'utf8')
+                    : 0
             if (bodyBytes > 5 * 1024 * 1024) {
                 callback(new Error('Request body is too large'), null, null)
                 return () => { }
@@ -163,65 +171,119 @@ function createLxRequest(isUnsafe: boolean = false, registerCleanup?: CleanupReg
             return () => { }
         }
 
+        const timeoutMs = typeof timeout === 'number' && timeout > 0 ? Math.min(timeout, 60000) : 60000
+        const controller = new AbortController()
+        let timer: any = null
         let completed = false
         let aborted = false
-        let request: any = null
-        let unregister = () => { }
+
         const abort = () => {
+            if (aborted || completed) return
             aborted = true
-            const reqObj = request && (request as any).request
-            if (reqObj && !reqObj.aborted) reqObj.abort()
+            try { controller.abort() } catch { }
         }
-        unregister = registerCleanup ? registerCleanup(abort) : () => { }
+
+        const unregister = registerCleanup ? registerCleanup(abort) : () => { }
+
         const start = async () => {
             try {
                 const safeUrl = await assertSafeRemoteHttpUrl(url)
                 if (aborted) return
-                request = needle.request(method, safeUrl.toString(), data, requestOptions, (err: any, resp: any, body: any) => {
-                    completed = true
-                    unregister()
-                    try {
-                        if (err) {
-                            callback.call(null, decontextify(err), null, null)
-                        } else {
-                            const bodyBytes = Buffer.isBuffer(body) ? body.length : Buffer.byteLength(typeof body === 'string' ? body : JSON.stringify(body ?? ''), 'utf8')
-                            if (bodyBytes > 5 * 1024 * 1024) throw new Error('Remote response is too large')
-                            let parsedBody = body
-                            if (typeof body === 'string') {
-                                try { parsedBody = JSON.parse(body) } catch { }
-                            }
 
-                            let safeResp: any = {
-                                statusCode: resp.statusCode,
-                                statusMessage: resp.statusMessage,
-                                headers: decontextify(resp.headers),
-                                body: decontextify(parsedBody)
-                            }
+                timer = setTimeout(() => {
+                    abort()
+                }, timeoutMs)
 
-                            if (isUnsafe) {
-                                const jsonBody = (typeof parsedBody === 'object' && !Buffer.isBuffer(parsedBody))
-                                    ? JSON.parse(JSON.stringify(parsedBody))
-                                    : parsedBody
-                                safeResp = JSON.parse(JSON.stringify({
-                                    statusCode: resp.statusCode,
-                                    statusMessage: resp.statusMessage,
-                                    headers: resp.headers
-                                }))
-                                safeResp.body = jsonBody
-                            }
+                const normalizedMethod = String(method || 'get').toUpperCase()
+                const fetchOptions: RequestInit & { proxy?: string } = {
+                    method: normalizedMethod,
+                    headers: fetchHeaders,
+                    body: ['GET', 'HEAD'].includes(normalizedMethod) ? undefined : fetchBody,
+                    signal: controller.signal,
+                    redirect: 'manual',
+                }
 
-                            callback.call(null, null, safeResp, safeResp.body)
+                const config = global.lx?.config || {}
+                if (config['proxy.all.enabled'] && config['proxy.all.address']) {
+                    fetchOptions.proxy = config['proxy.all.address']
+                }
+
+                const resp = await fetch(safeUrl.href, fetchOptions)
+                if (timer) clearTimeout(timer)
+
+                const maxBytes = 5 * 1024 * 1024
+                const declaredLength = Number(resp.headers.get('content-length') || 0)
+                if (declaredLength > maxBytes) {
+                    await resp.body?.cancel()
+                    throw new Error('Remote response is too large')
+                }
+
+                let rawBuffer: Buffer
+                if (resp.body) {
+                    const reader = resp.body.getReader()
+                    const chunks: Uint8Array[] = []
+                    let received = 0
+                    while (true) {
+                        const { done, value } = await reader.read()
+                        if (done) break
+                        if (value) {
+                            received += value.byteLength
+                            if (received > maxBytes) {
+                                await reader.cancel('Remote response is too large')
+                                throw new Error('Remote response is too large')
+                            }
+                            chunks.push(value)
                         }
-                    } catch (error: any) {
-                        callback.call(null, decontextify(error), null, null)
                     }
+                    rawBuffer = Buffer.concat(chunks)
+                } else {
+                    rawBuffer = Buffer.alloc(0)
+                }
+
+                completed = true
+                unregister()
+
+                const responseText = rawBuffer.toString('utf8')
+                let parsedBody: any = responseText
+                try {
+                    parsedBody = JSON.parse(responseText)
+                } catch { }
+
+                const headersObj: Record<string, string> = {}
+                resp.headers.forEach((val, key) => {
+                    headersObj[key.toLowerCase()] = val
                 })
+
+                let safeResp: any = {
+                    statusCode: resp.status,
+                    statusMessage: resp.statusText,
+                    headers: decontextify(headersObj),
+                    body: decontextify(parsedBody),
+                    raw: rawBuffer,
+                }
+
+                if (isUnsafe) {
+                    const jsonBody = (typeof parsedBody === 'object' && !Buffer.isBuffer(parsedBody))
+                        ? JSON.parse(JSON.stringify(parsedBody))
+                        : parsedBody
+                    safeResp = JSON.parse(JSON.stringify({
+                        statusCode: resp.status,
+                        statusMessage: resp.statusText,
+                        headers: headersObj,
+                    }))
+                    safeResp.body = jsonBody
+                    safeResp.raw = rawBuffer
+                }
+
+                callback.call(null, null, safeResp, safeResp.body)
             } catch (error: any) {
+                if (timer) clearTimeout(timer)
                 completed = true
                 unregister()
                 callback.call(null, decontextify(error), null, null)
             }
         }
+
         void start()
 
         return () => {
