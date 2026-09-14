@@ -3,15 +3,11 @@ import * as path from 'path'
 
 import needle from 'needle'
 import * as crypto from 'crypto'
-import * as zlib from 'zlib'
-import { promisify } from 'util'
 
 import * as tunnel from 'tunnel'
 import { assertSafeRemoteHttpUrl } from './networkSecurity'
 import { assertSafePathSegment, resolveInside } from '@/utils/pathSecurity'
 import { isRetiredOnlineSource, UnsupportedSourceError } from '@/common/musicSources'
-const inflate = promisify(zlib.inflate)
-const deflate = promisify(zlib.deflate)
 
 let vm2ModulePromise: Promise<typeof import('vm2')> | null = null
 const loadVm2 = async () => {
@@ -346,8 +342,14 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
             randomBytes: (size: number) => crypto.randomBytes(size),
         },
         zlib: {
-            inflate: (buffer: any) => inflate(decontextify(buffer) as any),
-            deflate: (buffer: any) => deflate(decontextify(buffer) as any),
+            inflate: async (buffer: any) => {
+                const u8 = decontextify(buffer)
+                return Buffer.from(Bun.inflateSync(u8))
+            },
+            deflate: async (buffer: any) => {
+                const u8 = decontextify(buffer)
+                return Buffer.from(Bun.deflateSync(u8))
+            },
         }
     }
 

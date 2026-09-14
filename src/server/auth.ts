@@ -78,7 +78,7 @@ const adminSessions = new Map<string, number>()
 const MAX_SESSIONS = 10_000
 const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000
 
-const hashSession = (sessionId: string): string => crypto.createHash('sha256').update(sessionId).digest('hex')
+const hashSession = (sessionId: string): string => new Bun.CryptoHasher('sha256').update(sessionId).digest('hex')
 
 const prunePersistedSessions = (now = Date.now()): void => {
   try {

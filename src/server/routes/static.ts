@@ -73,8 +73,9 @@ export const createStaticRouter = (): Router => {
     let version = 'v2.0.0'
     let buildHash = 'unknown'
     try {
-      if (fs.existsSync(staticConfigPath)) {
-        const content = fs.readFileSync(staticConfigPath, 'utf-8')
+      const staticConfigFile = Bun.file(staticConfigPath)
+      if (await staticConfigFile.exists()) {
+        const content = await staticConfigFile.text()
         const matchVersion = content.match(/version:\s*['"]([^'"]+)['"]/)
         if (matchVersion) version = matchVersion[1]
         const matchHash = content.match(/buildHash:\s*['"]([^'"]+)['"]/)

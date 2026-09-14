@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import crypto from 'node:crypto'
 import path from 'node:path'
 import { networkInterfaces } from 'node:os'
 import { log } from './index'
@@ -109,11 +108,7 @@ export const removeFile = async (path: string) => new Promise<void>((resolve, re
 export const readFile = async (path: string) => fs.promises.readFile(path)
 
 
-/**
- * 创建 MD5 hash
- * @param {*} str
- */
-export const toMD5 = (str: string) => crypto.createHash('md5').update(str).digest('hex')
+export const toMD5 = (str: string) => new Bun.CryptoHasher('md5').update(str).digest('hex')
 
 // Gzip / Gunzip 使用 Bun 原生高性能实现
 export const gzipData = async (str: string | Buffer): Promise<Buffer> => {

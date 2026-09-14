@@ -2,7 +2,6 @@
 
 import fs from 'fs'
 import path from 'path'
-import crypto from 'crypto'
 
 if (typeof (global as any).navigator === 'undefined') {
   (global as any).navigator = { userAgent: 'node.js' }
@@ -60,7 +59,7 @@ const getConfigHash = (filePath: string) => {
   try {
     if (!fs.existsSync(filePath)) return ''
     const content = fs.readFileSync(filePath)
-    return crypto.createHash('md5').update(content).digest('hex')
+    return new Bun.CryptoHasher('md5').update(content).digest('hex')
   } catch {
     return ''
   }
@@ -76,12 +75,12 @@ const saveConfigToFile = async () => {
     if (await file.exists()) {
       const existing = await file.text()
       if (existing.trim() === content.trim()) {
-        lastConfigHash = crypto.createHash('md5').update(content).digest('hex')
+        lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
         return
       }
     }
     await Bun.write(configPath, content)
-    lastConfigHash = crypto.createHash('md5').update(content).digest('hex')
+    lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
     // console.log('Current memory config saved to config.js')
   } catch (err) {
     console.error('Failed to save config.js:', err)
