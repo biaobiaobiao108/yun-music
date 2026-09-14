@@ -3,8 +3,7 @@ import path from 'path'
 import { EventEmitter } from 'events'
 import { performance } from 'perf_hooks'
 import { STATUS } from './util'
-import type http from 'http'
-import { request, type Options as RequestOptions } from './request'
+import { request, type FetchIncomingMessage, type Options as RequestOptions } from './request'
 
 export interface Options {
   forceResume: boolean
@@ -38,7 +37,7 @@ class Task extends EventEmitter {
   ws: fs.WriteStream | null = null
   progress = { total: 0, downloaded: 0, speed: 0, progress: 0 }
   statsEstimate = { time: 0, bytes: 0, prevBytes: 0 }
-  requestInstance: http.ClientRequest | null = null
+  requestInstance: ReturnType<typeof request> | null = null
   maxRedirectNum = 2
   private redirectNum = 0
   private dataWriteQueueLength = 0
@@ -165,7 +164,7 @@ class Task extends EventEmitter {
         this.__startTimeout()
         response
           .on('data', this.__handleWriteData.bind(this))
-          .on('error', err => { this.__handleError(err) })
+          .on('error', (err: Error) => { this.__handleError(err) })
           .on('end', () => {
             if (response.complete) {
               this.__handleComplete()
@@ -180,11 +179,12 @@ class Task extends EventEmitter {
         if (redirected) return
         void this.__closeWriteStream()
       })
-      .end()
+    this.requestInstance.end()
   }
 
-  __initDownload(response: http.IncomingMessage) {
-    this.progress.total = response.headers['content-length'] ? parseInt(response.headers['content-length']) : 0
+  __initDownload(response: FetchIncomingMessage) {
+    const contentLength = response.headers['content-length']
+    this.progress.total = contentLength ? parseInt(Array.isArray(contentLength) ? contentLength[0] : contentLength) : 0
     if (!this.progress.total) {
       this.__handleError(new Error('Content length is 0'))
       return

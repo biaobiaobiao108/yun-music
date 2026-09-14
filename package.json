@@ -27,22 +27,16 @@
   "homepage": "https://github.com/biaobiaobiao108/yun-music#readme",
   "dependencies": {
     "archiver": "^8.0.0",
-    "file-type": "^22.0.2",
     "log4js": "^6.9.1",
-    "lru-cache": "^11.5.2",
     "music-tag-native": "^0.2.5",
-    "needle": "^3.3.1",
     "socks-proxy-agent": "^10.1.0",
-    "tunnel": "^0.0.6",
     "vm2": "^3.12.1"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",
     "@types/bun": "latest",
     "@types/crypto-js": "4.2.2",
-    "@types/needle": "^3.3.0",
     "@types/pako": "2.0.3",
-    "@types/tunnel": "^0.0.7",
     "bun-plugin-tailwind": "0.1.2",
     "crypto-js": "4.2.0",
     "marked": "15.0.12",

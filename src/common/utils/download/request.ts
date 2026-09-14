@@ -1,73 +1,103 @@
-import { URL } from 'url'
-import http from 'http'
-import https from 'https'
+import { EventEmitter } from 'node:events'
 
 export interface Options {
   method: 'get' | 'head' | 'delete' | 'patch' | 'post' | 'put'
   params?: Record<string, string>
-  // body?: Record<string, string>
   headers?: Record<string, string>
   timeout?: number
-  agent?: http.Agent
+  proxy?: string
 }
 
-const defaultOptions: Options = {
-  method: 'get',
+export type FetchIncomingMessage = EventEmitter & {
+  statusCode: number
+  statusMessage: string
+  headers: Record<string, string | string[] | undefined>
+  complete: boolean
 }
 
-type HttpCallback = (res: http.IncomingMessage) => void
-
-const sendRequest = (url: string, options: Options, callback?: HttpCallback) => {
-  const urlParse = new URL(url)
-  const httpOptions: http.RequestOptions | https.RequestOptions = {
-    host: urlParse.hostname,
-    port: urlParse.port,
-    path: urlParse.pathname + urlParse.search,
-    method: options.method,
-  }
-
-  if (options.params) {
-    (httpOptions.path!) += `${urlParse.search ? '&' : '?'}${Object.entries(options.params)
-      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-      .join('&')}`
-  }
-
-  if (options.headers) httpOptions.headers = { ...options.headers }
-
-  if (options.agent) httpOptions.agent = options.agent
-
-  return urlParse.protocol == 'https:'
-    ? https.request(httpOptions, callback)
-    : http.request(httpOptions, callback)
+type FetchClientRequest = EventEmitter & {
+  destroyed: boolean
+  end: () => void
+  destroy: (error?: Error) => void
 }
 
-const applyTimeout = (request: http.ClientRequest, time: number) => {
-  let timeout: NodeJS.Timeout | null = setTimeout(() => {
-    timeout = null
+const createResponse = (response: Response): FetchIncomingMessage => {
+  const result = new EventEmitter() as FetchIncomingMessage
+  result.statusCode = response.status
+  result.statusMessage = response.statusText
+  result.complete = false
+  result.headers = {}
+  response.headers.forEach((value, key) => { result.headers[key.toLowerCase()] = value })
+  return result
+}
+
+const createRequest = (url: string, options: Options): FetchClientRequest => {
+  const request = new EventEmitter() as FetchClientRequest
+  const controller = new AbortController()
+  request.destroyed = false
+
+  request.destroy = (error?: Error) => {
     if (request.destroyed) return
-    request.destroy(new Error('Request timeout'))
-  }, time)
-  request.on('response', () => {
-    if (!timeout) return
-    clearTimeout(timeout)
-    timeout = null
-  })
-}
+    request.destroyed = true
+    controller.abort()
+    if (error) request.emit('error', error)
+    request.emit('close')
+  }
 
-// const isRequireRedirect = (response: http.IncomingMessage) => {
-//   return response.statusCode &&
-//     response.statusCode > 300 &&
-//     response.statusCode < 400 &&
-//     Object.hasOwn(response.headers, 'location') &&
-//     response.headers.location
-// }
+  request.end = () => {
+    void (async () => {
+      try {
+        const target = new URL(url)
+        for (const [key, value] of Object.entries(options.params || {})) target.searchParams.append(key, value)
+        const fetchOptions: RequestInit & { proxy?: string } = {
+          method: options.method.toUpperCase(),
+          headers: options.headers,
+          signal: controller.signal,
+          redirect: 'manual',
+        }
+        if (options.proxy) fetchOptions.proxy = options.proxy
 
-// export function request(url: string, callback: HttpCallback)
-// export function request(url: string, options: Partial<Options>, callback: HttpCallback)
-export function request(url: string, _options: Partial<Options>, callback?: HttpCallback) {
-  let options: Options = { ...defaultOptions, ..._options }
-  const request = sendRequest(url, options, callback)
-  if (options.timeout) applyTimeout(request, options.timeout)
+        const response = await fetch(target, fetchOptions)
+        if (request.destroyed) return
+        const incoming = createResponse(response)
+        request.emit('response', incoming)
+        if (!response.body) {
+          incoming.complete = true
+          incoming.emit('end')
+          incoming.emit('close')
+          return
+        }
+
+        try {
+          for await (const chunk of response.body as any) {
+            if (request.destroyed) return
+            incoming.emit('data', Buffer.from(chunk))
+          }
+          incoming.complete = true
+          incoming.emit('end')
+          incoming.emit('close')
+        } catch (error) {
+          if (!request.destroyed) incoming.emit('error', error)
+        }
+      } catch (error) {
+        if (!request.destroyed) request.emit('error', error)
+      }
+    })()
+  }
+
   return request
 }
 
+export function request(url: string, _options: Partial<Options> = {}, callback?: (res: FetchIncomingMessage) => void) {
+  const options: Options = { method: 'get', ..._options }
+  const request = createRequest(url, options)
+  if (callback) request.on('response', callback)
+  if (options.timeout && options.timeout > 0) {
+    const timeout = setTimeout(() => {
+      if (!request.destroyed) request.destroy(new Error('Request timeout'))
+    }, options.timeout)
+    request.once('response', () => clearTimeout(timeout))
+    request.once('close', () => clearTimeout(timeout))
+  }
+  return request
+}

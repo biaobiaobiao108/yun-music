@@ -3,7 +3,7 @@ import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import { isSourceSupported, callUserApiGetMusicUrl } from '../userApi'
 import { getDownloadQualityCandidates } from '../downloadQuality'
 import * as fileCache from '../fileCache'
-import { LRUCache } from 'lru-cache'
+import { NativeLruCache } from '@/utils/nativeLru'
 
 export interface ServerSongResolveResult {
   url: string
@@ -75,7 +75,7 @@ export const normalizeSongInfo = (songInfo: any) => {
 
 const AUTO_SOURCE_ORDER = ['wy', 'tx'] as const
 const SOURCE_MATCH_CACHE_TTL = 60_000
-const sourceMatchCache = new LRUCache<string, Promise<any[]>>({
+const sourceMatchCache = new NativeLruCache<string, Promise<any[]>>({
   max: 512,
   ttl: SOURCE_MATCH_CACHE_TTL,
 })

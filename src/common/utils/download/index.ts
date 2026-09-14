@@ -1,7 +1,7 @@
 import Downloader, { type Options as DownloaderOptions } from './Downloader'
-import { getRequestAgent } from './util'
+import { getRequestProxy } from './util'
 import { sizeFormate } from '../index'
-import type http from 'http'
+import type { FetchIncomingMessage } from './request'
 
 // these are the default options
 // const options = {
@@ -25,7 +25,7 @@ export interface Options {
   proxy?: { host: string, port: number }
   onCompleted?: () => void
   onError?: (error: Error) => void
-  onFail?: (response: http.IncomingMessage) => void
+  onFail?: (response: FetchIncomingMessage) => void
   onStart?: () => void
   onStop?: () => void
   onProgress?: (progress: LX.Download.ProgressInfo) => void
@@ -52,7 +52,7 @@ export const createDownload = ({
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36',
       },
-      agent: getRequestAgent(url, proxy),
+      proxy: getRequestProxy(url, proxy),
       timeout: 60 * 1000,
     },
 

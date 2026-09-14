@@ -4,7 +4,7 @@
  */
 
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
-import { LRUCache } from 'lru-cache'
+import { NativeLruCache } from '@/utils/nativeLru'
 
 export interface SingerDetail {
     name: string
@@ -14,7 +14,7 @@ export interface SingerDetail {
     desc: string
 }
 
-const singerCache = new LRUCache<string, SingerDetail>({
+const singerCache = new NativeLruCache<string, SingerDetail>({
     max: 512,
     ttl: 30 * 60 * 1000,
 })

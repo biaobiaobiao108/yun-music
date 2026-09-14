@@ -1,7 +1,7 @@
 import { httpFetch } from '../../request'
 import { dateFormat2 } from '../../index'
 import getMusicInfo from './musicInfo'
-import { LRUCache } from 'lru-cache'
+import { NativeLruCache } from '@/utils/nativeLru'
 
 const emojis = {
   e400846: '😘',
@@ -72,7 +72,7 @@ const emojis = {
   e400432: '👑',
 } satisfies Record<string, string>
 
-const songIdMap = new LRUCache<string, any>({
+const songIdMap = new NativeLruCache<string, any>({
   max: 2048,
   ttl: 2 * 60 * 60 * 1000,
 })

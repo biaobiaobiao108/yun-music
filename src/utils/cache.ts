@@ -1,7 +1,7 @@
-import { LRUCache } from 'lru-cache'
+import { NativeLruCache } from './nativeLru'
 
 export default {
-  store: new LRUCache({
+  store: new NativeLruCache({
     max: 2048,
     ttl: 1000 * 60 * 60 * 24 * 2,
     // updateAgeOnGet: true,

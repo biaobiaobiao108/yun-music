@@ -1,11 +1,13 @@
-import needle from 'needle'
+import httpModule from 'node:http'
+import httpsModule from 'node:https'
 import { debugRequest } from './env'
 import { requestMsg } from './message'
 import { bHh } from './musicSdk/options'
-import { deflateRaw } from 'node:zlib'
-import * as tunnel from 'tunnel'
 
 const httpsRxp = /^https:/
+const defaultHeaders: Record<string, string> = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+}
 
 export interface HttpOptions extends Record<string, any> {
   method?: string
@@ -23,117 +25,253 @@ export interface HttpPromiseObject<T = any> {
   isCancelled: boolean
   cancelHttp: () => void
   promise: Promise<T>
-  requestObj?: any
+  requestObj?: AbortController | null
   cancelFn?: ((reason?: any) => void) | null
 }
 
-const getRequestAgent = async (url: string): Promise<any> => {
+type ResponseLike = {
+  statusCode: number
+  statusMessage: string
+  headers: Record<string, string>
+  raw: Buffer
+}
+
+type FetchResponse = ResponseLike & { body: any }
+
+const hasHeader = (headers: Record<string, string>, name: string): boolean => (
+  Object.keys(headers).some(key => key.toLowerCase() === name.toLowerCase())
+)
+
+const isBodyObject = (value: unknown): value is Record<string, unknown> => (
+  !!value && typeof value === 'object' &&
+  !(value instanceof ArrayBuffer) &&
+  !(value instanceof Uint8Array) &&
+  !(value instanceof Blob) &&
+  !(value instanceof URLSearchParams) &&
+  !(value instanceof FormData)
+)
+
+const toFormBody = (value: Record<string, unknown>): URLSearchParams => {
+  const params = new URLSearchParams()
+  for (const [key, item] of Object.entries(value)) {
+    if (Array.isArray(item)) {
+      for (const nested of item) params.append(key, String(nested ?? ''))
+    } else {
+      params.append(key, String(item ?? ''))
+    }
+  }
+  return params
+}
+
+const parseProxy = (proxyAddress: string | undefined): URL | undefined => {
+  if (!proxyAddress) return undefined
+  try {
+    return new URL(proxyAddress)
+  } catch {
+    return undefined
+  }
+}
+
+const getConfiguredProxy = (url: string): string | undefined => {
   const config = global.lx?.config || {}
-  const proxyEnabled = config['proxy.all.enabled']
-  const proxyAddress = config['proxy.all.address']
-
-  if (proxyEnabled && proxyAddress) {
-    try {
-      const proxyUrl = new URL(proxyAddress)
-      if (proxyUrl.protocol === 'http:' || proxyUrl.protocol === 'https:') {
-        const isHttps = httpsRxp.test(url)
-        const tunnelOptions = {
-          proxy: {
-            host: proxyUrl.hostname,
-            port: parseInt(proxyUrl.port, 10),
-            proxyAuth: proxyUrl.username ? `${proxyUrl.username}:${proxyUrl.password}` : undefined,
-          },
-        }
-        return (isHttps ? tunnel.httpsOverHttp : tunnel.httpOverHttp)(tunnelOptions)
-      } else if (proxyUrl.protocol.startsWith('socks')) {
-        const { SocksProxyAgent } = await import('socks-proxy-agent')
-        return new SocksProxyAgent(proxyAddress)
-      }
-    } catch {
-      // ignore invalid proxy address
-    }
+  if (config['proxy.all.enabled'] && config['proxy.all.address']) {
+    return String(config['proxy.all.address'])
   }
 
-  if (process.env.HTTPS_PROXY) {
-    try {
-      const proxyUrl = new URL(process.env.HTTPS_PROXY)
-      const tunnelOptions = {
-        proxy: {
-          host: proxyUrl.hostname,
-          port: parseInt(proxyUrl.port, 10),
-          proxyAuth: proxyUrl.username ? `${proxyUrl.username}:${proxyUrl.password}` : undefined,
-        },
-      }
-      return (httpsRxp.test(url) ? tunnel.httpsOverHttp : tunnel.httpOverHttp)(tunnelOptions)
-    } catch {
-      // ignore
-    }
-  }
-
-  return undefined
+  // Bun's fetch handles HTTP(S)_PROXY and NO_PROXY itself. We only inspect an
+  // environment proxy here when it is SOCKS, because that needs the retained
+  // compatibility agent below.
+  const envKey = httpsRxp.test(url) ? 'HTTPS_PROXY' : 'HTTP_PROXY'
+  const envProxy = process.env[envKey]
+  return parseProxy(envProxy)?.protocol.startsWith('socks') ? envProxy : undefined
 }
 
-const request = (url: string, options: HttpOptions, callback: (err: any, resp: any, body: any) => void) => {
-  let data: any
-  if (options.body) {
-    data = options.body
-  } else if (options.form) {
-    data = options.form
-    options.json = false
-  } else if (options.formData) {
-    data = options.formData
-    options.json = false
-  }
-  options.response_timeout = options.timeout
+const collectHeaders = (headers: Headers): Record<string, string> => {
+  const result: Record<string, string> = {}
+  headers.forEach((value, key) => { result[key.toLowerCase()] = value })
+  return result
+}
 
-  const method = (options.method as needle.NeedleHttpVerbs) || 'get'
-  const stream = needle.request(method, url, data, options, (err, resp, body) => {
-    if (!err && resp) {
-      body = resp.body = resp.raw.toString()
-      try {
-        resp.body = JSON.parse(resp.body)
-      } catch {
-        // ignore
-      }
-      body = resp.body
+const parseBody = (raw: Buffer): any => {
+  const text = raw.toString('utf8')
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}
+
+const createResponse = (statusCode: number, statusMessage: string, headers: Record<string, string>, raw: Buffer): FetchResponse => ({
+  statusCode,
+  statusMessage,
+  headers,
+  raw,
+  body: parseBody(raw),
+})
+
+const requestThroughSocks = async (
+  url: string,
+  options: RequestInit,
+  proxyAddress: string,
+  controller: AbortController,
+): Promise<FetchResponse> => {
+  const { SocksProxyAgent } = await import('socks-proxy-agent')
+  const target = new URL(url)
+  const agent = new SocksProxyAgent(proxyAddress)
+  const requestModule = target.protocol === 'https:' ? httpsModule : httpModule
+  const headers: Record<string, string> = {}
+  new Headers(options.headers).forEach((value, key) => { headers[key] = value })
+
+  return await new Promise((resolve, reject) => {
+    const request = requestModule.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || undefined,
+      path: `${target.pathname}${target.search}`,
+      method: options.method,
+      headers,
+      agent,
+    }, response => {
+      const chunks: Buffer[] = []
+      response.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      response.on('end', () => resolve(createResponse(
+        response.statusCode || 0,
+        response.statusMessage || '',
+        Object.fromEntries(Object.entries(response.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value ?? '')])),
+        Buffer.concat(chunks),
+      )))
+      response.on('error', reject)
+    })
+
+    const abort = () => request.destroy(new Error(requestMsg.cancelRequest))
+    if (controller.signal.aborted) abort()
+    else controller.signal.addEventListener('abort', abort, { once: true })
+    request.on('error', reject)
+
+    if (options.body != null) {
+      const body = options.body instanceof URLSearchParams
+        ? options.body.toString()
+        : options.body instanceof Uint8Array
+          ? Buffer.from(options.body)
+          : options.body
+      request.write(body)
     }
-    callback(err, resp, body)
+    request.end()
   })
-  return (stream as any)?.request
 }
 
-const defaultHeaders: Record<string, string> = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+const fetchResponse = async (
+  url: string,
+  options: RequestInit,
+  controller: AbortController,
+): Promise<FetchResponse> => {
+  const proxy = parseProxy(getConfiguredProxy(url))
+  if (proxy && proxy.protocol.startsWith('socks')) {
+    return requestThroughSocks(url, options, proxy.href, controller)
+  }
+
+  const fetchOptions: RequestInit & { proxy?: string } = { ...options }
+  if (proxy && (proxy.protocol === 'http:' || proxy.protocol === 'https:')) {
+    fetchOptions.proxy = proxy.href
+  }
+  const response = await fetch(url, fetchOptions)
+  return createResponse(
+    response.status,
+    response.statusText,
+    collectHeaders(response.headers),
+    Buffer.from(await response.arrayBuffer()),
+  )
+}
+
+const buildBody = (options: HttpOptions, headers: Record<string, string>): BodyInit | undefined => {
+  if (options.form != null) {
+    if (!hasHeader(headers, 'content-type')) headers['Content-Type'] = 'application/x-www-form-urlencoded'
+    return toFormBody(options.form)
+  }
+  if (options.formData != null) {
+    if (options.formData instanceof FormData) return options.formData
+    return toFormBody(options.formData)
+  }
+
+  const body = options.body ?? options.data
+  if (body == null) return undefined
+  if (isBodyObject(body)) {
+    if (!hasHeader(headers, 'content-type')) headers['Content-Type'] = 'application/json'
+    return JSON.stringify(body)
+  }
+  return body as BodyInit
+}
+
+const fetchData = async (
+  url: string,
+  method: string,
+  { headers = {}, timeout = 15000, ...options }: HttpOptions,
+  callback: (err: any, resp: FetchResponse | null, body: any) => void,
+  controller = new AbortController(),
+): Promise<FetchResponse> => {
+  const requestHeaders: Record<string, string> = Object.assign({}, defaultHeaders, headers)
+  if (requestHeaders[bHh]) {
+    const path = url.replace(/^https?:\/\/[\w.:]+\//, '/')
+    let s = Buffer.from(bHh, 'hex').toString()
+    s = s.replace(s.substr(-1), '')
+    s = Buffer.from(s, 'base64').toString()
+
+    const v1 = '2050201'
+    const v2 = '10'
+    const v = v1.split('-')[0].split('.').map(n => (n.length < 3 ? n.padStart(3, '0') : n)).join('')
+    const payload = Buffer.from(JSON.stringify(`${path}${v}`.match(/(?:\d\w)+/g), null, 1).concat(v)).toString('base64')
+    requestHeaders[s] = `${Buffer.from(Bun.deflateSync(Buffer.from(payload))).toString('hex')}&${parseInt(v, 10)}${v2}`
+    delete requestHeaders[bHh]
+  }
+
+  const normalizedMethod = String(method || 'get').toUpperCase()
+  const body = ['GET', 'HEAD'].includes(normalizedMethod) ? undefined : buildBody(options, requestHeaders)
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+  try {
+    timeoutHandle = setTimeout(() => controller.abort(), Math.max(1, timeout))
+    const response = await fetchResponse(url, {
+      method: normalizedMethod,
+      headers: requestHeaders,
+      body,
+      signal: controller.signal,
+      redirect: 'follow',
+    }, controller)
+    callback(null, response, response.body)
+    return response
+  } catch (error) {
+    callback(error, null, null)
+    throw error
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle)
+  }
 }
 
 const buildHttpPromise = <T = any>(url: string, options: HttpOptions): HttpPromiseObject<T> => {
+  const controller = new AbortController()
   const obj: HttpPromiseObject<T> = {
     isCancelled: false,
+    requestObj: controller,
     cancelHttp: () => {
-      if (!obj.requestObj) {
-        obj.isCancelled = true
-        return
-      }
-      cancelHttp(obj.requestObj)
-      obj.requestObj = null
+      if (obj.isCancelled) return
+      obj.isCancelled = true
+      controller.abort()
       if (obj.cancelFn) obj.cancelFn(new Error(requestMsg.cancelRequest))
       obj.cancelFn = null
+      obj.requestObj = null
     },
-    promise: Promise.resolve() as any,
+    promise: Promise.resolve() as Promise<T>,
   }
 
   obj.promise = new Promise<T>((resolve, reject) => {
     obj.cancelFn = reject
     if (debugRequest) console.log(`\n---send request------${url}------------`)
-    fetchData(url, options.method || 'get', options, (err, resp, body) => {
+    void fetchData(url, options.method || 'get', options, (err, _resp, body) => {
       if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
+      if (err) return
+      resolve(_resp as T)
+    }, controller).catch(() => undefined).finally(() => {
       obj.requestObj = null
       obj.cancelFn = null
-      if (err) return reject(err)
-      resolve(resp)
-    }).then(ro => {
-      obj.requestObj = ro
-      if (obj.isCancelled) obj.cancelHttp()
     })
   })
   return obj
@@ -142,10 +280,9 @@ const buildHttpPromise = <T = any>(url: string, options: HttpOptions): HttpPromi
 export const httpFetch = <T = any>(url: string, options: HttpOptions = { method: 'get' }): HttpPromiseObject<T> => {
   const requestObj = buildHttpPromise<T>(url, options)
   requestObj.promise = requestObj.promise.catch((err: any) => {
-    if (err.message === 'socket hang up') {
-      return Promise.reject(new Error(requestMsg.unachievable))
-    }
-    switch (err.code) {
+    if (err?.message === 'socket hang up') return Promise.reject(new Error(requestMsg.unachievable))
+    if (err?.name === 'AbortError') return Promise.reject(new Error(requestMsg.timeout))
+    switch (err?.code) {
       case 'ETIMEDOUT':
       case 'ESOCKETTIMEDOUT':
         return Promise.reject(new Error(requestMsg.timeout))
@@ -154,14 +291,12 @@ export const httpFetch = <T = any>(url: string, options: HttpOptions = { method:
       default:
         return Promise.reject(err)
     }
-  })
+  }) as Promise<T>
   return requestObj
 }
 
-export const cancelHttp = (requestObj: any): void => {
-  if (!requestObj) return
-  if (!requestObj.abort) return
-  requestObj.abort()
+export const cancelHttp = (requestObj: AbortController | { abort?: () => void } | null | undefined): void => {
+  requestObj?.abort?.()
 }
 
 export const http = (url: string, options: any, cb?: (err: any, resp: any, body: any) => void): Promise<any> => {
@@ -171,12 +306,11 @@ export const http = (url: string, options: any, cb?: (err: any, resp: any, body:
   }
   options ||= {}
   if (options.method == null) options.method = 'get'
-
   if (debugRequest) console.log(`\n---send request------${url}------------`)
   return fetchData(url, options.method, options, (err, resp, body) => {
     if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
     if (err && debugRequest) console.log(JSON.stringify(err))
-    if (cb) cb(err, resp, body)
+    cb?.(err, resp, body)
   })
 }
 
@@ -186,13 +320,7 @@ export const httpGet = (url: string, options: any, callback?: (err: any, resp: a
     options = {}
   }
   options ||= {}
-
-  if (debugRequest) console.log(`\n---send request-------${url}------------`)
-  return fetchData(url, 'get', options, (err, resp, body) => {
-    if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
-    if (err && debugRequest) console.log(JSON.stringify(err))
-    if (callback) callback(err, resp, body)
-  })
+  return http(url, { ...options, method: 'get' }, callback)
 }
 
 export const httpPost = (url: string, data: any, options: any, callback?: (err: any, resp: any, body: any) => void): Promise<any> => {
@@ -201,14 +329,7 @@ export const httpPost = (url: string, data: any, options: any, callback?: (err: 
     options = {}
   }
   options ||= {}
-  options.data = data
-
-  if (debugRequest) console.log(`\n---send request-------${url}------------`)
-  return fetchData(url, 'post', options, (err, resp, body) => {
-    if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
-    if (err && debugRequest) console.log(JSON.stringify(err))
-    if (callback) callback(err, resp, body)
-  })
+  return http(url, { ...options, method: 'post', data }, callback)
 }
 
 export const http_jsonp = (url: string, options: any, callback?: (err: any, resp: any, body: any) => void): Promise<any> => {
@@ -217,87 +338,19 @@ export const http_jsonp = (url: string, options: any, callback?: (err: any, resp
     options = {}
   }
   options ||= {}
-
   const jsonpCallback = 'jsonpCallback'
-  if (url.indexOf('?') < 0) url += '?'
-  url += `&${options.jsonpCallback}=${jsonpCallback}`
-  options.format = 'script'
-
-  if (debugRequest) console.log(`\n---send request-------${url}------------`)
-  return fetchData(url, 'get', options, (err, resp, body) => {
-    if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
-    if (err) {
-      if (debugRequest) console.log(JSON.stringify(err))
-    } else {
-      try {
-        body = JSON.parse(body.replace(new RegExp(`^${jsonpCallback}\\(({.*})\\)$`), '$1'))
-      } catch {
-        // ignore
-      }
+  const separator = url.includes('?') ? '&' : '?'
+  const jsonpUrl = `${url}${separator}${options.jsonpCallback || 'callback'}=${jsonpCallback}`
+  return http(jsonpUrl, { ...options, method: 'get' }, (err, resp, body) => {
+    if (!err && typeof body === 'string') {
+      try { body = JSON.parse(body.replace(new RegExp(`^${jsonpCallback}\\(({.*})\\)$`), '$1')) } catch { }
     }
-    if (callback) callback(err, resp, body)
+    callback?.(err, resp, body)
   })
 }
 
-const handleDeflateRaw = (data: Buffer | string): Promise<Buffer> =>
-  new Promise((resolve, reject) => {
-    deflateRaw(data, (err, buf) => {
-      if (err) return reject(err)
-      resolve(buf)
-    })
-  })
-
-const regx = /(?:\d\w)+/g
-
-const fetchData = async (
-  url: string,
-  method: string,
-  { headers = {}, format = 'json', timeout = 15000, ...options }: HttpOptions,
-  callback: (err: any, resp: any, body: any) => void
-): Promise<any> => {
-  headers = Object.assign({}, headers)
-  if (headers[bHh]) {
-    const path = url.replace(/^https?:\/\/[\w.:]+\//, '/')
-    let s = Buffer.from(bHh, 'hex').toString()
-    s = s.replace(s.substr(-1), '')
-    s = Buffer.from(s, 'base64').toString()
-
-    const v1 = '2050201'
-    const v2 = '10'
-    const v = v1.split('-')[0].split('.').map(n => (n.length < 3 ? n.padStart(3, '0') : n)).join('')
-
-    headers[s] =
-      !s ||
-      `${(await handleDeflateRaw(Buffer.from(JSON.stringify(`${path}${v}`.match(regx), null, 1).concat(v)).toString('base64'))).toString('hex')}&${parseInt(v, 10)}${v2}`
-    delete headers[bHh]
-  }
-  return request(
-    url,
-    {
-      ...options,
-      method,
-      headers: Object.assign({}, defaultHeaders, headers),
-      timeout,
-      agent: await getRequestAgent(url),
-      json: format === 'json',
-      rejectUnauthorized: true,
-    },
-    (err, resp, body) => {
-      if (err) return callback(err, null, null)
-      callback(null, resp, body)
-    }
-  )
-}
-
-export const checkUrl = (url: string, options: HttpOptions = {}): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    fetchData(url, 'head', options, (err, resp) => {
-      if (err) return reject(err)
-      if (resp?.statusCode === 200) {
-        resolve()
-      } else {
-        reject(new Error(resp?.statusCode?.toString() || 'Request failed'))
-      }
-    })
-  })
-}
+export const checkUrl = (url: string, options: HttpOptions = {}): Promise<void> => (
+  fetchData(url, 'head', options, () => {}).then(resp => {
+    if (resp.statusCode !== 200) throw new Error(resp.statusCode.toString() || 'Request failed')
+  }).then(() => undefined)
+)

@@ -1,7 +1,7 @@
 import { httpFetch } from '../../request'
 import { weapi } from './utils/crypto'
 import { dateFormat2 } from '../../index'
-import { LRUCache } from 'lru-cache'
+import { NativeLruCache } from '@/utils/nativeLru'
 
 const emojis = [
   ['大笑', '😃'],
@@ -71,7 +71,7 @@ const applyEmoji = (text: any) => {
   return text
 }
 
-const cursorCache = new LRUCache<string, Record<string, any>>({
+const cursorCache = new NativeLruCache<string, Record<string, any>>({
   max: 2048,
   ttl: 30 * 60 * 1000,
 })

@@ -12,7 +12,7 @@ import { formatPlayTime } from '../common/utils/common'
 import { getDb } from '@/database'
 import { assertSafePathSegment, isPathInside, resolveInside } from '@/utils/pathSecurity'
 import { assertSafeRemoteHttpUrl, type SafeRemoteHttpUrl } from './networkSecurity'
-import { LRUCache } from 'lru-cache'
+import { NativeLruCache } from '@/utils/nativeLru'
 
 type MusicTagNative = {
     MusicTagger: new () => any
@@ -52,7 +52,7 @@ export const CACHE_ROOTS = {
 
 let currentCacheLocation = CACHE_ROOTS.ROOT
 const CACHE_LIST_SYNC_TTL = 30 * 1000
-const cacheListSyncState = new LRUCache<string, { lastSync: number, pending?: Promise<void> }>({
+const cacheListSyncState = new NativeLruCache<string, { lastSync: number, pending?: Promise<void> }>({
     max: 2048,
     ttl: 10 * 60 * 1000,
 })
@@ -2739,14 +2739,6 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                 setCacheProgress(songKey, { progress: 100, status: 'tagging', total, received, speed: 0, updatedAt: Date.now() })
 
                 let ext = headerExt
-                if (fs.existsSync(tempPath)) {
-                    try {
-                        const { fileTypeFromFile } = await import('file-type')
-                        const type = await fileTypeFromFile(tempPath)
-                        if (type) ext = `.${type.ext}`
-                    } catch (e) { }
-                }
-
                 const inspection = inspectAudioFile(tempPath, quality)
                 ext = inspection.extension || ext
                 const actualQuality = inspection.quality || quality || 'unknown'
