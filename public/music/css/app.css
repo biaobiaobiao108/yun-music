@@ -2527,9 +2527,26 @@ aside {
     transform: rotate(0deg);
 }
 
+/* 唱片四周环状波形特效 Canvas (衬于黑胶底层向外律动扩散) */
+.vinyl-visualizer-canvas {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 132%;
+    height: 132%;
+    max-width: none;
+    max-height: none;
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 50%;
+    transition: opacity 0.4s ease;
+}
+
 /* 旋转黑胶盘底座 (Vinyl Disc Base Wrap) - 严格正圆 */
 .vinyl-disc-wrap {
     position: relative;
+    z-index: 2;
     width: 100%;
     height: 100%;
     aspect-ratio: 1 / 1;
@@ -2541,6 +2558,95 @@ aside {
     justify-content: center;
     flex-shrink: 0;
     overflow: visible;
+}
+
+/* ── 歌词右侧微调悬浮胶囊条 (Vertical Lyric Offset Floating Capsule) ── */
+.lyric-offset-capsule {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%) scale(0.95);
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 4px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--bg-panel, #ffffff) 82%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-main, rgba(140, 160, 150, 0.25));
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1), transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+@media (min-width: 768px) {
+    .lyric-offset-capsule {
+        right: 12px;
+    }
+}
+
+#lyrics-wrapper:hover .lyric-offset-capsule,
+#lyrics-wrapper:focus-within .lyric-offset-capsule,
+.lyric-offset-capsule:hover,
+.lyric-offset-capsule:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(-50%) scale(1);
+}
+
+.lyric-offset-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--text-muted, #6b7a72);
+    transition: all 0.15s ease;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.lyric-offset-btn:hover {
+    color: var(--c-500, #10b981);
+    background: color-mix(in srgb, var(--c-500, #10b981) 16%, transparent);
+    transform: scale(1.1);
+}
+
+.lyric-offset-btn:active {
+    transform: scale(0.92);
+}
+
+.lyric-offset-val {
+    min-width: 34px;
+    padding: 2px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    color: var(--text-muted, #6b7a72);
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.lyric-offset-val:hover {
+    color: var(--c-500, #10b981);
+    background: color-mix(in srgb, var(--c-500, #10b981) 14%, transparent);
+}
+
+.lyric-offset-val.is-offset {
+    color: var(--c-500, #10b981);
+    font-weight: 700;
 }
 
 /* 旋转黑胶盘 (Vinyl Disc) - 严格正圆与 GPU 加速 */

@@ -20,7 +20,7 @@
     <link rel="icon" href="/music/assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="/music/assets/yun-yin.png">
     <link rel="manifest" href="/music/manifest.json">
-    <link rel="modulepreload" href="app-p0c1hq2v.js">
+    <link rel="modulepreload" href="app-gzszy3mn.js">
     <link rel="stylesheet" href="css/theme_variables.css">
     <link rel="stylesheet" href="css/tailwind.generated.css">
     <script src="js/vendor-bridge.js"></script>
@@ -3091,9 +3091,6 @@
             <img id="detail-bg-cover" src="" alt="" aria-hidden="true" width="1600" height="1600"
                 class="w-full h-full object-cover filter blur-[60px] opacity-40 scale-125 transition-opacity duration-1000">
             <div id="player-detail-bg-overlay" class="absolute inset-0 t-bg-panel/30 backdrop-blur-3xl"></div>
-            <!-- Detail Visualizer Canvas (Raised to avoid being blocked by footer) -->
-            <canvas id="detail-visualizer"
-                class="absolute bottom-24 left-0 w-full h-[calc(100vh-6rem)] pointer-events-none opacity-30"></canvas>
         </div>
 
         <!-- Navbar / Controls -->
@@ -3114,6 +3111,9 @@
             <div id="mobile-player-cover-container" class="flex flex-col items-center justify-center flex-shrink-0 relative my-auto">
                 <!-- Turntable Wrap -->
                 <div class="vinyl-player-container">
+                    <!-- Radial Visualizer Canvas (Centered behind spinning vinyl disc) -->
+                    <canvas id="detail-visualizer" class="vinyl-visualizer-canvas" aria-hidden="true"></canvas>
+
                     <!-- Tonearm (机械唱针) -->
                     <svg id="vinyl-tonearm" class="vinyl-tonearm" viewBox="0 0 100 160" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <!-- Tonearm Base Pivot -->
@@ -3146,7 +3146,7 @@
 
             <!-- Right: Lyrics -->
             <div id="lyrics-wrapper"
-                class="w-full md:w-[500px] lg:w-[600px] flex-1 min-h-0 md:flex-none md:h-full md:max-h-[70vh] flex flex-col relative transition-all duration-300 flex-shrink-0">
+                class="group w-full md:w-[500px] lg:w-[600px] flex-1 min-h-0 md:flex-none md:h-full md:max-h-[70vh] flex flex-col relative transition-all duration-300 flex-shrink-0">
                 <!-- Song Info -->
                 <div class="mb-4 md:mb-8 text-center md:text-left px-4 md:pl-6 select-none transition-all duration-300">
                     <div id="detail-title-container" class="overflow-hidden whitespace-nowrap mb-1">
@@ -3158,20 +3158,25 @@
                     <div id="detail-artist"
                         class="inline-block text-base md:text-xl t-text-muted font-medium truncate max-w-full">Artist
                     </div>
-                    <!-- Lyric Offset Adjustment Toolbar -->
-                    <div class="flex items-center justify-center md:justify-start gap-1.5 mt-2 text-xs select-none opacity-80 hover:opacity-100 transition-opacity">
-                        <span class="text-[11px] t-text-muted mr-0.5"><i class="fas fa-sliders-h mr-1 text-[10px]"></i>歌词微调:</span>
-                        <button type="button" data-event-click-action="adjustLyricOffset" data-event-click-args="[-500]"
-                            class="px-2 py-0.5 rounded-md t-bg-item hover:t-bg-item-hover text-[11px] t-text-muted hover:text-emerald-500 transition-colors border t-border-main"
-                            title="歌词快 0.5 秒">-0.5s</button>
-                        <span id="lyric-offset-display" class="font-mono text-[11px] t-text-muted px-1">0.0s</span>
-                        <button type="button" data-event-click-action="adjustLyricOffset" data-event-click-args="[500]"
-                            class="px-2 py-0.5 rounded-md t-bg-item hover:t-bg-item-hover text-[11px] t-text-muted hover:text-emerald-500 transition-colors border t-border-main"
-                            title="歌词慢 0.5 秒">+0.5s</button>
-                        <button type="button" data-event-click-action="resetLyricOffset"
-                            class="px-1.5 py-0.5 rounded-md t-bg-item hover:t-bg-item-hover text-[10px] text-gray-400 hover:text-red-500 transition-colors border t-border-main ml-0.5"
-                            title="重置歌词时间">重置</button>
-                    </div>
+                </div>
+
+                <!-- Floating Vertical Lyric Offset Capsule (Auto-hides, reveals on hover) -->
+                <div id="lyric-offset-capsule"
+                    class="lyric-offset-capsule"
+                    role="toolbar" aria-label="歌词微调工具栏">
+                    <button type="button" data-event-click-action="adjustLyricOffset" data-event-click-args="[500]"
+                        class="lyric-offset-btn"
+                        title="歌词延后 0.5 秒 (+0.5s)" aria-label="歌词延后 0.5 秒">
+                        <i class="fas fa-plus text-[10px]"></i>
+                    </button>
+                    <button type="button" id="lyric-offset-display" data-event-click-action="resetLyricOffset"
+                        class="lyric-offset-val font-mono"
+                        title="单击重置歌词微调时间" aria-label="当前歌词微调时间，单击重置">0.0s</button>
+                    <button type="button" data-event-click-action="adjustLyricOffset" data-event-click-args="[-500]"
+                        class="lyric-offset-btn"
+                        title="歌词提前 0.5 秒 (-0.5s)" aria-label="歌词提前 0.5 秒">
+                        <i class="fas fa-minus text-[10px]"></i>
+                    </button>
                 </div>
 
                 <!-- Scroll Indicator - 固定参考线 -->
@@ -4693,7 +4698,7 @@
     <audio id="audio-player" crossorigin="anonymous"></audio>
 
     <!-- The player module owns feature initialization and delegated events. -->
-    <script type="module" src="app-p0c1hq2v.js"></script>
+    <script type="module" src="app-gzszy3mn.js"></script>
 </body>
 
 </html>

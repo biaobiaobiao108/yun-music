@@ -315,13 +315,19 @@ const musicVisualizer = (function () {
         waveDetail.clearAnimations();
         if (s.showDetailVisualizer && detailCanvas) {
             const style = s.detailVisualizerStyle || 'pulse';
+            const discEl = document.getElementById('vinyl-disc');
+            const discRect = discEl ? discEl.getBoundingClientRect() : null;
+            const dpr = window.devicePixelRatio || 1;
+            const discWidthPx = (discRect && discRect.width > 0) ? discRect.width * dpr : (detailCanvas.width * 0.76);
+            const baseDiameter = Math.max(100, Math.round(discWidthPx - 4 * dpr));
+
             const options = {
                 fillColor: themeColor,
                 lineColor: themeColor,
-                lineWidth: 1.5,
-                count: 60,
+                lineWidth: Math.max(1, Math.round(1.5 * dpr)),
+                count: 64,
                 rounded: true,
-                diameter: 220,
+                diameter: baseDiameter,
                 gap: globalGap // 为 Pulse 等样式应用全局风格间距
             };
 
@@ -329,15 +335,22 @@ const musicVisualizer = (function () {
 
             if (style === 'dots') {
                 AnimationClass = waveDetail.animations.Glob;
-                options.diameter = 180;
+                options.diameter = Math.max(100, Math.round(discWidthPx - 6 * dpr));
+                options.count = 80;
             } else if (style === 'flower') {
                 AnimationClass = waveDetail.animations.Flower;
-                options.diameter = 200;
+                options.diameter = Math.max(100, Math.round(discWidthPx - 4 * dpr));
+                options.count = 32;
+            } else {
+                // Pulse (Turntable)
+                options.cubeHeight = Math.max(4, Math.round(5 * dpr));
             }
 
             waveDetail.addAnimation(new AnimationClass(options));
             waveDetail.start();
-            detailCanvas.style.opacity = opacity;
+            // 淡化详情页波形显示效果，使其柔和不抢眼
+            const detailOpacity = Math.max(0.08, opacity * 0.65);
+            detailCanvas.style.opacity = String(detailOpacity);
         } else if (detailCanvas) {
             waveDetail.stop();
             detailCanvas.style.opacity = '0';

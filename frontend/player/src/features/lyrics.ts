@@ -1042,6 +1042,7 @@ function renderLyric(lines, emptyMsg = '暂无歌词') {
             el.innerText = `${sign}${(currentLyricOffsetMs / 1000).toFixed(1)}s`;
             el.classList.toggle('text-emerald-500', currentLyricOffsetMs !== 0);
             el.classList.toggle('font-bold', currentLyricOffsetMs !== 0);
+            el.classList.toggle('is-offset', currentLyricOffsetMs !== 0);
         }
     }
 
