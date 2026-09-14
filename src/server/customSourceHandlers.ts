@@ -37,6 +37,47 @@ const requireAdmin = (ctx: HttpContext): void => {
     if (!verifyAdminAuth(ctx.request)) throw new Error('管理员权限不足')
 }
 
+const sourceMutationTails = new Map<string, Promise<void>>()
+
+async function withSourceMutationLock<T>(owner: string, operation: () => Promise<T>): Promise<T> {
+    const previous = sourceMutationTails.get(owner) || Promise.resolve()
+    let release!: () => void
+    const current = new Promise<void>(resolve => { release = resolve })
+    sourceMutationTails.set(owner, current)
+    await previous
+    try {
+        return await operation()
+    } finally {
+        release()
+        if (sourceMutationTails.get(owner) === current) sourceMutationTails.delete(owner)
+    }
+}
+
+async function withSourceMutationLocks<T>(owners: string[], operation: () => Promise<T>): Promise<T> {
+    const uniqueOwners = [...new Set(owners)].sort()
+    const acquire = async (index: number): Promise<T> => {
+        if (index >= uniqueOwners.length) return operation()
+        return withSourceMutationLock(uniqueOwners[index], () => acquire(index + 1))
+    }
+    return acquire(0)
+}
+
+function writeTextFileAtomic(filePath: string, content: string): void {
+    const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
+    try {
+        fs.writeFileSync(tempPath, content, 'utf-8')
+        fs.renameSync(tempPath, filePath)
+    } finally {
+        if (fs.existsSync(tempPath)) {
+            try { fs.unlinkSync(tempPath) } catch { }
+        }
+    }
+}
+
+function writeJsonFileAtomic(filePath: string, value: unknown): void {
+    writeTextFileAtomic(filePath, JSON.stringify(value, null, 2))
+}
+
 // 验证脚本
 export async function handleValidate(ctx: HttpContext): Promise<Response> {
     try {
@@ -58,33 +99,38 @@ export async function handleValidate(ctx: HttpContext): Promise<Response> {
             enabled: false,
             allowUnsafeVM: !!allowUnsafeVM && verifyAdminAuth(ctx.request),
             ...metadata,
-            owner: 'temp' // 临时验证 owner
+            owner: 'temp', // 临时验证 owner
+            persist: false,
         } as any)
 
-        if (result.success) {
-            // 检查是否注册了任何源
-            const api = result.apiInstance
-            const sources = api?.info?.sources || {}
-            const sourcesCount = Object.keys(sources).length
+        try {
+            if (result.success) {
+                // 检查是否注册了任何源
+                const api = result.apiInstance
+                const sources = api?.info?.sources || {}
+                const sourcesCount = Object.keys(sources).length
 
-            if (sourcesCount === 0) {
-                throw new Error('脚本没有注册任何音源。请确保脚本正确调用了 lx.send("inited", { sources: {...} })')
+                if (sourcesCount === 0) {
+                    throw new Error('脚本没有注册任何音源。请确保脚本正确调用了 lx.send("inited", { sources: {...} })')
+                }
+
+                return ctx.json({
+                    valid: true,
+                    metadata,
+                    sources: Object.keys(sources),
+                    sourcesCount
+                })
+            } else {
+                return ctx.json({
+                    valid: false,
+                    error: result.error,
+                    requireUnsafe: result.requireUnsafe,
+                    disabledVM: result.requireUnsafe && !global.lx.config['system.allowUnsafeVM'],
+                    metadata // 即使验证失败也返回元数据，方便前端展示
+                })
             }
-
-            return ctx.json({
-                valid: true,
-                metadata,
-                sources: Object.keys(sources),
-                sourcesCount
-            })
-        } else {
-            return ctx.json({
-                valid: false,
-                error: result.error,
-                requireUnsafe: result.requireUnsafe,
-                disabledVM: result.requireUnsafe && !global.lx.config['system.allowUnsafeVM'],
-                metadata // 即使验证失败也返回元数据，方便前端展示
-            })
+        } finally {
+            if (result.success) await result.apiInstance?.dispose?.()
         }
     } catch (err: any) {
         return ctx.json({ valid: false, error: err.message }, 400)
@@ -105,13 +151,18 @@ async function getScriptInfo(scriptContent: string, allowUnsafeVM: boolean = fal
             enabled: false,
             allowUnsafeVM,
             ...metadata,
-            owner: 'temp'
+            owner: 'temp',
+            persist: false,
         } as any)
 
-        if (result.success && result.apiInstance?.info?.sources) {
-            supportedSources = Object.keys(result.apiInstance.info.sources)
-        } else {
-            requireUnsafe = !!result.requireUnsafe
+        try {
+            if (result.success && result.apiInstance?.info?.sources) {
+                supportedSources = Object.keys(result.apiInstance.info.sources)
+            } else {
+                requireUnsafe = !!result.requireUnsafe
+            }
+        } finally {
+            if (result.success) await result.apiInstance?.dispose?.()
         }
     } catch (e: any) {
         console.warn('[CustomSource] 分析脚本支持源失败:', e.message)
@@ -167,14 +218,6 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
             throw new Error('Script content is missing or too large')
         }
 
-        const sourcesDir = getSourceDir(targetOwner)
-        const metaPath = path.join(sourcesDir, 'sources.json')
-
-        // 创建目录
-        if (!fs.existsSync(sourcesDir)) {
-            fs.mkdirSync(sourcesDir, { recursive: true })
-        }
-
         // 获取脚本信息
         const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, Boolean(allowUnsafeVM) && verifyAdminAuth(ctx.request))
 
@@ -198,46 +241,47 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
             }
         }
 
-        // 生成唯一ID（可读的文件名）
-        const id = generateId(metadata.name, filename)
-        assertSafePathSegment(id, 'source filename')
-        const scriptPath = path.join(sourcesDir, id)
+        let id = ''
+        await withSourceMutationLock(targetOwner, async () => {
+            const sourcesDir = getSourceDir(targetOwner)
+            const metaPath = path.join(sourcesDir, 'sources.json')
+            if (!fs.existsSync(sourcesDir)) fs.mkdirSync(sourcesDir, { recursive: true })
 
-        // 读取现有列表
-        let sources: any[] = []
-        if (fs.existsSync(metaPath)) {
-            sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-        }
+            // 生成唯一ID（可读的文件名）
+            id = generateId(metadata.name, filename)
+            assertSafePathSegment(id, 'source filename')
+            const scriptPath = path.join(sourcesDir, id)
 
-        // 检查是否已存在
-        const existing = sources.find(s => s.id === id)
-        if (existing) {
-            throw new Error(`源 "${metadata.name || filename}" 已存在于 [${targetOwner}]`)
-        }
+            let sources: any[] = []
+            if (fs.existsSync(metaPath)) sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+            if (sources.find(s => s.id === id)) {
+                throw new Error(`源 "${metadata.name || filename}" 已存在于 [${targetOwner}]`)
+            }
 
-        // 保存脚本文件
-        fs.writeFileSync(scriptPath, content, 'utf-8')
+            writeTextFileAtomic(scriptPath, content)
+            try {
+                sources.push({
+                    id,
+                    name: metadata.name || filename,
+                    version: metadata.version || '1.0.0',
+                    author: metadata.author || '未知',
+                    description: metadata.description || '',
+                    homepage: metadata.homepage || '',
+                    size: Buffer.byteLength(content, 'utf-8'),
+                    supportedSources,
+                    enabled: false,
+                    uploadTime: new Date().toISOString(),
+                    allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM,
+                    requireUnsafe: !!requireUnsafe
+                })
+                writeJsonFileAtomic(metaPath, sources)
+            } catch (error) {
+                try { fs.unlinkSync(scriptPath) } catch { }
+                throw error
+            }
 
-        // 更新元数据
-        sources.push({
-            id,
-            name: metadata.name || filename,
-            version: metadata.version || '1.0.0',
-            author: metadata.author || '未知',
-            description: metadata.description || '',
-            homepage: metadata.homepage || '',
-            size: Buffer.byteLength(content, 'utf-8'),
-            supportedSources, // 保存支持的源
-            enabled: false, // 默认禁用
-            uploadTime: new Date().toISOString(),
-            allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM,
-            requireUnsafe: !!requireUnsafe
+            await initUserApis(targetOwner)
         })
-
-        fs.writeFileSync(metaPath, JSON.stringify(sources, null, 2))
-
-        // 重新加载该用户的API
-        await initUserApis(targetOwner)
 
         return ctx.json({ success: true, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM })
     } catch (err: any) {
@@ -353,56 +397,49 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
             }
         }
 
-        const sourcesDir = getSourceDir(targetOwner)
-        const metaPath = path.join(sourcesDir, 'sources.json')
-
-        // 创建目录
-        if (!fs.existsSync(sourcesDir)) {
-            fs.mkdirSync(sourcesDir, { recursive: true })
-        }
-
         // 生成唯一ID（可读的文件名）
         const displayName = metadata.name || filename || 'unknown_source'
-        const id = generateId(metadata.name, filename || 'unknown_source')
-        assertSafePathSegment(id, 'source filename')
-        const scriptPath = path.join(sourcesDir, id)
+        let id = ''
+        await withSourceMutationLock(targetOwner, async () => {
+            const sourcesDir = getSourceDir(targetOwner)
+            const metaPath = path.join(sourcesDir, 'sources.json')
+            if (!fs.existsSync(sourcesDir)) fs.mkdirSync(sourcesDir, { recursive: true })
 
-        // 读取现有列表
-        let sources: any[] = []
-        if (fs.existsSync(metaPath)) {
-            sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-        }
+            id = generateId(metadata.name, filename || 'unknown_source')
+            assertSafePathSegment(id, 'source filename')
+            const scriptPath = path.join(sourcesDir, id)
 
-        // 检查是否已存在
-        const existing = sources.find(s => s.id === id)
-        if (existing) {
-            throw new Error(`源 "${displayName}" 已存在于 [${targetOwner}]`)
-        }
+            let sources: any[] = []
+            if (fs.existsSync(metaPath)) sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+            if (sources.find(s => s.id === id)) {
+                throw new Error(`源 "${displayName}" 已存在于 [${targetOwner}]`)
+            }
 
-        // 保存脚本文件
-        fs.writeFileSync(scriptPath, content, 'utf-8')
+            writeTextFileAtomic(scriptPath, content)
+            try {
+                sources.push({
+                    id,
+                    name: metadata.name || filename,
+                    version: metadata.version || '1.0.0',
+                    author: metadata.author || '未知',
+                    description: metadata.description || '',
+                    homepage: metadata.homepage || '',
+                    size: Buffer.byteLength(content, 'utf-8'),
+                    supportedSources,
+                    enabled: false,
+                    uploadTime: new Date().toISOString(),
+                    sourceUrl: url,
+                    allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM,
+                    requireUnsafe: !!requireUnsafe
+                })
+                writeJsonFileAtomic(metaPath, sources)
+            } catch (error) {
+                try { fs.unlinkSync(scriptPath) } catch { }
+                throw error
+            }
 
-        // 更新元数据
-        sources.push({
-            id,
-            name: metadata.name || filename,
-            version: metadata.version || '1.0.0',
-            author: metadata.author || '未知',
-            description: metadata.description || '',
-            homepage: metadata.homepage || '',
-            size: Buffer.byteLength(content, 'utf-8'),
-            supportedSources, // 保存支持的源
-            enabled: false,
-            uploadTime: new Date().toISOString(),
-            sourceUrl: url,
-            allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM,
-            requireUnsafe: !!requireUnsafe
+            await initUserApis(targetOwner)
         })
-
-        fs.writeFileSync(metaPath, JSON.stringify(sources, null, 2))
-
-        // 重新加载
-        await initUserApis(targetOwner)
 
         return ctx.json({ success: true, filename: displayName, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM })
     } catch (err: any) {
@@ -548,6 +585,7 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
             }
         }
 
+        return await withSourceMutationLocks([targetOwner, 'open'], async () => {
         let sourcesDir = getSourceDir(targetOwner)
         let metaPath = path.join(sourcesDir, 'sources.json')
 
@@ -602,7 +640,7 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
             }
             if (!states[targetId]) states[targetId] = {}
             states[targetId].enabled = enabled !== undefined ? enabled : !(states[targetId].enabled ?? target.enabled)
-            fs.writeFileSync(userStatesPath, JSON.stringify(states, null, 2))
+            writeJsonFileAtomic(userStatesPath, states)
 
             return ctx.json({ success: true, enabled: states[targetId].enabled })
         }
@@ -621,7 +659,7 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
         if (allowUnsafeVM === true) target.allowUnsafeVM = true
         target.enabled = enabled !== undefined ? enabled : !target.enabled
 
-        fs.writeFileSync(metaPath, JSON.stringify(sources, null, 2))
+        writeJsonFileAtomic(metaPath, sources)
 
         // 重新加载
         try {
@@ -640,7 +678,7 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
                     // 回滚状态
                     target.enabled = oldEnabled
                     target.allowUnsafeVM = oldAllowUnsafeVM
-                    fs.writeFileSync(metaPath, JSON.stringify(sources, null, 2))
+                    writeJsonFileAtomic(metaPath, sources)
                     await initUserApis(targetOwner)
 
                     // 如果系统已禁用 VM 模式，直接提示已禁用
@@ -665,6 +703,7 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
             }
             throw e
         }
+        })
     } catch (err: any) {
         console.error('[CustomSource] Toggle error:', err)
         return ctx.text(err.message, 500)
@@ -690,6 +729,7 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
             }
         }
 
+        return await withSourceMutationLock(targetOwner, async () => {
         let sourcesDir = getSourceDir(targetOwner)
         let metaPath = path.join(sourcesDir, 'sources.json')
         let orderPath = path.join(sourcesDir, 'order.json')
@@ -699,7 +739,7 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
         }
 
         // 保存混合列表的绝对顺序到 order.json（用于 handleList 展示排序）
-        fs.writeFileSync(orderPath, JSON.stringify(sourceIds, null, 2))
+        writeJsonFileAtomic(orderPath, sourceIds)
 
         if (fs.existsSync(metaPath)) {
             const sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
@@ -715,13 +755,14 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
             for (const [id, source] of currentSourcesMap) {
                 newSources.push(source)
             }
-            fs.writeFileSync(metaPath, JSON.stringify(newSources, null, 2))
+            writeJsonFileAtomic(metaPath, newSources)
         }
 
         // 重新加载 API，使新顺序立即生效于解析优先级
         await initUserApis(targetOwner)
 
         return ctx.json({ success: true })
+        })
     } catch (err: any) {
         console.error('[CustomSource] Reorder error:', err)
         return ctx.text(err.message, 500)
@@ -746,6 +787,7 @@ export async function handleDelete(ctx: HttpContext): Promise<Response> {
             }
         }
 
+        return await withSourceMutationLocks([targetOwner, 'open'], async () => {
         let sourcesDir = getSourceDir(targetOwner)
         let metaPath = path.join(sourcesDir, 'sources.json')
 
@@ -790,17 +832,15 @@ export async function handleDelete(ctx: HttpContext): Promise<Response> {
         const scriptPath = path.join(sourcesDir, targetId)
         sources = sources.filter((s: any) => s.id !== targetId)
 
-        // 删除脚本文件
-        if (fs.existsSync(scriptPath)) {
-            fs.unlinkSync(scriptPath)
-        }
-
-        fs.writeFileSync(metaPath, JSON.stringify(sources, null, 2))
+        // 先原子提交元数据，再删除脚本；元数据写失败时保留脚本，避免数据丢失。
+        writeJsonFileAtomic(metaPath, sources)
+        if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath)
 
         // 重新初始化
         await initUserApis(targetOwner)
 
         return ctx.json({ success: true })
+        })
     } catch (err: any) {
         console.error('[CustomSource] Delete error:', err)
         return ctx.text(err.message, 500)

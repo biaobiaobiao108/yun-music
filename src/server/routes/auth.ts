@@ -122,7 +122,10 @@ export const createAuthRouter = (): Router => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
       if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
-      const { password } = await ctx.bodyJson<{ password?: string }>()
+      const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
+      if (typeof password !== 'string' || password.length > 1024) {
+        return ctx.fail(400, '密码格式错误')
+      }
       if (!safeStringEqual(password, global.lx.config['frontend.password'])) {
         recordLoginFailure(ip)
         loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
@@ -141,7 +144,10 @@ export const createAuthRouter = (): Router => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
       if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
-      const { password } = await ctx.bodyJson<{ password?: string }>()
+      const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
+      if (typeof password !== 'string' || password.length > 1024) {
+        return ctx.fail(400, '密码格式错误')
+      }
       if (!safeStringEqual(password, global.lx.config['frontend.password'])) {
         recordLoginFailure(ip)
         loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
@@ -166,7 +172,10 @@ export const createAuthRouter = (): Router => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
       if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
-      const { username, password } = await ctx.bodyJson<{ username?: string; password?: string }>()
+      const { username, password } = await ctx.bodyJson<{ username?: string; password?: string }>(64 * 1024)
+      if (typeof username !== 'string' || username.length > 128 || typeof password !== 'string' || password.length > 1024) {
+        return ctx.fail(400, '用户名或密码格式错误')
+      }
       const user = configuredUsers().find(item => {
         if (item.name !== username) return false
         const row = getDb().query<{ password_hash: string }, [string]>('SELECT password_hash FROM users WHERE name = ?').get(item.name)
@@ -201,7 +210,10 @@ export const createAuthRouter = (): Router => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
       if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
-      const { password } = await ctx.bodyJson<{ password?: string }>()
+      const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
+      if (typeof password !== 'string' || password.length > 1024) {
+        return ctx.fail(400, '密码格式错误')
+      }
       const configuredPassword = global.lx.config['player.password']
       if (!safeStringEqual(password, configuredPassword)) {
         recordLoginFailure(ip)

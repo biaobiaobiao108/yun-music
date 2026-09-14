@@ -1918,15 +1918,15 @@ async function updateServerCacheConfig(location, pattern) {
                         const renameData = await renameRes.json();
                         hideLoading();
                         if (renameData.success) {
-                            showToast(`重命名完成！成功: ${renameData.successCount}, 跳过: ${renameData.skipCount}, 失败: ${renameData.failCount}`, 'success');
+                            showToast('success', `重命名完成！成功: ${renameData.successCount}, 跳过: ${renameData.skipCount}, 失败: ${renameData.failCount}`);
                             // 刷新可能的列表显示
                             if (typeof refreshCacheList === 'function') refreshCacheList();
                         } else {
-                            showToast('重命名操作失败: ' + (renameData.message || '未知错误'), 'error');
+                            showToast('error', '重命名操作失败: ' + (renameData.message || '未知错误'));
                         }
                     } catch (e) {
                         hideLoading();
-                        showToast('重命名请求异常', 'error');
+                        showToast('error', '重命名请求异常');
                         console.error(e);
                     }
                 }

@@ -70,10 +70,16 @@ function renderPlaylistAddGrid() {
         btn.className = className;
         btn.onclick = () => handleTogglePlaylist(listId, btn); // Use handler wrapper
 
-        btn.innerHTML = `
-            <span class="truncate max-w-[80%]">${listName}</span>
-            ${(!isBatch && isIncluded) ? '<i class="fas fa-check text-xs ml-1 opacity-80"></i>' : ''}
-        `;
+        const label = document.createElement('span');
+        label.className = 'truncate max-w-[80%]';
+        label.textContent = String(listName ?? '');
+        btn.appendChild(label);
+        if (!isBatch && isIncluded) {
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-check text-xs ml-1 opacity-80';
+            icon.setAttribute('aria-hidden', 'true');
+            btn.appendChild(icon);
+        }
         return btn;
     };
 
@@ -389,20 +395,21 @@ async function handleTogglePlaylist(listId, btnElement) {
 }
 
 function updateGridItemVisuals(btn, isIncluded) {
+    const textSpan = btn.querySelector('span');
+    const text = textSpan?.textContent || btn.textContent || '';
+    const label = document.createElement('span');
+    label.className = 'truncate max-w-[80%]';
+    label.textContent = text;
+
     if (isIncluded) {
         btn.className = "relative h-14 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1 shadow-sm overflow-hidden bg-red-500 text-white shadow-md scale-[1.02] ring-2 ring-red-200";
-        // Update icon if needed, though innerHTML replacement is easiest
-        const textSpan = btn.querySelector('span'); // Assuming first span is text
-        const text = textSpan ? textSpan.innerText : btn.innerText;
-        btn.innerHTML = `
-            <span class="truncate max-w-[80%]">${text}</span>
-            <i class="fas fa-check text-xs ml-1 opacity-80"></i>
-        `;
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-check text-xs ml-1 opacity-80';
+        icon.setAttribute('aria-hidden', 'true');
+        btn.replaceChildren(label, icon);
     } else {
         btn.className = "relative h-14 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1 shadow-sm overflow-hidden bg-red-50 text-red-500 hover:bg-red-100 hover:shadow";
-        const textSpan = btn.querySelector('span');
-        const text = textSpan ? textSpan.innerText : btn.innerText;
-        btn.innerHTML = `<span class="truncate max-w-[80%]">${text}</span>`;
+        btn.replaceChildren(label);
     }
 }
 

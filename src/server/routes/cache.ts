@@ -76,6 +76,40 @@ const getCacheRequestUsername = (ctx: HttpContext): string | null => {
   return verified === requested ? verified : null
 }
 
+const MAX_PROGRESS_IDS = 60
+const isOpaqueBrowserProgressId = (id: string): boolean => (
+  /^(?:dl|server)_[A-Za-z0-9_-]{20,128}$/.test(id)
+)
+
+const DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP = 4
+const DOWNLOAD_PROXY_MAX_TAGGING_PER_IP = 1
+const downloadProxyActiveByIp = new Map<string, number>()
+const downloadProxyTaggingByIp = new Map<string, number>()
+
+const tryAcquireDownloadProxySlot = (ip: string, tagging: boolean): (() => void) | null => {
+  const active = downloadProxyActiveByIp.get(ip) || 0
+  const activeTagging = downloadProxyTaggingByIp.get(ip) || 0
+  if (active >= DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP || (tagging && activeTagging >= DOWNLOAD_PROXY_MAX_TAGGING_PER_IP)) {
+    return null
+  }
+  downloadProxyActiveByIp.set(ip, active + 1)
+  if (tagging) downloadProxyTaggingByIp.set(ip, activeTagging + 1)
+
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    const nextActive = (downloadProxyActiveByIp.get(ip) || 1) - 1
+    if (nextActive > 0) downloadProxyActiveByIp.set(ip, nextActive)
+    else downloadProxyActiveByIp.delete(ip)
+    if (tagging) {
+      const nextTagging = (downloadProxyTaggingByIp.get(ip) || 1) - 1
+      if (nextTagging > 0) downloadProxyTaggingByIp.set(ip, nextTagging)
+      else downloadProxyTaggingByIp.delete(ip)
+    }
+  }
+}
+
 type CacheTargetResult = { ok: true; username: string } | { ok: false; error: Response }
 
 /**
@@ -651,13 +685,21 @@ export const createCacheRouter = (): Router => {
   })
 
   router.get('/api/music/cache/progress', (ctx) => {
-    const ids = ctx.query.get('ids')?.split(',') || []
-    const progress: any = {}
-    ids.forEach((id) => {
-      if (fileCache.cacheProgress.has(id)) {
-        progress[id] = fileCache.cacheProgress.get(id)
-      }
-    })
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const ids = (ctx.query.get('ids')?.split(',') || [])
+      .map(id => id.trim())
+      .filter(id => id.length > 0 && id.length <= 128)
+      .slice(0, MAX_PROGRESS_IDS)
+    const progress: Record<string, any> = serverDownloadQueue.getProgressForUser(username, ids)
+    // Browser-side proxy downloads do not belong to the persistent server
+    // queue. Their IDs are high-entropy UUID-style handles, so only accept
+    // that narrow format instead of exposing arbitrary global cache keys.
+    for (const id of ids) {
+      if (progress[id] || !isOpaqueBrowserProgressId(id)) continue
+      const value = fileCache.cacheProgress.get(id)
+      if (value) progress[id] = value
+    }
     return ctx.json({ success: true, data: progress })
   })
 
@@ -1052,8 +1094,13 @@ export const createCacheRouter = (): Router => {
     const urlStr = ctx.query.get('url')
     const filename = (ctx.query.get('filename') || 'download.mp3').slice(0, 255)
     const isInline = ctx.query.get('inline') === '1'
+    const isTaggingMode = ctx.query.get('tag') === '1'
 
     if (!urlStr) return ctx.fail(400, '缺少必要参数：url')
+    if (urlStr.length > 4096) return ctx.fail(413, '远程地址过长')
+
+    const releaseProxySlot = tryAcquireDownloadProxySlot(ctx.remoteAddress || 'unknown', isTaggingMode)
+    if (!releaseProxySlot) return ctx.fail(429, '当前下载请求过多，请稍后重试')
 
     return new Promise<Response>((resolve) => {
       let responseSettled = false
@@ -1065,6 +1112,7 @@ export const createCacheRouter = (): Router => {
           ctx.request.signal.removeEventListener('abort', abortListener)
           abortListener = null
         }
+        releaseProxySlot()
         resolve(response)
       }
 
@@ -1080,7 +1128,6 @@ export const createCacheRouter = (): Router => {
       if (ctx.request.signal.aborted) finishExpectedAbort()
 
       try {
-        const isTaggingMode = ctx.query.get('tag') === '1'
         const taskId = ctx.query.get('taskId')
         const rangeHeader = ctx.headers.get('range')
         const isFullRange = rangeHeader === 'bytes=0-'

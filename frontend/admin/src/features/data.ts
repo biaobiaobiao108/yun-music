@@ -1,7 +1,50 @@
 import type { AdminFeatureContext } from '../types';
+import { safeResourceUrl } from '../utils';
 
 export function initDataFeature(context: AdminFeatureContext) {
     const app = context.app;
+
+    function renderSongTags(song: any): string {
+        let html = '<div class="song-meta-tags">';
+        const source = String(song?.source || '').replace(/[^a-zA-Z0-9_-]/g, '');
+        if (source) html += `<span class="tag tag-source ${source}">${app.escapeHtml(song.source)}</span>`;
+
+        const qualitys = song?.meta ? (song.meta._qualitys || song.meta.qualitys) : null;
+        if (Array.isArray(qualitys)) {
+            if (qualitys.some((quality: any) => quality?.type === 'flac24bit')) html += '<span class="tag tag-quality hr">Hi-Res</span>';
+            else if (qualitys.some((quality: any) => quality?.type === 'flac')) html += '<span class="tag tag-quality lossless">SQ</span>';
+            else if (qualitys.some((quality: any) => quality?.type === '320k')) html += '<span class="tag tag-quality high">HQ</span>';
+        } else if (qualitys) {
+            if (qualitys.flac24bit) html += '<span class="tag tag-quality hr">Hi-Res</span>';
+            else if (qualitys.flac) html += '<span class="tag tag-quality lossless">SQ</span>';
+            else if (qualitys['320k']) html += '<span class="tag tag-quality high">HQ</span>';
+        }
+
+        if (song?.interval) html += `<span class="tag tag-interval">${app.escapeHtml(song.interval)}</span>`;
+        return `${html}</div>`;
+    }
+
+    function renderSongNameCell(song: any): string {
+        const picUrl = safeResourceUrl(song?.meta?.picUrl);
+        const songName = app.escapeHtml(song?.name || '未知歌曲');
+        const coverHtml = picUrl
+            ? `<img src="${app.escapeHtml(picUrl)}" class="song-cover" width="48" height="48" loading="lazy" decoding="async" alt="${songName}专辑封面">`
+            : '<div class="song-cover" aria-hidden="true" style="background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">🎵</div>';
+        const singerHtml = song?.singer
+            ? `<span class="song-singer-mobile">${app.escapeHtml(song.singer)}</span>`
+            : '';
+
+        return `
+            <div class="song-col-name">
+                ${coverHtml}
+                <div class="song-info-wrapper min-w-0">
+                    <span class="song-title-text dynamic-marquee truncate" title="${songName}">${songName}</span>
+                    ${singerHtml}
+                    ${renderSongTags(song)}
+                </div>
+            </div>
+        `;
+    }
 
     function bindDataEvents() {
         document.getElementById('refresh-data-btn')?.addEventListener('click', () => app.loadUserData());
@@ -93,7 +136,7 @@ export function initDataFeature(context: AdminFeatureContext) {
                             <div class="playlist-info">
                                 <div class="playlist-name">${app.escapeHtml(list.name)}</div>
                                 <div class="playlist-meta">
-                                    <span class="playlist-id">ID: ${list.id}</span>
+                                    <span class="playlist-id">ID: ${app.escapeHtml(list.id)}</span>
                                     <span class="playlist-count">${songCount} 首</span>
                                 </div>
                             </div>
@@ -148,7 +191,7 @@ export function initDataFeature(context: AdminFeatureContext) {
                     </button>
                 </div>
                 <div class="playlist-detail-meta">
-                    <span>ID: ${playlist.id}</span>
+                    <span>ID: ${app.escapeHtml(playlist.id)}</span>
                     <span>${playlist.list?.length || 0} 首歌曲</span>
                 </div>
             </div>
@@ -317,7 +360,7 @@ export function initDataFeature(context: AdminFeatureContext) {
                     </svg>
                     返回列表
                 </button>
-                <h3>${systemList.name}</h3>
+                <h3>${app.escapeHtml(systemList.name)}</h3>
                 <div class="playlist-detail-meta">
                     <span>系统列表</span>
                     <span>${systemList.list?.length || 0} 首歌曲</span>
@@ -638,6 +681,7 @@ export function initDataFeature(context: AdminFeatureContext) {
     return {
         bindDataEvents,
         loadUserData,
+        renderSongNameCell,
         renderPlaylists,
         viewPlaylistDetails,
         deletePlaylist,

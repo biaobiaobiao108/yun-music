@@ -132,9 +132,9 @@ export class HttpContext {
   }
 
   /** 解析 JSON 请求体 */
-  async bodyJson<T = unknown>(): Promise<T> {
+  async bodyJson<T = unknown>(maxBytes = 20 * 1024 * 1024): Promise<T> {
     try {
-      return JSON.parse(await this.readBodyText()) as T
+      return JSON.parse(await this.readBodyText(maxBytes)) as T
     } catch {
       throw new Error('Invalid JSON body')
     }

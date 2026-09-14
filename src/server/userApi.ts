@@ -7,6 +7,18 @@ import { assertSafeRemoteHttpUrl } from './networkSecurity'
 import { assertSafePathSegment, resolveInside } from '@/utils/pathSecurity'
 import { isRetiredOnlineSource, UnsupportedSourceError } from '@/common/musicSources'
 
+function writeJsonFileAtomic(filePath: string, value: unknown): void {
+    const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
+    try {
+        fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), 'utf-8')
+        fs.renameSync(tempPath, filePath)
+    } finally {
+        if (fs.existsSync(tempPath)) {
+            try { fs.unlinkSync(tempPath) } catch { }
+        }
+    }
+}
+
 let vm2ModulePromise: Promise<typeof import('vm2')> | null = null
 const loadVm2 = async () => {
     vm2ModulePromise ||= import('vm2')
@@ -76,6 +88,7 @@ interface UserApiInfo {
     enabled: boolean
     owner: string // 'open' or username
     allowUnsafeVM?: boolean
+    persist?: boolean
 }
 
 // 加载的 API 实例
@@ -541,7 +554,9 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
             }
         }
 
-        loadedApis.set(`${fullApiInfo.owner}_${apiInfo.id}`, apiInstance)
+        if (apiInfo.persist !== false) {
+            loadedApis.set(`${fullApiInfo.owner}_${apiInfo.id}`, apiInstance)
+        }
         console.log(`[UserApi] ✓ 成功加载: ${fullApiInfo.name} v${fullApiInfo.version} (Owner: ${fullApiInfo.owner})`)
         console.log(`[UserApi]   支持源: ${Object.keys(registeredSources).join(', ')}`)
         return { success: true, apiInstance, error: null }
@@ -844,7 +859,7 @@ async function loadSourcesFromDir(dirPath: string, owner: string, stats: { loade
         // =========================================================================
 
         for (const source of sources) {
-            if (!source.enabled && owner !== 'open') {
+            if (!source.enabled) {
                 console.log(`[UserApi] [${owner}] 跳过已禁用: ${source.name}`)
                 apiStatus.delete(`${owner}_${source.id}`)
                 continue
@@ -913,7 +928,7 @@ async function loadSourcesFromDir(dirPath: string, owner: string, stats: { loade
             const originalSources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
             const updatedMap = new Map(sources.map((s: any) => [s.id, s]))
             const merged = originalSources.map((s: any) => updatedMap.get(s.id) || s)
-            fs.writeFileSync(metaPath, JSON.stringify(merged, null, 2));
+            writeJsonFileAtomic(metaPath, merged)
             console.log(`[UserApi] [${owner}] 已更新 sources.json 元数据`);
         }
     } catch (error: any) {

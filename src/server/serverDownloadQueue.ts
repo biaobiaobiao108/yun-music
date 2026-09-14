@@ -691,6 +691,28 @@ export const getActiveTaskProgress = (username: string, songInfo: any, quality?:
   }
 }
 
+/**
+ * Return progress entries only for tasks owned by the requested user. The
+ * underlying cache map is process-global, so callers must not read it by key
+ * without first checking task ownership.
+ */
+export const getProgressForUser = (username: string, ids: string[]) => {
+  const allowedKeys = new Set<string>()
+  for (const task of tasks.values()) {
+    if (task.username !== username) continue
+    if (task.songKey) allowedKeys.add(task.songKey)
+    if (task.activeSongKey) allowedKeys.add(task.activeSongKey)
+  }
+
+  const progress: Record<string, any> = {}
+  for (const id of ids) {
+    if (!allowedKeys.has(id)) continue
+    const value = fileCache.cacheProgress.get(id)
+    if (value) progress[id] = value
+  }
+  return progress
+}
+
 export const pause = (username: string, id?: string) => {
   for (const task of tasks.values()) {
     if (task.username !== username || (id && task.id !== id)) continue

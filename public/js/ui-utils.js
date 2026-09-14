@@ -5,6 +5,12 @@
 */
 
 (function () {
+    function escapeHtml(value) {
+        const element = document.createElement('div');
+        element.textContent = String(value ?? '');
+        return element.innerHTML;
+    }
+
     // 1. Inject enhanced premium CSS
     const style = document.createElement('style');
     style.textContent = `
@@ -99,13 +105,14 @@
                     <i class="fas ${conf.icon} text-lg"></i>
                 </div>
                 <div class="flex-1 overflow-hidden">
-                    <div class="text-sm font-bold text-white pr-2">${message}</div>
+                    <div class="lx-toast-message text-sm font-bold text-white pr-2"></div>
                 </div>
                 <button class="lx-close-btn w-8 h-8 text-white/50 hover:text-white rounded-full ml-1 shrink-0">
                     <i class="fas fa-times text-sm"></i>
                 </button>
             </div>
         `;
+        toast.querySelector('.lx-toast-message').textContent = String(message ?? '');
 
         const gap = 12;
         let bottomBase = 32;
@@ -251,21 +258,28 @@
                                 <i class="fas ${icon} text-3xl"></i>
                             </div>
                             <div class="space-y-2">
-                                <h3 class="text-xl font-bold text-white tracking-tight">${title}</h3>
-                                <p class="text-sm text-white/60 leading-relaxed px-4">${message.replace(/\n/g, '<br>')}</p>
+                                <h3 class="text-xl font-bold text-white tracking-tight"></h3>
+                                <p class="lx-dialog-message text-sm text-white/60 leading-relaxed px-4"></p>
                             </div>
                         </div>
                     </div>
                     <div class="p-5 flex gap-3">
                         <button id="confirm-cancel" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-2xl">
-                            ${cancelText}
+
                         </button>
                         <button id="confirm-ok" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white bg-gradient-to-br ${accentGradient} rounded-2xl shadow-lg uppercase tracking-wider">
-                            ${confirmText}
+
                         </button>
                     </div>
                 </div>
             `;
+
+            modal.querySelector('h3').textContent = String(title ?? '');
+            const messageElement = modal.querySelector('.lx-dialog-message');
+            messageElement.textContent = String(message ?? '');
+            messageElement.style.whiteSpace = 'pre-line';
+            modal.querySelector('#confirm-cancel').textContent = String(cancelText ?? '取消');
+            modal.querySelector('#confirm-ok').textContent = String(confirmText ?? '确定');
 
             document.body.appendChild(modal);
 
@@ -308,6 +322,7 @@
             cancelText = '取消',
             inputType = 'text'
         } = options;
+        const safeInputType = ['text', 'password', 'url', 'number', 'search'].includes(inputType) ? inputType : 'text';
 
         return new Promise((resolve) => {
             const modal = document.createElement('div');
@@ -324,28 +339,36 @@
                                 <i class="fas fa-edit text-3xl"></i>
                             </div>
                             <div class="space-y-2 w-full text-center">
-                                <h3 class="text-xl font-bold text-white tracking-tight">${title}</h3>
-                                <p class="text-sm text-white/60 leading-relaxed mb-6">${message}</p>
-                                <input type="${inputType}" id="modal-input" 
+                                <h3 class="text-xl font-bold text-white tracking-tight"></h3>
+                                <p class="lx-dialog-message text-sm text-white/60 leading-relaxed mb-6"></p>
+                                <input type="text" id="modal-input"
                                     class="lx-input w-full px-5 py-4 rounded-2xl outline-none text-base placeholder:text-white/20"
-                                    placeholder="${placeholder}" value="${defaultValue}">
+                                    >
                             </div>
                         </div>
                     </div>
                     <div class="p-5 flex gap-3">
                         <button id="confirm-cancel" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-2xl">
-                            ${cancelText}
+
                         </button>
                         <button id="confirm-ok" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/30 rounded-2xl uppercase tracking-wider">
-                            ${confirmText}
+
                         </button>
                     </div>
                 </div>
             `;
 
+            modal.querySelector('h3').textContent = String(title ?? '');
+            modal.querySelector('.lx-dialog-message').textContent = String(message ?? '');
+            modal.querySelector('#confirm-cancel').textContent = String(cancelText ?? '取消');
+            modal.querySelector('#confirm-ok').textContent = String(confirmText ?? '确定');
+
             document.body.appendChild(modal);
 
             const input = modal.querySelector('#modal-input');
+            input.type = safeInputType;
+            input.placeholder = String(placeholder ?? '请输入内容...');
+            input.value = String(defaultValue ?? '');
             input.focus();
             if (defaultValue) input.select();
 
@@ -378,7 +401,7 @@
      * Marquee Helpers
      */
     function createMarqueeHtml(text, className = '') {
-        return `<div class="truncate dynamic-marquee min-w-0 ${className}" data-text="${text.replace(/"/g, '&quot;')}">${text}</div>`;
+        return `<div class="truncate dynamic-marquee min-w-0 ${escapeHtml(className)}" data-text="${escapeHtml(text)}">${escapeHtml(text)}</div>`;
     }
 
     function applyMarqueeChecks() {
@@ -394,7 +417,7 @@
                     el.innerHTML = `
                     <div class="w-full relative" style="${maskStyle}">
                         <div class="inline-block whitespace-nowrap animate-marquee hover:pause-animation">
-                            <span>${text}</span>${gap}<span>${text}</span>${gap}
+                            <span>${escapeHtml(text)}</span>${gap}<span>${escapeHtml(text)}</span>${gap}
                         </div>
                     </div>`;
                 }

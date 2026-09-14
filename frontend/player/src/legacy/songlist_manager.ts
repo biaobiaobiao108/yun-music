@@ -374,7 +374,7 @@ export function createSongListManager(context: SongListManagerContext) {
         } catch (e) {
             if (e?.name === 'AbortError' || requestSerial !== listRequestSerial) return;
             console.error('[SongList] Load list failed:', e);
-            container.innerHTML = `<div class="col-span-full py-20 text-center text-red-500">加载失败: ${toUserMessage(e)}</div>`;
+            container.innerHTML = `<div class="col-span-full py-20 text-center text-red-500">加载失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
         } finally {
             if (requestSerial === listRequestSerial) {
                 listLoading = false;
@@ -511,7 +511,7 @@ export function createSongListManager(context: SongListManagerContext) {
             if (e?.name === 'AbortError' || requestSerial !== detailRequestSerial) return false;
             console.error('[SongList] Load detail failed:', e);
             if (page === 1) {
-                listContainer.innerHTML = `<div class="text-center text-red-500 p-10">加载失败: ${toUserMessage(e)}</div>`;
+                listContainer.innerHTML = `<div class="text-center text-red-500 p-10">加载失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
             }
             return false;
         } finally {
@@ -553,8 +553,8 @@ export function createSongListManager(context: SongListManagerContext) {
                 <h4 class="text-xs font-bold t-text-muted uppercase tracking-wider mb-3">热门标签</h4>
                 <div class="flex flex-wrap gap-2">
                     ${currentState.hotTags.map(tag => `
-                        <button data-songlist-action="select-tag" data-tag-id="${tag.id}" data-tag-name="${tag.name}"
-                            class="px-3 py-1.5 rounded-lg text-sm transition-all ${currentState.tagId === tag.id ? 'active-option' : 't-bg-main hover:t-bg-track'}">${tag.name}</button>
+                        <button data-songlist-action="select-tag" data-tag-id="${escapeHtmlText(String(tag.id ?? ''))}" data-tag-name="${escapeHtmlText(String(tag.name ?? ''))}"
+                            class="px-3 py-1.5 rounded-lg text-sm transition-all ${currentState.tagId === tag.id ? 'active-option' : 't-bg-main hover:t-bg-track'}">${escapeHtmlText(tag.name)}</button>
                     `).join('')}
                 </div>
             </div>`;
@@ -563,11 +563,11 @@ export function createSongListManager(context: SongListManagerContext) {
         // All Categories
         currentState.tags.forEach(cat => {
             html += `<div class="mb-6">
-                <h4 class="text-xs font-bold t-text-muted uppercase tracking-wider mb-3">${cat.name}</h4>
+                <h4 class="text-xs font-bold t-text-muted uppercase tracking-wider mb-3">${escapeHtmlText(cat.name)}</h4>
                 <div class="flex flex-wrap gap-2">
                     ${cat.list.map(tag => `
-                        <button data-songlist-action="select-tag" data-tag-id="${tag.id}" data-tag-name="${tag.name}"
-                            class="px-3 py-1.5 rounded-lg text-sm transition-all ${currentState.tagId === tag.id ? 'active-option' : 't-bg-main hover:t-bg-track'}">${tag.name}</button>
+                        <button data-songlist-action="select-tag" data-tag-id="${escapeHtmlText(String(tag.id ?? ''))}" data-tag-name="${escapeHtmlText(String(tag.name ?? ''))}"
+                            class="px-3 py-1.5 rounded-lg text-sm transition-all ${currentState.tagId === tag.id ? 'active-option' : 't-bg-main hover:t-bg-track'}">${escapeHtmlText(tag.name)}</button>
                     `).join('')}
                 </div>
             </div>`;
@@ -584,8 +584,8 @@ export function createSongListManager(context: SongListManagerContext) {
         }
 
         container.innerHTML = currentState.list.map((item, index) => `
-            <div role="button" tabindex="0" aria-label="打开歌单 ${item.name || ''}" class="playlist-card player-motion-item group cursor-pointer" style="--player-motion-index: ${Math.min(index, 7)};"
-                 data-songlist-action="open-detail" data-id="${item.id}" data-source="${currentState.source}">
+            <div role="button" tabindex="0" aria-label="打开歌单 ${escapeHtmlText(item.name || '')}" class="playlist-card player-motion-item group cursor-pointer" style="--player-motion-index: ${Math.min(index, 7)};"
+                 data-songlist-action="open-detail" data-id="${escapeHtmlText(String(item.id ?? ''))}" data-source="${escapeHtmlText(String(currentState.source ?? ''))}">
                 <div class="relative aspect-square overflow-hidden rounded-2xl shadow-md transition-all group-hover:shadow-xl group-hover:-translate-y-1">
                     <img data-src="${escapeHtmlText(safeImageUrl(item.img || item.cover || item.picUrl))}" src="/music/assets/yun-yin.png" alt="${escapeHtmlText(item.name || '歌单')}封面" width="320" height="320" loading="lazy" decoding="async"
                          class="lazy-image w-full h-full object-cover dynamic-logo is-placeholder"
@@ -597,12 +597,12 @@ export function createSongListManager(context: SongListManagerContext) {
                     </div>
                 </div>
                 <div class="mt-3">
-                    <h3 class="text-sm font-bold t-text-main line-clamp-2 leading-snug group-hover:text-emerald-500 transition-colors" title="${item.name}">${item.name}</h3>
-                    ${item.author ? `<p class="text-xs t-text-muted mt-1.5 truncate">${item.author}</p>` : ''}
-                    ${item.time ? `<p class="text-[11px] text-gray-400 mt-0.5 truncate">${item.time}</p>` : ''}
+                    <h3 class="text-sm font-bold t-text-main line-clamp-2 leading-snug group-hover:text-emerald-500 transition-colors" title="${escapeHtmlText(item.name || '')}">${escapeHtmlText(item.name || '')}</h3>
+                    ${item.author ? `<p class="text-xs t-text-muted mt-1.5 truncate">${escapeHtmlText(item.author)}</p>` : ''}
+                    ${item.time ? `<p class="text-[11px] text-gray-400 mt-0.5 truncate">${escapeHtmlText(item.time)}</p>` : ''}
                     <div class="flex items-center gap-3 mt-1.5 text-[11px] text-gray-400 font-medium">
-                        ${item.total ? `<span><i class="fas fa-music text-[10px] mr-1"></i>${item.total}</span>` : ''}
-                        ${(item.play_count || item.playCount) ? `<span><i class="fas fa-headphones text-[10px] mr-1"></i>${item.play_count || formatPlayCount(item.playCount)}</span>` : ''}
+                        ${item.total ? `<span><i class="fas fa-music text-[10px] mr-1"></i>${escapeHtmlText(item.total)}</span>` : ''}
+                        ${(item.play_count || item.playCount) ? `<span><i class="fas fa-headphones text-[10px] mr-1"></i>${escapeHtmlText(item.play_count || formatPlayCount(item.playCount))}</span>` : ''}
                     </div>
                 </div>
             </div>
@@ -627,9 +627,9 @@ export function createSongListManager(context: SongListManagerContext) {
         }
 
         container.innerHTML = options.map(opt => `
-            <button data-songlist-action="change-sort" data-sort="${opt.id}"
-                id="sort-${opt.id}"
-                class="px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${String(currentState.sortId) === String(opt.id) ? 'active-option' : 't-text-muted hover:t-bg-main'}">${opt.name}</button>
+            <button data-songlist-action="change-sort" data-sort="${escapeHtmlText(String(opt.id ?? ''))}"
+                id="sort-${escapeHtmlText(String(opt.id ?? ''))}"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${String(currentState.sortId) === String(opt.id) ? 'active-option' : 't-text-muted hover:t-bg-main'}">${escapeHtmlText(opt.name)}</button>
         `).join('');
     }
 
@@ -649,7 +649,7 @@ export function createSongListManager(context: SongListManagerContext) {
 
         const titleEl = document.getElementById('sl-detail-title');
         if (titleEl) {
-            titleEl.innerHTML = window.createMarqueeHtml ? window.createMarqueeHtml(info.name) : info.name;
+            titleEl.innerHTML = window.createMarqueeHtml ? window.createMarqueeHtml(info.name) : escapeHtmlText(info.name || '');
         }
 
         if (window.setImg) window.setImg('sl-detail-cover', info.img || info.cover || '/music/assets/yun-yin.png');
@@ -657,19 +657,19 @@ export function createSongListManager(context: SongListManagerContext) {
 
         const authorEl = document.getElementById('sl-detail-author');
         if (authorEl) {
-            authorEl.innerHTML = window.createMarqueeHtml ? window.createMarqueeHtml(info.author || '', 'text-emerald-500 font-medium') : (info.author || '');
+            authorEl.innerHTML = window.createMarqueeHtml ? window.createMarqueeHtml(info.author || '', 'text-emerald-500 font-medium') : escapeHtmlText(info.author || '');
         }
 
         // Render stats (time, song count, play count)
         const statsHtml = [];
         const totalSongs = detailState.total || info.total || detailState.list.length;
-        statsHtml.push(`<span><i class="fas fa-music text-[10px] mr-1"></i>${totalSongs} 首歌曲</span>`);
+        statsHtml.push(`<span><i class="fas fa-music text-[10px] mr-1"></i>${escapeHtmlText(totalSongs)} 首歌曲</span>`);
 
         if (info.play_count || info.playCount) {
-            statsHtml.push(`<span><i class="fas fa-headphones text-[10px] mr-1"></i>${info.play_count || formatPlayCount(info.playCount)}</span>`);
+            statsHtml.push(`<span><i class="fas fa-headphones text-[10px] mr-1"></i>${escapeHtmlText(info.play_count || formatPlayCount(info.playCount))}</span>`);
         }
         if (info.time) {
-            statsHtml.push(`<span><i class="far fa-calendar text-[10px] mr-1"></i>${info.time}</span>`);
+            statsHtml.push(`<span><i class="far fa-calendar text-[10px] mr-1"></i>${escapeHtmlText(info.time)}</span>`);
         }
 
         const statsEl = document.getElementById('sl-detail-stats');
@@ -748,14 +748,19 @@ export function createSongListManager(context: SongListManagerContext) {
             if (displayIdx > 12) rowClass += 'deferred-list-item ';
 
             const selectionLabel = isSelected ? '取消选择' : '选择';
+            const songName = escapeHtmlText(song.name || '未命名歌曲');
+            const songSinger = escapeHtmlText(song.singer || '');
+            const songAlbum = escapeHtmlText(song.albumName || '--');
+            const songInterval = escapeHtmlText(song.interval || '--:--');
+            const imageUrl = safeImageUrl(window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg));
             const selectionAttributes = window.batchMode
                 ? `aria-pressed="${isSelected}"`
                 : '';
 
             return `
-            <div id="sl-row-${index}" role="button" tabindex="0" aria-label="${window.batchMode ? `${selectionLabel} ${song.name || '未命名歌曲'}` : `播放 ${song.name || '未命名歌曲'}`}" ${selectionAttributes}
+            <div id="sl-row-${index}" role="button" tabindex="0" aria-label="${window.batchMode ? `${selectionLabel} ${songName}` : `播放 ${songName}`}" ${selectionAttributes}
                  data-selection-state="${isSelected ? 'selected' : 'unselected'}"
-                 class="${rowClass}" style="--player-motion-index: ${Math.min(displayIdx, 7)};" data-song-id="${String(song.id)}"
+                 class="${rowClass}" style="--player-motion-index: ${Math.min(displayIdx, 7)};" data-song-id="${escapeHtmlText(String(song.id ?? ''))}"
                  data-songlist-action="row" data-index="${index}">
                 <div class="player-track-index text-center text-gray-400 font-mono text-xs flex items-center justify-center">
                     ${index + 1}
@@ -763,7 +768,7 @@ export function createSongListManager(context: SongListManagerContext) {
                 <!-- Title & Info -->
                 <div class="player-track-title flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 md:w-12 md:h-12 flex-shrink-0 relative rounded-lg overflow-hidden shadow-sm border t-border-main group-hover:shadow-md transition-all group-hover:scale-105 duration-300">
-                        <img data-src="${window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg || '/music/assets/yun-yin.png')}" src="/music/assets/yun-yin.png" alt="${song.name || '歌曲'}专辑封面" width="48" height="48" loading="lazy" decoding="async"
+                        <img data-src="${escapeHtmlText(imageUrl)}" src="/music/assets/yun-yin.png" alt="${songName}专辑封面" width="48" height="48" loading="lazy" decoding="async"
                              class="lazy-image w-full h-full object-cover dynamic-logo is-placeholder"
                              data-fallback-image="pending">
                         <div class="absolute inset-0 bg-black/20 hidden group-hover:flex items-center justify-center transition-all">
@@ -772,37 +777,37 @@ export function createSongListManager(context: SongListManagerContext) {
                     </div>
                     <div class="min-w-0 flex-1 flex flex-col justify-center overflow-hidden">
                         <div class="font-bold text-sm t-text-main group-hover:text-emerald-500 transition-colors">
-                            ${window.createMarqueeHtml ? window.createMarqueeHtml(song.name) : `<span class="truncate">${song.name}</span>`}
+                            ${window.createMarqueeHtml ? window.createMarqueeHtml(song.name) : `<span class="truncate">${songName}</span>`}
                         </div>
                         <div class="flex items-center gap-1 mt-0.5 overflow-hidden">
                              ${window.getSourceTag ? window.getSourceTag(song.source || detailState.source) : ''}
                              ${window.getQualityTags ? window.getQualityTags(song) : ''}
                              <div class="player-track-compact-meta flex-1 min-w-0">
-                                ${window.createMarqueeHtml ? window.createMarqueeHtml(song.singer, 'text-[10px] t-text-muted') : `<span class="text-[10px] t-text-muted truncate">${song.singer}</span>`}
+                                ${window.createMarqueeHtml ? window.createMarqueeHtml(song.singer, 'text-[10px] t-text-muted') : `<span class="text-[10px] t-text-muted truncate">${songSinger}</span>`}
                              </div>
                         </div>
                     </div>
                 </div>
                 <!-- Artist -->
                 <div class="player-track-artist items-center text-xs t-text-muted overflow-hidden">
-                    ${window.createMarqueeHtml ? window.createMarqueeHtml(song.singer) : `<span class="truncate">${song.singer}</span>`}
+                    ${window.createMarqueeHtml ? window.createMarqueeHtml(song.singer) : `<span class="truncate">${songSinger}</span>`}
                 </div>
                 <!-- Album -->
                 <div class="player-track-album items-center text-xs t-text-muted truncate">
-                    ${song.albumName || '--'}
+                    ${songAlbum}
                 </div>
                 <!-- Duration -->
                 <div class="player-track-duration items-center justify-end text-xs font-mono t-text-muted">
-                    ${song.interval || '--:--'}
+                    ${songInterval}
                 </div>
                 <!-- Actions -->
                 <div class="player-track-actions flex items-center justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button aria-label="播放 ${song.name || '歌曲'}" class="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors"
+                    <button aria-label="播放 ${escapeHtmlText(song.name || '歌曲')}" class="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors"
                             title="播放" 
                             data-songlist-action="play" data-index="${index}">
                         <i class="fas fa-play w-3.5 h-3.5"></i>
                     </button>
-                    <button aria-label="下载 ${song.name || '歌曲'}" class="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                    <button aria-label="下载 ${escapeHtmlText(song.name || '歌曲')}" class="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
                             title="下载" 
                             data-songlist-action="download" data-index="${index}">
                         <i class="fas fa-download w-3.5 h-3.5"></i>
@@ -1045,14 +1050,14 @@ export function createSongListManager(context: SongListManagerContext) {
 
                 container.innerHTML = data.list.map(item => `
                     <div role="button" tabindex="0" aria-label="打开歌单 ${item.name || ''}" class="flex items-center gap-4 p-3 rounded-xl hover:t-bg-main transition-all cursor-pointer group"
-                         data-songlist-action="select-user-playlist" data-id="${item.id}">
+                         data-songlist-action="select-user-playlist" data-id="${escapeHtmlText(String(item.id ?? ''))}">
                         <div class="relative flex-shrink-0">
                             <img src="${escapeHtmlText(safeImageUrl(item.img || item.cover || item.picUrl))}" alt="${escapeHtmlText(item.name || '歌单')}封面" width="48" height="48" loading="lazy" decoding="async" class="w-12 h-12 rounded-lg object-cover shadow-sm group-hover:scale-105 transition-transform">
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-sm font-bold t-text-main truncate">${item.name}</h4>
+                            <h4 class="text-sm font-bold t-text-main truncate">${escapeHtmlText(item.name || '')}</h4>
                             <p class="text-xs t-text-muted mt-1 uppercase tracking-tighter">
-                                ${item.total || 0} 首 · ${item.play_count || 0} 次播放 · <span class="text-emerald-500/80">tid:${item.id}</span>
+                                ${escapeHtmlText(item.total || 0)} 首 · ${escapeHtmlText(item.play_count || 0)} 次播放 · <span class="text-emerald-500/80">tid:${escapeHtmlText(String(item.id ?? ''))}</span>
                             </p>
                         </div>
                         <i class="fas fa-chevron-right text-gray-300 text-xs transition-transform group-hover:translate-x-1"></i>
@@ -1060,7 +1065,7 @@ export function createSongListManager(context: SongListManagerContext) {
                 `).join('');
             } catch (e) {
                 console.error('[UserPlaylist] Load failed:', e);
-                container.innerHTML = `<div class="text-center py-10 text-red-500">加载失败: ${e.message}</div>`;
+                container.innerHTML = `<div class="text-center py-10 text-red-500">加载失败: ${escapeHtmlText(e.message)}</div>`;
                 subtitle.innerText = '加载失败';
             }
         },

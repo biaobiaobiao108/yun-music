@@ -234,18 +234,24 @@ export const createSystemRouter = (): Router => {
           c['frontend.password'] = newConfig['frontend.password']
         }
       }
-      if (newConfig['player.enableAuth'] !== undefined) c['player.enableAuth'] = parseBoolean(newConfig['player.enableAuth'], false)
+      const nextPlayerEnableAuth = newConfig['player.enableAuth'] !== undefined
+        ? parseBoolean(newConfig['player.enableAuth'], false)
+        : Boolean(c['player.enableAuth'])
+      let nextPlayerPassword = c['player.password'] || ''
       if (newConfig['player.password'] !== undefined) {
         if (typeof newConfig['player.password'] !== 'string') {
           return ctx.json({ success: false, error: '播放器密码格式无效' }, 422)
         }
         if (newConfig['player.password'].trim()) {
           if (newConfig['player.password'] === '123456') return ctx.json({ success: false, error: '播放器密码不能使用示例密码' }, 422)
-          c['player.password'] = newConfig['player.password']
-        } else if (c['player.enableAuth'] && !c['player.password']) {
-          return ctx.json({ success: false, error: '播放器启用认证时必须配置密码' }, 422)
+          nextPlayerPassword = newConfig['player.password']
         }
       }
+      if (nextPlayerEnableAuth && !nextPlayerPassword.trim()) {
+        return ctx.json({ success: false, error: '播放器启用认证时必须配置密码' }, 422)
+      }
+      c['player.enableAuth'] = nextPlayerEnableAuth
+      c['player.password'] = nextPlayerPassword
 
       if (newConfig['proxy.all.enabled'] !== undefined) c['proxy.all.enabled'] = parseBoolean(newConfig['proxy.all.enabled'], false)
       if (newConfig['proxy.all.address'] !== undefined && typeof newConfig['proxy.all.address'] === 'string') {
@@ -345,10 +351,35 @@ export const createSystemRouter = (): Router => {
       const zipPath = resolveInside(global.lx.dataPath, zipName)
       if (!fs.existsSync(zipPath)) throw new Error('ZIP file not found')
       const bunFile = Bun.file(zipPath)
-      setTimeout(() => {
-        if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath)
-      }, 10000)
-      return new Response(bunFile, {
+      const source = bunFile.stream()
+      let cleaned = false
+      const cleanup = () => {
+        if (cleaned) return
+        cleaned = true
+        try { fs.unlinkSync(zipPath) } catch { }
+      }
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const reader = source.getReader()
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              controller.enqueue(value)
+            }
+            controller.close()
+          } catch (error) {
+            controller.error(error)
+          } finally {
+            reader.releaseLock()
+            cleanup()
+          }
+        },
+        cancel() {
+          cleanup()
+        },
+      })
+      return new Response(body, {
         headers: {
           'Content-Type': 'application/zip',
           'Content-Disposition': `attachment; filename="${zipName}"`,
