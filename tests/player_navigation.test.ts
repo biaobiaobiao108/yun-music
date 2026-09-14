@@ -600,6 +600,13 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(playbackContent).toContain('location: cacheFile.location');
     });
 
+    it('does not rewrite server lyric cache after a server audio cache hit', () => {
+        const playbackContent = fs.readFileSync(playbackSrcPath, 'utf8');
+
+        expect(playbackContent).toContain('urlResult.sourceType !== \'server_cache\'');
+        expect(playbackContent).toContain('!playbackSong.isLocal');
+    });
+
     it('restored playback waits for the source load and can recover a source that fails after play starts', () => {
         const playbackContent = fs.readFileSync(playbackSrcPath, 'utf8');
 

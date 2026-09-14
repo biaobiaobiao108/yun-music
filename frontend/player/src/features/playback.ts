@@ -796,10 +796,16 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
                 });
         };
 
-        // [Sync] 确定了最终播放音质后，直接以正确音质重写服务器端歌词缓存文件名
+        // [Sync] 在线播放确定最终音质后，直接以正确音质重写服务器端歌词缓存文件名。
+        // 已命中服务器音频缓存时，歌词本身也已经属于本地缓存；再次 POST 会重复
+        // 写入歌词文件（并可能产生一个新的质量/命名组合），因此不能走这条补写路径。
         // 注意：不能再调用 fetchLyric(song)，因为歌词已就绪时 fetchLyric 会提前返回，
         // 永远不会走到写入服务器缓存的逻辑，导致文件名停留在音质未确定时的错误值。
-        if (settings.enableServerLyricCache !== false && state.currentRawLrc) {
+        const shouldSyncServerLyric = settings.enableServerLyricCache !== false &&
+            !!state.currentRawLrc &&
+            urlResult.sourceType !== 'server_cache' &&
+            !playbackSong.isLocal;
+        if (shouldSyncServerLyric) {
             try {
                 const _lyricHeaders = { 'Content-Type': 'application/json' };
                 Object.assign(_lyricHeaders, getUserAuthHeaders());
