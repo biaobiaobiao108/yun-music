@@ -244,6 +244,10 @@ const prefetchManager = {
         this.delete(key);
         return null;
     },
+    getPending(songId, requestedQuality) {
+        const key = `${String(songId)}:${String(requestedQuality)}`;
+        return this.inflight.get(key) || null;
+    },
     delete(songId) {
         const key = String(songId);
         this.cache.delete(key);
@@ -976,6 +980,9 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
                 result = await resolveSongUrl(nextSong, targetQual, true, true, false, abortController.signal);
             }
 
+            if (abortController.signal.aborted) {
+                throw new DOMException('预读请求已取消', 'AbortError');
+            }
             if (prefetchManager.version !== prefetchVersion) return;
             prefetchManager.set(nextSong.id, { ...result, requestedQuality: targetQual });
             delete nextSong._prefetchUnavailableUntil;

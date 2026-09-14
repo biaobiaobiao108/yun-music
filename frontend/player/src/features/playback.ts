@@ -672,6 +672,17 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
     // 提前检查预读缓存，以便淡出逻辑使用
     if (!targetQuality && !isRetry) {
         const preferredQuality = window.QualityManager.getBestQuality(song, settings.preferredQuality || 'flac');
+        const pendingPrefetch = prefetchManager.getPending?.(song.id, preferredQuality);
+        if (pendingPrefetch) {
+            try {
+                // If the user enters a song that is already being prefetched,
+                // wait for and reuse that request instead of resolving it twice.
+                await pendingPrefetch;
+            } catch (pendingError) {
+                if (pendingError?.name === 'AbortError' || playbackAttempt.abortController.signal.aborted) return;
+            }
+            if (state.currentLoadingRequestId !== thisRequestId) return;
+        }
         urlResult = prefetchManager.get(song.id, preferredQuality);
         if (urlResult) {
             urlResult.isPrefetch = true;
