@@ -2570,17 +2570,17 @@ aside {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 6px 4px;
+    gap: 2px;
+    padding: 5px 3px;
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--bg-panel, #ffffff) 82%, transparent);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--border-main, rgba(140, 160, 150, 0.25));
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    background: color-mix(in srgb, var(--bg-panel, #ffffff) 24%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid color-mix(in srgb, var(--border-main, #e7e8eb) 22%, transparent);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1), transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     user-select: none;
 }
 
@@ -2590,24 +2590,22 @@ aside {
     }
 }
 
-#lyrics-wrapper:hover .lyric-offset-capsule,
-#lyrics-wrapper:focus-within .lyric-offset-capsule,
-.lyric-offset-capsule:hover,
-.lyric-offset-capsule:focus-within {
+.lyric-offset-capsule.is-visible {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(-50%) scale(1);
 }
 
 .lyric-offset-btn {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
     color: var(--text-muted, #6b7a72);
-    transition: all 0.15s ease;
+    opacity: 0.65;
+    transition: all 0.18s ease;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -2615,8 +2613,9 @@ aside {
 }
 
 .lyric-offset-btn:hover {
+    opacity: 1;
     color: var(--c-500, #10b981);
-    background: color-mix(in srgb, var(--c-500, #10b981) 16%, transparent);
+    background: color-mix(in srgb, var(--c-500, #10b981) 18%, transparent);
     transform: scale(1.1);
 }
 
@@ -2625,27 +2624,30 @@ aside {
 }
 
 .lyric-offset-val {
-    min-width: 34px;
-    padding: 2px 4px;
+    min-width: 32px;
+    padding: 1px 3px;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.2;
     text-align: center;
     color: var(--text-muted, #6b7a72);
+    opacity: 0.65;
     border-radius: 4px;
     background: transparent;
     border: none;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.18s ease;
 }
 
 .lyric-offset-val:hover {
+    opacity: 1;
     color: var(--c-500, #10b981);
-    background: color-mix(in srgb, var(--c-500, #10b981) 14%, transparent);
+    background: color-mix(in srgb, var(--c-500, #10b981) 16%, transparent);
 }
 
 .lyric-offset-val.is-offset {
     color: var(--c-500, #10b981);
+    opacity: 0.95;
     font-weight: 700;
 }
 

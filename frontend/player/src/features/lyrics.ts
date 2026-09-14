@@ -57,6 +57,75 @@ let lyricHistoryClosePending = false;
 let lyricRequestController: AbortController | null = null;
 let lyricRequestSerial = 0;
 let currentLyricOffsetMs = 0;
+let lyricOffsetCapsuleTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showLyricOffsetCapsule() {
+    const capsule = document.getElementById('lyric-offset-capsule');
+    if (!capsule) return;
+    if (lyricOffsetCapsuleTimer) {
+        clearTimeout(lyricOffsetCapsuleTimer);
+        lyricOffsetCapsuleTimer = null;
+    }
+    capsule.classList.add('is-visible');
+}
+
+function scheduleHideLyricOffsetCapsule(delay = 3000) {
+    const capsule = document.getElementById('lyric-offset-capsule');
+    if (!capsule) return;
+    if (lyricOffsetCapsuleTimer) {
+        clearTimeout(lyricOffsetCapsuleTimer);
+    }
+    lyricOffsetCapsuleTimer = setTimeout(() => {
+        capsule.classList.remove('is-visible');
+        const activeEl = document.activeElement;
+        if (activeEl && capsule.contains(activeEl) && activeEl instanceof HTMLElement) {
+            activeEl.blur();
+        }
+        lyricOffsetCapsuleTimer = null;
+    }, delay);
+}
+
+function hideLyricOffsetCapsuleImmediately() {
+    const capsule = document.getElementById('lyric-offset-capsule');
+    if (!capsule) return;
+    if (lyricOffsetCapsuleTimer) {
+        clearTimeout(lyricOffsetCapsuleTimer);
+        lyricOffsetCapsuleTimer = null;
+    }
+    capsule.classList.remove('is-visible');
+    const activeEl = document.activeElement;
+    if (activeEl && capsule.contains(activeEl) && activeEl instanceof HTMLElement) {
+        activeEl.blur();
+    }
+}
+
+function initLyricOffsetCapsuleEvents() {
+    const wrapper = document.getElementById('lyrics-wrapper');
+    const capsule = document.getElementById('lyric-offset-capsule');
+    if (!wrapper) return;
+
+    wrapper.addEventListener('mouseenter', () => {
+        showLyricOffsetCapsule();
+    });
+
+    wrapper.addEventListener('mouseleave', () => {
+        scheduleHideLyricOffsetCapsule(3000);
+    });
+
+    wrapper.addEventListener('touchstart', () => {
+        showLyricOffsetCapsule();
+        scheduleHideLyricOffsetCapsule(3000);
+    }, { passive: true });
+
+    if (capsule) {
+        capsule.addEventListener('mouseenter', () => {
+            showLyricOffsetCapsule();
+        });
+        capsule.addEventListener('mouseleave', () => {
+            scheduleHideLyricOffsetCapsule(3000);
+        });
+    }
+}
 
 function toggleLyrics(fromPopState = false) {
     if (!fromPopState && state.isLyricViewOpen) {
@@ -114,6 +183,7 @@ function toggleLyrics(fromPopState = false) {
         }
     } else {
         view.classList.add('translate-y-[100%]', 'opacity-0');
+        hideLyricOffsetCapsuleImmediately();
         // 退出歌词详情页，平滑恢复完整底栏模式并确保底栏交互正常
         const footerEl = document.getElementById('player-footer');
         if (footerEl) {
@@ -1072,6 +1142,8 @@ function renderLyric(lines, emptyMsg = '暂无歌词') {
             }
         }
         updateLyricOffsetUI();
+        showLyricOffsetCapsule();
+        scheduleHideLyricOffsetCapsule(3000);
         const sign = currentLyricOffsetMs > 0 ? '+' : '';
         const msg = `歌词微调: ${sign}${(currentLyricOffsetMs / 1000).toFixed(1)}s`;
         (window as any).showInfo?.(msg);
@@ -1080,6 +1152,8 @@ function renderLyric(lines, emptyMsg = '暂无歌词') {
     function resetLyricOffset() {
         adjustLyricOffset(-currentLyricOffsetMs);
     }
+
+    initLyricOffsetCapsuleEvents();
 
     Object.assign(window, {
         adjustLyricOffset,
