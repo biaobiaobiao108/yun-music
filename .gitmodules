@@ -1,3 +1,0 @@
-[submodule "packaging/synology-spk"]
-	path = packaging/synology-spk
-	url = https://github.com/yy505149/lxserver-synology-spk.git
