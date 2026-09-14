@@ -46,7 +46,6 @@ const config: LX.Config = {
   'singer.sourcePriority': ['tx', 'wy'], // 歌手信息源优先级
   'artist.maxFetchPages': 20, // 歌手歌曲最大抓取页数
   'cache.namingPattern': 'simple', // 缓存命名规则
-  'system.allowUnsafeVM': false, // 是否允许运行 VM 模式自定义源脚本
 }
 
 export default config

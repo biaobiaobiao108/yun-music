@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import * as vm from 'node:vm'
 
 import * as crypto from 'crypto'
 
@@ -17,12 +18,6 @@ function writeJsonFileAtomic(filePath: string, value: unknown): void {
             try { fs.unlinkSync(tempPath) } catch { }
         }
     }
-}
-
-let vm2ModulePromise: Promise<typeof import('vm2')> | null = null
-const loadVm2 = async () => {
-    vm2ModulePromise ||= import('vm2')
-    return vm2ModulePromise
 }
 
 // 彻底切断与沙箱上下文的联系
@@ -87,7 +82,6 @@ interface UserApiInfo {
     sources: Record<string, any>
     enabled: boolean
     owner: string // 'open' or username
-    allowUnsafeVM?: boolean
     persist?: boolean
 }
 
@@ -138,7 +132,7 @@ export function extractMetadata(script: string): Partial<UserApiInfo> {
 // 创建 lx.request 包装器（基于 Bun 原生 fetch）
 type CleanupRegistration = (cleanup: () => void) => () => void
 
-function createLxRequest(isUnsafe: boolean = false, registerCleanup?: CleanupRegistration) {
+function createLxRequest(registerCleanup?: CleanupRegistration) {
     return (url: string, options: any, callback: Function) => {
         const safeOptions = decontextify(options || {})
         const { method = 'get', timeout, headers, body, form, formData } = safeOptions
@@ -267,25 +261,12 @@ function createLxRequest(isUnsafe: boolean = false, registerCleanup?: CleanupReg
                     headersObj[key.toLowerCase()] = val
                 })
 
-                let safeResp: any = {
+                const safeResp: any = {
                     statusCode: resp.status,
                     statusMessage: resp.statusText,
                     headers: decontextify(headersObj),
                     body: decontextify(parsedBody),
                     raw: rawBuffer,
-                }
-
-                if (isUnsafe) {
-                    const jsonBody = (typeof parsedBody === 'object' && !Buffer.isBuffer(parsedBody))
-                        ? JSON.parse(JSON.stringify(parsedBody))
-                        : parsedBody
-                    safeResp = JSON.parse(JSON.stringify({
-                        statusCode: resp.status,
-                        statusMessage: resp.statusText,
-                        headers: headersObj,
-                    }))
-                    safeResp.body = jsonBody
-                    safeResp.raw = rawBuffer
                 }
 
                 callback.call(null, null, safeResp, safeResp.body)
@@ -432,7 +413,7 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     const lxObject = {
         ...lxDataInside,
         utils: lxUtils,
-        request: createLxRequest(!!apiInfo.allowUnsafeVM && !!global.lx.config['system.allowUnsafeVM'], registerCleanup),
+        request: createLxRequest(registerCleanup),
         send: (eventName: string, data: any) => {
             const dData = decontextify(data)
             // console.log(`[UserApi-${fullApiInfo.name}] send:`, eventName)
@@ -494,26 +475,14 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     sandbox.globalThis = sandbox
 
     try {
-        if (apiInfo.allowUnsafeVM && global.lx.config['system.allowUnsafeVM']) {
-            throw new Error('UNSAFE_VM_DISABLED')
-        }
-        try {
-            const { VM } = await loadVm2()
-            const vmInstance = new VM({
-                timeout: 10000,
-                sandbox,
-                eval: false,
-                wasm: false,
-            })
-            await vmInstance.run(apiInfo.script)
-        } catch (e: any) {
-            const isContextError = e.message.includes('contextified object') || e.message.includes('Operation not allowed')
-            if (isContextError) {
-                console.warn(`[UserApi] ${fullApiInfo.name} 触发 vm2 安全限制`)
-                throw new Error('REQUIRE_UNSAFE_VM')
-            }
-            throw e
-        }
+        const vmContext = vm.createContext(sandbox, {
+            name: `custom-source:${fullApiInfo.name}`,
+            codeGeneration: { strings: false, wasm: false },
+        })
+        const script = new vm.Script(apiInfo.script, {
+            filename: `${fullApiInfo.name || apiInfo.id || 'custom-source'}.js`,
+        })
+        await script.runInContext(vmContext, { timeout: 10000, displayErrors: true })
 
         // 等待脚本调用 lx.send('inited')（最多等待 3 秒）
         let initTimeout: ReturnType<typeof setTimeout> | null = null
@@ -539,11 +508,9 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
                     const handler = eventHandlers.get('request')
                     if (!handler) throw new Error(`源 ${fullApiInfo.name} 未注册 request 处理器`)
 
-                    // 核心修复：如果是原生 VM 模式，将传入数据 JSON 化以纯净化原型链（确保它是 VM 内的对象）
-                    let inputData = { action, source, info }
-                    if (apiInfo.allowUnsafeVM && global.lx.config['system.allowUnsafeVM']) {
-                        inputData = JSON.parse(JSON.stringify(inputData))
-                    }
+                    // 始终将请求参数作为 JSON 数据重新构造，避免把宿主原型链传入脚本上下文。
+                    const serializedInput = JSON.stringify({ action, source, info })
+                    const inputData = vm.runInContext(`JSON.parse(${JSON.stringify(serializedInput)})`, vmContext)
 
                     const result = await handler(inputData)
                     return decontextify(result)
@@ -563,12 +530,10 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     } catch (error: any) {
         await dispose()
         console.error(`[UserApi] ✗ 加载失败 ${fullApiInfo.name}:`, error.message)
-        if (error.stack && error.message !== 'REQUIRE_UNSAFE_VM') {
+        if (error.stack) {
             console.error(`[UserApi] [Stack] ${fullApiInfo.name}:`, error.stack)
         }
-        // 返回详细错误信息而不是直接抛出
-        const isRequireUnsafe = !apiInfo.allowUnsafeVM && (error.message === 'REQUIRE_UNSAFE_VM' || error.message.includes('初始化超时') || error.message.includes('timeout'))
-        return { success: false, apiInstance: null, error: error.message, requireUnsafe: isRequireUnsafe }
+        return { success: false, apiInstance: null, error: error.message }
     }
 }
 
@@ -892,7 +857,6 @@ async function loadSourcesFromDir(dirPath: string, owner: string, stats: { loade
                     script,
                     sources: {},
                     enabled: source.enabled, // 传递原本的开关状态
-                    allowUnsafeVM: source.allowUnsafeVM, // 传递不安全模式标志
                     owner: owner // 设置 owner
                 })
 

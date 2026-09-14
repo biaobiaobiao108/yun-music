@@ -100,13 +100,7 @@ async function handleFileUpload(input) {
 
         const validation = await validationRes.json();
 
-        if (validation.disabledVM) {
-            showError(validation.error || '已禁用VM。当前服务器已禁用 VM 模式。');
-            input.value = '';
-            return;
-        }
-
-        if (!validation.valid && !validation.requireUnsafe) {
+        if (!validation.valid) {
             showError(`脚本无效: ${validation.error}`);
             input.value = '';
             // document.getElementById('file-name-display').textContent = '点击选择 .js 文件';
@@ -115,30 +109,7 @@ async function handleFileUpload(input) {
 
         // 验证通过，上传
         showInfo(`验证通过，正在上传 "${validation.metadata.name || file.name}"...`);
-        let result = await uploadCustomSource(file.name, content, 'file');
-
-        if (result.disabledVM) {
-            showError(result.message || '已禁用VM');
-            input.value = '';
-            return;
-        }
-
-        // 如果需要不安全模式确认
-        if (result.requireUnsafe) {
-            const confirmed = await showSelect('安全风险确认', result.message || '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？', { danger: true, confirmText: '允许并上传' });
-            if (confirmed) {
-                result = await uploadCustomSource(file.name, content, 'file', true);
-                if (result.disabledVM) {
-                    showError(result.message || '已禁用VM');
-                    input.value = '';
-                    return;
-                }
-            } else {
-                showInfo('已取消上传');
-                input.value = '';
-                return;
-            }
-        }
+        await uploadCustomSource(file.name, content, 'file');
 
         showSuccess(`已上传: ${validation.metadata.name || file.name} ${validation.metadata.version ? (/^v/i.test(validation.metadata.version) ? validation.metadata.version : 'v' + validation.metadata.version) : ''}`);
 
@@ -195,45 +166,10 @@ async function handleUrlImport() {
             return;
         }
 
-        let result = await response.json();
+        const result = await response.json();
 
-        if (result.disabledVM) {
-            showError(result.message || '已禁用VM');
-            return;
-        }
-
-        if (!response.ok || (result.success === false && !result.requireUnsafe)) {
+        if (!response.ok || result.success === false) {
             throw new Error(result.error || `HTTP ${response.status}`);
-        }
-
-        // 如果需要不安全模式确认
-        if (result.requireUnsafe) {
-            const confirmed = await showSelect('安全风险确认', result.message || '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？', { danger: true, confirmText: '允许并导入' });
-            if (confirmed) {
-                const retryHeaders = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
-                const retryResp = await fetch(`/api/custom-source/import`, {
-                    method: 'POST',
-                    headers: retryHeaders,
-                    body: JSON.stringify({
-                        url,
-                        filename,
-                        username: username,
-                        allowUnsafeVM: true,
-                    })
-                });
-                if (retryResp.status === 403) {
-                    showError('管理员验证校验失败');
-                    return;
-                }
-                result = await retryResp.json();
-                if (result.disabledVM) {
-                    showError(result.message || '已禁用VM');
-                    return;
-                }
-            } else {
-                showInfo('已取消导入');
-                return;
-            }
         }
 
         showSuccess(`已导入: ${result.filename}`);
@@ -247,7 +183,7 @@ async function handleUrlImport() {
 }
 
 // 上传自定义源到服务器
-async function uploadCustomSource(filename, content, type, allowUnsafeVM = false) {
+async function uploadCustomSource(filename, content, type) {
     const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
 
     const response = await fetch('/api/custom-source/upload', {
@@ -258,7 +194,6 @@ async function uploadCustomSource(filename, content, type, allowUnsafeVM = false
             content,
             type,
             username: currentListData?.username || 'default', // 使用当前登录用户
-            allowUnsafeVM
         })
     });
 
@@ -266,7 +201,7 @@ async function uploadCustomSource(filename, content, type, allowUnsafeVM = false
         const result = await response.json();
         showError(result.error || '权限不足：请先登录管理员。');
         const authorized = await handleAdminAuth('上传自定义源需要管理员权限');
-        if (authorized) return uploadCustomSource(filename, content, type, allowUnsafeVM);
+        if (authorized) return uploadCustomSource(filename, content, type);
         return;
     }
 
@@ -281,7 +216,7 @@ async function uploadCustomSource(filename, content, type, allowUnsafeVM = false
     }
 
     const result = await response.json();
-    if (result.success === false && !result.requireUnsafe && !result.disabledVM) {
+    if (result.success === false) {
         throw new Error(result.error || '上传失败');
     }
     return result;
@@ -472,9 +407,6 @@ async function renderCustomSources() {
                 `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-600">${escapeHtmlText(source.owner)}</span>` :
                 `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-500">公开</span>`;
 
-            const vmTag = source.allowUnsafeVM ?
-                `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30">VM</span>` : '';
-
             // 权限判断：管理员有所有权限；登录用户对公开源只有查看使用（Toggle）权限，无法刷新或删除
             const isPublic = source.owner === 'open';
             const canManageSource = isAdmin || (!isPublic && isUser);
@@ -489,7 +421,6 @@ async function renderCustomSources() {
                         <i class="fas fa-file-code text-emerald-500 flex-shrink-0"></i>
                          ${createMarqueeHtml(source.name, "font-bold t-text-main text-sm")}
                         ${ownerTag}
-                        ${vmTag}
                     </div>
                     ${errorMsg}
                     <div class="flex flex-wrap items-center text-[10px] t-text-muted gap-x-3 gap-y-1 mt-1.5">
@@ -629,7 +560,7 @@ async function reloadSource(sourceId) {
 }
 
 // 切换状态
-async function toggleSource(sourceId, currentEnabled, allowUnsafeVM = false) {
+async function toggleSource(sourceId, currentEnabled) {
     try {
         const username = currentListData?.username || 'default';
         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
@@ -637,35 +568,21 @@ async function toggleSource(sourceId, currentEnabled, allowUnsafeVM = false) {
         const response = await fetch('/api/custom-source/toggle', {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify({ username, sourceId, enabled: !currentEnabled, allowUnsafeVM }) // Send new state
+            body: JSON.stringify({ username, sourceId, enabled: !currentEnabled }) // Send new state
         });
 
         if (response.status === 403) {
             const data = await response.json();
             showError(data.error || '权限限制：需要管理员身份。');
             const authorized = await handleAdminAuth('修改自定义源状态需要管理员权限');
-            if (authorized) return await toggleSource(sourceId, currentEnabled, allowUnsafeVM);
+            if (authorized) return await toggleSource(sourceId, currentEnabled);
             return;
         }
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const result = await response.json();
-
-        if (result.disabledVM) {
-            showError(result.message || '已禁用VM');
-            return;
-        }
-
-        // 处理 REQUIRE_UNSAFE_VM
-        if (result.requireUnsafe) {
-            const confirmed = await showSelect('安全风险确认', result.message || '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？', { danger: true, confirmText: '依然启用' });
-            if (confirmed) {
-                return await toggleSource(sourceId, currentEnabled, true);
-            } else {
-                return;
-            }
-        }
+        if (result.success === false) throw new Error(result.error || '操作失败');
 
         // 刷新列表
         await renderCustomSources();

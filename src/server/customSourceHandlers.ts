@@ -82,7 +82,7 @@ function writeJsonFileAtomic(filePath: string, value: unknown): void {
 export async function handleValidate(ctx: HttpContext): Promise<Response> {
     try {
         const body = await readBody(ctx)
-        const { script, username, allowUnsafeVM } = JSON.parse(body)
+        const { script, username } = JSON.parse(body)
 
         const targetOwner = (username && username !== 'default') ? getRequestedOwner(ctx, username) : (verifyUserAuth(ctx) || (requireAdmin(ctx), 'open'))
 
@@ -97,7 +97,6 @@ export async function handleValidate(ctx: HttpContext): Promise<Response> {
             id: 'temp_validation',
             script,
             enabled: false,
-            allowUnsafeVM: !!allowUnsafeVM && verifyAdminAuth(ctx.request),
             ...metadata,
             owner: 'temp', // 临时验证 owner
             persist: false,
@@ -124,8 +123,6 @@ export async function handleValidate(ctx: HttpContext): Promise<Response> {
                 return ctx.json({
                     valid: false,
                     error: result.error,
-                    requireUnsafe: result.requireUnsafe,
-                    disabledVM: result.requireUnsafe && !global.lx.config['system.allowUnsafeVM'],
                     metadata // 即使验证失败也返回元数据，方便前端展示
                 })
             }
@@ -138,18 +135,16 @@ export async function handleValidate(ctx: HttpContext): Promise<Response> {
 }
 
 // 辅助函数：获取脚本信息（元数据和支持的源）
-async function getScriptInfo(scriptContent: string, allowUnsafeVM: boolean = false) {
+async function getScriptInfo(scriptContent: string) {
     const metadata = extractMetadata(scriptContent)
 
     // 试运行脚本以获取支持的源
     let supportedSources: string[] = []
-    let requireUnsafe = false
     try {
         const result = await loadUserApi({
             id: 'temp_analysis_' + Date.now(),
             script: scriptContent,
             enabled: false,
-            allowUnsafeVM,
             ...metadata,
             owner: 'temp',
             persist: false,
@@ -158,8 +153,6 @@ async function getScriptInfo(scriptContent: string, allowUnsafeVM: boolean = fal
         try {
             if (result.success && result.apiInstance?.info?.sources) {
                 supportedSources = Object.keys(result.apiInstance.info.sources)
-            } else {
-                requireUnsafe = !!result.requireUnsafe
             }
         } finally {
             if (result.success) await result.apiInstance?.dispose?.()
@@ -168,7 +161,7 @@ async function getScriptInfo(scriptContent: string, allowUnsafeVM: boolean = fal
         console.warn('[CustomSource] 分析脚本支持源失败:', e.message)
     }
 
-    return { metadata, supportedSources, requireUnsafe }
+    return { metadata, supportedSources }
 }
 
 // 辅助函数：获取源存储目录
@@ -209,7 +202,7 @@ function generateId(name?: string, fallbackFilename?: string): string {
 export async function handleUpload(ctx: HttpContext): Promise<Response> {
     try {
         const body = await readBody(ctx)
-        const { filename, content, username, allowUnsafeVM } = JSON.parse(body)
+        const { filename, content, username } = JSON.parse(body)
 
         // 确定 owner 用于后续标识
         const targetOwner = getRequestedOwner(ctx, username)
@@ -219,27 +212,7 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
         }
 
         // 获取脚本信息
-        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, Boolean(allowUnsafeVM) && verifyAdminAuth(ctx.request))
-
-        // 核心安全校验：若脚本需要或者指定了 unsafe VM 模式，则必须验证管理员身份
-        if (requireUnsafe || allowUnsafeVM) {
-            if (!verifyAdminAuth(ctx.request)) {
-                return ctx.json({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }, 403)
-            }
-        }
-
-        // 如果检测到需要不安全模式
-        if (requireUnsafe) {
-            // 如果系统已禁用 VM 模式
-            if (!global.lx.config['system.allowUnsafeVM']) {
-                return ctx.json({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' })
-            }
-
-            // 如果未提供标志，则要求确认
-            if (!allowUnsafeVM) {
-                return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
-            }
-        }
+        const { metadata, supportedSources } = await getScriptInfo(content)
 
         let id = ''
         await withSourceMutationLock(targetOwner, async () => {
@@ -271,8 +244,6 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
                     supportedSources,
                     enabled: false,
                     uploadTime: new Date().toISOString(),
-                    allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM,
-                    requireUnsafe: !!requireUnsafe
                 })
                 writeJsonFileAtomic(metaPath, sources)
             } catch (error) {
@@ -283,7 +254,7 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
             await initUserApis(targetOwner)
         })
 
-        return ctx.json({ success: true, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM })
+        return ctx.json({ success: true, id, metadata, supportedSources, owner: targetOwner })
     } catch (err: any) {
         console.error('[CustomSource] Upload error:', err)
         return ctx.json({ success: false, error: err.message }, 500)
@@ -294,7 +265,7 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
 export async function handleImport(ctx: HttpContext): Promise<Response> {
     try {
         const body = await readBody(ctx)
-        const { url, filename, username, allowUnsafeVM } = JSON.parse(body)
+        const { url, filename, username } = JSON.parse(body)
 
         if (!url) {
             throw new Error('Missing URL')
@@ -302,11 +273,6 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
 
         // 前置身份与权限校验，防止无权限用户滥用服务器带宽发起外部请求
         const targetOwner = getRequestedOwner(ctx, username)
-
-        // 核心安全校验：若指定了 unsafe VM 模式，必须先验证管理员身份
-        if (allowUnsafeVM && !verifyAdminAuth(ctx.request)) {
-            return ctx.json({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }, 403)
-        }
 
         // 辅助函数：使用 Bun 原生 fetch 实现具备超时保护、SSRF 防御与流式字节限制的下载
         const download = async (targetUrl: string, depth = 0): Promise<string> => {
@@ -375,27 +341,7 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
         if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > 5 * 1024 * 1024) {
             throw new Error('Script content is missing or too large')
         }
-        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, Boolean(allowUnsafeVM) && verifyAdminAuth(ctx.request))
-
-        // 核心安全校验：若脚本需要或者指定了 unsafe VM 模式，则必须验证管理员身份
-        if (requireUnsafe || allowUnsafeVM) {
-            if (!verifyAdminAuth(ctx.request)) {
-                return ctx.json({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }, 403)
-            }
-        }
-
-        // 如果检测到需要不安全模式
-        if (requireUnsafe) {
-            // 如果系统已禁用 VM 模式
-            if (!global.lx.config['system.allowUnsafeVM']) {
-                return ctx.json({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' })
-            }
-
-            // 如果未提供标志，则要求确认
-            if (!allowUnsafeVM) {
-                return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
-            }
-        }
+        const { metadata, supportedSources } = await getScriptInfo(content)
 
         // 生成唯一ID（可读的文件名）
         const displayName = metadata.name || filename || 'unknown_source'
@@ -429,8 +375,6 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
                     enabled: false,
                     uploadTime: new Date().toISOString(),
                     sourceUrl: url,
-                    allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM,
-                    requireUnsafe: !!requireUnsafe
                 })
                 writeJsonFileAtomic(metaPath, sources)
             } catch (error) {
@@ -441,7 +385,7 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
             await initUserApis(targetOwner)
         })
 
-        return ctx.json({ success: true, filename: displayName, id, metadata, supportedSources, owner: targetOwner, allowUnsafeVM: !!requireUnsafe || !!allowUnsafeVM })
+        return ctx.json({ success: true, filename: displayName, id, metadata, supportedSources, owner: targetOwner })
     } catch (err: any) {
         console.error('[CustomSource] Import error:', err)
         return ctx.json({ success: false, error: err.message }, 500)
@@ -572,7 +516,7 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
 export async function handleToggle(ctx: HttpContext): Promise<Response> {
     try {
         const body = await readBody(ctx)
-        const { id, sourceId, enabled, username, allowUnsafeVM } = JSON.parse(body)
+        const { id, sourceId, enabled, username } = JSON.parse(body)
         const targetId = id || sourceId
         assertSafePathSegment(targetId, 'source id')
 
@@ -645,64 +589,12 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
             return ctx.json({ success: true, enabled: states[targetId].enabled })
         }
 
-        const oldEnabled = target.enabled
-        const oldAllowUnsafeVM = !!target.allowUnsafeVM
-
-        // 核心安全校验：如果试图开启 VM 模式（或当前就是 VM 模式），必须要验证管理员密码
-        if (target.allowUnsafeVM || allowUnsafeVM) {
-            if (!verifyAdminAuth(ctx.request)) {
-                return ctx.json({ success: false, error: '开启/运行 VM 模式脚本需要验证管理员身份。' }, 403)
-            }
-        }
-
-        // 修改逻辑：只有当参数明确为 true 时才更新为 true，防止被默认值 false 覆盖
-        if (allowUnsafeVM === true) target.allowUnsafeVM = true
         target.enabled = enabled !== undefined ? enabled : !target.enabled
 
         writeJsonFileAtomic(metaPath, sources)
 
-        // 重新加载
-        try {
-            await initUserApis(targetOwner)
-
-            // 如果是尝试启用，检查启用后的实时状态
-            if (target.enabled) {
-                const status = getApiStatus(targetOwner, targetId)
-                const isRequireUnsafe = !allowUnsafeVM && !oldAllowUnsafeVM && !!(status && status.status === 'failed' && status.error && (
-                    status.error === 'REQUIRE_UNSAFE_VM' ||
-                    status.error.includes('初始化超时') ||
-                    status.error.includes('timeout')
-                ))
-                if (isRequireUnsafe) {
-                    console.warn(`[CustomSource] Detect REQUIRE_UNSAFE_VM or Timeout during toggle for ${targetId}, rolling back...`)
-                    // 回滚状态
-                    target.enabled = oldEnabled
-                    target.allowUnsafeVM = oldAllowUnsafeVM
-                    writeJsonFileAtomic(metaPath, sources)
-                    await initUserApis(targetOwner)
-
-                    // 如果系统已禁用 VM 模式，直接提示已禁用
-                    if (!global.lx.config['system.allowUnsafeVM']) {
-                        return ctx.json({ success: false, disabledVM: true, error: 'VM_DISABLED', message: '已禁用VM。该脚本需要原生 VM 模式运行，但服务器后台已禁用 VM 模式。' })
-                    }
-
-                    return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
-                }
-            }
-
-            return ctx.json({ success: true, enabled: target.enabled })
-        } catch (e: any) {
-            // initUserApis 本身不应抛出这个错误（内部已捕获并记录 status），但为了健壮性保留此判断
-            const isRequireUnsafe = !allowUnsafeVM && !oldAllowUnsafeVM && !!(e && e.message && (
-                e.message === 'REQUIRE_UNSAFE_VM' ||
-                e.message.includes('初始化超时') ||
-                e.message.includes('timeout')
-            ))
-            if (isRequireUnsafe) {
-                return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
-            }
-            throw e
-        }
+        await initUserApis(targetOwner)
+        return ctx.json({ success: true, enabled: target.enabled })
         })
     } catch (err: any) {
         console.error('[CustomSource] Toggle error:', err)

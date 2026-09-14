@@ -198,7 +198,6 @@ export const createSystemRouter = (): Router => {
       'player.path': c['player.path'] ?? '/music',
       'singer.sourcePriority': (c['singer.sourcePriority'] || ['tx', 'wy']).join(','),
       'artist.maxFetchPages': c['artist.maxFetchPages'] ?? 20,
-      'system.allowUnsafeVM': c['system.allowUnsafeVM'] || false,
     }
     return ctx.json(config)
   })
@@ -224,7 +223,6 @@ export const createSystemRouter = (): Router => {
       if (newConfig['user.enableLoginCacheRestriction'] !== undefined) c['user.enableLoginCacheRestriction'] = parseBoolean(newConfig['user.enableLoginCacheRestriction'], c['user.enableLoginCacheRestriction'] ?? false)
       if (newConfig['user.enableCacheSizeLimit'] !== undefined) c['user.enableCacheSizeLimit'] = parseBoolean(newConfig['user.enableCacheSizeLimit'], c['user.enableCacheSizeLimit'] ?? false)
       if (newConfig['user.cacheSizeLimit'] !== undefined) c['user.cacheSizeLimit'] = parseBoundedInteger(newConfig['user.cacheSizeLimit'], 1, 1024 * 1024, 2000)
-      if (newConfig['system.allowUnsafeVM'] !== undefined) c['system.allowUnsafeVM'] = parseBoolean(newConfig['system.allowUnsafeVM'], false)
       if (newConfig['frontend.password'] !== undefined) {
         if (typeof newConfig['frontend.password'] !== 'string') {
           return ctx.json({ success: false, error: '管理员密码格式无效' }, 422)

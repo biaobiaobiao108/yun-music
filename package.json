@@ -29,8 +29,7 @@
     "archiver": "^8.0.0",
     "log4js": "^6.9.1",
     "music-tag-native": "^0.2.5",
-    "socks-proxy-agent": "^10.1.0",
-    "vm2": "^3.12.1"
+    "socks-proxy-agent": "^10.1.0"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",
