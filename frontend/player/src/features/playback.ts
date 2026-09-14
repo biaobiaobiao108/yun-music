@@ -80,6 +80,7 @@ type PlaybackAttemptContext = {
 };
 
 export const shouldPrefetchAfterPlayback = (sourceType: string) => sourceType !== 'server_cache';
+const PREFETCH_PROGRESS_THRESHOLD = 0.8;
 
 export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const API_BASE = '/api/music';
@@ -147,6 +148,23 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let playbackHistoryStack: number[] = [];
     let isNavigatingHistory = false;
     let activePlaybackAttempt: PlaybackAttemptContext | null = null;
+    let prefetchTriggeredForPlayback = false;
+
+    const maybePrefetchNextSong = () => {
+        if (prefetchTriggeredForPlayback || settings.enablePreloader === false) return;
+        if (audio.paused || audio.ended) return;
+        if (state.currentLoadingRequestId !== 0 || !shouldPrefetchAfterPlayback(state.currentSourceType)) return;
+
+        const duration = Number(audio.duration);
+        const currentTime = Number(audio.currentTime);
+        if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return;
+        if (currentTime / duration < PREFETCH_PROGRESS_THRESHOLD) return;
+
+        prefetchTriggeredForPlayback = true;
+        void prefetchNextSong();
+    };
+
+    audio.addEventListener('timeupdate', maybePrefetchNextSong);
 
     function getPlaybackTargetKey(song, sourceType, quality, url) {
         return [
@@ -526,6 +544,13 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
     if (!noPlay) {
         playAfterSourceReady = false;
         clearManualPlaybackRecovery();
+    }
+    if (!isRetry) {
+        prefetchTriggeredForPlayback = false;
+        // A user jump makes unrelated in-flight prefetch work obsolete.
+        // Keep a request for the song being entered so an almost-ready
+        // prefetch can still be reused instead of resolved twice.
+        prefetchManager.cancelInflightExcept?.(song.id);
     }
     playbackErrorCleanup?.();
     playbackErrorCleanup = null;
@@ -1041,9 +1066,6 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             console.error('[Player] Playback blocked:', playError);
             setPlayerStatus('请点击播放按钮');
         }
-
-        // 本地缓存播放不需要用在线解析额度预读下一首；在线播放仍保留原有预读体验。
-        if (shouldPrefetchAfterPlayback(state.currentSourceType)) prefetchNextSong();
 
     } catch (error) {
         if (state.currentLoadingRequestId !== thisRequestId) return;

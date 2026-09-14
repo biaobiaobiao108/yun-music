@@ -85,7 +85,14 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain('signal?: AbortSignal');
         expect(shouldPrefetchAfterPlayback('server_cache')).toBe(false);
         expect(shouldPrefetchAfterPlayback('normal')).toBe(true);
-        expect(playbackSource).toContain('if (shouldPrefetchAfterPlayback(state.currentSourceType)) prefetchNextSong();');
+        expect(playbackSource).toContain('const PREFETCH_PROGRESS_THRESHOLD = 0.8;');
+        expect(playbackSource).toContain('audio.addEventListener(\'timeupdate\', maybePrefetchNextSong);');
+        expect(playbackSource).toContain('if (currentTime / duration < PREFETCH_PROGRESS_THRESHOLD) return;');
+        expect(playbackSource).toContain('prefetchManager.cancelInflightExcept?.(song.id);');
+        expect(playbackSource).not.toContain('if (shouldPrefetchAfterPlayback(state.currentSourceType)) prefetchNextSong();');
+        expect(songUrlSource).toContain("if (isSilent) requestInit.priority = 'low';");
+        expect(songUrlSource).toContain('abortController.signal');
+        expect(songUrlSource).toContain('if (e?.name === \'AbortError\') return;');
         expect(songUrlSource).toContain('if (result) return;');
     });
 

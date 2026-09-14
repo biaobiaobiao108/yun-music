@@ -179,6 +179,7 @@ function projectPrefetchSongInfo(songInfo) {
 const prefetchManager = {
     cache: new Map(), // Map<songId, lightweight prefetch result>
     inflight: new Map(), // Map<songId:quality, Promise<void>>
+    controllers: new Map(), // Map<songId:quality, AbortController>
     version: 0,
     buffererSongId: null,
     bufferer: new Audio(), // 隐藏的缓冲器，仅用于加载媒体元数据
@@ -250,9 +251,21 @@ const prefetchManager = {
     },
     clear() {
         this.version += 1;
+        for (const controller of this.controllers.values()) {
+            try { controller.abort(); } catch (_) { }
+        }
         this.cache.clear();
         this.inflight.clear();
+        this.controllers.clear();
         this.stopBufferer();
+    },
+    cancelInflightExcept(songId) {
+        const keepPrefix = `${String(songId)}:`;
+        for (const [key, controller] of this.controllers) {
+            if (!key.startsWith(keepPrefix)) {
+                try { controller.abort(); } catch (_) { }
+            }
+        }
     }
 };
 prefetchManager.init(); // 立即初始化缓冲器
@@ -774,7 +787,7 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false, si
     });
 
     try {
-        const res = await fetch(`${API_BASE}/url`, {
+        const requestInit: RequestInit & { priority?: 'high' | 'low' | 'auto' } = {
             method: 'POST',
             headers,
             signal,
@@ -783,7 +796,10 @@ async function fetchSongUrl(song, quality, isRetry = false, isSilent = false, si
                 quality,
                 enableAutoSwitchApiSource: settings.enableAutoSwitchApiSource !== false
             })
-        });
+        };
+        if (isSilent) requestInit.priority = 'low';
+
+        const res = await fetch(`${API_BASE}/url`, requestInit);
 
         if (!res.ok) {
             let errorMsg = `HTTP ${res.status}`;
@@ -943,6 +959,7 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
         if (pending) return pending;
 
         prefetchVersion = prefetchManager.version;
+        const abortController = new AbortController();
         const work = (async () => {
             // 1. 检查内存缓存
             let result = prefetchManager.get(nextSong.id, targetQual);
@@ -951,12 +968,12 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
             if (result) return;
 
             // 2. 复用统一解析逻辑 (resolveSongUrl)，且开启静默模式
-            result = await resolveSongUrl(nextSong, targetQual, true);
+            result = await resolveSongUrl(nextSong, targetQual, true, false, false, abortController.signal);
 
             // 3. 探活获取到的链接
             if (!(await probeUrl(result.url))) {
                 localStorage.removeItem(`lx_url_${cleanSongData(nextSong).id}_${targetQual}`);
-                result = await resolveSongUrl(nextSong, targetQual, true, true);
+                result = await resolveSongUrl(nextSong, targetQual, true, true, false, abortController.signal);
             }
 
             if (prefetchManager.version !== prefetchVersion) return;
@@ -966,16 +983,21 @@ async function prefetchNextSong(startFromIndex = null, depth = 0) {
             console.log(`[Prefetch] Readied: ${nextSong.name} (${result.quality} / ${sourceDesc})`);
         })();
         prefetchManager.inflight.set(prefetchKey, work);
+        prefetchManager.controllers.set(prefetchKey, abortController);
         try {
             return await work;
         } finally {
             if (prefetchManager.inflight.get(prefetchKey) === work) {
                 prefetchManager.inflight.delete(prefetchKey);
             }
+            if (prefetchManager.controllers.get(prefetchKey) === abortController) {
+                prefetchManager.controllers.delete(prefetchKey);
+            }
         }
 
     } catch (e) {
         if (prefetchManager.version !== prefetchVersion) return;
+        if (e?.name === 'AbortError') return;
         console.warn(`[Prefetch] Skip unplayable [${nextSong.name}]:`, e.message);
         // A transient resolver/network failure must not permanently poison the
         // playlist item. Keep only a short-lived hint for automatic skipping.
