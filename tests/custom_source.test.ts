@@ -1,4 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test'
+import dns from 'node:dns/promises'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -100,6 +101,7 @@ describe('Custom Source Security and Isolation', () => {
     const router = createCustomSourceRouter()
     const prevFetch = globalThis.fetch
     const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
 
     try {
       // 模拟一个超过 5MB 的响应流
@@ -138,6 +140,7 @@ describe('Custom Source Security and Isolation', () => {
       expect(json.success).toBe(false)
       expect(json.error).toContain('Remote script is too large')
     } finally {
+      lookup.mockRestore()
       globalThis.fetch = prevFetch
     }
   })
@@ -160,6 +163,7 @@ describe('Custom Source Security and Isolation', () => {
   test('sandbox lx.request dispatches request via native fetch and delivers parsed JSON', async () => {
     const { loadUserApi } = await import('@/server/userApi')
     const prevFetch = globalThis.fetch
+    const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
     try {
       globalThis.fetch = async (input: any) => {
         return new Response(JSON.stringify({ code: 0, message: 'hello from test' }), {
@@ -208,6 +212,7 @@ describe('Custom Source Security and Isolation', () => {
       expect(result.resp.headers['x-custom-header']).toBe('lx-music')
       expect(result.body).toEqual({ code: 0, message: 'hello from test' })
     } finally {
+      lookup.mockRestore()
       globalThis.fetch = prevFetch
     }
   })
