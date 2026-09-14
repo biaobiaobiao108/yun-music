@@ -1679,52 +1679,60 @@ export const downloadCoverImage = async (imageUrl: string, redirects = 0): Promi
     } catch {
         return null
     }
-    return await new Promise((resolve) => {
-        const client = safeUrl.protocol === 'https:' ? https : http
-        const req = client.get(safeUrl, { lookup: safeUrl.lookup, agent: false }, response => {
-            const statusCode = response.statusCode || 500
-            if (statusCode >= 300 && statusCode < 400 && response.headers.location) {
-                response.resume()
-                const redirectedUrl = new URL(response.headers.location, safeUrl).toString()
-                void downloadCoverImage(redirectedUrl, redirects + 1).then(resolve)
-                return
+
+    try {
+        const resp = await fetch(safeUrl.href, {
+            method: 'GET',
+            redirect: 'manual',
+            signal: AbortSignal.timeout(10000),
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': safeUrl.origin,
+            },
+        })
+
+        if ([301, 302, 303, 307, 308].includes(resp.status)) {
+            const location = resp.headers.get('location')
+            if (location) {
+                const nextUrl = new URL(location, safeUrl).toString()
+                return await downloadCoverImage(nextUrl, redirects + 1)
             }
-            if (statusCode >= 400) {
-                response.resume()
-                resolve(null)
-                return
-            }
-            const maxBytes = 10 * 1024 * 1024
-            if (Number(response.headers['content-length'] || 0) > maxBytes) {
-                response.resume()
-                resolve(null)
-                return
-            }
-            const chunks: Buffer[] = []
-            let received = 0
-            response.on('data', chunk => {
-                const buffer = Buffer.from(chunk)
-                received += buffer.length
-                if (received <= maxBytes) chunks.push(buffer)
-                else response.destroy()
-            })
-            response.on('end', () => {
+            return null
+        }
+
+        if (!resp.ok) return null
+
+        const maxBytes = 10 * 1024 * 1024
+        const declaredLength = Number(resp.headers.get('content-length') || 0)
+        if (declaredLength > maxBytes) {
+            await resp.body?.cancel()
+            return null
+        }
+
+        if (!resp.body) return null
+        const reader = resp.body.getReader()
+        const chunks: Uint8Array[] = []
+        let received = 0
+
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (value) {
+                received += value.byteLength
                 if (received > maxBytes) {
-                    resolve(null)
-                    return
+                    await reader.cancel('Cover is too large')
+                    return null
                 }
-                const data = Buffer.concat(chunks)
-                const mime = detectImageMime(data)
-                resolve(mime ? { data, mime } : null)
-            })
-            response.on('error', () => resolve(null))
-        })
-        req.on('error', () => resolve(null))
-        req.setTimeout(10000, () => {
-            req.destroy()
-            resolve(null)
-        })
-    })
+                chunks.push(value)
+            }
+        }
+
+        const data = Buffer.concat(chunks)
+        const mime = detectImageMime(data)
+        return mime ? { data, mime } : null
+    } catch {
+        return null
+    }
 }
 
 const setIndexCoverState = (filename: string, username: string, coverType: CacheItem['coverType'], stats?: Stats, location?: string, requestedFolder?: CacheFolder) => {
@@ -2758,39 +2766,10 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     try {
                         const imageUrl = songInfo.img || (songInfo.meta && songInfo.meta.picUrl)
                         if (imageUrl && imageUrl.startsWith('http') && !isPlaceholderCoverUrl(imageUrl)) {
-                            const safeImageUrl = await assertSafeRemoteHttpUrl(imageUrl)
-                            const chunks: Buffer[] = []
-                            const p = safeImageUrl.protocol === 'https:' ? https : http
-                            try {
-                                imageBuffer = await new Promise((resolveI, rejectI) => {
-                                const imgReq = p.get(safeImageUrl, { lookup: safeImageUrl.lookup, agent: false, signal }, ires => {
-                                    if (ires.statusCode && ires.statusCode >= 400) {
-                                        ires.resume()
-                                        rejectI(new Error(`Cover status: ${ires.statusCode}`))
-                                        return
-                                    }
-                                    if (Number(ires.headers['content-length'] || 0) > 10 * 1024 * 1024) {
-                                        ires.resume()
-                                        rejectI(new Error('Cover is too large'))
-                                        return
-                                    }
-                                    imageMime = String(ires.headers['content-type'] || 'image/jpeg').split(';')[0]
-                                    let imageBytes = 0
-                                    ires.on('data', c => {
-                                        imageBytes += c.length
-                                        if (imageBytes <= 10 * 1024 * 1024) chunks.push(c)
-                                        else ires.destroy(new Error('Cover is too large'))
-                                    })
-                                    ires.on('end', () => resolveI(Buffer.concat(chunks)))
-                                    ires.on('error', rejectI)
-                                })
-                                imgReq.on('error', rejectI)
-                                imgReq.setTimeout(10000, () => {
-                                    imgReq.destroy(new Error('Cover download timeout'))
-                                })
-                                })
-                            } finally {
-                                chunks.length = 0
+                            const coverResult = await downloadCoverImage(imageUrl)
+                            if (coverResult) {
+                                imageBuffer = coverResult.data
+                                imageMime = coverResult.mime
                             }
                         }
                     } catch (e) { }

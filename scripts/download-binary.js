@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync, spawnSync } = require('child_process');
 const unzipper = require('unzipper');
 
 /**
@@ -80,7 +79,10 @@ async function downloadPlatform(platformInfo, version, customTargetName) {
     if (fileName.endsWith('.zip')) {
         await extractZip(tempFilePath, tempDir);
     } else {
-        execSync(`tar -xzf "${tempFilePath}" -C "${tempDir}"`);
+        const tarResult = Bun.spawnSync(['tar', '-xzf', tempFilePath, '-C', tempDir]);
+        if (tarResult.exitCode !== 0) {
+            throw new Error(`tar 解压失败: ${tarResult.stderr.toString()}`);
+        }
     }
 
     const binaryBaseName = platformInfo.platform === 'win32' ? 'fpcalc.exe' : 'fpcalc';
@@ -117,8 +119,8 @@ async function main() {
             }
 
             // 环境检查：如果系统中已有 fpcalc，直接复用
-            const checkGlobal = spawnSync(os.platform() === 'win32' ? 'where' : 'which', ['fpcalc'], { encoding: 'utf8' });
-            if (checkGlobal.status === 0) {
+            const checkGlobal = Bun.spawnSync([os.platform() === 'win32' ? 'where' : 'which', 'fpcalc']);
+            if (checkGlobal.exitCode === 0) {
                 console.log('检测到系统环境中已安装 fpcalc，跳过外部下载。');
                 return;
             }
