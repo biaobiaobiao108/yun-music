@@ -1251,33 +1251,77 @@ window.updatePlaylist = updatePlaylist;
 // 移除旧版 showError，由后文统一的 showToast 驱动
 // 占位图片变色
 
-// 全局图片设置助手，处理占位图逻辑
+// 全局图片设置助手，处理占位图逻辑与无缝平滑过渡
 window.setImg = (id, src) => {
-    const el = document.getElementById(id);
-    if (el) {
-        const resolvedSrc = src ? safeImageUrl(src) : '';
-        // 如果是从占位图切换到真实图片，保留滤镜直到加载完成
-        if (el.src.includes('yun-yin.png') && resolvedSrc && !resolvedSrc.includes('yun-yin.png')) {
-            el.classList.add('is-placeholder');
-            const handleLoad = () => {
-                el.classList.remove('is-placeholder');
-                el.removeEventListener('load', handleLoad);
-                el.removeEventListener('error', handleLoad); // 失败也移除
-            };
-            el.addEventListener('load', handleLoad);
-            el.addEventListener('error', handleLoad);
-        } else if (resolvedSrc && resolvedSrc.includes('yun-yin.png')) {
-            el.classList.add('is-placeholder');
-        } else {
-            el.classList.remove('is-placeholder');
-        }
+    const el = document.getElementById(id) as HTMLImageElement | null;
+    if (!el) return;
 
-        if (resolvedSrc) el.src = resolvedSrc;
-        el.onerror = () => {
-            if (!el.src.includes('yun-yin.png')) el.src = '/music/assets/yun-yin.png';
+    const resolvedSrc = src ? safeImageUrl(src) : '';
+    if (!resolvedSrc) {
+        delete el.dataset.pendingSrc;
+        el.src = '/music/assets/yun-yin.png';
+        el.classList.add('is-placeholder');
+        return;
+    }
+
+    // 绝对路径规范化比对，防止同一 URL 重复赋值触发浏览器无谓重绘与闪烁
+    let targetUrl = resolvedSrc;
+    try {
+        targetUrl = new URL(resolvedSrc, window.location.href).href;
+    } catch (_) { }
+
+    const isCurrentUrl = el.src === targetUrl;
+    const isPlaceholder = targetUrl.includes('yun-yin.png');
+
+    // 已经显示了目标图片，且无待决请求时直接跳过，避免二次赋值触发渲染管线重置
+    if (isCurrentUrl && !el.dataset.pendingSrc) {
+        if (isPlaceholder) el.classList.add('is-placeholder');
+        else el.classList.remove('is-placeholder');
+        return;
+    }
+
+    if (isPlaceholder) {
+        delete el.dataset.pendingSrc;
+        el.src = targetUrl;
+        el.classList.add('is-placeholder');
+        return;
+    }
+
+    // 针对真实封面：在后台预加载完成并解码就绪后再进行无缝置换（Zero-Flicker Transition）
+    // 在新封面加载期间保留当前画面，杜绝瞬时灰底空白或滤镜突变带来的闪烁感
+    el.dataset.pendingSrc = targetUrl;
+    const loader = new Image();
+    loader.src = targetUrl;
+
+    const applyReadyImage = () => {
+        if (el.dataset.pendingSrc !== targetUrl) return; // 已经被更新的切歌操作覆盖
+        delete el.dataset.pendingSrc;
+        el.src = targetUrl;
+        el.classList.remove('is-placeholder');
+    };
+
+    if (typeof loader.decode === 'function') {
+        loader.decode().then(applyReadyImage).catch(() => {
+            if (el.dataset.pendingSrc === targetUrl) {
+                applyReadyImage();
+            }
+        });
+    } else {
+        loader.onload = applyReadyImage;
+        loader.onerror = () => {
+            if (el.dataset.pendingSrc !== targetUrl) return;
+            delete el.dataset.pendingSrc;
+            el.src = '/music/assets/yun-yin.png';
             el.classList.add('is-placeholder');
         };
     }
+
+    el.onerror = () => {
+        if (!el.src.includes('yun-yin.png')) {
+            el.src = '/music/assets/yun-yin.png';
+            el.classList.add('is-placeholder');
+        }
+    };
 };
 
 function updatePlayerQualityBadge(quality) {
