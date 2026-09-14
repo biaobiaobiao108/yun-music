@@ -1,9 +1,6 @@
-import { spawnSync } from 'child_process'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-// @ts-ignore
-import needle from 'needle'
 
 /**
  * AcoustID 歌曲识别工具类
@@ -18,8 +15,8 @@ const API_URL = 'https://api.acoustid.org/v2/lookup'
  */
 function getFpcalcPath(): string | null {
     // 1. 检查 PATH 中是否已存在 (例如 Linux/Docker 环境下安装了 chromaprint)
-    const checkGlobal = spawnSync(os.platform() === 'win32' ? 'where' : 'which', ['fpcalc'], { encoding: 'utf8' })
-    if (checkGlobal.status === 0) {
+    const checkGlobal = Bun.spawnSync([os.platform() === 'win32' ? 'where' : 'which', 'fpcalc'])
+    if (checkGlobal.exitCode === 0) {
         return 'fpcalc'
     }
 
@@ -64,36 +61,36 @@ export function getFingerprint(filePath: string): { fingerprint: string; duratio
         throw new Error('未找到 fpcalc 二进制文件。Docker 环境请安装 chromaprint (apk add chromaprint)')
     }
 
-    const result = spawnSync(fpcalcPath, ['-json', filePath], { encoding: 'utf8' })
-    if (result.error) throw new Error(`启动 fpcalc 失败: ${result.error.message}`)
-    if (result.status !== 0) throw new Error(`fpcalc 报错: ${result.stderr}`)
+    const result = Bun.spawnSync([fpcalcPath, '-json', filePath])
+    if (result.exitCode !== 0) throw new Error(`fpcalc 报错: ${result.stderr.toString()}`)
 
-    return JSON.parse(result.stdout)
+    return JSON.parse(result.stdout.toString())
 }
 
 /**
  * 查询 AcoustID
  */
 export async function lookupSong(fingerprint: string, duration: number): Promise<any> {
-    const params = {
+    const params = new URLSearchParams({
         format: 'json',
         client: API_KEY,
-        duration: Math.floor(duration),
+        duration: String(Math.floor(duration)),
         fingerprint: fingerprint,
         meta: 'recordings releasegroups releases tracks'
-    }
+    })
 
     try {
-        const response = await needle('post', API_URL, params, {
-            json: false,
-            multipart: false
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            body: params,
+            signal: AbortSignal.timeout(10000),
         })
 
-        if (response.statusCode !== 200) {
-            throw new Error(`AcoustID API 返回状态码 ${response.statusCode}`)
+        if (!response.ok) {
+            throw new Error(`AcoustID API 返回状态码 ${response.status}`)
         }
 
-        return response.body
+        return await response.json()
     } catch (error: any) {
         throw new Error(`AcoustID 查询失败: ${error.message}`)
     }

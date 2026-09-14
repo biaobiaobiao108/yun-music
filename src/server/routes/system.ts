@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import needle from 'needle'
 import { Router, type HttpContext } from '../core'
 import { toUserMessage } from '../core/context'
 import { verifyAdminAuth } from '../auth'
@@ -299,33 +298,20 @@ export const createSystemRouter = (): Router => {
       const { address } = await ctx.bodyJson<{ address?: string }>()
       if (!address) throw new Error('Missing address')
       const url = new URL(address)
-      const options: any = {
-        timeout: 10000,
-        headers: {
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
-        },
-      }
-
-      if (url.protocol === 'http:' || url.protocol === 'https:') {
-        options.proxy = address
-      } else if (url.protocol.startsWith('socks')) {
-        const { SocksProxyAgent } = await import('socks-proxy-agent')
-        options.agent = new SocksProxyAgent(address)
-      } else {
+      if (!['http:', 'https:', 'socks:', 'socks4:', 'socks5:'].includes(url.protocol)) {
         throw new Error('Unsupported protocol: ' + url.protocol)
       }
 
       const startTime = Date.now()
-      return await new Promise<Response>((resolve) => {
-        needle.get('https://www.baidu.com', options, (err: Error | null, resp: any) => {
-          const duration = Date.now() - startTime
-          if (err) {
-            resolve(ctx.fail(500, toUserMessage(err, '操作失败，请稍后重试')))
-          } else {
-            resolve(ctx.json({ success: true, message: `连接成功 (状态码: ${resp.statusCode}, 耗时: ${duration}ms)` }))
-          }
-        })
+      const resp = await fetch('https://www.baidu.com', {
+        proxy: address,
+        signal: AbortSignal.timeout(10000),
+        headers: {
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+        },
       })
+      const duration = Date.now() - startTime
+      return ctx.json({ success: true, message: `连接成功 (状态码: ${resp.status}, 耗时: ${duration}ms)` })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '操作失败，请稍后重试'))
     }

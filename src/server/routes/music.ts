@@ -6,7 +6,6 @@ import { isSourceSupported, callUserApiGetMusicUrl } from '../userApi'
 import { isRetiredOnlineSource, UnsupportedSourceError } from '@/common/musicSources'
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import * as fileCache from '../fileCache'
-import needle from 'needle'
 import fs from 'node:fs'
 import path from 'node:path'
 import { assertSafeRemoteHttpUrl } from '../networkSecurity'
@@ -33,21 +32,15 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / Math.pow(1024, index)).toFixed(2)} ${units[index]}`
 }
 
-const getHeaderValue = (headers: Record<string, any>, key: string): string | undefined => {
-  const value = headers[key] ?? headers[key.toLowerCase()]
-  if (Array.isArray(value)) return value[0]
-  return value == null ? undefined : String(value)
-}
-
-const parseContentLength = (headers: Record<string, any>): number | null => {
-  const range = getHeaderValue(headers, 'content-range')
+const parseContentLength = (headers: Headers): number | null => {
+  const range = headers.get('content-range')
   const total = range?.match(/\/(\d+)$/)?.[1]
   if (total) {
     const parsed = Number(total)
     if (Number.isFinite(parsed) && parsed > 0) return parsed
   }
 
-  const length = Number(getHeaderValue(headers, 'content-length'))
+  const length = Number(headers.get('content-length'))
   if (Number.isFinite(length) && length > 0) return length
 
   return null
@@ -62,35 +55,37 @@ const getAudioRemoteSize = async (audioUrl: string): Promise<number | null> => {
   } catch {
     return null
   }
-  const urlObj = safeUrl
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': urlObj.origin,
-  }
-  const options = {
-    follow_max: 0,
-    response_timeout: 8000,
-    read_timeout: 8000,
-    headers,
+    'Referer': safeUrl.origin,
   }
 
   try {
-    const resp = await needle('head', safeUrl.toString(), null, options)
-    const size = parseContentLength(resp.headers || {})
+    const resp = await fetch(safeUrl.href, {
+      method: 'HEAD',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(8000),
+      headers,
+    })
+    const size = parseContentLength(resp.headers)
     if (size) return size
   } catch (e: any) {
     console.warn(`[QualitySize] HEAD failed: ${e.message}`)
   }
 
   try {
-    const resp = await needle('get', safeUrl.toString(), null, {
-      ...options,
+    const resp = await fetch(safeUrl.href, {
+      method: 'GET',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(8000),
       headers: {
         ...headers,
         Range: 'bytes=0-0',
       },
     })
-    return parseContentLength(resp.headers || {})
+    const size = parseContentLength(resp.headers)
+    await resp.body?.cancel()
+    return size
   } catch (e: any) {
     console.warn(`[QualitySize] Range probe failed: ${e.message}`)
   }
@@ -402,24 +397,25 @@ export const createMusicRouter = (): Router => {
             const safeUrl = await assertSafeRemoteHttpUrl(u)
             if (depth > 3) return safeUrl.toString()
             try {
-              const resp = await needle('head', safeUrl.toString(), null, {
-                follow_max: 0,
-                response_timeout: 4000,
-                read_timeout: 4000,
+              const resp = await fetch(safeUrl.href, {
+                method: 'HEAD',
+                redirect: 'manual',
+                signal: AbortSignal.timeout(4000),
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                   'Referer': safeUrl.origin,
                 },
               })
-              if (resp.statusCode && [301, 302, 303, 307, 308].includes(resp.statusCode) && resp.headers.location) {
-                let nextUrl = resp.headers.location
+              const location = resp.headers.get('location')
+              if ([301, 302, 303, 307, 308].includes(resp.status) && location) {
+                let nextUrl = location
                 if (!nextUrl.startsWith('http')) {
                   try { nextUrl = new URL(nextUrl, safeUrl).href } catch { }
                 }
                 return checkRedirect(nextUrl, depth + 1)
               }
-              if (resp.statusCode !== undefined && resp.statusCode >= 400) {
-                console.warn(`[MusicUrl] Redirect check failed with status ${resp.statusCode}, using original URL`)
+              if (resp.status >= 400) {
+                console.warn(`[MusicUrl] Redirect check failed with status ${resp.status}, using original URL`)
                 return safeUrl.toString()
               }
             } catch (e: any) {

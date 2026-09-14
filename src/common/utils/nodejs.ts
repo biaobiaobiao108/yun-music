@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { gzip, gunzip } from 'node:zlib'
 import path from 'node:path'
 import { networkInterfaces } from 'node:os'
 import { log } from './index'
@@ -116,29 +115,17 @@ export const readFile = async (path: string) => fs.promises.readFile(path)
  */
 export const toMD5 = (str: string) => crypto.createHash('md5').update(str).digest('hex')
 
-// Fix gzipData missing
+// Gzip / Gunzip 使用 Bun 原生高性能实现
 export const gzipData = async (str: string | Buffer): Promise<Buffer> => {
-  return new Promise((resolve, reject) => {
-    gzip(str as any, (err, result) => {
-      if (err) {
-        reject(err)
-        return
-      }
-      resolve(result)
-    })
-  })
+  const input = typeof str === 'string' ? Buffer.from(str, 'utf-8') : str
+  const u8 = new Uint8Array(input.buffer, input.byteOffset, input.byteLength) as unknown as Uint8Array<ArrayBuffer>
+  return Buffer.from(Bun.gzipSync(u8))
 }
 
 export const gunzipData = async (buf: Buffer): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    gunzip(buf as any, (err, result) => {
-      if (err) {
-        reject(err)
-        return
-      }
-      resolve(result.toString())
-    })
-  })
+  const u8 = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) as unknown as Uint8Array<ArrayBuffer>
+  const decompressed = Bun.gunzipSync(u8)
+  return Buffer.from(decompressed).toString('utf-8')
 }
 
 /**
