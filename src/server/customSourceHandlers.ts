@@ -256,14 +256,22 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
             throw new Error('Missing URL')
         }
 
-        // 辅助函数：支持重定向的下载
+        // 前置身份与权限校验，防止无权限用户滥用服务器带宽发起外部请求
+        const targetOwner = getRequestedOwner(ctx, username)
+
+        // 核心安全校验：若指定了 unsafe VM 模式，必须先验证管理员身份
+        if (allowUnsafeVM && !verifyAdminAuth(ctx.request)) {
+            return ctx.json({ success: false, error: '允许以 VM 模式运行脚本需要验证管理员身份。' }, 403)
+        }
+
+        // 辅助函数：支持重定向且具备超时保护的下载
         const download = async (targetUrl: string, depth = 0): Promise<string> => {
             if (depth > 5) throw new Error('Too many redirects')
             const safeUrl = await assertSafeRemoteHttpUrl(targetUrl)
             const protocol = safeUrl.protocol === 'https:' ? require('https') : require('http')
 
             return new Promise((resolve, reject) => {
-                protocol.get(safeUrl, (response: any) => {
+                const req = protocol.get(safeUrl, (response: any) => {
                     const { statusCode } = response
 
                     // 处理重定向
@@ -295,7 +303,12 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
                         resolve(buffer.toString('utf-8'))
                     })
                     response.on('error', reject)
-                }).on('error', reject)
+                })
+
+                req.setTimeout(10000, () => {
+                    req.destroy(new Error('Download timeout'))
+                })
+                req.on('error', reject)
             })
         }
 
@@ -305,7 +318,7 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
         if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > 5 * 1024 * 1024) {
             throw new Error('Script content is missing or too large')
         }
-        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, allowUnsafeVM && verifyAdminAuth(ctx.request))
+        const { metadata, supportedSources, requireUnsafe } = await getScriptInfo(content, Boolean(allowUnsafeVM) && verifyAdminAuth(ctx.request))
 
         // 核心安全校验：若脚本需要或者指定了 unsafe VM 模式，则必须验证管理员身份
         if (requireUnsafe || allowUnsafeVM) {
@@ -326,8 +339,6 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
                 return ctx.json({ success: false, requireUnsafe: true, message: '该脚本需要原生 VM 模式运行，可能存在安全风险，是否继续？' })
             }
         }
-
-        const targetOwner = getRequestedOwner(ctx, username)
 
         const sourcesDir = getSourceDir(targetOwner)
         const metaPath = path.join(sourcesDir, 'sources.json')
@@ -677,9 +688,6 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
         // 保存混合列表的绝对顺序到 order.json（用于 handleList 展示排序）
         fs.writeFileSync(orderPath, JSON.stringify(sourceIds, null, 2))
 
-        // 同时尝试重排各自存在的 sources.json，并记录是否修改了 open 的源
-        let openSourcesModified = false
-
         if (fs.existsSync(metaPath)) {
             const sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
             const currentSourcesMap = new Map(sources.map((s: any) => [s.id, s]))
@@ -695,38 +703,10 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
                 newSources.push(source)
             }
             fs.writeFileSync(metaPath, JSON.stringify(newSources, null, 2))
-        } else if (targetOwner !== 'open') {
-            // 用户没有私有源时，重排 open 的 sources.json
-            const openSourcesDir = getSourceDir('open')
-            const openMetaPath = path.join(openSourcesDir, 'sources.json')
-            const openOrderPath = path.join(openSourcesDir, 'order.json')
-            if (fs.existsSync(openMetaPath)) {
-                const sources = JSON.parse(fs.readFileSync(openMetaPath, 'utf-8'))
-                const currentSourcesMap = new Map(sources.map((s: any) => [s.id, s]))
-                const newSources: any[] = []
-
-                for (const id of sourceIds) {
-                    if (currentSourcesMap.has(id)) {
-                        newSources.push(currentSourcesMap.get(id))
-                        currentSourcesMap.delete(id)
-                    }
-                }
-                for (const [id, source] of currentSourcesMap) {
-                    newSources.push(source)
-                }
-                fs.writeFileSync(openMetaPath, JSON.stringify(newSources, null, 2))
-                // 同时把 order.json 写入 open 目录，供 loadSourcesFromDir 按序加载
-                fs.writeFileSync(openOrderPath, JSON.stringify(sourceIds, null, 2))
-                openSourcesModified = true
-            }
         }
 
         // 重新加载 API，使新顺序立即生效于解析优先级
         await initUserApis(targetOwner)
-        // 若修改了 open 的源顺序，也必须重载 open，否则 loadedApis 里顺序不变
-        if (openSourcesModified) {
-            await initUserApis('open')
-        }
 
         return ctx.json({ success: true })
     } catch (err: any) {

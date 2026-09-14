@@ -32,9 +32,10 @@ export class Router {
   use(prefix: string, middleware: Middleware): this
   use(prefixOrMiddleware: string | Middleware, maybeMiddleware?: Middleware): this {
     if (typeof prefixOrMiddleware === 'string') {
-      const prefix = prefixOrMiddleware.endsWith('/') && prefixOrMiddleware !== '/'
-        ? prefixOrMiddleware.slice(0, -1)
-        : prefixOrMiddleware
+      let prefix = prefixOrMiddleware.replace(/\*+$/, '')
+      if (prefix.endsWith('/') && prefix !== '/') {
+        prefix = prefix.slice(0, -1)
+      }
       if (maybeMiddleware) {
         this.middlewares.push({ prefix, middleware: maybeMiddleware })
       }

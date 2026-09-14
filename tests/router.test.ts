@@ -181,4 +181,28 @@ describe('Core Router & HttpContext', () => {
     const status = getStatus()
     expect(status.status).toBe(false)
   })
+
+  test('Prefix middleware with wildcards correctly intercepts matching subpaths', async () => {
+    const router = new Router()
+    let intercepted = false
+
+    router.use('/api/custom-source/*', async (ctx, next) => {
+      intercepted = true
+      return ctx.fail(403, '访问受限')
+    })
+    router.post('/api/custom-source/import', (ctx) => ctx.json({ ok: true }))
+    router.get('/api/other/endpoint', (ctx) => ctx.json({ ok: true }))
+
+    // 匹配 /api/custom-source/* 的请求应被中间件拦截
+    const resBlocked = await router.handle(new Request('http://localhost:9527/api/custom-source/import', { method: 'POST' }))
+    expect(resBlocked.status).toBe(403)
+    expect(intercepted).toBe(true)
+
+    // 不匹配的请求不应被中间件拦截
+    intercepted = false
+    const resPass = await router.handle(new Request('http://localhost:9527/api/other/endpoint'))
+    expect(resPass.status).toBe(200)
+    expect(intercepted).toBe(false)
+  })
 })
+

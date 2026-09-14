@@ -56,7 +56,7 @@ const issueUserSession = (username: string): string => {
   return sessionId
 }
 
-const isActiveUser = (username: string): boolean => global.lx.config.users.some(user => user.name === username)
+const isActiveUser = (username: string): boolean => (global.lx?.config?.users ?? []).some(user => user.name === username)
 
 /** 撤销某个用户的全部浏览器会话。 */
 export const revokeUserAuth = (username: string): void => {
