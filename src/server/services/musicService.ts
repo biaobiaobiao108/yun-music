@@ -4,7 +4,6 @@ import musicSdk, { getBuiltinSource } from '@/modules/utils/musicSdk'
 import { initUserApis } from '../userApi'
 import * as fileCache from '../fileCache'
 import * as serverDownloadQueue from '../serverDownloadQueue'
-import * as remasterQueue from '../remasterQueue'
 import { normalizeSongInfo, resolveServerSong } from './musicResolver'
 import { getUserSpace } from '@/user'
 import { File } from '@/constants'
@@ -133,13 +132,4 @@ export const initMusicServices = async (): Promise<void> => {
     }
   })
 
-  // 6. 绑定服务端音频洗版重制队列解析器
-  remasterQueue.initialize(async (songInfo, requestedQuality, username) => {
-    const apiUsername = username === '_open' ? 'open' : username
-    const resolved = await resolveServerSong(songInfo, requestedQuality, apiUsername, true)
-    return {
-      url: resolved.url,
-      quality: resolved.quality,
-    }
-  })
 }

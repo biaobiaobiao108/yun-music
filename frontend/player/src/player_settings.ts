@@ -1,3 +1,13 @@
+export const FIXED_PLAYER_SETTINGS = {
+    enableOnlyDownloadMode: true,
+    enableServerCache: true,
+    enableServerLyricCache: true,
+    embedLyricToFile: true,
+    enableLyricCache: true,
+    enableSongUrlCache: true,
+    preferServerCache: true,
+} as const;
+
 export const DEFAULT_SETTINGS = {
     itemsPerPage: 20, // Default 20 items per page, can be 'all'
     defaultEntry: 'favorites', // 默认入口: 'search' | 'songlist' | 'leaderboard' | 'favorites' | 'localmusic'
@@ -9,7 +19,6 @@ export const DEFAULT_SETTINGS = {
     enableAutoProxy: true, // 自动代理
     enableCustomProxy: false, // 是否启用自定义代理
     customProxyUrl: '', // 自定义代理URL模板，使用 {url} 作为原始URL占位符
-    enableOnlyDownloadMode: true, // 仅下载模式
     downloadConcurrency: 3, // 缓存并发量 (1-5)
     hotSearchLimit: 20, // 热搜显示数量
     lyricFontSize: 1.25, // 歌词字体大小 (rem)
@@ -38,21 +47,15 @@ export const DEFAULT_SETTINGS = {
     detailVisualizerStyle: 'pulse',
     visualizerOpacity: 0.5,
     visualizerGlobalStyle: 'blocks',
-    enableServerCache: true, // 开启服务器缓存
-    enableServerLyricCache: true, // 开启服务器歌词文件缓存
-    embedLyricToFile: true, // 下载时将歌词嵌入文件（标签+.lrc）
     serverCacheLocation: 'root', // 缓存位置: 'data' (application data) or 'root' (local)
     serverCacheNamingPattern: 'simple', // 缓存命名规则: standard | simple
-    enableRemaster: false, // 启用下载目录歌曲洗版
-    enableLyricCache: true,
-    enableSongUrlCache: true,
     enableLyricGlow: true, // 歌词荧光效果 (默认开启)
     playerBackground: 'blur', // 播放页背景: 'blur', 'solid', 'dark'
     saveAccountSettingsToFile: true, // 登录后保存账号设置到服务器
     autoUpdateNetworkList: false, // 自动更新网络歌单（默认关闭）
     networkListAutoCheckInterval: '6h', // 网络歌单自动检测间隔
     favoriteSidebarOrder: [], // 我的收藏侧边栏子项排序
-    preferServerCache: true, // 优先播放缓存歌曲 (默认开启)
+    ...FIXED_PLAYER_SETTINGS,
     deduplicatePlaylistByQuality: true, // 同 ID 歌曲仅加入最高音质 (默认开启)
 };
 
@@ -65,8 +68,10 @@ export function normalizeDownloadConcurrency(value) {
 export function normalizeStoredSettings(nextSettings) {
     if (!nextSettings || typeof nextSettings !== 'object') return nextSettings;
     delete nextSettings.remasterRetryManifest;
+    delete nextSettings.enableRemaster;
     // 播放音乐代理已改为固定的服务端中转，不再保留旧的可选设置。
     delete nextSettings.enableProxyPlayback;
+    Object.assign(nextSettings, FIXED_PLAYER_SETTINGS);
     if (!['server', 'browser'].includes(nextSettings.defaultDownloadTarget)) {
         nextSettings.defaultDownloadTarget = DEFAULT_SETTINGS.defaultDownloadTarget;
     }
@@ -80,4 +85,13 @@ export function normalizeStoredSettings(nextSettings) {
         ? 'standard'
         : 'simple';
     return nextSettings;
+}
+
+export function serializeSettings(nextSettings) {
+    const persisted = { ...nextSettings };
+    for (const key of Object.keys(FIXED_PLAYER_SETTINGS)) delete persisted[key];
+    delete persisted.enableRemaster;
+    delete persisted.remasterRetryManifest;
+    delete persisted.enableProxyPlayback;
+    return persisted;
 }

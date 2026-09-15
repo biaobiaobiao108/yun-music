@@ -11,7 +11,6 @@ import { verifyAdminAuth } from '../auth'
 import { verifyUserAuth } from './auth'
 import * as fileCache from '../fileCache'
 import * as serverDownloadQueue from '../serverDownloadQueue'
-import * as remasterQueue from '../remasterQueue'
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import { accessLog } from '@/utils/log4js'
 import { assertSafeRemoteHttpUrl } from '../networkSecurity'
@@ -145,41 +144,11 @@ const resolveCacheTarget = (
   return { ok: true, username: verified }
 }
 
-/** 注册本地音乐缓存、下载队列、洗版与文件分发路由 */
+/** 注册本地音乐缓存、下载队列与文件分发路由 */
 export const createCacheRouter = (): Router => {
   const router = new Router()
 
-  // 1. 本地音乐洗版 Remaster APIs
-  router.post('/api/music/remaster/start', async (ctx) => {
-    const target = resolveCacheTarget(ctx, { publicWrite: true })
-    if (!target.ok) return target.error
-
-    try {
-      const body = await ctx.bodyJson<{ targetQuality?: string; filenames?: string[] }>()
-      const data = await remasterQueue.start(target.username, String(body?.targetQuality || ''), body?.filenames)
-      return ctx.json({ success: true, data })
-    } catch (err: any) {
-      return ctx.fail(400, toUserMessage(err, '启动洗版失败，请稍后重试'))
-    }
-  })
-
-  router.get('/api/music/remaster/status', (ctx) => {
-    const username = getCacheRequestUsername(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const offset = Number(ctx.query.get('offset') || 0)
-    const limit = Number(ctx.query.get('limit') || 200)
-    const data = remasterQueue.getStatus(username, offset, limit)
-    return ctx.json({ success: true, data })
-  })
-
-  router.post('/api/music/remaster/cancel', (ctx) => {
-    const target = resolveCacheTarget(ctx, { publicWrite: true })
-    if (!target.ok) return target.error
-    const cancelled = remasterQueue.cancel(target.username)
-    return ctx.json({ success: true, data: { cancelled } })
-  })
-
-  // 2. 缓存基础配置与索引同步
+  // 1. 缓存基础配置与索引同步
   router.post('/api/music/cache/config', async (ctx) => {
     // 缓存位置与命名规则是全局设置，公共访客不得修改
     const target = resolveCacheTarget(ctx, { publicWrite: true })

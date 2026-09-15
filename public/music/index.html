@@ -20,7 +20,7 @@
     <link rel="icon" href="/music/assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="/music/assets/yun-yin.png">
     <link rel="manifest" href="/music/manifest.json">
-    <link rel="modulepreload" href="app-17xrst80.js">
+    <link rel="modulepreload" href="app-gt3yrh56.js">
     <link rel="stylesheet" href="css/theme_variables.css">
     <link rel="stylesheet" href="css/tailwind.generated.css">
     <script src="js/vendor-bridge.js"></script>
@@ -1013,9 +1013,6 @@
                                     data-event-click-action="LocalMusicManager.toggleReMapping"
                                     class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded hover:bg-emerald-500 hover:text-white transition-all"
                                     title="歌曲重映射"><i class="fas fa-link text-[10px]"></i></button>
-                                <button id="lm-remaster-btn-mobile" data-event-click-action="LocalMusicManager.openRemasterModal"
-                                    class="hidden w-6 h-6 items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded hover:bg-red-500 hover:text-white transition-all"
-                                    title="歌曲洗版"><i class="fas fa-exchange-alt text-[10px]"></i></button>
                                 <button data-event-click-action="LocalMusicManager.toggleBatchMode"
                                     class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded"><i
                                         class="fas fa-list-ul text-[10px]"></i></button>
@@ -1051,9 +1048,6 @@
                                 <button id="lm-remap-toggle-btn" data-event-click-action="LocalMusicManager.toggleReMapping"
                                     class="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
                                     title="歌曲重映射"><i class="fas fa-link text-xs"></i></button>
-                                <button id="lm-remaster-btn" data-event-click-action="LocalMusicManager.openRemasterModal"
-                                    class="hidden w-7 h-7 md:w-8 md:h-8 items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded-lg hover:bg-red-500 hover:text-white transition-all"
-                                    title="歌曲洗版"><i class="fas fa-exchange-alt text-xs"></i></button>
                                 <button data-event-click-action="LocalMusicManager.toggleBatchMode"
                                     class="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded-lg hover:bg-blue-500 hover:text-white transition-all"
                                     title="批量操作"><i class="fas fa-list-ul text-xs"></i></button>
@@ -1719,184 +1713,6 @@
                             <div class="pt-6 border-t t-border-main mb-2">
                                 <h3 class="font-medium text-emerald-600 mb-3">本地缓存与重置</h3>
                                 <div class="t-bg-main p-4 rounded-xl border t-border-main flex flex-col gap-3">
-
-                                    <!-- Cache Toggles -->
-                                    <div class="flex items-center justify-between pb-3 border-b t-border-main">
-                                        <div>
-                                            <div class="text-sm font-bold t-text-main flex items-center">
-                                                缓存歌词
-                                                <span class="setting-tooltip-trigger ml-1">
-                                                    <i class="fas fa-question-circle"></i>
-                                                    <span class="setting-tooltip-content">开启后，应用会自动缓存已加载的歌词。</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="setting-enable-lyric-cache" class="sr-only peer"
-                                                data-event-change-action="updateSetting" data-event-change-args="[&quot;enableLyricCache&quot;,&quot;@checked&quot;]">
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                            </div>
-                                        </label>
-                                    </div>
-
-                                    <div class="flex items-center justify-between pb-3 border-b t-border-main">
-                                        <div>
-                                            <div class="text-sm font-bold t-text-main flex items-center">
-                                                缓存歌曲链接
-                                                <span class="setting-tooltip-trigger ml-1">
-                                                    <i class="fas fa-question-circle"></i>
-                                                    <span
-                                                        class="setting-tooltip-content">优先使用缓存链接播放，失效时系统会自动尝试重新获取并更新缓存。</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="setting-enable-url-cache" class="sr-only peer"
-                                                data-event-change-action="updateSetting" data-event-change-args="[&quot;enableSongUrlCache&quot;,&quot;@checked&quot;]">
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                            </div>
-                                        </label>
-                                    </div>
-
-                                    <!-- Server Cache Settings -->
-                                    <div class="flex items-center justify-between pb-3 border-b t-border-main">
-                                        <div>
-                                            <div class="text-sm font-bold t-text-main flex items-center">
-                                                缓存歌曲文件
-                                                <span class="setting-tooltip-trigger ml-1">
-                                                    <i class="fas fa-question-circle"></i>
-                                                    <span
-                                                        class="setting-tooltip-content">将歌曲文件永久缓存到服务器存储。再次播放时无需消耗外部流量，极大提升加载速度。</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="setting-enable-server-cache" class="sr-only peer"
-                                                data-event-change-action="updateSetting" data-event-change-args="[&quot;enableServerCache&quot;,&quot;@checked&quot;]">
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                            </div>
-                                        </label>
-                                    </div>
-
-                                    <!-- Server Lyric Cache Setting -->
-                                    <div class="flex items-center justify-between pb-3 border-b t-border-main">
-                                        <div>
-                                            <div class="text-sm font-bold t-text-main flex items-center">
-                                                缓存歌词文件
-                                                <span class="setting-tooltip-trigger ml-1">
-                                                    <i class="fas fa-question-circle"></i>
-                                                    <span
-                                                        class="setting-tooltip-content">将歌词文件缓存到服务器配置的缓存目录，便于后续播放快速读取。</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="setting-enable-server-lyric-cache"
-                                                class="sr-only peer"
-                                                data-event-change-action="updateSetting" data-event-change-args="[&quot;enableServerLyricCache&quot;,&quot;@checked&quot;]">
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                            </div>
-                                        </label>
-                                    </div>
-
-                                    <!-- Embed Lyric to File Setting -->
-                                    <div class="flex items-center justify-between pb-3 border-b t-border-main">
-                                        <div>
-                                            <div class="text-sm font-bold t-text-main flex items-center">
-                                                下载时嵌入歌词
-                                                <span class="setting-tooltip-trigger ml-1">
-                                                    <i class="fas fa-question-circle"></i>
-                                                    <span
-                                                        class="setting-tooltip-content">开启后，下载或缓存歌曲时将自动获取歌词并写入音频文件标签（USLT），同时保存
-                                                        .lrc 文件。支持浏览器下载与服务器缓存两种模式。</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="setting-embed-lyric-to-file" class="sr-only peer"
-                                                data-event-change-action="updateSetting" data-event-change-args="[&quot;embedLyricToFile&quot;,&quot;@checked&quot;]">
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                            </div>
-                                        </label>
-                                    </div>
-
-                                    <!-- Prefer Cached Playback Settings -->
-                                    <div class="flex items-center justify-between pb-3 border-b t-border-main">
-                                        <div>
-                                            <div class="text-sm font-bold t-text-main flex items-center">
-                                                优先播放缓存歌曲
-                                                <span class="setting-tooltip-trigger ml-1">
-                                                    <i class="fas fa-question-circle"></i>
-                                                    <span
-                                                        class="setting-tooltip-content">如果歌曲已缓存，则优先从本地加载。即使“缓存歌曲文件”关闭，已存在的缓存仍可使用。</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="setting-prefer-server-cache" class="sr-only peer"
-                                                data-event-change-action="updateSetting" data-event-change-args="[&quot;preferServerCache&quot;,&quot;@checked&quot;]">
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                            </div>
-                                        </label>
-                                    </div>
-
-                                    <!-- Only Download Mode -->
-                                    <div class="flex items-center justify-between pb-3 border-b t-border-main">
-                                        <div>
-                                            <div class="text-sm font-bold t-text-main flex items-center">
-                                                仅下载模式
-                                                <span class="setting-tooltip-trigger ml-1">
-                                                    <i class="fas fa-question-circle"></i>
-                                                    <span class="setting-tooltip-content">未开启时下载到
-                                                        /server/cache/用户名 (或
-                                                        /server/data/cache/)；<br>开启后下载到
-                                                        /server/music/用户名 (或 /server/data/music/)。</span>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="setting-only-download-mode" class="sr-only peer"
-                                                data-event-change-action="updateSetting" data-event-change-args="[&quot;enableOnlyDownloadMode&quot;,&quot;@checked&quot;]">
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                            </div>
-                                        </label>
-                                    </div>
-
-                                    <!-- Remaster Feature -->
-                                    <div class="pb-3 border-b t-border-main space-y-3">
-                                        <div class="flex items-center justify-between">
-                                            <div>
-                                                <div class="text-sm font-bold t-text-main flex items-center">
-                                                    启用歌曲洗版
-                                                    <span class="setting-tooltip-trigger ml-1">
-                                                        <i class="fas fa-question-circle"></i>
-                                                        <span class="setting-tooltip-content">将下载目录内已有歌曲替换为指定音质。该功能不处理缓存目录。</span>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <label class="relative inline-flex items-center cursor-pointer">
-                                                <input type="checkbox" id="setting-enable-remaster" class="sr-only peer"
-                                                    data-event-change-action="toggleRemasterFeature" data-event-change-args="[&quot;@checked&quot;]">
-                                                <div
-                                                    class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500 transition-all">
-                                                </div>
-                                            </label>
-                                        </div>
-                                        <div class="text-xs leading-relaxed text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 p-3 rounded-lg">
-                                            <div class="font-bold flex items-center gap-2 mb-1">
-                                                <i class="fas fa-exclamation-triangle"></i>
-                                                风险提示
-                                            </div>
-                                            <p>洗版会替换下载目录中的原音频文件，请先备份重要文件。缓存目录不会参与处理；新文件下载或写入失败时会保留原文件。目标音质不可用时可能降级，结果中会标明实际音质。</p>
-                                        </div>
-                                    </div>
 
                                     <!-- Cache Location Setting -->
                                     <div class="pb-3 border-b t-border-main">
@@ -4500,145 +4316,6 @@
         </div>
     </div>
 
-    <!-- Local music remaster modal -->
-    <div id="lm-remaster-modal" class="fixed inset-0 z-[110] hidden items-center justify-center p-3 md:p-6">
-        <div class="absolute inset-0 bg-black/65 backdrop-blur-sm" data-event-click-action="LocalMusicManager.closeRemasterModal"></div>
-        <div class="relative t-bg-panel border t-border-main rounded-xl shadow-2xl w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden">
-            <div class="px-4 py-3 md:px-5 border-b t-border-main flex items-center justify-between shrink-0">
-                <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 flex items-center justify-center shrink-0">
-                        <i class="fas fa-exchange-alt"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h3 class="text-base font-bold t-text-main">歌曲洗版</h3>
-                        <p class="text-[11px] t-text-muted truncate">仅处理服务器下载目录，不处理缓存目录</p>
-                    </div>
-                </div>
-                <button data-event-click-action="LocalMusicManager.closeRemasterModal" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" title="关闭">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <div class="p-4 md:p-5 overflow-y-auto custom-scrollbar space-y-4">
-                <div class="flex flex-col md:flex-row md:items-end gap-3">
-                    <div class="flex-1">
-                        <label for="lm-remaster-quality" class="block text-xs font-bold t-text-main mb-2">目标音质</label>
-                        <select id="lm-remaster-quality" class="lm-select !w-full !py-2.5">
-                            <option value="128k">标准音质</option>
-                            <option value="320k">高音质</option>
-                            <option value="flac">无损音质</option>
-                            <option value="flac24bit">24bit无损</option>
-                            <option value="hires">高解析度</option>
-                            <option value="atmos">空间音频</option>
-                            <option value="atmos_plus">增强空间音频</option>
-                            <option value="master">母带音质</option>
-                        </select>
-                    </div>
-                    <button id="lm-remaster-start" data-event-click-action="LocalMusicManager.startRemaster" disabled
-                        class="h-10 px-5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <i class="fas fa-play"></i><span>开始洗版</span>
-                    </button>
-                    <button id="lm-remaster-cancel" data-event-click-action="LocalMusicManager.cancelRemaster"
-                        class="hidden h-10 px-5 bg-gray-700 hover:bg-gray-800 text-white rounded-lg font-bold text-sm items-center justify-center gap-2">
-                        <i class="fas fa-stop"></i><span>停止</span>
-                    </button>
-                </div>
-
-                <div class="border t-border-main rounded-lg overflow-hidden">
-                    <div class="px-3 py-2.5 t-bg-main border-b t-border-main flex flex-col md:flex-row md:items-center gap-2 md:justify-between">
-                        <div class="text-xs font-bold t-text-main">
-                            选择歌曲
-                            <span class="ml-1 font-normal t-text-muted">已选 <span id="lm-remaster-selected-count">0</span> / <span id="lm-remaster-available-count">0</span> 首</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button id="lm-remaster-select-all" data-event-click-action="LocalMusicManager.selectAllRemasterResults"
-                                class="h-7 px-2.5 text-[11px] border t-border-main rounded-md hover:t-bg-track disabled:opacity-40 disabled:cursor-not-allowed">
-                                全选结果
-                            </button>
-                            <button id="lm-remaster-clear-selection" data-event-click-action="LocalMusicManager.clearRemasterSelection" disabled
-                                class="h-7 px-2.5 text-[11px] border t-border-main rounded-md hover:t-bg-track disabled:opacity-40 disabled:cursor-not-allowed">
-                                清空
-                            </button>
-                        </div>
-                    </div>
-                    <div class="p-2 border-b t-border-main">
-                        <div class="relative">
-                            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[10px] t-text-muted pointer-events-none z-10"></i>
-                            <div id="lm-remaster-search" contenteditable="true" data-placeholder="搜索歌曲、歌手、专辑或音质... (加空格激活 & | ! 逻辑)"
-                                data-event-input-action="LocalMusicManager.setRemasterSearch" data-event-input-args="[&quot;@this&quot;]"
-                                data-event-keydown-action="LocalMusicManager.handleRichKeydown" data-event-keydown-args="[&quot;@event&quot;,&quot;@this&quot;]"
-                                data-event-paste-action="LocalMusicManager.handleRichPaste" data-event-paste-args="[&quot;@event&quot;,&quot;@this&quot;]"
-                                data-event-copy-action="LocalMusicManager.handleRichCopy" data-event-copy-args="[&quot;@event&quot;,&quot;@this&quot;]"
-                                data-event-cut-action="LocalMusicManager.handleRichCopy" data-event-cut-args="[&quot;@event&quot;,&quot;@this&quot;]"
-                                class="lm-rich-search-input w-full h-9 pl-8 pr-3 t-bg-main border t-border-main rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-red-500/30 overflow-x-auto whitespace-nowrap flex items-center"></div>
-                        </div>
-                    </div>
-                    <div id="lm-remaster-song-list" class="h-52 overflow-y-auto custom-scrollbar">
-                        <div class="h-full flex items-center justify-center text-xs t-text-muted">正在加载下载歌曲...</div>
-                    </div>
-                    <div class="h-9 px-3 t-bg-main border-t t-border-main flex items-center justify-between">
-                        <span class="text-[10px] t-text-muted">仅列出下载目录中的歌曲</span>
-                        <div class="flex items-center gap-2">
-                            <button id="lm-remaster-selection-prev" data-event-click-action="LocalMusicManager.changeRemasterSelectionPage" data-event-click-args="[-1]"
-                                class="w-7 h-7 flex items-center justify-center rounded-md hover:t-bg-track disabled:opacity-30 disabled:cursor-not-allowed" title="上一页">
-                                <i class="fas fa-chevron-left text-[10px]"></i>
-                            </button>
-                            <span id="lm-remaster-selection-page-info" class="min-w-12 text-center text-[10px] t-text-muted">1 / 1</span>
-                            <button id="lm-remaster-selection-next" data-event-click-action="LocalMusicManager.changeRemasterSelectionPage" data-event-click-args="[1]"
-                                class="w-7 h-7 flex items-center justify-center rounded-md hover:t-bg-track disabled:opacity-30 disabled:cursor-not-allowed" title="下一页">
-                                <i class="fas fa-chevron-right text-[10px]"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="text-xs leading-relaxed text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 p-3 rounded-lg">
-                    升级时若无法取得高于当前文件的音质，该歌曲会跳过；目标音质不可用但仍可取得有效的较低音质时，结果会显示实际采用音质。处理期间请勿手动移动或删除下载目录中的歌曲。
-                </div>
-
-                <div>
-                    <div class="flex items-center justify-between text-xs mb-2">
-                        <span id="lm-remaster-status" class="font-bold t-text-main">尚未开始</span>
-                        <span id="lm-remaster-progress-text" class="t-text-muted">0 / 0</span>
-                    </div>
-                    <div class="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div id="lm-remaster-progress" class="h-full bg-red-500 transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
-                    <button type="button" data-remaster-result-filter="all" data-event-click-action="LocalMusicManager.setRemasterResultFilter" data-event-click-args="[&quot;all&quot;]"
-                        class="border t-border-main rounded-lg p-2 transition-colors hover:t-bg-track focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed" aria-pressed="true">
-                        <div id="lm-remaster-total" class="text-lg font-bold">0</div><div class="text-[10px] t-text-muted">总数</div>
-                    </button>
-                    <button type="button" data-remaster-result-filter="successful" data-event-click-action="LocalMusicManager.setRemasterResultFilter" data-event-click-args="[&quot;successful&quot;]"
-                        class="border t-border-main rounded-lg p-2 transition-colors hover:t-bg-track focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed" aria-pressed="false">
-                        <div id="lm-remaster-replaced" class="text-lg font-bold text-emerald-600">0</div><div class="text-[10px] t-text-muted">成功</div>
-                    </button>
-                    <button type="button" data-remaster-result-filter="downgraded" data-event-click-action="LocalMusicManager.setRemasterResultFilter" data-event-click-args="[&quot;downgraded&quot;]"
-                        class="border t-border-main rounded-lg p-2 transition-colors hover:t-bg-track focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed" aria-pressed="false">
-                        <div id="lm-remaster-downgraded" class="text-lg font-bold text-amber-600">0</div><div class="text-[10px] t-text-muted">发生降级</div>
-                    </button>
-                    <button type="button" data-remaster-result-filter="skipped" data-event-click-action="LocalMusicManager.setRemasterResultFilter" data-event-click-args="[&quot;skipped&quot;]"
-                        class="border t-border-main rounded-lg p-2 transition-colors hover:t-bg-track focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed" aria-pressed="false">
-                        <div id="lm-remaster-skipped" class="text-lg font-bold text-gray-500">0</div><div class="text-[10px] t-text-muted">已跳过</div>
-                    </button>
-                    <button type="button" data-remaster-result-filter="failed" data-event-click-action="LocalMusicManager.setRemasterResultFilter" data-event-click-args="[&quot;failed&quot;]"
-                        class="border t-border-main rounded-lg p-2 col-span-2 md:col-span-1 transition-colors hover:t-bg-track focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed" aria-pressed="false">
-                        <div id="lm-remaster-failed" class="text-lg font-bold text-red-600">0</div><div class="text-[10px] t-text-muted">失败</div>
-                    </button>
-                </div>
-
-                <div class="border t-border-main rounded-lg overflow-hidden">
-                    <div id="lm-remaster-results-title" class="px-3 py-2 t-bg-main border-b t-border-main text-xs font-bold">处理结果</div>
-                    <div id="lm-remaster-results" class="max-h-72 overflow-y-auto custom-scrollbar divide-y t-border-main">
-                        <div class="p-6 text-center text-xs t-text-muted">暂无结果</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Project Agreement Modal Overlay -->
     <div id="project-agreement-modal"
         class="fixed inset-0 z-[100] flex items-center justify-center hidden transition-opacity duration-300">
@@ -4678,7 +4355,7 @@
     <audio id="audio-player" crossorigin="anonymous"></audio>
 
     <!-- The player module owns feature initialization and delegated events. -->
-    <script type="module" src="app-17xrst80.js"></script>
+    <script type="module" src="app-gt3yrh56.js"></script>
 </body>
 
 </html>

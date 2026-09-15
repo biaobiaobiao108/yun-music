@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { shouldPrefetchAfterPlayback } from '../frontend/player/src/features/playback';
 import { initSongUrlFeature } from '../frontend/player/src/features/song_url';
-import { normalizeStoredSettings } from '../frontend/player/src/player_settings';
+import { normalizeStoredSettings, serializeSettings } from '../frontend/player/src/player_settings';
 
 const projectRoot = path.join(import.meta.dir, '..');
 
@@ -230,6 +230,34 @@ describe('Player manager module boundaries', () => {
             const legacySettings = { enableProxyPlayback: false };
             normalizeStoredSettings(legacySettings);
             expect(legacySettings).not.toHaveProperty('enableProxyPlayback');
+
+            const legacyCacheSettings = {
+                enableLyricCache: false,
+                enableSongUrlCache: false,
+                enableServerCache: false,
+                enableServerLyricCache: false,
+                embedLyricToFile: false,
+                preferServerCache: false,
+                enableOnlyDownloadMode: false,
+                enableRemaster: true,
+                remasterRetryManifest: { stale: true },
+            };
+            normalizeStoredSettings(legacyCacheSettings);
+            for (const key of [
+                'enableLyricCache',
+                'enableSongUrlCache',
+                'enableServerCache',
+                'enableServerLyricCache',
+                'embedLyricToFile',
+                'preferServerCache',
+                'enableOnlyDownloadMode',
+            ]) {
+                expect(legacyCacheSettings[key]).toBe(true);
+            }
+            expect(legacyCacheSettings).not.toHaveProperty('enableRemaster');
+            expect(legacyCacheSettings).not.toHaveProperty('remasterRetryManifest');
+            expect(serializeSettings(legacyCacheSettings)).not.toHaveProperty('enableLyricCache');
+            expect(serializeSettings(legacyCacheSettings)).not.toHaveProperty('enableRemaster');
         } finally {
             runtime.Audio = previousAudio;
             runtime.window = previousWindow;
@@ -292,6 +320,35 @@ describe('Player manager module boundaries', () => {
         expect(downloadSource).toContain('activeReader.cancel()');
         expect(downloadSource).toContain('downloadChunks = null;');
         expect(downloadSource).toContain('URL.revokeObjectURL(blobUrl), 1000');
+    });
+
+    it('removes the obsolete cache toggles and song remaster feature from the player', () => {
+        const html = read('frontend/player/index.html');
+        const publicHtml = read('public/music/index.html');
+        const localMusicSource = read('frontend/player/src/legacy/local_music.ts');
+        const indexSource = read('frontend/player/src/index.ts');
+        const cacheRoute = read('src/server/routes/cache.ts');
+
+        for (const value of [
+            'setting-enable-lyric-cache',
+            'setting-enable-url-cache',
+            'setting-enable-server-cache',
+            'setting-enable-server-lyric-cache',
+            'setting-embed-lyric-to-file',
+            'setting-prefer-server-cache',
+            'setting-only-download-mode',
+            'setting-enable-remaster',
+            'lm-remaster-modal',
+            'LocalMusicManager.openRemasterModal',
+        ]) {
+            expect(html).not.toContain(value);
+            expect(publicHtml).not.toContain(value);
+        }
+        expect(localMusicSource).not.toContain('syncRemasterVisibility');
+        expect(localMusicSource).not.toContain('/api/music/remaster/');
+        expect(indexSource).not.toContain('enableRemaster');
+        expect(cacheRoute).not.toContain('/api/music/remaster/');
+        expect(fs.existsSync(path.join(projectRoot, 'src/server/remasterQueue.ts'))).toBe(false);
     });
 
     it('defers songlist loading and paginates detail requests', () => {

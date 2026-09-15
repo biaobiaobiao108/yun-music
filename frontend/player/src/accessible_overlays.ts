@@ -70,7 +70,6 @@ const overlayCloseActions: Record<string, () => void> = {
     'lyric-card-modal': () => (window as any).lyricCard?.close?.(),
     'comment-modal': () => (window as any).toggleCommentModal?.(),
     'sound-effects-modal': () => (window as any).soundEffects?.close?.(),
-    'lm-remaster-modal': () => (window as any).LocalMusicManager?.closeRemasterModal?.(),
     'project-agreement-modal': () => (window as any).acceptProjectAgreement?.(),
 };
 

@@ -28,8 +28,10 @@ import {
 } from './player_security';
 import {
     DEFAULT_SETTINGS,
+    FIXED_PLAYER_SETTINGS,
     normalizeDownloadConcurrency,
     normalizeStoredSettings,
+    serializeSettings,
 } from './player_settings';
 import { initCustomSelectManager } from './custom_select';
 import { initSearchTips } from './search_tips';
@@ -536,8 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
 let settings = { ...DEFAULT_SETTINGS };
 
 function persistSettings() {
-    const persisted = { ...settings };
-    localStorage.setItem('lx_settings', JSON.stringify(persisted));
+    localStorage.setItem('lx_settings', JSON.stringify(serializeSettings(settings)));
 }
 
 // 歌词原始数据，用于设置切换时重新渲染
@@ -555,6 +556,7 @@ try {
     if (saved) {
         const parsed = JSON.parse(saved);
         settings = normalizeStoredSettings({ ...settings, ...parsed });
+        persistSettings();
     }
 } catch (e) {
     console.error('[Settings] 加载设置失败:', e);
@@ -2602,6 +2604,7 @@ function loadSettings() {
         if (saved) {
             const loaded = JSON.parse(saved);
             settings = normalizeStoredSettings({ ...settings, ...loaded });
+            persistSettings();
             console.log('[Settings] 加载设置成功:', settings);
         }
     } catch (e) {
@@ -2675,32 +2678,14 @@ initShortcutsFeature({
     getDownloadManager: () => downloadManager,
 });
 
-function getRemasterStorageUsername() {
-    const username = userName || currentListData?.username || '_open';
-    return !username || username === 'default' ? '_open' : username;
-}
-
-async function toggleRemasterFeature(enabled) {
-    const toggle = document.getElementById('setting-enable-remaster');
-    try {
-        await updateSetting('enableRemaster', !!enabled);
-        if (toggle) toggle.checked = !!window.settings?.enableRemaster;
-        window.LocalMusicManager?.syncRemasterVisibility();
-    } catch (e) {
-        if (toggle) toggle.checked = !!window.settings?.enableRemaster;
-        showError(e.message || '更新洗版设置失败');
-    }
-}
-
-window.getRemasterStorageUsername = getRemasterStorageUsername;
 window.getUserName = () => userName;
-window.toggleRemasterFeature = toggleRemasterFeature;
 
 async function updateSetting(key, value) {
+    if (key in FIXED_PLAYER_SETTINGS) value = true;
     if (SETTINGS_UI_MAP[key]?.normalize) {
         value = SETTINGS_UI_MAP[key].normalize(value);
     }
-    const restrictedKeys = ['enableServerCache', 'enableServerLyricCache', 'serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'enableOnlyDownloadMode', 'enableRemaster', 'preferredQuality', 'enablePublicSources', 'embedLyricToFile', 'preferServerCache'];
+    const restrictedKeys = ['serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'preferredQuality', 'enablePublicSources'];
     const isPublic = !isUserLoggedIn() || currentListData?.username === '_open' || currentListData?.username === 'default' || window.isViewingPublicFavorites;
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
     const enableLoginCacheRestriction = window.lx_config?.['user.enableLoginCacheRestriction'];
@@ -2828,11 +2813,6 @@ const SETTINGS_UI_MAP = {
             downloadManager.updateMaxConcurrent(v);
         }
     },
-    enableRemaster: {
-        id: 'setting-enable-remaster',
-        type: 'checkbox',
-        action: () => window.LocalMusicManager?.syncRemasterVisibility()
-    },
     enableKeyboardShortcuts: { id: 'setting-enable-shortcuts', type: 'checkbox' },
     enableCrossfade: { id: 'setting-enable-crossfade', type: 'checkbox' },
     keepScreenAwake: {
@@ -2914,13 +2894,6 @@ const SETTINGS_UI_MAP = {
     autoUpdateNetworkList: { id: 'setting-auto-update-list', type: 'checkbox' },
     networkListAutoCheckInterval: { id: 'setting-network-list-auto-check-interval', type: 'value' },
     saveAccountSettingsToFile: { id: 'setting-save-settings-to-file', type: 'checkbox' },
-    enableLyricCache: { id: 'setting-enable-lyric-cache', type: 'checkbox' },
-    enableSongUrlCache: { id: 'setting-enable-url-cache', type: 'checkbox' },
-    enableServerCache: { id: 'setting-enable-server-cache', type: 'checkbox' },
-    enableServerLyricCache: { id: 'setting-enable-server-lyric-cache', type: 'checkbox' },
-    embedLyricToFile: { id: 'setting-embed-lyric-to-file', type: 'checkbox' },
-    preferServerCache: { id: 'setting-prefer-server-cache', type: 'checkbox' },
-    enableOnlyDownloadMode: { id: 'setting-only-download-mode', type: 'checkbox' },
     serverCacheLocation: { id: 'setting-server-cache-location', type: 'value' },
     serverCacheNamingPattern: {
         id: 'setting-server-cache-naming',
@@ -2962,7 +2935,7 @@ function syncSettingsUI(key = null, value = null) {
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
     const enableLoginCacheRestriction = window.lx_config?.['user.enableLoginCacheRestriction'];
     const isAdmin = adminSessionActive;
-    const restrictedKeys = ['enableServerCache', 'enableServerLyricCache', 'serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'enableOnlyDownloadMode', 'enableRemaster', 'preferredQuality', 'enablePublicSources', 'embedLyricToFile', 'preferServerCache'];
+    const restrictedKeys = ['serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'preferredQuality', 'enablePublicSources'];
 
     const updateItem = (itemKey, itemValue, isSingle) => {
         const config = SETTINGS_UI_MAP[itemKey];

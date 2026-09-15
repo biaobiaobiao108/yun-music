@@ -417,10 +417,8 @@ export const createUserRouter = (): Router => {
       if (resolvedUsername === '_open' && config['user.enablePublicRestriction']) {
         const restrictedSettings: any = {}
         const allowedKeys = [
-          'enableServerCache', 'enableServerLyricCache', 'serverCacheLocation',
-          'serverCacheNamingPattern', 'downloadConcurrency', 'enableRemaster',
-          'preferredQuality', 'enableOnlyDownloadMode', 'enablePublicSources',
-          'embedLyricToFile', 'preferServerCache',
+          'serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency',
+          'preferredQuality', 'enablePublicSources',
         ]
         for (const key of allowedKeys) {
           if (settings[key] !== undefined) restrictedSettings[key] = settings[key]

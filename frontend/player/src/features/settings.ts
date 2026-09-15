@@ -1,4 +1,4 @@
-import { normalizeStoredSettings } from '../player_settings';
+import { normalizeStoredSettings, serializeSettings } from '../player_settings';
 
 export interface SettingsFeatureContext {
     getSettings: () => Record<string, any>;
@@ -26,7 +26,7 @@ export function initSettingsFeature(context: SettingsFeatureContext) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify(settings),
+                body: JSON.stringify(serializeSettings(settings)),
             });
             if (!response.ok && force) throw new Error('settings request failed');
             context.pushSoundEffects();
