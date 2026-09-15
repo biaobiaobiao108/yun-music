@@ -11,6 +11,7 @@ describe('Player Navigation and State Restoration Safety', () => {
     const lyricsSrcPath = path.join(import.meta.dir, '../frontend/player/src/features/lyrics.ts');
     const customSelectSrcPath = path.join(import.meta.dir, '../frontend/player/src/custom_select.ts');
     const accessibleOverlaysSrcPath = path.join(import.meta.dir, '../frontend/player/src/accessible_overlays.ts');
+    const visualizerSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/visualizer.ts');
     const playlistModalSrcPath = path.join(import.meta.dir, '../frontend/player/src/features/playlist_modal.ts');
     const localMusicSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/local_music.ts');
     const batchPaginationSrcPath = path.join(import.meta.dir, '../frontend/player/src/legacy/batch_pagination.ts');
@@ -381,11 +382,17 @@ describe('Player Navigation and State Restoration Safety', () => {
     it('player footer toggle preserves the compact view bottom spacing', () => {
         const source = fs.readFileSync(playerSrcPath, 'utf8');
         const html = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/index.html'), 'utf8');
+        const visualizer = fs.readFileSync(visualizerSrcPath, 'utf8');
         const toggleBlock = source.match(/if \(isHidden\) \{[\s\S]*?\n    \} else \{/)?.[0] ?? '';
+        const footerClass = html.match(/<footer id="player-footer"[\s\S]*?class="([^"]+)"/)?.[1] ?? '';
 
         expect(toggleBlock).toContain("el.classList.remove('pb-32', 'pb-44', 'md:pb-32')");
         expect(toggleBlock).not.toContain("el.classList.add('pb-44', 'md:pb-32')");
         expect(html).toContain('id="view-search"\n                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2');
+        expect(footerClass).toContain('fixed');
+        expect(footerClass).not.toContain('relative');
+        expect(visualizer).toContain('const contentGap = 8;');
+        expect(visualizer).toContain('`${measuredFooterHeight + contentGap}px`');
     });
 
     it('mobile player menu closes with Escape and supports the tablet breakpoint', () => {

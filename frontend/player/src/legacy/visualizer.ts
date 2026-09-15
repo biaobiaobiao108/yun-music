@@ -252,7 +252,9 @@ const musicVisualizer = (function () {
             const measuredFooterHeight = playerFooter && !footerIsHidden
                 ? Math.ceil(playerFooter.getBoundingClientRect().height)
                 : 0;
-            let targetPb = footerIsHidden ? '' : `${measuredFooterHeight}px`;
+            // Footer 使用 fixed 覆盖在内容上方，主体卡片只需避让实际高度并保留 8px 微距。
+            const contentGap = 8;
+            let targetPb = footerIsHidden ? '' : `${measuredFooterHeight + contentGap}px`;
 
             mainViews.forEach(view => {
                 view.style.transition = 'padding-bottom 0.3s ease, padding-top 0.3s ease';
