@@ -5066,13 +5066,11 @@ function togglePlayerPanel() {
         if (expandBtnTimeout) clearTimeout(expandBtnTimeout);
         expandBtn.classList.remove('faint');
 
-        // 恢复内容底部 Padding
+        // 保留各页面模板定义的底部 Padding，播放栏与主体卡片之间仅保留微距。
+        // 不再注入旧版的 pb-44/md:pb-32，避免播放栏展开后产生过大的空隙。
         views.forEach(id => {
             const el = document.getElementById(id);
-            if (el) {
-                el.classList.remove('pb-32', 'pb-44', 'md:pb-32');
-                el.classList.add('pb-44', 'md:pb-32');
-            }
+            if (el) el.classList.remove('pb-32', 'pb-44', 'md:pb-32');
         });
 
         // 歌词页: 增加底部 Padding (避开播放栏)

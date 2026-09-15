@@ -378,6 +378,16 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(css).not.toContain('#player-footer > .flex-1 > div:last-child #play-mode-btn');
     });
 
+    it('player footer toggle preserves the compact view bottom spacing', () => {
+        const source = fs.readFileSync(playerSrcPath, 'utf8');
+        const html = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/index.html'), 'utf8');
+        const toggleBlock = source.match(/if \(isHidden\) \{[\s\S]*?\n    \} else \{/)?.[0] ?? '';
+
+        expect(toggleBlock).toContain("el.classList.remove('pb-32', 'pb-44', 'md:pb-32')");
+        expect(toggleBlock).not.toContain("el.classList.add('pb-44', 'md:pb-32')");
+        expect(html).toContain('id="view-search"\n                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2');
+    });
+
     it('mobile player menu closes with Escape and supports the tablet breakpoint', () => {
         const source = fs.readFileSync(playerSrcPath, 'utf8');
         expect(source).toContain('if (window.innerWidth < 1025)');
