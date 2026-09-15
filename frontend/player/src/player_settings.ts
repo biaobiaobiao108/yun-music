@@ -5,7 +5,6 @@ export const DEFAULT_SETTINGS = {
     defaultDownloadTarget: 'server', // 默认下载目标: server | browser
     defaultDownloadQuality: 'flac', // 默认下载音质
     enablePublicSources: true, // 是否显示公开源
-    enableProxyPlayback: false, // 播放音乐代理
     enableProxyDownload: false, // 下载音乐代理
     enableAutoProxy: true, // 自动代理
     enableCustomProxy: false, // 是否启用自定义代理
@@ -66,6 +65,8 @@ export function normalizeDownloadConcurrency(value) {
 export function normalizeStoredSettings(nextSettings) {
     if (!nextSettings || typeof nextSettings !== 'object') return nextSettings;
     delete nextSettings.remasterRetryManifest;
+    // 播放音乐代理已改为固定的服务端中转，不再保留旧的可选设置。
+    delete nextSettings.enableProxyPlayback;
     if (!['server', 'browser'].includes(nextSettings.defaultDownloadTarget)) {
         nextSettings.defaultDownloadTarget = DEFAULT_SETTINGS.defaultDownloadTarget;
     }

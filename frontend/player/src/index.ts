@@ -1061,10 +1061,6 @@ document.addEventListener('DOMContentLoaded', () => {
         qualitySelect.value = settings.preferredQuality;
     }
 
-    // Initialize Proxy Settings UI
-    const proxyPlayback = document.getElementById('toggle-proxy-playback');
-    if (proxyPlayback) proxyPlayback.checked = settings.enableProxyPlayback;
-
     const proxyDownload = document.getElementById('toggle-proxy-download');
     if (proxyDownload) proxyDownload.checked = settings.enableProxyDownload;
 
@@ -1214,11 +1210,6 @@ function handleDragMove(e) {
         // Debounce saving if needed, but simple localstorage here
         localStorage.setItem('lx_volume', currentVolume.toString());
     }
-}
-
-// 切换代理设置
-function changeProxyPlayback(enabled) {
-    updateSetting('enableProxyPlayback', enabled);
 }
 
 function changeProxyDownload(enabled) {
@@ -2936,7 +2927,6 @@ const SETTINGS_UI_MAP = {
         type: 'value',
         normalize: value => value === 'standard' ? 'standard' : 'simple'
     },
-    enableProxyPlayback: { id: 'toggle-proxy-playback', type: 'checkbox' },
     enableProxyDownload: { id: 'toggle-proxy-download', type: 'checkbox' },
     enableAutoProxy: { id: 'toggle-auto-proxy', type: 'checkbox' },
     enableCustomProxy: {
@@ -3083,7 +3073,6 @@ window.resolveSongUrl = resolveSongUrl;
 window.resolveDownloadSongUrl = resolveDownloadSongUrl;
 window.togglePlay = togglePlay;
 window.playNext = playNext;
-window.changeProxyPlayback = changeProxyPlayback;
 window.changeProxyDownload = changeProxyDownload;
 window.changeAutoProxy = changeAutoProxy;
 window.changeHotSearchLimit = changeHotSearchLimit;

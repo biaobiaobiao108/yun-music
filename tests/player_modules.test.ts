@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { shouldPrefetchAfterPlayback } from '../frontend/player/src/features/playback';
 import { initSongUrlFeature } from '../frontend/player/src/features/song_url';
+import { normalizeStoredSettings } from '../frontend/player/src/player_settings';
 
 const projectRoot = path.join(import.meta.dir, '..');
 
@@ -81,7 +82,8 @@ describe('Player manager module boundaries', () => {
         expect(songUrlSource).toContain('const waitForServerCacheCheck = async');
         expect(songUrlSource).toContain('SERVER_CACHE_PROCESSING');
         expect(songUrlSource).toContain('settings.enableServerCache !== false');
-        expect(songUrlSource).toContain('if (settings.enableAutoProxy && options.probe)');
+        expect(songUrlSource).not.toContain('settings.enableProxyPlayback');
+        expect(songUrlSource).toContain('在线音乐统一通过服务端中转播放');
         expect(songUrlSource).toContain('signal?: AbortSignal');
         expect(shouldPrefetchAfterPlayback('server_cache')).toBe(false);
         expect(shouldPrefetchAfterPlayback('normal')).toBe(true);
@@ -170,6 +172,67 @@ describe('Player manager module boundaries', () => {
             runtime.window = previousWindow;
             runtime.localStorage = previousLocalStorage;
             runtime.fetch = previousFetch;
+        }
+    });
+
+    it('always routes online playback through the server proxy and removes the legacy toggle', async () => {
+        expect(read('frontend/player/index.html')).not.toContain('toggle-proxy-playback');
+        expect(read('frontend/player/src/index.ts')).not.toContain('changeProxyPlayback');
+
+        const runtime = globalThis as any;
+        const previousAudio = runtime.Audio;
+        const previousWindow = runtime.window;
+
+        class FakeAudio {
+            muted = false;
+            preload = '';
+            src = '';
+            currentSrc = '';
+            load() { }
+            pause() { }
+            removeAttribute(name: string) {
+                if (name === 'src') this.src = '';
+            }
+        }
+
+        try {
+            runtime.Audio = FakeAudio;
+            runtime.window = {
+                location: { host: 'localhost', origin: 'http://localhost', protocol: 'http:' },
+            };
+
+            const feature = initSongUrlFeature({
+                getSettings: () => ({ enableProxyPlayback: false, enableCustomProxy: false }),
+                getPlaylist: () => [],
+                getCurrentIndex: () => 0,
+                getPlayMode: () => 'list',
+                getPreSelectedNextIndex: () => null,
+                setPreSelectedNextIndex: () => { },
+                getUserAuthHeaders: () => ({}),
+                fetchCustomSources: async () => [],
+                cleanSongData: song => song,
+                checkServerCache: async () => ({ exists: false }),
+                updateStorageStatsUI: () => { },
+                showInfo: () => { },
+                showSuccess: () => { },
+                showError: () => { },
+            });
+
+            const proxyUrl = await feature.applyAutoProxy(
+                'https://media.example/song.flac?token=abc',
+                { name: 'Song', singer: 'Singer' },
+            );
+
+            expect(proxyUrl).toStartWith('/api/music/download?');
+            expect(new URL(`http://localhost${proxyUrl}`).searchParams.get('url'))
+                .toBe('https://media.example/song.flac?token=abc');
+
+            const legacySettings = { enableProxyPlayback: false };
+            normalizeStoredSettings(legacySettings);
+            expect(legacySettings).not.toHaveProperty('enableProxyPlayback');
+        } finally {
+            runtime.Audio = previousAudio;
+            runtime.window = previousWindow;
         }
     });
 
