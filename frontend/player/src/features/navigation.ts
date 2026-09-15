@@ -7,10 +7,17 @@ import {
     prefersReducedMotion,
     type ViewTransitionDirection,
 } from './view_transitions';
+import type { PlayerHistoryMode, PlayerHistoryPayload } from './player_history';
 
 export const PLAYER_VIEW_ORDER = ['search', 'songlist', 'leaderboard', 'localmusic', 'favorites', 'settings', 'about'];
 export const PLAYER_MAIN_VIEW_SELECTOR = '#view-search, #view-songlist, #view-leaderboard, #view-localmusic, #view-favorites, #view-settings, #view-about';
 export const PLAYER_VIEW_MOTION_DURATION = 320;
+
+export type NavigationOptions = {
+    preserveSearchNavigation?: boolean;
+    historyMode?: PlayerHistoryMode;
+    direction?: ViewTransitionDirection;
+};
 
 export function prefersReducedPlayerMotion(): boolean {
     return prefersReducedMotion();
@@ -62,8 +69,9 @@ export function transitionPlayerView(activeView: HTMLElement, direction: ViewTra
 }
 
 export type NavigationContext = {
-    handleFavoritesClick: () => void;
+    handleFavoritesClick: (historyMode?: PlayerHistoryMode, direction?: ViewTransitionDirection) => void;
     clearSearchNavigation: () => void;
+    updateHistory?: (payload: PlayerHistoryPayload, mode: PlayerHistoryMode) => void;
     updateUserUI?: () => void;
     syncSettingsUI?: () => void;
     updateAdminUI?: () => void;
@@ -84,10 +92,19 @@ export type NavigationContext = {
 };
 
 export function createTabSwitcher(context: NavigationContext) {
-    return function switchTab(tabId: string, preserveSearchNavigation = false) {
+    return function switchTab(tabId: string, optionsOrPreserve: NavigationOptions | boolean = {}) {
+        const options: NavigationOptions = typeof optionsOrPreserve === 'boolean'
+            ? {
+                preserveSearchNavigation: optionsOrPreserve,
+                historyMode: optionsOrPreserve ? 'restore' : 'push',
+            }
+            : optionsOrPreserve;
+        const preserveSearchNavigation = options.preserveSearchNavigation === true;
+        const historyMode = options.historyMode ?? 'push';
+
         // Favorites is a sidebar group toggle, not a main content view.
         if (tabId === 'favorites') {
-            context.handleFavoritesClick();
+            context.handleFavoritesClick(historyMode, options.direction);
             return;
         }
 
@@ -98,7 +115,11 @@ export function createTabSwitcher(context: NavigationContext) {
         const activeView = document.getElementById(`view-${tabId}`);
         if (!activeView) return;
 
-        transitionPlayerView(activeView, getPlayerViewDirection(tabId));
+        if (historyMode !== 'none' && historyMode !== 'restore') {
+            context.updateHistory?.({ page: 'tab', tabId }, historyMode);
+        }
+
+        transitionPlayerView(activeView, options.direction ?? getPlayerViewDirection(tabId));
         if (!prefersReducedPlayerMotion()) {
             window.setTimeout(() => {
                 if (!activeView.isConnected) return;

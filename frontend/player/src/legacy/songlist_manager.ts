@@ -10,6 +10,9 @@ export type SongListManagerApi = ReturnType<typeof createSongListManager>;
 export type SongListManagerContext = {
     downloadSong: (song: any) => unknown;
     handleBatchSelect: (songId: string, isChecked: boolean) => void;
+    pushHistoryState?: (state: any) => void;
+    goBackHistory?: () => boolean;
+    getHistoryState?: () => any;
 };
 
 export function createSongListManager(context: SongListManagerContext) {
@@ -881,13 +884,26 @@ export function createSongListManager(context: SongListManagerContext) {
             loadList(next);
             document.getElementById('songlist-grid').scrollTo({ top: 0, behavior: 'smooth' });
         },
-        openDetail: function (id, source) {
+        openDetail: function (id, source, fromHistory = false) {
             init();
             resetSongBatchContext();
             if (window.ListSearch) window.ListSearch.resetState();
+            if (!fromHistory && id) {
+                context.pushHistoryState?.({
+                    page: 'songlist-detail',
+                    tabId: 'songlist',
+                    id: String(id),
+                    source: String(source),
+                });
+            }
             loadDetail(id, source);
         },
-        closeDetail: function () {
+        closeDetail: function (fromHistory = false) {
+            if (!fromHistory
+                && context.getHistoryState?.()?.page === 'songlist-detail'
+                && context.goBackHistory?.()) {
+                return;
+            }
             resetSongBatchContext();
             detailRequestController?.abort();
             detailRequestSerial++;

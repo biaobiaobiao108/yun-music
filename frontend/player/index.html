@@ -55,17 +55,17 @@
                 <!-- 发现音乐 -->
                 <div class="netease-nav-category">发现音乐</div>
                 <div class="space-y-0.5">
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;search&quot;]" id="tab-search"
+                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;search&quot;]" data-event-prevent="true" id="tab-search"
                         class="netease-nav-item active-tab">
                         <i class="fas fa-search w-5 text-center"></i>
                         <span>搜索音乐</span>
                     </a>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;songlist&quot;]" id="tab-songlist"
+                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;songlist&quot;]" data-event-prevent="true" id="tab-songlist"
                         class="netease-nav-item">
                         <i class="fas fa-th-large w-5 text-center"></i>
                         <span>歌单广场</span>
                     </a>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;leaderboard&quot;]" id="tab-leaderboard"
+                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;leaderboard&quot;]" data-event-prevent="true" id="tab-leaderboard"
                         class="netease-nav-item">
                         <i class="fas fa-chart-line w-5 text-center"></i>
                         <span>排行榜</span>
@@ -99,7 +99,7 @@
                             </button>
                         </li>
                     </ul>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;localmusic&quot;]" id="tab-localmusic"
+                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;localmusic&quot;]" data-event-prevent="true" id="tab-localmusic"
                         class="netease-nav-item">
                         <i class="fas fa-compact-disc w-5 text-center"></i>
                         <span>本地音乐</span>
@@ -109,12 +109,12 @@
                 <!-- 系统与信息 -->
                 <div class="netease-nav-category mt-3">系统与信息</div>
                 <div class="space-y-0.5">
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;settings&quot;]" id="tab-settings"
+                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;settings&quot;]" data-event-prevent="true" id="tab-settings"
                         class="netease-nav-item">
                         <i class="fas fa-cog w-5 text-center"></i>
                         <span>设置</span>
                     </a>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;about&quot;]" id="tab-about"
+                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;about&quot;]" data-event-prevent="true" id="tab-about"
                         class="netease-nav-item">
                         <i class="fas fa-info-circle w-5 text-center"></i>
                         <span>关于</span>
@@ -151,13 +151,15 @@
 
                     <!-- History Back & Forward (NetEase Desktop Style) -->
                     <div class="hidden sm:flex items-center gap-1.5 shrink-0">
-                        <button data-event-click-action="history.back" title="后退" aria-label="后退"
-                            class="w-7 h-7 rounded-full t-bg-track hover:t-bg-item-hover flex items-center justify-center text-[11px] t-text-muted transition-colors">
-                            <i class="fas fa-chevron-left"></i>
+                        <button id="player-history-back" type="button" data-event-click-action="playerHistoryBack"
+                            title="后退" aria-label="后退" aria-disabled="true" disabled
+                            class="player-history-button w-8 h-8 rounded-full t-bg-track hover:t-bg-item-hover flex items-center justify-center text-[11px] t-text-muted">
+                            <i class="fas fa-chevron-left" aria-hidden="true"></i>
                         </button>
-                        <button data-event-click-action="history.forward" title="前进" aria-label="前进"
-                            class="w-7 h-7 rounded-full t-bg-track hover:t-bg-item-hover flex items-center justify-center text-[11px] t-text-muted transition-colors">
-                            <i class="fas fa-chevron-right"></i>
+                        <button id="player-history-forward" type="button" data-event-click-action="playerHistoryForward"
+                            title="前进" aria-label="前进" aria-disabled="true" disabled
+                            class="player-history-button w-8 h-8 rounded-full t-bg-track hover:t-bg-item-hover flex items-center justify-center text-[11px] t-text-muted">
+                            <i class="fas fa-chevron-right" aria-hidden="true"></i>
                         </button>
                     </div>
 
@@ -243,7 +245,7 @@
 
                 <!-- Search View -->
                 <div id="view-search"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 overflow-hidden transition-all duration-300">
+                    class="player-main-view absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 overflow-hidden transition-all duration-300">
                     <!-- Search Input Area -->
                     <div class="player-search-toolbar flex flex-col md:flex-row gap-2 md:gap-4 mb-4 md:mb-6">
                         <!-- Search Input -->
@@ -450,7 +452,7 @@
 
                 <!-- Song List View -->
                 <div id="view-songlist"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300 overflow-hidden">
+                    class="player-main-view absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300 overflow-hidden">
 
                     <!-- Song List Toolbar -->
                     <div class="flex flex-col md:flex-row gap-3 mb-4 md:mb-6">
@@ -549,7 +551,7 @@
 
                     <!-- Song List Detail View (Overlay within the view) -->
                     <div id="songlist-detail-view"
-                        class="absolute inset-0 t-bg-main z-20 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden translate-x-full transition-transform duration-300 overflow-hidden">
+                        class="player-main-view absolute inset-0 t-bg-main z-20 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden translate-x-full transition-transform duration-300 overflow-hidden">
                         
                         <div
                             class="flex-1 flex flex-col overflow-hidden t-bg-panel rounded-2xl shadow-sm border t-border-main relative">
@@ -734,7 +736,7 @@
 
                 <!-- Leaderboard View -->
                 <div id="view-leaderboard"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300 overflow-hidden">
+                    class="player-main-view absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300 overflow-hidden">
 
                     <!-- 顶部工具栏：增强手机端适配 -->
                     <div class="flex-shrink-0 flex items-center gap-2 md:gap-4 mb-4 md:mb-6">
@@ -930,7 +932,7 @@
 
                 <!-- Favorites View -->
                 <div id="view-favorites"
-                    class="absolute inset-0 flex flex-col px-6 pt-6 md:px-12 md:pt-12 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300">
+                    class="player-main-view absolute inset-0 flex flex-col px-6 pt-6 md:px-12 md:pt-12 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300">
                     <div class="flex-1 flex flex-col items-center justify-center t-text-muted">
                         <div class="relative mb-8">
                             <div
@@ -957,7 +959,7 @@
 
                 <!-- Local Music View -->
                 <div id="view-localmusic"
-                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300 overflow-hidden">
+                    class="player-main-view absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2 hidden opacity-0 transition-all duration-300 overflow-hidden">
 
                     <!-- Settings and Filters Area -->
                     <div
@@ -1306,7 +1308,7 @@
 
                 <!-- Settings View -->
                 <div id="view-settings"
-                    class="absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 pt-6 pb-4 md:pb-4 hidden opacity-0 transition-all duration-300">
+                    class="player-main-view absolute inset-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 pt-6 pb-4 md:pb-4 hidden opacity-0 transition-all duration-300">
                     <div
                         class="t-bg-panel rounded-2xl shadow-sm border t-border-main p-4 sm:p-8 max-w-2xl mx-auto w-full">
                         <h2 class="text-2xl font-bold t-text-main mb-6">设置</h2>
@@ -2864,7 +2866,7 @@
                 </div>
                 <!-- About View -->
                 <div id="view-about"
-                    class="absolute inset-0 overflow-y-auto custom-scrollbar px-6 pt-6 pb-4 md:pb-4 hidden opacity-0 transition-all duration-300">
+                    class="player-main-view absolute inset-0 overflow-y-auto custom-scrollbar px-6 pt-6 pb-4 md:pb-4 hidden opacity-0 transition-all duration-300">
                     <div
                         class="t-bg-panel rounded-2xl shadow-sm border t-border-main p-8 max-w-3xl mx-auto w-full prose prose-emerald">
                         <div id="about-content" class="animate-pulse">

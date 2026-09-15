@@ -6,6 +6,7 @@ import {
 } from '../player_security';
 import { registerPlayerEventAction } from '../player_events';
 import { updatePaginationInfo } from '../legacy/batch_pagination';
+import type { NavigationOptions } from './navigation';
 
 export type SearchFeatureContext = {
     getSettings: () => Record<string, any>;
@@ -13,7 +14,11 @@ export type SearchFeatureContext = {
     setCurrentPage: (page: number) => void;
     getCurrentListData: () => any;
     getUserAuthHeaders: () => Record<string, string>;
-    switchTab: (tabId: string, preserveSearchNavigation?: boolean) => void;
+    switchTab: (tabId: string, options?: NavigationOptions | boolean) => void;
+    pushHistoryState?: (state: SearchDetailHistoryState) => void;
+    replaceHistoryState?: (state: SearchDetailHistoryState | { page: 'tab'; tabId: string }) => void;
+    goBackHistory?: () => boolean;
+    getHistoryState?: () => any;
     setCurrentSearchScope: (scope: string) => void;
     loadLibraryData?: (...args: any[]) => any;
     isArtistFavorited?: (...args: any[]) => boolean;
@@ -24,6 +29,15 @@ export type SearchFeatureContext = {
     playFromView: (index: number) => any;
     showInfo: (...args: any[]) => any;
     showError: (...args: any[]) => any;
+};
+
+export type SearchDetailHistoryState = {
+    page: 'search-detail';
+    kind: 'artist' | 'album';
+    id: string;
+    source: string;
+    order?: string;
+    tab?: string;
 };
 
 export function initSearchFeature(context: SearchFeatureContext) {
@@ -45,6 +59,10 @@ export function initSearchFeature(context: SearchFeatureContext) {
         },
     };
     const switchTab = context.switchTab;
+    const pushHistoryState = context.pushHistoryState;
+    const replaceHistoryState = context.replaceHistoryState;
+    const goBackHistory = context.goBackHistory;
+    const getHistoryState = context.getHistoryState;
     const setCurrentSearchScope = context.setCurrentSearchScope;
     const getUserAuthHeaders = context.getUserAuthHeaders;
     const showInfo = context.showInfo;
@@ -338,15 +356,6 @@ function isAlbumRequestCurrent(request: AlbumRequestContext) {
 
 let searchDetailOpen = false;
 
-type SearchDetailHistoryState = {
-    page: 'search-detail';
-    kind: 'artist' | 'album';
-    id: string;
-    source: string;
-    order?: string;
-    tab?: string;
-};
-
 function syncSearchDetailHeaderVisibility() {
     const header = document.getElementById('search-results-header');
     if (header) header.classList.toggle('hidden', searchDetailOpen);
@@ -384,8 +393,8 @@ async function doSearch(page = 1, append = false, prefetch = false) {
     hotSearchStateSerial += 1;
     if (!prefetch) {
         setSearchDetailOpen(false);
-        if (window.history.state?.page === 'search-detail') {
-            window.history.replaceState({ page: 'search' }, '');
+        if (getHistoryState?.()?.page === 'search-detail') {
+            replaceHistoryState?.({ page: 'tab', tabId: 'search' });
         }
     }
     invalidateSearchRequest();
@@ -1086,7 +1095,7 @@ async function enterArtist(id, source = 'wy', order = 'hot', tab = 'songs', isBa
         lastSearchType = typeEl ? typeEl.value : 'singer';
         lastSearchResultList = [...(window.viewingPlaylist || [])];
         currentArtistInfo = null; // 重置缓存
-        window.history.pushState({
+        pushHistoryState?.({
             page: 'search-detail',
             kind: 'artist',
             id: String(id),
@@ -1958,7 +1967,7 @@ async function enterAlbum(id, source = 'wy', fromHistory = false) {
         lastSearchResultList = [...(window.viewingPlaylist || [])];
     }
     if (!fromHistory) {
-        window.history.pushState({
+        pushHistoryState?.({
             page: 'search-detail',
             kind: 'album',
             id: albumId,
@@ -2006,8 +2015,7 @@ function goBackToSearch(fromPopState = false) {
     invalidateArtistRequest();
     invalidateAlbumRequest();
     if (!fromPopState) {
-        if (window.history.state && window.history.state.page === 'search-detail') {
-            window.history.back();
+        if (getHistoryState?.()?.page === 'search-detail' && goBackHistory?.()) {
             return;
         }
     }
@@ -2076,7 +2084,7 @@ function restoreSearchResults() {
 }
 window.goBackToSearch = goBackToSearch;
 
-function leaveSearchView() {
+function leaveSearchView(preserveHistory = false) {
     invalidateSearchRequest();
     invalidateArtistRequest();
     invalidateAlbumRequest();
@@ -2090,16 +2098,16 @@ function leaveSearchView() {
 
     restoreSearchResults();
 
-    if (window.history.state?.page === 'search-detail') {
-        window.history.replaceState({ page: 'tab', tabId: 'search' }, '');
+    if (!preserveHistory && getHistoryState?.()?.page === 'search-detail') {
+        replaceHistoryState?.({ page: 'tab', tabId: 'search' });
     }
 }
 
-function handleSearchPopState(historyState: any) {
+function handleSearchPopState(historyState: any, direction: NavigationOptions['direction'] = 'forward') {
     if (historyState?.page === 'search-detail') {
         // 浏览器从其它主页面返回搜索详情时，先恢复搜索视图；保留当前 History 项，
         // 避免 switchTab 的常规清理逻辑把正在恢复的详情路由替换掉。
-        switchTab('search', true);
+        switchTab('search', { preserveSearchNavigation: true, historyMode: 'restore', direction });
         const id = historyState.id;
         const source = historyState.source || 'wy';
         if (id === undefined || id === null || id === '') return false;
@@ -2118,7 +2126,7 @@ function handleSearchPopState(historyState: any) {
     }
 
     if (searchDetailOpen) {
-        switchTab('search', true);
+        switchTab('search', { preserveSearchNavigation: true, historyMode: 'restore', direction });
         goBackToSearch(true);
         return true;
     }

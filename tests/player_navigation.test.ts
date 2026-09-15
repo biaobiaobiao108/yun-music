@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import fs from 'fs';
 import path from 'path';
+import { createPlayerHistoryController } from '../frontend/player/src/features/player_history';
 
 describe('Player Navigation and State Restoration Safety', () => {
     const playerSrcPath = path.join(import.meta.dir, '../frontend/player/src/index.ts');
@@ -71,6 +72,29 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(html.includes('viewport-fit=cover')).toBe(true);
         expect(html.includes('id="mobile-menu-btn"')).toBe(true);
         expect(html.includes('data-event-click-action="toggleSidebar"')).toBe(true);
+    });
+
+    it('top history controls are owned by the player and expose pressed-state styling', () => {
+        const source = fs.readFileSync(playerSrcPath, 'utf8');
+        const history = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/src/features/player_history.ts'), 'utf8');
+        const html = fs.readFileSync(path.join(import.meta.dir, '../public/music/index.html'), 'utf8');
+        const css = fs.readFileSync(playerCssPath, 'utf8');
+
+        expect(html).toContain('id="player-history-back" type="button" data-event-click-action="playerHistoryBack"');
+        expect(html).toContain('id="player-history-forward" type="button" data-event-click-action="playerHistoryForward"');
+        expect(html).not.toContain('data-event-click-action="history.back"');
+        expect(html).not.toContain('data-event-click-action="history.forward"');
+        expect(source).toContain('createPlayerHistoryController');
+        expect(source).toContain("window.addEventListener('popstate', event => restorePlayerHistory(event.state))");
+        expect(history).toContain("historyAdapter.go(direction === 'backward' ? -1 : 1)");
+        expect(history).toContain('button.disabled = disabled;');
+        expect(css).toContain('.player-history-button:not(:disabled):active');
+        expect(css).toContain('[data-pressing="true"]');
+        expect(css).toContain('.player-history-button:disabled');
+        expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+        expect(html).toContain('id="tab-search"');
+        expect(html).toContain('id="tab-songlist"');
+        expect(html).toContain('data-event-prevent="true"');
     });
 
     it('nested playlist creation keeps native dialogs interactive and syncs restored user status', () => {
@@ -181,7 +205,7 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(searchContent).toContain('container.insertAdjacentHTML(\'beforeend\', emptyState)');
         expect(searchContent).toContain('paginationBar.classList.toggle(\'hidden\', searchDetailOpen)');
         expect(playerContent).toContain('const switchTab = createTabSwitcher');
-        expect(navigationContent).toContain('transitionPlayerView(activeView, getPlayerViewDirection(tabId))');
+        expect(navigationContent).toContain('transitionPlayerView(activeView, options.direction ?? getPlayerViewDirection(tabId))');
         expect(css).toContain('#search-results-header.hidden');
         expect(css).toContain('display: none !important');
         expect(css).toContain('.player-detail-list-toolbar');
@@ -383,16 +407,19 @@ describe('Player Navigation and State Restoration Safety', () => {
         const source = fs.readFileSync(playerSrcPath, 'utf8');
         const html = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/index.html'), 'utf8');
         const visualizer = fs.readFileSync(visualizerSrcPath, 'utf8');
+        const css = fs.readFileSync(playerCssPath, 'utf8');
         const toggleBlock = source.match(/if \(isHidden\) \{[\s\S]*?\n    \} else \{/)?.[0] ?? '';
         const footerClass = html.match(/<footer id="player-footer"[\s\S]*?class="([^"]+)"/)?.[1] ?? '';
 
         expect(toggleBlock).toContain("el.classList.remove('pb-32', 'pb-44', 'md:pb-32')");
         expect(toggleBlock).not.toContain("el.classList.add('pb-44', 'md:pb-32')");
-        expect(html).toContain('id="view-search"\n                    class="absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2');
+        expect(html).toContain('id="view-search"\n                    class="player-main-view absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2');
         expect(footerClass).toContain('fixed');
         expect(footerClass).not.toContain('relative');
-        expect(visualizer).toContain('const contentGap = 8;');
-        expect(visualizer).toContain('`${measuredFooterHeight + contentGap}px`');
+        expect(visualizer).toContain('主页面的底部避让由 .player-main-view + --player-footer-offset 统一负责');
+        expect(visualizer).not.toContain('const contentGap = 8;');
+        expect(css).toContain('--player-content-bottom-gap: 0.5rem');
+        expect(css).toContain('padding-block-end: calc(');
     });
 
     it('mobile player menu closes with Escape and supports the tablet breakpoint', () => {
@@ -549,15 +576,66 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(searchContent.includes("kind: 'album'" )).toBe(true);
         expect(searchContent.includes("kind: 'artist'" )).toBe(true);
         expect(searchContent.includes('function handleSearchPopState')).toBe(true);
-        expect(searchContent.includes("switchTab('search', true)")).toBe(true);
+        expect(searchContent.includes("historyMode: 'restore'")).toBe(true);
         expect(searchContent.includes('function leaveSearchView')).toBe(true);
         expect(searchContent.includes('获取专辑歌曲失败：${escapeHtmlText(e.message)}')).toBe(true);
         expect(albumSection.includes('goBackToSearch();')).toBe(false);
-        expect(lyricsContent.includes('lyricHistoryClosePending')).toBe(true);
-        expect(lyricsContent.includes('handleSearchPopState(e.state)')).toBe(true);
-        expect(lyricsContent.includes("if (e.state?.page === 'player-detail') return;")).toBe(true);
-        expect(lyricsContent.includes("if (e.state?.page === 'player-detail') {\n        toggleLyrics(true);\n        return;\n    }")).toBe(true);
-        expect(fs.readFileSync(path.join(import.meta.dir, '../frontend/player/src/index.ts'), 'utf8').includes("window.history.replaceState({ page: 'player' }, '')")).toBe(true);
+        expect(lyricsContent.includes('pushHistoryState')).toBe(true);
+        expect(lyricsContent.includes("window.addEventListener('popstate'")).toBe(false);
+        expect(fs.readFileSync(path.join(import.meta.dir, '../frontend/player/src/index.ts'), 'utf8')).toContain('restorePlayerHistory');
+    });
+
+    it('player history controller guards boundaries and truncates forward entries', () => {
+        const calls = { pushed: [], replaced: [], moved: [] };
+        const history = {
+            state: null,
+            pushState(state) {
+                this.state = state;
+                calls.pushed.push(state);
+            },
+            replaceState(state) {
+                this.state = state;
+                calls.replaced.push(state);
+            },
+            go(delta) {
+                calls.moved.push(delta);
+            },
+        };
+        const controller = createPlayerHistoryController({
+            history: history as any,
+            documentRef: { getElementById: () => null },
+        });
+
+        controller.initialize({ page: 'tab', tabId: 'search' });
+        const rootState = history.state;
+        expect(controller.canGoBack()).toBe(false);
+        expect(controller.canGoForward()).toBe(false);
+        expect(controller.back()).toBe(false);
+        expect(controller.forward()).toBe(false);
+        expect(calls.moved).toEqual([]);
+
+        controller.push({ page: 'tab', tabId: 'songlist' });
+        const songListState = history.state;
+        expect(controller.canGoBack()).toBe(true);
+        expect(controller.canGoForward()).toBe(false);
+        expect(controller.back()).toBe(true);
+        expect(calls.moved).toEqual([-1]);
+
+        controller.handlePopState(rootState);
+        expect(controller.canGoForward()).toBe(true);
+        expect(controller.forward()).toBe(true);
+        expect(calls.moved).toEqual([-1, 1]);
+
+        controller.handlePopState(songListState);
+        controller.back();
+        controller.handlePopState(rootState);
+        controller.push({ page: 'tab', tabId: 'settings' });
+        expect(controller.canGoForward()).toBe(false);
+        expect(calls.pushed).toHaveLength(2);
+
+        expect(controller.handlePopState({ page: 'external' })).toBeNull();
+        expect(controller.canGoBack()).toBe(false);
+        expect(controller.canGoForward()).toBe(false);
     });
 
     it('single mode distinguishes manual skipping from automatic ended replay', () => {

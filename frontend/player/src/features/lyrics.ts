@@ -25,7 +25,9 @@ export interface LyricFeatureContext {
     getUserAuthHeaders: () => Record<string, string>;
     getImgUrl: (song: any) => string;
     setImg: (id: string, src: string) => void;
-    handleSearchPopState?: (state: any) => boolean;
+    pushHistoryState?: (state: any) => void;
+    goBackHistory?: () => boolean;
+    getHistoryState?: () => any;
     updateStorageStatsUI: (...args: any[]) => any;
     escapeHtmlText: (text: any) => string;
     formatTime: (seconds: number) => string;
@@ -47,13 +49,14 @@ export function initLyricFeature(context: LyricFeatureContext) {
     const getUserAuthHeaders = context.getUserAuthHeaders;
     const getImgUrl = context.getImgUrl;
     const setImg = context.setImg;
-    const handleSearchPopState = context.handleSearchPopState || (() => false);
+    const pushHistoryState = context.pushHistoryState;
+    const goBackHistory = context.goBackHistory;
+    const getHistoryState = context.getHistoryState;
     const updateStorageStatsUI = context.updateStorageStatsUI;
     const escapeHtmlText = context.escapeHtmlText;
     const formatTime = context.formatTime;
     const startToggleLyricsBtnTimer = context.startToggleLyricsBtnTimer;
     const SCROLL_LOCK_DURATION = context.scrollLockDuration;
-let lyricHistoryClosePending = false;
 let lyricRequestController: AbortController | null = null;
 let lyricRequestSerial = 0;
 let currentLyricOffsetMs = 0;
@@ -129,13 +132,18 @@ function initLyricOffsetCapsuleEvents() {
 
 function toggleLyrics(fromPopState = false) {
     if (!fromPopState && state.isLyricViewOpen) {
-        if (window.history.state && window.history.state.page === 'player-detail') {
-            lyricHistoryClosePending = true;
-            window.history.back();
+        if (getHistoryState?.()?.page === 'player-detail' && goBackHistory?.()) {
+            return;
         }
     }
     if (!fromPopState && !state.isLyricViewOpen) {
-        window.history.pushState({ page: 'player-detail' }, '');
+        const currentState = getHistoryState?.();
+        pushHistoryState?.({
+            page: 'player-detail',
+            tabId: currentState?.tabId || 'search',
+            scope: currentState?.scope,
+            listId: currentState?.listId,
+        });
     }
 
     state.isLyricViewOpen = !state.isLyricViewOpen;
@@ -204,32 +212,6 @@ function toggleLyrics(fromPopState = false) {
         }
     }
 }
-
-// 监听浏览器返回，用于在移动端通过物理返回键/手势关闭歌词详情页
-window.addEventListener('popstate', (e) => {
-    // 1. 优先处理歌词页
-    if (state.isLyricViewOpen) {
-        // 前进回到 player-detail 时页面本来就是打开状态，不要把它再次关闭。
-        if (e.state?.page === 'player-detail') return;
-        toggleLyrics(true);
-        return;
-    }
-
-    // 关闭歌词详情时会主动回退一个 player-detail 历史项；该 popstate 不是搜索详情返回。
-    if (lyricHistoryClosePending) {
-        lyricHistoryClosePending = false;
-        return;
-    }
-
-    // 歌词详情关闭后点击浏览器前进，应恢复歌词详情，而不是把事件交给搜索模块。
-    if (e.state?.page === 'player-detail') {
-        toggleLyrics(true);
-        return;
-    }
-
-    // 2. 前进/后退搜索详情 (歌手/专辑)，由搜索模块根据完整路由状态恢复。
-    handleSearchPopState(e.state);
-});
 
 function updateDetailInfo(song) {
     document.getElementById('detail-title').innerText = song.name;

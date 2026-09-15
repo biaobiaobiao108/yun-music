@@ -54,7 +54,13 @@ import {
     getPlayerViewDirection,
     prefersReducedPlayerMotion,
     transitionPlayerView,
+    type NavigationOptions,
 } from './features/navigation';
+import {
+    createPlayerHistoryController,
+    type PlayerHistoryMode,
+    type PlayerHistoryPayload,
+} from './features/player_history';
 import { bindPlayerEvents, registerPlayerEventAction } from './player_events';
 import { DownloadManager } from './legacy/download_manager';
 import { createSongListManager, type SongListManagerApi } from './legacy/songlist_manager';
@@ -150,13 +156,20 @@ const audio = document.getElementById('audio-player');
 let currentPlaybackRate = 1.0;
 let clearSearchNavigation = () => {};
 
-// 搜索详情和歌词详情都是当前 SPA 进程内的临时视图。页面刷新后无法恢复它们
-// 的内存上下文，因此将遗留的详情状态归一化为普通播放器入口，避免下一次
-// back/forward 把旧页面状态误当成当前视图。
-const initialNavigationPage = window.history.state?.page;
-if (!initialNavigationPage || initialNavigationPage === 'search-detail' || initialNavigationPage === 'player-detail') {
-    window.history.replaceState({ page: 'player' }, '');
+// 播放器内部导航统一使用同一套 History 状态。页面刷新后详情上下文无法复用，
+// 因此始终从搜索入口重新建立当前会话的安全根节点。
+const playerHistory = createPlayerHistoryController();
+playerHistory.initialize({ page: 'tab', tabId: 'search' });
+
+function playerHistoryBack() {
+    return playerHistory.back();
 }
+
+function playerHistoryForward() {
+    return playerHistory.forward();
+}
+
+Object.assign(window, { playerHistoryBack, playerHistoryForward });
 
 function setCurrentSearchScope(scope: string) {
     window.currentSearchScope = scope;
@@ -442,7 +455,11 @@ const searchFeature = initSearchFeature({
     },
     getCurrentListData: () => currentListData,
     getUserAuthHeaders: getPlayerUserAuthHeaders,
-    switchTab: (tabId, preserveSearchNavigation) => switchTab(tabId, preserveSearchNavigation),
+    switchTab: (tabId, options) => switchTab(tabId, options),
+    pushHistoryState: (state) => playerHistory.push(state),
+    replaceHistoryState: (state) => playerHistory.replace(state),
+    goBackHistory: () => playerHistory.back(),
+    getHistoryState: () => playerHistory.getState(),
     setCurrentSearchScope,
     loadLibraryData: (...args) => loadLibraryData(...args),
     isArtistFavorited: (...args) => isArtistFavorited(...args),
@@ -565,7 +582,13 @@ window.settings = settings; // 显式挂载到 window
 
 // Player-owned managers are regular modules. Their DOM events are delegated by
 // the modules themselves, so HTML does not need global manager proxies.
-songListManager = createSongListManager({ downloadSong, handleBatchSelect });
+songListManager = createSongListManager({
+    downloadSong,
+    handleBatchSelect,
+    pushHistoryState: (state) => playerHistory.push(state),
+    goBackHistory: () => playerHistory.back(),
+    getHistoryState: () => playerHistory.getState(),
+});
 registerSongListManager(songListManager);
 downloadManager = new DownloadManager();
 registerDownloadManager(downloadManager);
@@ -1321,11 +1344,25 @@ function changeQualityPreference(quality) {
     updateSetting('preferredQuality', quality);
 }
 
+function updatePlayerHistory(payload: PlayerHistoryPayload, mode: PlayerHistoryMode): void {
+    if (mode !== 'restore' && mode !== 'none') {
+        if (payload.page !== 'player-detail' && lyricState.isLyricViewOpen) {
+            toggleLyrics(true);
+        }
+        if (payload.page !== 'songlist-detail' && payload.page !== 'player-detail' && isSongListDetailVisible()) {
+            songListManager.closeDetail(true);
+        }
+    }
+    if (mode === 'push') playerHistory.push(payload);
+    else if (mode === 'replace') playerHistory.replace(payload);
+}
+
 
 // Tab Switching (Delegated to modular Navigation Feature)
 const switchTab = createTabSwitcher({
-    handleFavoritesClick: () => handleFavoritesClick(),
+    handleFavoritesClick: (historyMode, direction) => handleFavoritesClick(historyMode, direction),
     clearSearchNavigation: () => clearSearchNavigation(),
+    updateHistory: (state, mode) => updatePlayerHistory(state, mode),
     updateUserUI: () => updateUserUI(),
     syncSettingsUI: () => syncSettingsUI(),
     updateAdminUI: () => updateAdminUI(),
@@ -3113,7 +3150,9 @@ const lyricFeature = initLyricFeature({
     getUserAuthHeaders,
     getImgUrl,
     setImg,
-    handleSearchPopState,
+    pushHistoryState: (state) => playerHistory.push(state),
+    goBackHistory: () => playerHistory.back(),
+    getHistoryState: () => playerHistory.getState(),
     updateStorageStatsUI,
     escapeHtmlText,
     formatTime,
@@ -3138,6 +3177,59 @@ const {
 
 // syncLyric removed - LinePlayer handles all syncing via syncLyricByLineNum callback
 // Audio timeupdate listener removed - LinePlayer automatically syncs lyrics
+
+function isSongListDetailVisible(): boolean {
+    const detailView = document.getElementById('songlist-detail-view');
+    return Boolean(detailView
+        && !detailView.classList.contains('hidden')
+        && !detailView.classList.contains('translate-x-full'));
+}
+
+function restorePlayerHistory(rawState: unknown): void {
+    const navigation = playerHistory.handlePopState(rawState);
+    if (!navigation) {
+        if (lyricState.isLyricViewOpen) toggleLyrics(true);
+        if (isSongListDetailVisible()) songListManager.closeDetail(true);
+        handleSearchPopState(null, 'backward');
+        return;
+    }
+
+    const { state, direction } = navigation;
+    if (state.page === 'player-detail') {
+        if (!lyricState.isLyricViewOpen) toggleLyrics(true);
+        return;
+    }
+
+    if (lyricState.isLyricViewOpen) toggleLyrics(true);
+
+    if (state.page === 'search-detail') {
+        handleSearchPopState(state, direction);
+        return;
+    }
+
+    if (state.page === 'songlist-detail') {
+        switchTab('songlist', {
+            historyMode: 'restore',
+            preserveSearchNavigation: true,
+            direction,
+        });
+        if (state.id) songListManager.openDetail(state.id, state.source || 'wy', true);
+        return;
+    }
+
+    if (state.scope === 'local_list' && state.listId) {
+        if (isSongListDetailVisible()) songListManager.closeDetail(true);
+        handleListClick(state.listId, true, 'restore');
+        return;
+    }
+
+    if (isSongListDetailVisible()) songListManager.closeDetail(true);
+    const tabId = state.tabId || 'search';
+    switchTab(tabId, { historyMode: 'restore', direction });
+}
+
+// 所有浏览器、系统手势以及顶栏历史按钮最终都经过这里，避免模块之间互相抢占 popstate。
+window.addEventListener('popstate', event => restorePlayerHistory(event.state));
 
 // Playback feature updates lyric detail metadata through its context adapter.
 
@@ -3695,11 +3787,24 @@ function renderMyLists(data) {
     refreshFavoritesChildrenHeight();
 }
 
-function handleListClick(listId, skipAutoUpdate = false) {
-    clearSearchNavigation();
+function handleListClick(
+    listId,
+    skipAutoUpdate = false,
+    historyMode: PlayerHistoryMode = skipAutoUpdate ? 'none' : 'push'
+) {
+    if (historyMode !== 'restore') clearSearchNavigation();
     exitListSecondaryModes();
 
     if (!currentListData) return;
+
+    if (historyMode === 'push' || historyMode === 'replace') {
+        updatePlayerHistory({
+            page: 'tab',
+            tabId: 'search',
+            scope: 'local_list',
+            listId: String(listId),
+        }, historyMode);
+    }
 
     if (!skipAutoUpdate) {
         // Selections belong to the previously rendered list. Keeping them here makes
@@ -3804,7 +3909,7 @@ function handleListClick(listId, skipAutoUpdate = false) {
     }
 }
 
-function handleFavoritesClick() {
+function handleFavoritesClick(historyMode: PlayerHistoryMode = 'push', direction?: NavigationOptions['direction']) {
     exitListSecondaryModes();
 
     // Highlight Header
@@ -3822,7 +3927,10 @@ function handleFavoritesClick() {
     if (!isUserLoggedIn()) {
         const favoritesView = document.getElementById('view-favorites');
         if (favoritesView) {
-            transitionPlayerView(favoritesView, getPlayerViewDirection('favorites'));
+            if (historyMode === 'push' || historyMode === 'replace') {
+                updatePlayerHistory({ page: 'tab', tabId: 'favorites' }, historyMode);
+            }
+            transitionPlayerView(favoritesView, direction ?? getPlayerViewDirection('favorites'));
             return;
         }
     }
@@ -4252,7 +4360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // [New] Switch to the user's default entry tab on load
     const defaultTab = settings.defaultEntry || 'favorites';
-    switchTab(defaultTab);
+    switchTab(defaultTab, { historyMode: 'replace' });
 
     // Cookie 会话由首屏认证检查恢复；密码不会被保存到浏览器。
     syncUserSessionStatus();

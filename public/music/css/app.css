@@ -725,6 +725,20 @@ html, body {
 /* 抽屉始终避让底部播放器，并在小屏幕上保持可用的触控宽度 */
 :root {
     --player-footer-offset: 0px;
+    --player-content-bottom-gap: 0.5rem;
+}
+
+/* The footer is fixed to the viewport, so every main surface must reserve
+   its measured height plus a small visual breathing room. Keeping this in
+   one layout rule prevents the spacing from depending on the visualizer
+   setting or on a particular view being initialized first. */
+.player-main-view {
+    box-sizing: border-box;
+    min-block-size: 0;
+    padding-block-end: calc(
+        var(--player-footer-offset, 0px) +
+        var(--player-content-bottom-gap, 0.5rem)
+    ) !important;
 }
 
 #queue-drawer.player-safe-drawer,
@@ -1837,6 +1851,50 @@ aside {
     pointer-events: auto !important;
     transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
     will-change: transform;
+}
+
+/* Top-level navigation controls need a visible pressed state, including on
+   touch devices where hover is unavailable. The data attribute is applied
+   by the history controller so the feedback survives delegated clicks. */
+.player-history-button {
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition-property: transform, background-color, color, box-shadow, opacity;
+    transition-duration: var(--motion-duration-fast);
+    transition-timing-function: var(--motion-ease-standard);
+}
+
+.player-history-button:not(:disabled):hover,
+.player-history-button:not(:disabled):focus-visible,
+.player-history-button:not(:disabled)[data-pressing="true"] {
+    background: color-mix(in srgb, var(--c-500, #10b981) 14%, transparent);
+    color: var(--c-600, var(--c-500));
+}
+
+.player-history-button:not(:disabled):active,
+.player-history-button:not(:disabled)[data-pressing="true"] {
+    transform: translateY(1px) scale(0.92);
+    background: color-mix(in srgb, var(--c-500, #10b981) 22%, transparent);
+    box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.12);
+}
+
+.player-history-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.32;
+    transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .player-history-button {
+        transition: color 0ms, background-color 0ms, opacity 0ms;
+    }
+
+    .player-history-button:not(:disabled):active,
+    .player-history-button:not(:disabled)[data-pressing="true"] {
+        transform: none;
+    }
 }
 
 /* 歌词全屏沉浸极简底栏模式 */

@@ -246,40 +246,12 @@ const musicVisualizer = (function () {
                 audioContext.resume();
             }
 
-            // 调整内容区域的间距以防被遮挡
-            const mainViews = document.querySelectorAll('#view-search, #view-favorites, #view-settings, #view-about, #view-player-detail, #view-songlist, #songlist-detail-view, #view-leaderboard');
-            const isMobile = window.innerWidth < 768;
             const measuredFooterHeight = playerFooter && !footerIsHidden
                 ? Math.ceil(playerFooter.getBoundingClientRect().height)
                 : 0;
-            // Footer 使用 fixed 覆盖在内容上方，主体卡片只需避让实际高度并保留 8px 微距。
-            const contentGap = 8;
-            let targetPb = footerIsHidden ? '' : `${measuredFooterHeight + contentGap}px`;
-
-            mainViews.forEach(view => {
-                view.style.transition = 'padding-bottom 0.3s ease, padding-top 0.3s ease';
-                let pb = targetPb;
-
-                if (view.id === 'view-player-detail') {
-                    // [Fix] 详情页特殊处理：使用容器 Margin 而不是视图 Padding，防止背景图层因 Padding 出现视觉断层（黑线）
-                    const container = view.querySelector('#player-detail-container');
-                    if (container) {
-                        const needsTopPadding = !footerIsHidden && window.innerWidth >= 768;
-                        container.style.marginTop = needsTopPadding ? '60px' : '';
-
-                        // [Important] 详情页父容器 view-player-detail 已有 pb-24 (96px)，
-                        // 此处的 margin-bottom 应扣除这部分，否则会导致歌词区域被过度压缩
-                        const extraPb = pb === '' ? '' : Math.max(0, parseInt(pb) - 96) + 'px';
-                        container.style.marginBottom = extraPb;
-                        container.style.transition = 'margin 0.3s ease';
-                    }
-                    view.style.paddingBottom = ''; // 确保详情页视图本身没有 Padding
-                    view.style.paddingTop = '';
-                } else {
-                    // 其他列表页继续使用 Padding
-                    view.style.paddingBottom = pb;
-                }
-            });
+            // 主页面的底部避让由 .player-main-view + --player-footer-offset 统一负责，
+            // 可视化模块只维护自身的画布、播放栏尺寸以及侧栏避让。
+            const targetPb = footerIsHidden ? '' : `${measuredFooterHeight}px`;
 
             // 调整侧边栏底部 Padding
             const sidebar = document.querySelector('aside');
@@ -296,17 +268,12 @@ const musicVisualizer = (function () {
                 playerFooter.style.height = '';
                 playerFooter.style.justifyContent = ''; // 复原
             }
-            // 复原 Padding
-            const mainViews = document.querySelectorAll('#view-search, #view-favorites, #view-settings, #view-about, #view-player-detail, #view-songlist, #songlist-detail-view, #view-leaderboard');
-            mainViews.forEach(view => {
-                view.style.paddingBottom = '';
-                const container = view.querySelector('#player-detail-container');
-                if (container) {
-                    container.style.marginTop = '';
-                    container.style.marginBottom = '';
-                }
-                view.style.paddingTop = '';
-            });
+            // 主页面 padding 不再由可视化模块写入；这里只清理详情页专用的旧边距。
+            const detailContainer = document.getElementById('player-detail-container');
+            if (detailContainer) {
+                detailContainer.style.marginTop = '';
+                detailContainer.style.marginBottom = '';
+            }
             const sidebar = document.querySelector('aside');
             if (sidebar) {
                 sidebar.style.paddingBottom = '';
