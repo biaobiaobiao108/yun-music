@@ -149,6 +149,10 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     let isNavigatingHistory = false;
     let activePlaybackAttempt: PlaybackAttemptContext | null = null;
     let prefetchTriggeredForPlayback = false;
+    const BUFFERING_RECOVERY_DELAY = 6 * 1000;
+    let bufferingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+    let bufferingRecoverySong: any = null;
+    let bufferingRecoveryAttempted = false;
 
     const maybePrefetchNextSong = () => {
         if (prefetchTriggeredForPlayback || settings.enablePreloader === false) return;
@@ -316,12 +320,16 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         manualPlaybackRecoveryCleanup = null;
     }
 
-    function retryCurrentSongPlayback() {
+    function retryCurrentSongPlayback(forceWhileLoading = false) {
         const song = state.currentPlayingSong;
-        if (!song || state.currentLoadingRequestId !== 0) return false;
+        if (!song || (!forceWhileLoading && state.currentLoadingRequestId !== 0)) return false;
 
         const resumeTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
         clearManualPlaybackRecovery();
+        clearBufferingRecoveryTimer();
+        if (forceWhileLoading && state.currentLoadingRequestId !== 0) {
+            activePlaybackAttempt?.abortController.abort();
+        }
         // Bypass both browser/server URL caches after a source has already failed.
         // Keep the existing recovery state so quality/source fallback still works.
         state.currentLoadingSongId = null;
@@ -339,6 +347,46 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
         }
         return true;
     }
+
+    function clearBufferingRecoveryTimer() {
+        if (bufferingRecoveryTimer) clearTimeout(bufferingRecoveryTimer);
+        bufferingRecoveryTimer = null;
+    }
+
+    function resetBufferingRecovery() {
+        clearBufferingRecoveryTimer();
+        bufferingRecoverySong = null;
+        bufferingRecoveryAttempted = false;
+    }
+
+    function armBufferingRecovery() {
+        const song = state.currentPlayingSong;
+        if (!song || audio.paused || audio.ended || bufferingRecoveryAttempted) return;
+        if (bufferingRecoverySong !== song) {
+            clearBufferingRecoveryTimer();
+            bufferingRecoverySong = song;
+            bufferingRecoveryAttempted = false;
+        }
+        if (bufferingRecoveryTimer) return;
+
+        bufferingRecoveryTimer = setTimeout(() => {
+            bufferingRecoveryTimer = null;
+            if (song !== state.currentPlayingSong || audio.paused || audio.ended) return;
+            if (audio.readyState >= 3) return;
+
+            const isSourceLoading = activePlaybackAttempt?.stage === 'loading';
+            if (state.currentLoadingRequestId !== 0 && !isSourceLoading) return;
+
+            bufferingRecoveryAttempted = true;
+            showPlaybackStatus('正在恢复播放', { type: 'info', loading: true });
+            if (!retryCurrentSongPlayback(isSourceLoading)) bufferingRecoveryAttempted = false;
+        }, BUFFERING_RECOVERY_DELAY);
+    }
+
+    audio.addEventListener('waiting', armBufferingRecovery);
+    audio.addEventListener('stalled', armBufferingRecovery);
+    audio.addEventListener('playing', clearBufferingRecoveryTimer);
+    audio.addEventListener('pause', clearBufferingRecoveryTimer);
 
     function armManualPlaybackRecovery() {
         clearManualPlaybackRecovery();
@@ -544,6 +592,11 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
     if (!noPlay) {
         playAfterSourceReady = false;
         clearManualPlaybackRecovery();
+    }
+    if (!isRetry || state.currentPlayingSong !== song) {
+        resetBufferingRecovery();
+    } else {
+        clearBufferingRecoveryTimer();
     }
     if (!isRetry) {
         prefetchTriggeredForPlayback = false;

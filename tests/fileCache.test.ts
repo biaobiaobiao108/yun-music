@@ -548,6 +548,7 @@ describe('File Cache Path Traversal Defense', () => {
       setCacheProgress(progressKey, { progress: 100, status: 'tagging' })
       expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username).exists).toBe(false)
       expect(fileCache.checkCache({ ...songInfo, quality: '320k', exactQuality: false }, username).exists).toBe(false)
+      expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username, false, { ignoreActiveProgress: true }).exists).toBe(true)
 
       setCacheProgress(progressKey, { progress: 100, status: 'finished' })
       expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username).exists).toBe(true)

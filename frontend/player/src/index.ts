@@ -2282,6 +2282,7 @@ audio.addEventListener('seeked', () => {
     }
 });
 audio.addEventListener('waiting', () => {
+    if (audio.paused || audio.ended) return;
     setPlayerStatus('缓冲歌曲中', null, true);
     if (lyricPlayer) {
         lyricPlayer.pause();
@@ -2289,6 +2290,7 @@ audio.addEventListener('waiting', () => {
 });
 
 audio.addEventListener('stalled', () => {
+    if (audio.paused || audio.ended) return;
     setPlayerStatus('缓冲歌曲中', null, true);
 });
 

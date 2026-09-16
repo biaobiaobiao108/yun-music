@@ -78,7 +78,8 @@ describe('Player manager module boundaries', () => {
         expect(playerSource).toContain('externalSignal?.addEventListener');
         expect(playerSource).toContain('externalSignal?.removeEventListener');
         expect(songUrlSource).toContain('const FOREGROUND_CACHE_CHECK_TIMEOUT = 1500;');
-        expect(songUrlSource).toContain('const CACHE_PROCESSING_WAIT_TIMEOUT = 30 * 1000;');
+        expect(songUrlSource).toContain('const CACHE_PROCESSING_WAIT_TIMEOUT = 4 * 1000;');
+        expect(songUrlSource).toContain('cacheWaitTimedOut: true');
         expect(songUrlSource).toContain('const waitForServerCacheCheck = async');
         expect(songUrlSource).toContain('SERVER_CACHE_PROCESSING');
         expect(songUrlSource).toContain('settings.enableServerCache !== false');
@@ -91,6 +92,9 @@ describe('Player manager module boundaries', () => {
         expect(playbackSource).toContain('audio.addEventListener(\'timeupdate\', maybePrefetchNextSong);');
         expect(playbackSource).toContain('if (currentTime / duration < PREFETCH_PROGRESS_THRESHOLD) return;');
         expect(playbackSource).toContain('prefetchManager.cancelInflightExcept?.(song.id);');
+        expect(playbackSource).toContain('const BUFFERING_RECOVERY_DELAY = 6 * 1000;');
+        expect(playbackSource).toContain("audio.addEventListener('stalled', armBufferingRecovery);");
+        expect(playbackSource).toContain('retryCurrentSongPlayback(isSourceLoading)');
         expect(playbackSource).toContain('const pendingPrefetch = prefetchManager.getPending?.(song.id, preferredQuality);');
         expect(playbackSource).toContain('await pendingPrefetch;');
         expect(playbackSource).not.toContain('if (shouldPrefetchAfterPlayback(state.currentSourceType)) prefetchNextSong();');

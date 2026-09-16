@@ -1939,13 +1939,23 @@ export const setCacheLocation = (location: string) => {
 
 export const getCacheLocation = () => currentCacheLocation
 
-export const checkCache = (songInfo: any, username?: string, isLyricCheck: boolean = false) => {
+type CacheCheckOptions = {
+    // cacheProgress is process-global and is retained for legacy/browser
+    // progress reporting. Callers that already have a user-scoped task state
+    // can opt out of using it as a cache availability gate.
+    ignoreActiveProgress?: boolean
+}
+
+export const checkCache = (songInfo: any, username?: string, isLyricCheck: boolean = false, options: CacheCheckOptions = {}) => {
     try {
         const ids = getSongIdCandidates(songInfo)
         const id = ids[0] || normalizeSongId(songInfo)
         const quality = songInfo.quality || 'unknown'
         const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
         const candidateUsernames = normalizedUsername === '_open' ? ['_open'] : [normalizedUsername, '_open']
+        const isProcessing = (songId: string, cachedQuality?: string) => (
+            !options.ignoreActiveProgress && isCacheEntryProcessing(songId, cachedQuality)
+        )
 
         for (const targetUser of candidateUsernames) {
             // 1. Search by exact ID and Quality (Primary Check)
@@ -1962,7 +1972,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                             // 下载完成后还可能进入标签、封面和歌词后处理阶段。此时索引已经
                             // 指向最终文件，但文件仍可能被 tagger 原地修改；对外隐藏该条目，
                             // 避免播放器读到半成品后误触发换源/降级。
-                            if (isCacheEntryProcessing(cached.id, cached.quality)) continue
+                            if (isProcessing(cached.id, cached.quality)) continue
                             const dir = getCacheDir(targetUser, folder === 'music', location, false)
                             const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
                             if (!fileName) continue
@@ -2003,7 +2013,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                 )
 
                 if (collision) {
-                    if (isCacheEntryProcessing(collision.id, collision.quality)) continue
+                    if (isProcessing(collision.id, collision.quality)) continue
                     const collisionDir = getCacheDir(targetUser, collision.folder === 'music', location, false)
                     const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''
                     const collisionFilePath = collisionFileName ? resolveCacheRelativePath(collisionDir, collisionFileName) : null
@@ -2053,7 +2063,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                         for (const candidateId of ids) {
                             const cachedAny = indexManager.get(targetUser, candidateId, folder, undefined, false, location)
                             if (cachedAny) {
-                                if (isCacheEntryProcessing(cachedAny.id, cachedAny.quality)) continue
+                                if (isProcessing(cachedAny.id, cachedAny.quality)) continue
                                 const dir = getCacheDir(targetUser, folder === 'music', location, false)
                                 const fileName = cachedAny.filename
                                 const filePath = resolveCacheRelativePath(dir, fileName)
@@ -2456,7 +2466,9 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
     const downloadSource = detectDownloadSource(url, provenance.downloadSource || songInfo.downloadSource || songInfo.source)
     const sourceName = provenance.sourceName || songInfo.sourceName
 
-    const result = checkCache({ ...songInfo, quality, exactQuality: true }, username, false)
+    // This worker is already serialized by the user-scoped download queue;
+    // do not let another user's process-global progress hide a valid target.
+    const result = checkCache({ ...songInfo, quality, exactQuality: true }, username, false, { ignoreActiveProgress: true })
     if (result.exists && !result.isCollision) {
         const targetFolder: 'cache' | 'music' = isOnlyDownload ? 'music' : 'cache'
         if (result.folder === targetFolder && result.path) {

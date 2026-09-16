@@ -36,9 +36,9 @@ export function initSongUrlFeature(context: SongUrlFeatureContext) {
     const showError = context.showError;
     const showPlaybackStatus = context.showPlaybackStatus || (() => { });
     const FOREGROUND_CACHE_CHECK_TIMEOUT = 1500;
-    const CACHE_CHECK_RETRY_LIMIT = 3;
-    const CACHE_CHECK_RETRY_INTERVAL = 350;
-    const CACHE_PROCESSING_WAIT_TIMEOUT = 30 * 1000;
+    const CACHE_CHECK_RETRY_LIMIT = 2;
+    const CACHE_CHECK_RETRY_INTERVAL = 250;
+    const CACHE_PROCESSING_WAIT_TIMEOUT = 4 * 1000;
 
     const createServerCacheGateError = (code: 'processing' | 'unavailable', message: string) => {
         const error = new Error(message);
@@ -92,10 +92,14 @@ export function initSongUrlFeature(context: SongUrlFeatureContext) {
             if (isCacheReady(result)) return result;
         }
 
-        throw createServerCacheGateError(
-            result?.processing ? 'processing' : 'unavailable',
-            result?.processing ? '本地缓存仍在生成，请稍后重试' : '本地缓存检查失败，请稍后重试',
+        // A server cache is an optimization, not a prerequisite for playback.
+        // If a task is slow or the check endpoint is temporarily unavailable,
+        // stop waiting and let the normal browser/link resolver continue.
+        showPlaybackStatus(
+            result?.processing ? '本地缓存仍在生成，继续在线播放' : '本地缓存检查超时，继续在线播放',
+            { type: 'info', loading: false },
         );
+        return { ...(result || {}), exists: false, cacheWaitTimedOut: true };
     };
 function getSourceTypeText(sourceType) {
     const map = {

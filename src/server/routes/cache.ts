@@ -265,17 +265,17 @@ export const createCacheRouter = (): Router => {
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     const cacheSong = { name, singer, source, songmid, songId, id: id || undefined, quality, exactQuality }
-    const result = fileCache.checkCache(cacheSong, username)
-    const activeProgress = fileCache.getSongIdCandidates(cacheSong)
-      .map(songId => fileCache.getActiveCacheProgress(songId, exactQuality ? (quality || undefined) : undefined))
-      .find(Boolean)
+    // cacheProgress is process-global and has no user ownership metadata. It
+    // must not make one user's cache lookup wait for another user's download.
+    // The persistent queue below is user-scoped and is the authoritative
+    // processing signal for this endpoint.
+    const result = fileCache.checkCache(cacheSong, username, false, { ignoreActiveProgress: true })
     const activeTaskProgress = serverDownloadQueue.getActiveTaskProgress(username, cacheSong, quality || undefined)
-    if (activeProgress || activeTaskProgress) {
+    if (activeTaskProgress) {
       return ctx.json({
         ...result,
-        exists: false,
         processing: true,
-        progress: activeProgress || activeTaskProgress,
+        progress: activeTaskProgress,
       })
     }
     return ctx.json(result)

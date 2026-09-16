@@ -195,9 +195,49 @@ describe('cache list user scope', () => {
         progress: { status: 'waiting' },
       })
       expect(getActiveTaskProgress).toHaveBeenCalledWith(username, expect.objectContaining({ songmid: '123', source: 'wy' }), 'flac')
+      expect(getActiveCacheProgress).not.toHaveBeenCalled()
     } finally {
       getActiveTaskProgress.mockRestore()
       getActiveCacheProgress.mockRestore()
+      checkCache.mockRestore()
+    }
+  })
+
+  test('keeps an existing cache playable while its user-scoped task is still active', async () => {
+    const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
+      exists: true,
+      url: '/api/music/cache/file/_open/cached.mp3?folder=cache',
+      quality: 'flac',
+      folder: 'cache',
+      filename: 'cached.mp3',
+    } as any)
+    const getActiveTaskProgress = spyOn(serverDownloadQueue, 'getActiveTaskProgress').mockReturnValue({
+      status: 'tagging',
+      progress: 100,
+      total: 100,
+      received: 100,
+      speed: 0,
+      updatedAt: Date.now(),
+    })
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/check?name=Song&singer=Singer&source=wy&songmid=123&quality=flac', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        exists: true,
+        processing: true,
+        progress: { status: 'tagging' },
+      })
+      expect(checkCache).toHaveBeenCalledWith(
+        expect.objectContaining({ songmid: '123', source: 'wy' }),
+        username,
+        false,
+        { ignoreActiveProgress: true },
+      )
+    } finally {
+      getActiveTaskProgress.mockRestore()
       checkCache.mockRestore()
     }
   })

@@ -569,7 +569,7 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
       const targetFolder = input.enableOnlyDownloadMode === true ? 'music' : 'cache'
       const hasTerminalTarget = terminalStatuses.has(existing.status) && (() => {
         try {
-          const cached = fileCache.checkCache({ ...input.songInfo, quality, exactQuality: true }, username, false)
+          const cached = fileCache.checkCache({ ...input.songInfo, quality, exactQuality: true }, username, false, { ignoreActiveProgress: true })
           return cached.exists && !cached.isCollision && cached.folder === targetFolder
         } catch {
           return false
