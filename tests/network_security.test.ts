@@ -40,6 +40,18 @@ describe('Outbound URL network boundaries', () => {
       expect((await assertSafeRemoteHttpUrl('https://example.com/audio')).hostname).toBe('example.com')
       lookup.mockResolvedValue([{ address: '198.18.0.1', family: 4 }, { address: '192.168.1.1', family: 4 }] as any)
       await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow('Private network URL is not allowed')
+
+      lookup.mockResolvedValue([
+        { address: '::ffff:0:c612:56', family: 6 },
+        { address: '198.18.0.86', family: 4 },
+      ] as any)
+      const syntheticUrl = await assertSafeRemoteHttpUrl('https://example.com/audio')
+      const connectedAddress = await new Promise(resolve => syntheticUrl.lookup(
+        'example.com',
+        {},
+        (_error: any, address: string) => resolve(address),
+      ))
+      expect(connectedAddress).toBe('198.18.0.86')
     } finally {
       lookup.mockRestore()
     }

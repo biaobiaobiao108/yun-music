@@ -63,7 +63,17 @@ const isSyntheticDnsAddress = (value: string): boolean => {
   if (number != null) return number >= 0xc6120000 && number <= 0xc613ffff
 
   const normalized = value.toLowerCase().replace(/^\[|\]$/g, '').split('%')[0]
-  return normalized.startsWith('fdfe:dcba:9876:')
+  if (normalized.startsWith('fdfe:dcba:9876:')) return true
+
+  // Some resolvers encode the same RFC 2544 fake IPv4 address as
+  // `::ffff:0:c612:56` instead of the usual `::ffff:c612:56`. Decode both
+  // forms so a synthetic IPv6 companion does not make an otherwise valid
+  // public hostname look like a real private-network target.
+  const mapped = normalized.match(/^::ffff:(?:0:)?([\da-f]{1,4}):([\da-f]{1,4})$/)
+  if (!mapped) return false
+  const high = parseInt(mapped[1], 16)
+  const low = parseInt(mapped[2], 16)
+  return isSyntheticDnsAddress(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`)
 }
 
 const isPrivateAddress = (value: string): boolean => {
@@ -350,9 +360,12 @@ export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemot
   if (addresses.length === 0 || (hasPrivateAddress && !onlySyntheticAddresses)) {
     throw new Error('Private network URL is not allowed')
   }
+  const validatedAddresses = onlySyntheticAddresses
+    ? [...addresses].sort((left, right) => Number(right.family === 4) - Number(left.family === 4))
+    : addresses
   const lookup: LookupFunction = (requestedHostname, options, callback) => {
     const family = Number(options.family) || 0
-    const candidates = addresses.filter(address => !family || address.family === family)
+    const candidates = validatedAddresses.filter(address => !family || address.family === family)
     if (requestedHostname !== hostname || candidates.length === 0) {
       callback(new Error('No validated address for requested host'), '', 0)
       return
