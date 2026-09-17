@@ -106,6 +106,29 @@ export const resolveRequestOrigin = (request: Request, internalUrl: URL, trustFo
 }
 
 /**
+ * 在未配置可信代理地址时，为浏览器请求安全地兼容 HTTPS 反代。
+ *
+ * 浏览器会发送真实的 Origin，但不会允许网页脚本自行设置
+ * X-Forwarded-Proto / X-Forwarded-Host。只有当反代头计算出的 origin
+ * 与浏览器声明的 Origin 完全一致时才采用它；跨站 Origin 仍然走内部
+ * origin，随后由 CORS 中间件拒绝。可信代理仍优先使用转发头，以兼容
+ * 没有 Origin 的服务端请求和 Cookie 安全属性判断。
+ */
+const resolveContextRequestOrigin = (
+  request: Request,
+  internalUrl: URL,
+  trustedProxy: boolean,
+): string => {
+  if (trustedProxy) return resolveRequestOrigin(request, internalUrl, true)
+
+  const browserOrigin = request.headers.get('origin')
+  if (!browserOrigin) return internalUrl.origin
+
+  const forwardedOrigin = resolveRequestOrigin(request, internalUrl, true)
+  return browserOrigin === forwardedOrigin ? forwardedOrigin : internalUrl.origin
+}
+
+/**
  * 面向用户的错误文案：保留服务端已写好的中文原因，
  * 英文/技术性异常（如 SDK、fs、fetch 抛出的原文）统一替换为中文兜底文案。
  */
@@ -138,11 +161,12 @@ export class HttpContext {
     this.query = this.url.searchParams
     this.headers = request.headers
     const socketAddress = options?.remoteAddress || ''
+    const trustedProxy = isTrustedProxyAddress(socketAddress)
     this.remoteAddress = this.resolveRemoteAddress(options?.remoteAddress)
-    // A missing socket address is only a test/in-process context. It must not
-    // implicitly become the configured loopback proxy, otherwise an attacker
-    // could make forwarded headers authoritative without a trusted socket.
-    this.requestOrigin = resolveRequestOrigin(request, this.url, isTrustedProxyAddress(socketAddress))
+    // Client IP forwarding still requires a configured trusted proxy socket.
+    // Origin forwarding may additionally be accepted when it exactly matches
+    // the browser Origin, so Docker reverse proxies work without fixed IPs.
+    this.requestOrigin = resolveContextRequestOrigin(request, this.url, trustedProxy)
     this.isSecure = this.requestOrigin.startsWith('https://')
     const incomingRequestId = request.headers.get('x-request-id')?.trim() || ''
     this.requestId = /^[A-Za-z0-9._-]{1,64}$/.test(incomingRequestId)

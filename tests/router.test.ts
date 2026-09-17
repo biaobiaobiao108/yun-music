@@ -145,6 +145,45 @@ describe('Core Router & HttpContext', () => {
     }
   })
 
+  test('same-origin CORS policy auto-detects a Docker reverse proxy origin', async () => {
+    const router = new Router()
+    router.use(corsMiddleware)
+    router.get('/api/data', (ctx) => ctx.json({ ok: true }))
+
+    const previousLx = (global as any).lx
+    ;(global as any).lx = {
+      ...(previousLx || {}),
+      config: {
+        ...(previousLx?.config || {}),
+        'proxy.enabled': false,
+        'proxy.trustedAddresses': ['127.0.0.1'],
+      },
+    }
+
+    try {
+      const sameSiteThroughUnlistedProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
+        headers: {
+          Host: 'music.example.com',
+          Origin: 'https://music.example.com',
+          'X-Forwarded-Proto': 'https',
+        },
+      }), { remoteAddress: '172.18.0.2' })
+      expect(sameSiteThroughUnlistedProxy.status).toBe(200)
+      expect(sameSiteThroughUnlistedProxy.headers.get('Access-Control-Allow-Origin')).toBe('https://music.example.com')
+
+      const crossSiteThroughUnlistedProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
+        headers: {
+          Host: 'music.example.com',
+          Origin: 'https://attacker.example',
+          'X-Forwarded-Proto': 'https',
+        },
+      }), { remoteAddress: '172.18.0.2' })
+      expect(crossSiteThroughUnlistedProxy.status).toBe(403)
+    } finally {
+      ;(global as any).lx = previousLx
+    }
+  })
+
   test('security middleware adds request tracing and browser policy headers', async () => {
     const router = new Router()
     router.use(securityHeadersMiddleware)
