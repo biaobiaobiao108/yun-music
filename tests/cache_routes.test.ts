@@ -10,7 +10,7 @@ import * as identify from '@/server/utils/identify'
 import * as fileCache from '@/server/fileCache'
 import * as serverDownloadQueue from '@/server/serverDownloadQueue'
 import { createCacheRouter, createProxyResponseStream } from '@/server/routes/cache'
-import { createMusicRouter } from '@/server/routes/music'
+import { createMusicRouter, normalizeSongListId } from '@/server/routes/music'
 import { userSessions } from '@/server/routes/auth'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 import { closeDb, initDatabase } from '@/database'
@@ -102,6 +102,18 @@ describe('cache list user scope', () => {
 
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({ success: false })
+  })
+
+  test('rejects anonymous reads of public cache when public local music is disabled', async () => {
+    const getCacheList = spyOn(fileCache, 'getCacheList').mockResolvedValue([])
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=_open'))
+
+      expect(response.status).toBe(403)
+      expect(getCacheList).not.toHaveBeenCalled()
+    } finally {
+      getCacheList.mockRestore()
+    }
   })
 
   test('uses the authenticated user for cache removal when user is omitted', async () => {
@@ -316,6 +328,15 @@ test('cache file routes honor the requested folder and keep personal media priva
       headers: { cookie: `lx_user_session=${sessionId}` },
     }))
     expect(invalidFolder.status).toBe(400)
+
+    const publicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music'))
+    expect(publicResponse.status).toBe(403)
+
+    global.lx.config['user.enablePublicNonAdminLocalMusic'] = true
+    const enabledPublicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music'))
+    expect(enabledPublicResponse.status).toBe(200)
+    expect(enabledPublicResponse.headers.get('cache-control')).toBe('public, max-age=86400')
+    expect(await enabledPublicResponse.text()).toBe('music-file')
   } finally {
     getCacheDir.mockRestore()
     getCacheLocation.mockRestore()
@@ -344,6 +365,11 @@ test('cover routes forward the requested folder and return public cache headers 
     expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
     expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username, 'music')
 
+    const deniedPublicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'))
+    expect(deniedPublicResponse.status).toBe(403)
+    expect(getCacheCover).toHaveBeenCalledTimes(1)
+
+    global.lx.config['user.enablePublicNonAdminLocalMusic'] = true
     const publicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'))
     expect(publicResponse.status).toBe(200)
     expect(publicResponse.headers.get('cache-control')).toBe('public, max-age=86400')
@@ -505,7 +531,32 @@ test('checkCache allows logged in users to fallback to _open shared cache', () =
   }
 })
 
+test('song list IDs only accept numbers or official provider links', async () => {
+  expect(normalizeSongListId('wy', '12345')).toBe('12345')
+  expect(normalizeSongListId('wy', 'https://music.163.com/#/playlist?id=12345')).toBe('12345')
+  expect(normalizeSongListId('tx', 'https://y.qq.com/n/yqq/playlist/7217720898.html')).toBe('7217720898')
+  expect(normalizeSongListId('tx', 'https://i.y.qq.com/n2/m/share/details/taoge.html?id=7217720898')).toBe('7217720898')
+  expect(normalizeSongListId('wy', 'http://127.0.0.1:9527/internal')).toBeNull()
+  expect(normalizeSongListId('wy', 'https://evil.example/playlist/12345')).toBeNull()
+
+  const previousFetch = globalThis.fetch
+  let fetchCalls = 0
+  globalThis.fetch = (async () => {
+    fetchCalls++
+    return new Response('', { status: 500 })
+  }) as typeof fetch
+  try {
+    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/songList/detail?source=wy&id=' + encodeURIComponent('http://127.0.0.1:9527/internal')))
+    expect(response.status).toBe(400)
+    expect(fetchCalls).toBe(0)
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+})
+
 test('/api/music/url intercepts request when cache exists and avoids online resolution', async () => {
+  const previousLx = global.lx
+  global.lx = { config: { 'user.enablePublicNonAdminLocalMusic': true, users: [], 'frontend.password': '' } } as typeof global.lx
   const checkCacheSpy = spyOn(fileCache, 'checkCache').mockReturnValue({
     exists: true,
     url: '/api/music/cache/file/_open/cached.mp3',
@@ -531,5 +582,51 @@ test('/api/music/url intercepts request when cache exists and avoids online reso
     expect(data.sourceName).toBe('本地缓存')
   } finally {
     checkCacheSpy.mockRestore()
+    global.lx = previousLx
+  }
+})
+
+test('/api/music/url does not expose a public cache hit when public local music is disabled', async () => {
+  const previousLx = global.lx
+  global.lx = { config: { 'user.enablePublicNonAdminLocalMusic': false, users: [], 'frontend.password': '' } } as typeof global.lx
+  const checkCacheSpy = spyOn(fileCache, 'checkCache').mockReturnValue({
+    exists: true,
+    url: '/api/music/cache/file/_open/cached.mp3',
+    quality: '128k',
+    folder: 'cache',
+    filename: 'cached.mp3',
+  } as any)
+  try {
+    const req = new Request('http://localhost/api/music/url', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        songInfo: { source: 'unsupported', songmid: '12345', name: 'Test Song', singer: 'Test Singer' },
+        quality: '320k',
+      }),
+    })
+    const res = await createMusicRouter().handle(req)
+    expect(res.status).toBe(422)
+    expect(checkCacheSpy).not.toHaveBeenCalled()
+  } finally {
+    checkCacheSpy.mockRestore()
+    global.lx = previousLx
+  }
+})
+
+test('/api/music/lyric does not read public lyric cache when public local music is disabled', async () => {
+  const previousLx = global.lx
+  global.lx = { config: { 'user.enablePublicNonAdminLocalMusic': false, users: [], 'frontend.password': '' } } as typeof global.lx
+  const checkLyricCacheSpy = spyOn(fileCache, 'checkLyricCache').mockReturnValue({
+    exists: true,
+    content: { lyric: 'private lyric' },
+  } as any)
+  try {
+    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/lyric?source=unsupported&songmid=123'))
+    expect(response.status).toBe(500)
+    expect(checkLyricCacheSpy).not.toHaveBeenCalled()
+  } finally {
+    checkLyricCacheSpy.mockRestore()
+    global.lx = previousLx
   }
 })

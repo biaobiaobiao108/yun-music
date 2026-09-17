@@ -46,6 +46,22 @@ describe('retained music SDK', () => {
     }
   })
 
+  it('does not request arbitrary playlist links during ID parsing', async () => {
+    const previousFetch = globalThis.fetch
+    let fetchCalls = 0
+    globalThis.fetch = (async () => {
+      fetchCalls++
+      return new Response('', { status: 500 })
+    }) as typeof fetch
+    try {
+      await expect(musicSdk.wy.songList.getListDetail('http://127.0.0.1:9527/internal')).rejects.toThrow('recognized playlist links')
+      await expect(musicSdk.tx.songList.getListDetail('http://127.0.0.1:9527/internal')).rejects.toThrow('recognized playlist links')
+      expect(fetchCalls).toBe(0)
+    } finally {
+      globalThis.fetch = previousFetch
+    }
+  })
+
   it('rejects retired IDs before consulting custom userApi sources', async () => {
     const retiredSource = RETIRED_ONLINE_SOURCES[0]
     expect(isSourceSupported(retiredSource, 'open')).toBe(false)

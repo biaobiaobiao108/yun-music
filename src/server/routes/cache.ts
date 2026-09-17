@@ -17,6 +17,7 @@ import { assertSafeRemoteHttpUrl } from '../networkSecurity'
 import { resolveInsideAsync } from '@/utils/pathSecurity'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
+import { canReadPublicLocalMusic } from '../localMusicAccess'
 
 /** Keep upstream buffers bounded by downstream demand; cancellation tears down the whole pipeline. */
 export const createProxyResponseStream = (
@@ -80,7 +81,9 @@ const getCacheRequestUsername = (ctx: HttpContext): string | null => {
   // public alias must remain public even when the browser also sends a
   // personal session cookie.
   if (!requested && verified) return verified
-  if (!requested || isPublicAlias) return '_open'
+  if (!requested || isPublicAlias) {
+    return canReadPublicLocalMusic(ctx, verified, isAdmin) ? '_open' : null
+  }
   if (isAdmin) {
     try { return assertSafePathSegment(requested, 'user name') } catch { return null }
   }
@@ -488,6 +491,12 @@ export const createCacheRouter = (): Router => {
     let username = '_open'
     const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default' || reqUsername === 'open'
 
+    if (isPublic && !canReadPublicLocalMusic(ctx)) {
+      return ctx.fail(403, '您没有权限访问公共本地音乐，请联系管理员设置', {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      })
+    }
+
     if (!isPublic) {
       const tokenUser = verifyUserAuth(ctx)
       if (!tokenUser || tokenUser !== reqUsername) {
@@ -700,9 +709,7 @@ export const createCacheRouter = (): Router => {
     if (!reqUsername && verified) {
       username = verified
     } else if (!reqUsername || isPublicAlias) {
-      const config = (global.lx?.config ?? {}) as any
-      const enablePublicNonAdminLocalMusic = !!config['user.enablePublicNonAdminLocalMusic']
-      if (!enablePublicNonAdminLocalMusic && !isAdmin && !verified) {
+      if (!canReadPublicLocalMusic(ctx, verified, isAdmin)) {
         return ctx.json({ success: false, message: '您没有权限查看此目录，请联系管理员设置' }, 403, {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         })
@@ -737,6 +744,12 @@ export const createCacheRouter = (): Router => {
       username = '_open'
     } else if (reqUsername && (!verified || verified !== reqUsername)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
+    }
+
+    if (username === '_open' && !canReadPublicLocalMusic(ctx, verified)) {
+      return ctx.fail(403, '您没有权限访问公共本地音乐，请联系管理员设置', {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      })
     }
 
     const filename = ctx.query.get('filename')

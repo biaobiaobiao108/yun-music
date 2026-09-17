@@ -389,6 +389,20 @@ describe('Player manager module boundaries', () => {
         expect(violations).toEqual([]);
     });
 
+    it('escapes manual local music search results before inserting HTML', () => {
+        const source = read('frontend/player/src/legacy/local_music.ts');
+
+        expect(source).toContain('safeImageUrl(item.img)');
+        expect(source).toContain('const safeName = this.escapeHtml(item.name || \'歌曲\');');
+        expect(source).toContain('const safeSinger = this.escapeHtml(item.singer || \'未知歌手\');');
+        expect(source).toContain('const safeAlbum = this.escapeHtml(item.albumName || \'未知专辑\');');
+        expect(source).toContain('const safeSource = this.escapeHtml(item.source || \'未知\');');
+        expect(source).toContain('const safeInterval = this.escapeHtml(item.interval || \'--:--\');');
+        expect(source).not.toContain('<img src="${item.img ||');
+        expect(source).not.toContain('>${item.name}</div>');
+        expect(source).not.toContain('>${item.singer} · ${item.albumName ||');
+    });
+
     it('keeps retained cross-module dependencies explicit and removes retired sync modules', () => {
         const searchSource = read('frontend/player/src/features/search.ts');
         const paginationSource = read('frontend/player/src/legacy/batch_pagination.ts');

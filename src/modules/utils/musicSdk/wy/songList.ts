@@ -35,16 +35,9 @@ export default {
   },
 
   async handleParseId(link: any, retryNum: any= 0): Promise<string> {
-    if (retryNum > 2) throw new Error('link try max num')
-
-    const requestObj_listDetailLink = httpFetch(link)
-    const { headers: { location }, statusCode } = await requestObj_listDetailLink.promise
-    // console.log(headers)
-    if (statusCode > 400) return this.handleParseId(link, ++retryNum)
-    const url = location == null ? link : location
-    return this.regExps.listDetailLink.test(url)
-      ? url.replace(this.regExps.listDetailLink, '$1')
-      : url.replace(this.regExps.listDetailLink2, '$1')
+    void link
+    void retryNum
+    throw new Error('Only numeric playlist IDs or recognized playlist links are supported')
   },
 
   async getListId(id: any) {

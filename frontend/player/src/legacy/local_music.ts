@@ -1,6 +1,6 @@
 // @ts-nocheck
 // This legacy-compatible module is compiled as an isolated browser bundle.
-import { safeInlineString } from '../player_security';
+import { safeImageUrl, safeInlineString } from '../player_security';
 import { isAdminSessionActive } from '../player_services';
 /**
  * LocalMusicManager (本地音乐模块)
@@ -2346,19 +2346,25 @@ window.LocalMusicManager = {
 
             // 找到原始索引
             const originalIdx = results.findIndex(r => r === item);
+            const safeImage = this.escapeHtml(safeImageUrl(item.img));
+            const safeName = this.escapeHtml(item.name || '歌曲');
+            const safeSinger = this.escapeHtml(item.singer || '未知歌手');
+            const safeAlbum = this.escapeHtml(item.albumName || '未知专辑');
+            const safeSource = this.escapeHtml(item.source || '未知');
+            const safeInterval = this.escapeHtml(item.interval || '--:--');
 
             html += `
                 <div class="flex items-center p-3 md:p-4 t-bg-main border t-border-main rounded-2xl md:rounded-3xl hover:border-emerald-400 group transition-all shadow-sm">
                     <div class="w-12 h-12 rounded-xl overflow-hidden mr-4 flex-shrink-0 bg-gray-100 border t-border-main">
-                        <img src="${item.img || '/music/assets/yun-yin.png'}" alt="${item.name || '歌曲'}专辑封面" width="48" height="48" data-event-error-action="fallback-image" loading="lazy" decoding="async" class="w-full h-full object-cover">
+                        <img src="${safeImage}" alt="${safeName}专辑封面" width="48" height="48" data-event-error-action="fallback-image" loading="lazy" decoding="async" class="w-full h-full object-cover">
                     </div>
                     <div class="flex-1 min-w-0 mr-4">
-                        <div class="font-bold t-text-main text-sm md:text-base truncate group-hover:text-emerald-500 transition-colors">${item.name}</div>
-                        <div class="text-[11px] t-text-muted truncate mt-0.5 font-medium">${item.singer} · ${item.albumName || '未知专辑'}</div>
+                        <div class="font-bold t-text-main text-sm md:text-base truncate group-hover:text-emerald-500 transition-colors">${safeName}</div>
+                        <div class="text-[11px] t-text-muted truncate mt-0.5 font-medium">${safeSinger} · ${safeAlbum}</div>
                     </div>
                     <div class="text-right mr-5 flex-shrink-0">
-                        <div class="text-[10px] uppercase font-black t-text-muted opacity-30 tracking-widest mb-0.5">${item.source}</div>
-                        <div class="text-[11px] font-mono font-bold ${isMatch ? 'text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-lg' : 't-text-main'}">${item.interval || '--:--'}</div>
+                        <div class="text-[10px] uppercase font-black t-text-muted opacity-30 tracking-widest mb-0.5">${safeSource}</div>
+                        <div class="text-[11px] font-mono font-bold ${isMatch ? 'text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-lg' : 't-text-main'}">${safeInterval}</div>
                     </div>
                     <button data-event-click-action="window.LocalMusicManager.linkItem" data-event-click-args="[${originalIdx}]"
                         class="px-6 py-2.5 ${isMatch ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20' : 't-bg-track hover:t-bg-item-hover t-text-main border t-border-main'} font-bold text-xs rounded-xl shadow-lg transition-all active:scale-95">

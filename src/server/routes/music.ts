@@ -9,6 +9,7 @@ import * as fileCache from '../fileCache'
 import fs from 'node:fs'
 import path from 'node:path'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from '../networkSecurity'
+import { canReadPublicLocalMusic } from '../localMusicAccess'
 
 /** 音乐解析进度 SSE 专属通道: requestId -> Controller */
 export const musicProgressControllers = new Map<string, ReadableStreamDefaultController<Uint8Array>>()
@@ -69,6 +70,40 @@ const formatBytes = (bytes: number): string => {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   return `${(bytes / Math.pow(1024, index)).toFixed(2)} ${units[index]}`
+}
+
+const SONG_LIST_HOSTS: Record<string, ReadonlySet<string>> = {
+  wy: new Set(['music.163.com']),
+  tx: new Set(['y.qq.com', 'i.y.qq.com']),
+}
+
+/**
+ * 只从数字 ID 或官方歌单链接提取 ID，不访问用户提供的原始链接。
+ * 旧版 SDK 会对无法识别的链接发起请求，路由层必须先完成这一层收敛。
+ */
+export const normalizeSongListId = (source: string, rawId: string): string | null => {
+  const input = String(rawId || '').trim()
+  if (!input || input.length > 512) return null
+  if (/^\d+$/.test(input)) return input
+
+  const allowedHosts = SONG_LIST_HOSTS[source]
+  if (!allowedHosts) return null
+
+  let parsed: URL
+  try {
+    parsed = new URL(input)
+  } catch {
+    return null
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return null
+  if (!allowedHosts.has(parsed.hostname.toLowerCase())) return null
+
+  const candidates = [
+    parsed.searchParams.get('id'),
+    parsed.pathname.match(/\/playlist\/(\d+)/i)?.[1],
+    parsed.hash.match(/[?&]id=(\d+)/i)?.[1],
+  ]
+  return candidates.find(candidate => Boolean(candidate && /^\d+$/.test(candidate))) || null
 }
 
 const parseContentLength = (headers: Headers): number | null => {
@@ -413,15 +448,17 @@ export const createMusicRouter = (): Router => {
 
       // 优先前置检查服务端本地缓存（命中则直接返回，避免消耗外部第三方音源解析额度）
       const cacheTargetUser = verifiedUsername === 'open' ? '_open' : verifiedUsername
-      const cached = fileCache.checkCache({ ...songInfo, quality }, cacheTargetUser, false, { ignoreActiveProgress: true })
-      if (cached.exists && !cached.isCollision && cached.url) {
-        return ctx.json({
-          url: cached.url,
-          type: cached.quality || quality || '128k',
-          quality: cached.quality || quality || '128k',
-          sourceName: '本地缓存',
-          fromCache: true,
-        })
+      if (cacheTargetUser !== '_open' || canReadPublicLocalMusic(ctx)) {
+        const cached = fileCache.checkCache({ ...songInfo, quality }, cacheTargetUser, false, { ignoreActiveProgress: true })
+        if (cached.exists && !cached.isCollision && cached.url) {
+          return ctx.json({
+            url: cached.url,
+            type: cached.quality || quality || '128k',
+            quality: cached.quality || quality || '128k',
+            sourceName: '本地缓存',
+            fromCache: true,
+          })
+        }
       }
 
       const source = songInfo.source
@@ -592,15 +629,19 @@ export const createMusicRouter = (): Router => {
       songmid = songmid.slice(sourcePrefix.length)
     }
 
-    const lyricUsername = verifyUserAuth(ctx) || '_open'
+    const verifiedUsername = verifyUserAuth(ctx)
+    const lyricUsername = verifiedUsername || '_open'
+    const canReadLocalLyricCache = lyricUsername !== '_open' || canReadPublicLocalMusic(ctx, verifiedUsername)
 
-    const localLyricResult = fileCache.checkLyricCache({
-      source,
-      songmid,
-      id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
-      name: ctx.query.get('name') || '',
-      singer: ctx.query.get('singer') || '',
-    }, lyricUsername)
+    const localLyricResult = canReadLocalLyricCache
+      ? fileCache.checkLyricCache({
+        source,
+        songmid,
+        id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
+        name: ctx.query.get('name') || '',
+        singer: ctx.query.get('singer') || '',
+      }, lyricUsername)
+      : { exists: false, content: null }
 
     if (localLyricResult.exists && localLyricResult.content) {
       return ctx.json({ ...localLyricResult.content, _fromLocalCache: true }, 200, {
@@ -633,13 +674,15 @@ export const createMusicRouter = (): Router => {
       })
     } catch (err: any) {
       console.error('[Lyric] Fetch error:', source, songmid, err.message || err)
-      const fallbackResult = fileCache.checkLyricCache({
-        source,
-        songmid,
-        id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
-        name: ctx.query.get('name') || '',
-        singer: ctx.query.get('singer') || '',
-      }, lyricUsername)
+      const fallbackResult = canReadLocalLyricCache
+        ? fileCache.checkLyricCache({
+          source,
+          songmid,
+          id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
+          name: ctx.query.get('name') || '',
+          singer: ctx.query.get('singer') || '',
+        }, lyricUsername)
+        : { exists: false, content: null }
 
       if (fallbackResult.exists && fallbackResult.content) {
         return ctx.json({ ...fallbackResult.content, _fromLocalCache: true })
@@ -702,10 +745,12 @@ export const createMusicRouter = (): Router => {
   // 14. 歌单详情 API
   router.get('/api/music/songList/detail', async (ctx) => {
     const source = ctx.query.get('source') || 'wy'
-    const id = ctx.query.get('id')
+    const rawId = ctx.query.get('id')
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
     const limit = boundedInt(ctx.query.get('limit'), 50, 1, 100)
-    if (!id) return ctx.fail(400, '缺少必要参数：id')
+    if (!rawId) return ctx.fail(400, '缺少必要参数：id')
+    const id = normalizeSongListId(source, rawId)
+    if (!id) return ctx.fail(400, '歌单 ID 或官方歌单链接不合法')
     try {
       const sourceApi = getBuiltinSource(source)
       if (!sourceApi?.songList?.getListDetail) {
