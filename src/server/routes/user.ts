@@ -12,12 +12,14 @@ import {
   finishRenameUserSpace,
   syncUsersToDatabase,
   hashUserPassword,
-  deleteUserDataFromDatabase,
   releaseUserSpace,
 } from '@/user'
 import { startupLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
+import { assertSnapshotId } from '@/modules/list/snapshotDataManage'
+
+const MAX_USER_SETTING_BODY_BYTES = 2 * 1024 * 1024
 
 /** 辅助获取请求的目标用户空间名称 */
 const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | null => {
@@ -47,20 +49,18 @@ const saveUsers = () => {
   try {
     const db = getDb()
     const currentNames = new Set(global.lx.config.users.map((u: any) => u.name))
-    // Remove users not in current list
     const existingUsers = db.query<{ name: string }, []>('SELECT name FROM users').all()
-    for (const u of existingUsers) {
-      if (!currentNames.has(u.name) && u.name !== '_open') {
-        revokeUserAuth(u.name)
-        deleteUserDataFromDatabase(u.name)
-      }
-    }
-    syncUsersToDatabase(global.lx.config.users)
+    const removedNames = existingUsers
+      .map(user => user.name)
+      .filter(name => name !== '_open' && !currentNames.has(name))
+    syncUsersToDatabase(global.lx.config.users, { removeMissing: true })
+    // Keep the in-memory session cache in sync only after the DB transaction
+    // succeeds. A failed user update must not revoke valid sessions.
+    for (const username of removedNames) revokeUserAuth(username)
   } catch (err) {
     console.error('Failed to sync users to SQLite:', err)
+    throw err
   }
-
-  return true
 }
 
 const resolveSnapshotUsername = (ctx: HttpContext, userParam: string, write = false): string | null => {
@@ -108,7 +108,10 @@ export const createUserRouter = (): Router => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const { name, password } = await ctx.bodyJson<{ name?: string; password?: string }>()
-      if (!name || !password) return ctx.fail(400, '请填写用户名和密码')
+      if (typeof name !== 'string' || !name.trim() || typeof password !== 'string' || !password.trim()) {
+        return ctx.fail(400, '请填写用户名和密码')
+      }
+      if (password.length > 1024) return ctx.fail(422, '密码长度不能超过 1024 个字符')
       try {
         assertSafePathSegment(name, 'user name')
       } catch {
@@ -120,14 +123,24 @@ export const createUserRouter = (): Router => {
       }
 
       const dataPath = path.join(global.lx.userPath, getUserDirname(name))
-      if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true })
+      const dataPathExisted = fs.existsSync(dataPath)
+      if (!dataPathExisted) fs.mkdirSync(dataPath, { recursive: true })
 
-      global.lx.config.users.push({
+      const newUser = {
         name,
         password,
         dataPath,
-      })
-      saveUsers()
+      }
+      global.lx.config.users.push(newUser)
+      try {
+        saveUsers()
+      } catch (error) {
+        global.lx.config.users.pop()
+        if (!dataPathExisted) {
+          try { fs.rmSync(dataPath, { recursive: true, force: true }) } catch { }
+        }
+        throw error
+      }
       return ctx.json({ success: true })
     } catch {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
@@ -138,10 +151,15 @@ export const createUserRouter = (): Router => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const { name, newName, password } = await ctx.bodyJson<{ name?: string; newName?: string; password?: string }>()
-      if (!name || (!password && !newName)) {
+      if (typeof name !== 'string' || !name.trim() || (password === undefined && newName === undefined)) {
         return ctx.fail(400, '缺少必填字段')
       }
-      if (newName) {
+      if (password !== undefined && (typeof password !== 'string' || !password.trim())) {
+        return ctx.fail(422, '密码不能为空')
+      }
+      if (typeof password === 'string' && password.length > 1024) return ctx.fail(422, '密码长度不能超过 1024 个字符')
+      if (newName !== undefined) {
+        if (typeof newName !== 'string' || !newName.trim()) return ctx.fail(422, '新用户名不能为空')
         try {
           assertSafePathSegment(newName, 'user name')
         } catch {
@@ -156,35 +174,54 @@ export const createUserRouter = (): Router => {
 
       const user = global.lx.config.users[userIdx]
 
-      if (newName && newName !== name) {
+      if (newName !== undefined && newName !== name) {
         if (global.lx.config.users.some((u: any) => u.name === newName)) {
           return ctx.fail(409, '新用户名已存在')
         }
 
+        const previousUser = { ...user }
+        let migrationCompleted = false
         renameUserSpace(name)
-        await new Promise(r => setTimeout(r, 500))
         try {
-          migrateUserData(name, newName)
+          // Revoke before changing the users primary key. The SQLite session
+          // table intentionally does not cascade ON UPDATE.
           revokeUserAuth(name)
+          const newDataPath = migrateUserData(name, newName)
+          migrationCompleted = true
           user.name = newName
-          if (password) {
+          user.dataPath = newDataPath
+          if (password !== undefined) {
             user.passwordHash = hashUserPassword(password)
             user.password = ''
           }
           saveUsers()
           return ctx.json({ success: true })
         } catch (err: any) {
+          if (migrationCompleted) {
+            try {
+              migrateUserData(newName, name)
+            } catch (rollbackError) {
+              console.error('[User] 用户重命名回滚失败:', rollbackError)
+            }
+          }
+          Object.assign(user, previousUser)
           return ctx.fail(500, toUserMessage(err, '数据迁移失败，请稍后重试'))
         } finally {
           finishRenameUserSpace(name)
         }
       } else {
-        if (password) {
-          user.passwordHash = hashUserPassword(password)
-          user.password = ''
+        const previousUser = { ...user }
+        try {
+          if (password !== undefined) {
+            user.passwordHash = hashUserPassword(password)
+            user.password = ''
+          }
+          saveUsers()
+          return ctx.json({ success: true })
+        } catch (error) {
+          Object.assign(user, previousUser)
+          throw error
         }
-        saveUsers()
-        return ctx.json({ success: true })
       }
     } catch {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
@@ -195,11 +232,29 @@ export const createUserRouter = (): Router => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const body = await ctx.bodyJson<{ name?: string; names?: string[]; deleteData?: boolean }>()
-      const targets = body.names || (body.name ? [body.name] : [])
+      if (body.deleteData !== undefined && typeof body.deleteData !== 'boolean') {
+        return ctx.fail(422, 'deleteData 参数格式无效')
+      }
+      if (body.names !== undefined && (!Array.isArray(body.names) || body.names.length > 100 || body.names.some(name => typeof name !== 'string'))) {
+        return ctx.fail(422, 'names 参数格式无效')
+      }
+      if (body.name !== undefined && typeof body.name !== 'string') {
+        return ctx.fail(422, 'name 参数格式无效')
+      }
+      const targets = [...new Set(body.names || (body.name ? [body.name] : []))]
       if (targets.length === 0) return ctx.fail(400, '缺少要删除的用户名')
+      for (const targetName of targets) {
+        try {
+          assertSafePathSegment(targetName, 'user name')
+        } catch {
+          return ctx.fail(422, '用户名不合法，不能包含路径分隔符等特殊字符')
+        }
+        if (targetName === '_open') return ctx.fail(422, '不能删除系统保留用户')
+      }
 
       let deletedCount = 0
       const deletedUsers: { name: string; dataPath: string }[] = []
+      const previousUsers = [...global.lx.config.users]
 
       for (const targetName of targets) {
         const idx = global.lx.config.users.findIndex((u: any) => u.name === targetName)
@@ -215,7 +270,12 @@ export const createUserRouter = (): Router => {
       }
 
       if (deletedCount > 0) {
-        saveUsers()
+        try {
+          saveUsers()
+        } catch (error) {
+          global.lx.config.users.splice(0, global.lx.config.users.length, ...previousUsers)
+          throw error
+        }
         if (body.deleteData && deletedUsers.length > 0) {
           for (const user of deletedUsers) {
             try {
@@ -306,7 +366,7 @@ export const createUserRouter = (): Router => {
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '修改公开收藏需要管理员权限')
     try {
-      const parsed = await ctx.bodyJson()
+      const parsed = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       if (!Array.isArray(parsed)) throw new Error('Expected an array')
       const db = getDb()
       db.run(
@@ -343,7 +403,7 @@ export const createUserRouter = (): Router => {
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '修改公开收藏需要管理员权限')
     try {
-      const parsed = await ctx.bodyJson()
+      const parsed = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       if (!Array.isArray(parsed)) throw new Error('Expected an array')
       const db = getDb()
       db.run(
@@ -412,7 +472,7 @@ export const createUserRouter = (): Router => {
     }
 
     try {
-      let settings = await ctx.bodyJson<Record<string, unknown>>()
+      let settings = await ctx.bodyJson<Record<string, unknown>>(MAX_USER_SETTING_BODY_BYTES)
 
       if (resolvedUsername === '_open' && config['user.enablePublicRestriction']) {
         const restrictedSettings: any = {}
@@ -463,7 +523,7 @@ export const createUserRouter = (): Router => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
-      const body = await ctx.bodyJson()
+      const body = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       const db = getDb()
       db.run(
         'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
@@ -546,6 +606,7 @@ export const createUserRouter = (): Router => {
 
     const verifiedUser = resolveSnapshotUsername(ctx, userParam)
     if (!verifiedUser) return ctx.fail(403, '没有权限执行该操作')
+    try { assertSnapshotId(id) } catch { return ctx.fail(422, '快照标识无效') }
 
     try {
       const userSpace = getUserSpace(verifiedUser)
@@ -567,6 +628,7 @@ export const createUserRouter = (): Router => {
     try {
       const { id } = await ctx.bodyJson<{ id?: string }>()
       if (!id) return ctx.fail(400, '缺少必要参数：id')
+      try { assertSnapshotId(id) } catch { return ctx.fail(422, '快照标识无效') }
       const userSpace = getUserSpace(verifiedUser)
       await userSpace.listManage.restoreSnapshot(id)
       return ctx.json({ success: true })
@@ -585,6 +647,7 @@ export const createUserRouter = (): Router => {
     try {
       const { id } = await ctx.bodyJson<{ id?: string }>()
       if (!id) return ctx.fail(400, '缺少必要参数：id')
+      try { assertSnapshotId(id) } catch { return ctx.fail(422, '快照标识无效') }
       const userSpace = getUserSpace(verifiedUser)
       await userSpace.listManage.removeSnapshot(id)
       return ctx.json({ success: true })
@@ -599,6 +662,7 @@ export const createUserRouter = (): Router => {
     const filename = ctx.query.get('filename')
 
     if (!userParam || !filename) return ctx.fail(400, '缺少必要参数')
+    if (filename.length > 256) return ctx.fail(413, '快照文件名过长')
 
     const verifiedUser = resolveSnapshotUsername(ctx, userParam, true)
     if (!verifiedUser) return ctx.fail(403, '没有权限执行该操作')
@@ -620,6 +684,7 @@ export const createUserRouter = (): Router => {
 
       let name = filename
       if (name.startsWith('snapshot_')) name = name.substring(9)
+      try { assertSnapshotId(name) } catch { return ctx.fail(422, '快照标识无效') }
 
       const userSpace = getUserSpace(verifiedUser)
       await userSpace.listManage.saveSnapshotWithTime(name, finalData, time)

@@ -9,6 +9,9 @@ import { syncUsersToDatabase } from '@/user/data'
     'frontend.password': 'admin123',
     'player.password': 'player456',
     'player.enableAuth': true,
+    'proxy.enabled': true,
+    'proxy.header': 'x-forwarded-for',
+    'proxy.trustedAddresses': ['127.0.0.1'],
     users: [{ name: 'test_user', password: 'password123' }],
   },
 }
@@ -77,7 +80,7 @@ describe('Web Cookie Authentication', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ password: 'admin123' }),
-    }))
+    }), { remoteAddress: '127.0.0.1' })
 
     expect(response.status).toBe(200)
     expect(response.headers.get('set-cookie')).toContain('Secure')

@@ -55,12 +55,17 @@ export function initCommentsFeature(context: CommentsFeatureContext) {
     }
 
     function createCommentItemHTML(comment: any, isReply = false): string {
-        const timeStr = comment.timeStr || (comment.time ? new Date(comment.time).toLocaleString() : '');
+        const timeStr = context.escapeHtmlText(comment.timeStr || (comment.time ? new Date(comment.time).toLocaleString() : ''));
         const location = comment.location ? ` • ${context.escapeHtmlText(comment.location)}` : '';
-    const defaultAvatar = '/music/assets/yun-yin.png';
+        const defaultAvatar = '/music/assets/yun-yin.png';
         const avatar = safeImageUrl(comment.avatar, defaultAvatar);
-    const isDefault = avatar.includes('yun-yin.png') || !comment.avatar;
+        const safeAvatar = context.escapeHtmlText(avatar);
+        const isDefault = avatar.includes('yun-yin.png') || !comment.avatar;
         const avatarClass = `w-8 h-8 md:w-10 md:h-10 rounded-full shadow-sm hover:scale-110 transition-transform t-bg-main flex-shrink-0 object-cover ${isDefault ? 'dynamic-logo is-placeholder p-1.5' : ''}`;
+        const likedCount = Number(comment.likedCount);
+        const safeLikedCount = Number.isFinite(likedCount) && likedCount > 0
+            ? String(Math.floor(likedCount))
+            : '0';
 
         let replyHtml = '';
         if (comment.reply && comment.reply.length > 0) {
@@ -73,7 +78,7 @@ export function initCommentsFeature(context: CommentsFeatureContext) {
 
         return `
             <div class="comment-item group flex gap-3 md:gap-4 transition-all animate-fade-in-up">
-                <img src="${avatar}"
+                <img src="${safeAvatar}"
                      loading="lazy" fetchpriority="low"
                      width="40" height="40" alt="${context.escapeHtmlText(comment.userName || '用户')}的头像"
                      class="${avatarClass}"
@@ -83,7 +88,7 @@ export function initCommentsFeature(context: CommentsFeatureContext) {
                         <span class="text-xs md:text-sm font-black t-text-main truncate">${context.escapeHtmlText(comment.userName || '用户')}</span>
                         <div class="flex items-center gap-1.5 text-[10px] t-text-muted font-bold">
                             <i class="far fa-thumbs-up"></i>
-                            <span>${comment.likedCount || 0}</span>
+                            <span>${safeLikedCount}</span>
                         </div>
                     </div>
                     <p class="text-xs md:text-sm t-text-muted leading-relaxed break-words whitespace-pre-wrap">${context.escapeHtmlText(comment.text || '')}</p>

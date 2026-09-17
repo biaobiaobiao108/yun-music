@@ -55,21 +55,21 @@
                 <!-- 发现音乐 -->
                 <div class="netease-nav-category">发现音乐</div>
                 <div class="space-y-0.5">
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;search&quot;]" data-event-prevent="true" id="tab-search"
+                    <button type="button" data-event-click-action="switchTab" data-event-click-args="[&quot;search&quot;]" id="tab-search"
                         class="netease-nav-item active-tab">
                         <i class="fas fa-search w-5 text-center"></i>
                         <span>搜索音乐</span>
-                    </a>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;songlist&quot;]" data-event-prevent="true" id="tab-songlist"
+                    </button>
+                    <button type="button" data-event-click-action="switchTab" data-event-click-args="[&quot;songlist&quot;]" id="tab-songlist"
                         class="netease-nav-item">
                         <i class="fas fa-th-large w-5 text-center"></i>
                         <span>歌单广场</span>
-                    </a>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;leaderboard&quot;]" data-event-prevent="true" id="tab-leaderboard"
+                    </button>
+                    <button type="button" data-event-click-action="switchTab" data-event-click-args="[&quot;leaderboard&quot;]" id="tab-leaderboard"
                         class="netease-nav-item">
                         <i class="fas fa-chart-line w-5 text-center"></i>
                         <span>排行榜</span>
-                    </a>
+                    </button>
                 </div>
 
                 <!-- 我的音乐 -->
@@ -93,32 +93,32 @@
                             </div>
                         </li>
                         <li class="px-3 pb-3">
-                            <button data-event-click-action="handleCreateList"
+                            <button type="button" data-event-click-action="handleCreateList"
                                 class="w-full py-1.5 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-xs text-gray-500 hover:text-emerald-500 hover:border-emerald-400 transition-colors flex items-center justify-center gap-1.5">
                                 <i class="fas fa-plus"></i> 新建歌单
                             </button>
                         </li>
                     </ul>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;localmusic&quot;]" data-event-prevent="true" id="tab-localmusic"
+                    <button type="button" data-event-click-action="switchTab" data-event-click-args="[&quot;localmusic&quot;]" id="tab-localmusic"
                         class="netease-nav-item">
                         <i class="fas fa-compact-disc w-5 text-center"></i>
                         <span>本地音乐</span>
-                    </a>
+                    </button>
                 </div>
 
                 <!-- 系统与信息 -->
                 <div class="netease-nav-category mt-3">系统与信息</div>
                 <div class="space-y-0.5">
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;settings&quot;]" data-event-prevent="true" id="tab-settings"
+                    <button type="button" data-event-click-action="switchTab" data-event-click-args="[&quot;settings&quot;]" id="tab-settings"
                         class="netease-nav-item">
                         <i class="fas fa-cog w-5 text-center"></i>
                         <span>设置</span>
-                    </a>
-                    <a href="#" data-event-click-action="switchTab" data-event-click-args="[&quot;about&quot;]" data-event-prevent="true" id="tab-about"
+                    </button>
+                    <button type="button" data-event-click-action="switchTab" data-event-click-args="[&quot;about&quot;]" id="tab-about"
                         class="netease-nav-item">
                         <i class="fas fa-info-circle w-5 text-center"></i>
                         <span>关于</span>
-                    </a>
+                    </button>
                 </div>
             </nav>
 
@@ -151,12 +151,12 @@
 
                     <!-- History Back & Forward (NetEase Desktop Style) -->
                     <div class="hidden sm:flex items-center gap-1.5 shrink-0">
-                        <button id="player-history-back" type="button" data-event-click-action="playerHistoryBack"
+                        <button id="player-history-back" type="button" data-event-click-action="playerHistoryBack" data-event-prevent="true"
                             title="后退" aria-label="后退" aria-disabled="true" disabled
                             class="player-history-button w-8 h-8 rounded-full t-bg-track hover:t-bg-item-hover flex items-center justify-center text-[11px] t-text-muted">
                             <i class="fas fa-chevron-left" aria-hidden="true"></i>
                         </button>
-                        <button id="player-history-forward" type="button" data-event-click-action="playerHistoryForward"
+                        <button id="player-history-forward" type="button" data-event-click-action="playerHistoryForward" data-event-prevent="true"
                             title="前进" aria-label="前进" aria-disabled="true" disabled
                             class="player-history-button w-8 h-8 rounded-full t-bg-track hover:t-bg-item-hover flex items-center justify-center text-[11px] t-text-muted">
                             <i class="fas fa-chevron-right" aria-hidden="true"></i>
@@ -573,7 +573,7 @@
                                     </button>
 
                                     <div class="relative flex-shrink-0">
-                                        <img id="sl-detail-cover" loading="lazy" decoding="async" alt="歌单封面"
+                                        <img id="sl-detail-cover" loading="lazy" decoding="async" alt="歌单封面" width="176" height="176"
                                             class="w-24 h-24 md:w-44 md:h-44 rounded-2xl shadow-xl object-cover dynamic-logo is-placeholder"
                                             src="/music/assets/yun-yin.png">
                                     </div>
@@ -998,24 +998,24 @@
                         <div class="contents md:flex md:items-center md:gap-2 md:gap-3 md:flex-1 md:justify-end">
                             <!-- Mobile Toggle Buttons -->
                             <div class="flex md:hidden items-center justify-end gap-0.5 order-2">
-                                <button id="lm-filter-toggle-btn-mobile"
+                                <button type="button" id="lm-filter-toggle-btn-mobile" aria-label="高级筛选"
                                     data-event-click-action="LocalMusicManager.toggleFilterPanel"
                                     class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded hover:bg-[var(--c-500)] hover:text-white transition-all relative">
                                     <i class="fas fa-filter text-[10px]"></i>
                                     <span id="lm-filter-active-dot"
                                         class="absolute top-1 right-1 w-1 h-1 bg-[var(--c-500)] rounded-full hidden"></span>
                                 </button>
-                                <button data-event-click-action="LocalMusicManager.refresh"
+                                <button type="button" data-event-click-action="LocalMusicManager.refresh" aria-label="刷新本地音乐"
                                     class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded"><i
                                         class="fas fa-sync-alt text-[10px]"></i></button>
-                                <button data-event-click-action="LocalMusicManager.autoLinkAll"
+                                <button type="button" data-event-click-action="LocalMusicManager.autoLinkAll" aria-label="智能检测本地音乐"
                                     class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded"
                                     title="智能检测"><i class="fas fa-magic text-[10px]"></i></button>
-                                <button id="lm-remap-toggle-btn-mobile"
+                                <button type="button" id="lm-remap-toggle-btn-mobile"
                                     data-event-click-action="LocalMusicManager.toggleReMapping"
                                     class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded hover:bg-emerald-500 hover:text-white transition-all"
                                     title="歌曲重映射"><i class="fas fa-link text-[10px]"></i></button>
-                                <button data-event-click-action="LocalMusicManager.toggleBatchMode"
+                                <button type="button" data-event-click-action="LocalMusicManager.toggleBatchMode" aria-label="切换批量选择"
                                     class="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700/50 rounded"><i
                                         class="fas fa-list-ul text-[10px]"></i></button>
                             </div>
@@ -2931,7 +2931,7 @@
                         <div id="vinyl-disc" class="vinyl-disc">
                             <!-- Center Rotating Cover -->
                             <div class="vinyl-disc-cover">
-                                        <img id="detail-cover" src="/music/assets/yun-yin.png" loading="lazy" decoding="async" alt="正在播放歌曲封面"
+                                        <img id="detail-cover" src="/music/assets/yun-yin.png" loading="lazy" decoding="async" alt="正在播放歌曲封面" width="320" height="320"
                                     data-event-error-action="fallback-image"
                                     class="dynamic-logo is-placeholder">
                             </div>
@@ -3384,16 +3384,16 @@
             id="user-playlist-modal-content">
             <div class="p-6 border-b t-border-main flex justify-between items-center t-bg-main">
                 <div class="flex items-center gap-4">
-                    <img id="user-playlist-avatar" src="" alt="用户歌单头像" loading="lazy" decoding="async"
+                    <img id="user-playlist-avatar" src="" alt="用户歌单头像" loading="lazy" decoding="async" width="48" height="48"
                         class="hidden w-12 h-12 rounded-full border-2 border-emerald-400/30 object-cover">
                     <div class="flex-1">
                         <h3 class="text-xl font-bold t-text-main" id="user-playlist-title">选择歌单</h3>
                         <p class="text-xs t-text-muted mt-0.5" id="user-playlist-subtitle">加载中...</p>
                     </div>
                 </div>
-                <button data-songlist-action="close-user-playlist"
+                <button type="button" data-songlist-action="close-user-playlist" aria-label="关闭歌单选择" title="关闭"
                     class="t-text-muted hover:text-red-500 transition-colors p-2">
-                    <i class="fas fa-times text-lg"></i>
+                    <i class="fas fa-times text-lg" aria-hidden="true"></i>
                 </button>
             </div>
             <div class="p-4 overflow-y-auto space-y-2" id="user-playlist-container">
@@ -3613,7 +3613,7 @@
                     <div id="lyric-card-preview-wrapper"
                         class="relative overflow-hidden rounded-2xl shadow-2xl cursor-grab select-none"
                         style="max-width:100%; max-height:100%; display:flex; align-items:center; justify-content:center;">
-                        <img id="lyric-card-preview-img"
+                        <img id="lyric-card-preview-img" width="960" height="960"
                             class="block max-w-full max-h-[35vh] md:max-h-[70vh] object-contain rounded-xl transition-transform duration-100"
                             alt="卡片预览" />
                     </div>
@@ -3836,11 +3836,11 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button data-event-click-action="refreshComments"
+                    <button type="button" data-event-click-action="refreshComments" aria-label="刷新评论" title="刷新评论"
                         class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center t-text-muted hover:text-emerald-500 transition-colors rounded-xl hover:bg-emerald-50">
                         <i class="fas fa-sync-alt"></i>
                     </button>
-                    <button data-event-click-action="toggleCommentModal"
+                    <button type="button" data-event-click-action="toggleCommentModal" aria-label="关闭评论" title="关闭评论"
                         class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center t-text-muted hover:text-red-500 transition-colors rounded-xl hover:bg-red-50">
                         <i class="fas fa-times text-lg"></i>
                     </button>
@@ -3879,18 +3879,18 @@
             <!-- Modal Footer -->
             <div class="comment-modal-footer px-4 md:px-6 py-3 flex items-center justify-between gap-4">
                 <div class="flex items-center gap-2">
-                    <button data-event-click-action="changeCommentPage" data-event-click-args="[-1]"
+                    <button type="button" data-event-click-action="changeCommentPage" data-event-click-args="[-1]"
                         class="w-8 h-8 flex items-center justify-center t-text-muted hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-20 disabled:pointer-events-none"
-                        id="btn-comment-prev">
+                        id="btn-comment-prev" aria-label="上一页评论" title="上一页">
                         <i class="fas fa-chevron-left text-xs"></i>
                     </button>
                     <span id="comment-page-indicator"
                         class="text-[10px] font-black text-gray-500 min-w-[60px] text-center">
                         PAGE 1 / 1
                     </span>
-                    <button data-event-click-action="changeCommentPage" data-event-click-args="[1]"
+                    <button type="button" data-event-click-action="changeCommentPage" data-event-click-args="[1]"
                         class="w-8 h-8 flex items-center justify-center t-text-muted hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-20 disabled:pointer-events-none"
-                        id="btn-comment-next">
+                        id="btn-comment-next" aria-label="下一页评论" title="下一页">
                         <i class="fas fa-chevron-right text-xs"></i>
                     </button>
                 </div>

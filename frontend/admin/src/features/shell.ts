@@ -114,6 +114,12 @@ export function initShellFeature(context: AdminFeatureContext) {
                 case 'load-snapshots':
                     app.loadSnapshots();
                     break;
+                case 'download-local-backup':
+                    void app.downloadLocalBackup();
+                    break;
+                case 'trigger-local-restore':
+                    app.triggerLocalRestore();
+                    break;
                 case 'retry': {
                     const retry = app[target.dataset.adminMethod];
                     if (typeof retry === 'function') retry.call(app);

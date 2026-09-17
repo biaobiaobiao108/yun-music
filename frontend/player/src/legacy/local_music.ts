@@ -772,11 +772,12 @@ window.LocalMusicManager = {
         const el = document.getElementById('lm-location-select');
         const val = el.value;
         try {
-            await fetch('/api/music/cache/config', {
+            const response = await fetch('/api/music/cache/config', {
                 method: 'POST',
                 headers: window.getUserAuthHeaders ? window.getUserAuthHeaders() : {},
                 body: JSON.stringify({ location: val })
             });
+            if (!response.ok) throw new Error('服务器拒绝修改全局缓存目录');
             // Reset subpath when changing location
             this.selectedSubPath = '';
             const subPathText = document.getElementById('lm-subpath-text');
@@ -2308,7 +2309,7 @@ window.LocalMusicManager = {
         } catch (e) {
             console.error('[ManualIndex] Search failed:', e);
             if (page === 1 && container) {
-                container.innerHTML = `<div class="text-center py-20 text-red-500 font-bold">搜索失败: ${e.message}</div>`;
+                container.innerHTML = `<div class="text-center py-20 text-red-500 font-bold">搜索失败: ${this.escapeHtml(e?.message || '未知错误')}</div>`;
             }
         } finally {
             this.isManualSearching = false;

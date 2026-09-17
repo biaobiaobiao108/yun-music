@@ -78,6 +78,13 @@ export const revokeUserAuth = (username: string): void => {
   }
 }
 
+/** 清空进程内用户会话缓存；恢复数据库或批量迁移后必须同步调用。 */
+export const clearUserSessionCache = (): void => {
+  userSessions.clear()
+  lastUserSessionPruneAt = 0
+  lastUserConfigReference = Symbol('reset')
+}
+
 /** 验证 Web 用户的 HttpOnly 会话，不再接受密码、Token 或用户名请求头。 */
 export const verifyUserAuth = (ctx: HttpContext | HeaderSource): string | null => {
   pruneUserSessions()

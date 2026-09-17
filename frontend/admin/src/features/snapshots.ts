@@ -7,6 +7,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
     function bindSnapshotsEvents() {
         document.getElementById('restart-server-btn')?.addEventListener('click', () => app.restartServer());
         document.getElementById('snapshot-upload-input')?.addEventListener('change', event => app.handleSnapshotUpload(event));
+        document.getElementById('local-backup-upload-input')?.addEventListener('change', event => app.handleLocalRestore(event));
         document.getElementById('snapshots-list')?.addEventListener('click', event => {
             const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-snapshot-action]');
             if (!button) return;
@@ -181,7 +182,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
 
         try {
             // 添加 user 参数
-            const data = await app.request(`/api/data/snapshot?id=${id}&user=${encodeURIComponent(username)}`);
+            const data = await app.request(`/api/data/snapshot?id=${encodeURIComponent(id)}&user=${encodeURIComponent(username)}`);
 
             // 转换为兼容播放器的备份格式
             const defaultList = { id: 'default', name: 'list__name_default' };
@@ -283,6 +284,10 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
         }
     }
 
+    function triggerLocalRestore() {
+        document.getElementById('local-backup-upload-input')?.click();
+    }
+
     async function restoreSnapshot(id, time?: string) {
         const username = document.getElementById('snapshot-user-select')?.value;
         if (!username) {
@@ -337,6 +342,7 @@ export function initSnapshotsFeature(context: AdminFeatureContext) {
         deleteSnapshot,
         downloadSnapshot,
         downloadLocalBackup,
+        triggerLocalRestore,
         handleLocalRestore,
         restoreSnapshot,
         restartServer,

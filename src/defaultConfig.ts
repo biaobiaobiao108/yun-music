@@ -3,6 +3,7 @@ const config: LX.Config = {
   serverName: 'yun-yin', // Web 服务名称
   'proxy.enabled': false, // 是否使用代理转发请求到本服务器
   'proxy.header': 'x-real-ip', // 代理转发的请求头 原始IP
+  'proxy.trustedAddresses': ['127.0.0.1', '::1'], // 只有来自这些地址的连接才可信任转发头
   bindIP: '0.0.0.0', // 绑定IP
   port: 9527, // 端口
   'user.enablePath': true, // 是否开启用户路径

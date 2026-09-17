@@ -6,6 +6,14 @@ services:
     container_name: yun-yin
     user: "0:0"
     restart: always
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
     ports:
       - "9527:9527"
     volumes:

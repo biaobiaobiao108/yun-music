@@ -22,9 +22,12 @@ const clearDelayReleaseTimeout = (userName: string) => {
 }
 const seartDelayReleaseTimeout = (userName: string) => {
   clearDelayReleaseTimeout(userName)
-  delayReleaseTimeouts.set(userName, setTimeout(() => {
+  const timeout = setTimeout(() => {
+    if (delayReleaseTimeouts.get(userName) === timeout) delayReleaseTimeouts.delete(userName)
     users.delete(userName)
-  }, delayTime))
+  }, delayTime)
+  timeout.unref?.()
+  delayReleaseTimeouts.set(userName, timeout)
 }
 
 export const getUserSpace = (userName: string) => {

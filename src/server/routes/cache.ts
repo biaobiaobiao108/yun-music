@@ -19,8 +19,19 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 
 /** Keep upstream buffers bounded by downstream demand; cancellation tears down the whole pipeline. */
-export const createProxyResponseStream = (source: Readable, request: http.ClientRequest, maxBytes: number): ReadableStream => {
+export const createProxyResponseStream = (
+  source: Readable,
+  request: http.ClientRequest,
+  maxBytes: number,
+  onFinished?: () => void,
+): ReadableStream => {
   let received = 0
+  let finished = false
+  const finish = () => {
+    if (finished) return
+    finished = true
+    onFinished?.()
+  }
   const limited = new Transform({
     highWaterMark: 64 * 1024,
     transform(chunk: Buffer, _encoding, callback) {
@@ -34,6 +45,7 @@ export const createProxyResponseStream = (source: Readable, request: http.Client
   }) as unknown as ReadableStream
   pipeline(source, limited, error => {
     if (error) request.destroy()
+    finish()
   })
   return stream
 }
@@ -150,9 +162,9 @@ export const createCacheRouter = (): Router => {
 
   // 1. 缓存基础配置与索引同步
   router.post('/api/music/cache/config', async (ctx) => {
-    // 缓存位置与命名规则是全局设置，公共访客不得修改
-    const target = resolveCacheTarget(ctx, { publicWrite: true })
-    if (!target.ok) return target.error
+    // 缓存位置与命名规则是全局设置，不能由普通用户改变整个实例的
+    // 存储路径或后续文件命名策略。
+    if (!verifyAdminAuth(ctx.request)) return ctx.fail(403, '权限不足：修改全局缓存配置需要管理员身份')
 
     try {
       const { location, namingPattern } = await ctx.bodyJson<{ location?: string; namingPattern?: string }>()
@@ -179,11 +191,11 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/sync', async (ctx) => {
-    const username = getCacheRequestUsername(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
 
     try {
-      await fileCache.syncCacheIndex(username)
+      await fileCache.syncCacheIndex(target.username)
       return ctx.json({ success: true, message: 'Sync completed' })
     } catch (e: any) {
       return ctx.fail(500, '同步缓存索引失败，请稍后重试')
@@ -285,7 +297,7 @@ export const createCacheRouter = (): Router => {
   // 按最近播放时间做 LRU 清理。请求目标由 user 查询参数限定在当前用户
   // 或公共空间，不能跨用户写入播放记录。
   router.post('/api/music/cache/playback', async (ctx) => {
-    const target = resolveCacheTarget(ctx)
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
     try {
@@ -311,8 +323,9 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/queue', async (ctx) => {
-    const username = getCacheRequestUsername(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+    const username = target.username
     try {
       const { tasks, namingPattern, concurrency } = await ctx.bodyJson<{
         tasks?: any[]
@@ -334,8 +347,9 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/queue/concurrency', async (ctx) => {
-    const username = getCacheRequestUsername(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+    const username = target.username
     try {
       const { concurrency } = await ctx.bodyJson<{ concurrency?: number }>()
       const savedConcurrency = serverDownloadQueue.setConcurrency(username, concurrency)
@@ -346,8 +360,9 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/queue/resume', async (ctx) => {
-    const username = getCacheRequestUsername(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+    const username = target.username
     try {
       const { id, all } = await ctx.bodyJson<{ id?: string; all?: boolean }>()
       if (all !== true && !id) throw new Error('Missing queue task id')
@@ -359,8 +374,9 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/queue/remove', async (ctx) => {
-    const username = getCacheRequestUsername(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+    const username = target.username
     try {
       const options = await ctx.bodyJson<{ id?: string; all?: boolean; completed?: boolean }>()
       if (!options || (options.all !== true && options.completed !== true && !options.id)) {
@@ -375,6 +391,9 @@ export const createCacheRouter = (): Router => {
 
   // 5. 触发下载
   router.post('/api/music/cache/download', async (ctx) => {
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+
     try {
       const {
         songInfo,
@@ -393,8 +412,7 @@ export const createCacheRouter = (): Router => {
       if (!songInfo || !url) return ctx.fail(400, '缺少必要参数')
       const safeDownloadUrl = await assertSafeRemoteHttpUrl(String(url))
 
-      const username = getCacheRequestUsername(ctx)
-      if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+      const username = target.username
 
       if (namingPattern && verifyAdminAuth(ctx.request)) {
         const normalizedNamingPattern = fileCache.setNamingPattern(namingPattern)
@@ -429,8 +447,9 @@ export const createCacheRouter = (): Router => {
 
   // 6. 停止下载任务
   router.post('/api/music/cache/stop', async (ctx) => {
-    const username = getCacheRequestUsername(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+    const username = target.username
 
     try {
       const { songKey, queueId, all } = await ctx.bodyJson<{ songKey?: string; queueId?: string; all?: boolean }>()
@@ -1034,14 +1053,16 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/lyric', async (ctx) => {
+    const target = resolveCacheTarget(ctx, { publicWrite: true })
+    if (!target.ok) return target.error
+
     try {
       const { songInfo, lyricsObj, enableOnlyDownloadMode } = await ctx.bodyJson<{
         songInfo?: any
         lyricsObj?: any
         enableOnlyDownloadMode?: boolean
       }>()
-      const username = getCacheRequestUsername(ctx)
-      if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+      const username = target.username
 
       if (!songInfo || !lyricsObj) return ctx.fail(400, '缺少必要参数')
 
@@ -1068,14 +1089,17 @@ export const createCacheRouter = (): Router => {
     return new Promise<Response>((resolve) => {
       let responseSettled = false
       let abortListener: (() => void) | null = null
-      const settleResponse = (response: Response) => {
+      let activeProxyRequest: http.ClientRequest | null = null
+      let activeProxyResponse: http.IncomingMessage | null = null
+      let activeTempStream: fs.WriteStream | null = null
+      const settleResponse = (response: Response, releaseSlot = true) => {
         if (responseSettled) return
         responseSettled = true
         if (abortListener) {
           ctx.request.signal.removeEventListener('abort', abortListener)
           abortListener = null
         }
-        releaseProxySlot()
+        if (releaseSlot) releaseProxySlot()
         resolve(response)
       }
 
@@ -1083,6 +1107,9 @@ export const createCacheRouter = (): Router => {
         // 499 is intentionally used for an HTTP client-closed request. Bun's
         // server will not send it after the socket is gone, but resolving the
         // route prevents an orphaned async proxy chain from lingering.
+        try { activeProxyRequest?.destroy() } catch { }
+        try { activeProxyResponse?.destroy() } catch { }
+        try { activeTempStream?.destroy() } catch { }
         settleResponse(new Response(null, { status: 499 }))
       }
 
@@ -1091,7 +1118,8 @@ export const createCacheRouter = (): Router => {
       if (ctx.request.signal.aborted) finishExpectedAbort()
 
       try {
-        const taskId = ctx.query.get('taskId')
+        const rawTaskId = ctx.query.get('taskId')?.trim() || ''
+        const taskId = isOpaqueBrowserProgressId(rawTaskId) ? rawTaskId : null
         const rangeHeader = ctx.headers.get('range')
         const isFullRange = rangeHeader === 'bytes=0-'
 
@@ -1124,12 +1152,18 @@ export const createCacheRouter = (): Router => {
             const lib = parsedUrl.protocol === 'https:' ? https : http
 
             const proxyReq = lib.request(targetUrl, options, (proxyRes: any) => {
+              activeProxyResponse = proxyRes
+              proxyRes.setTimeout?.(30_000, () => proxyRes.destroy(new Error('Remote response timed out')))
               if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode)) {
                 const location = proxyRes.headers.location
                 if (location) {
                   proxyRes.resume()
-                  const nextUrl = new URL(location, parsedUrl).href
-                  void doFetch(nextUrl, attempt + 1)
+                  try {
+                    const nextUrl = new URL(location, parsedUrl).href
+                    void doFetch(nextUrl, attempt + 1)
+                  } catch {
+                    settleResponse(ctx.fail(502, '远程地址跳转目标不合法'))
+                  }
                   return
                 }
               }
@@ -1181,21 +1215,30 @@ export const createCacheRouter = (): Router => {
                   ? requestedExt
                   : '.mp3'
                 const tempPath = path.join(os.tmpdir(), `lx_tag_${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`)
-                const tempStream = fs.createWriteStream(tempPath)
+                const tempStream = fs.createWriteStream(tempPath, { flags: 'wx', mode: 0o600 })
+                activeTempStream = tempStream
                 let tempStreamError: Error | null = null
                 let taggedResponseSettled = false
-                const settleTaggedResponse = (response: Response) => {
+                const settleTaggedResponse = (response: Response, releaseSlot = true) => {
                   if (taggedResponseSettled) return
                   taggedResponseSettled = true
-                  settleResponse(response)
+                  settleResponse(response, releaseSlot)
                 }
                 const markProgressError = (message: string) => {
                   if (!taskId) return
                   fileCache.setCacheProgress(taskId, { progress: 0, status: 'error', errorMsg: message, updatedAt: Date.now() })
                 }
+                const failTaggedStream = (message: string) => {
+                  if (responseSettled || taggedResponseSettled) return
+                  markProgressError(message)
+                  try { tempStream.destroy() } catch { }
+                  try { proxyRes.destroy() } catch { }
+                  fs.unlink(tempPath, () => { })
+                  settleTaggedResponse(ctx.fail(502, '下载数据流中断，请重试'))
+                }
                 tempStream.on('error', (error) => {
                   tempStreamError = error
-                  try { proxyRes.destroy(error) } catch { }
+                  failTaggedStream(error.message || 'Download stream failed')
                 })
 
                 if (taskId) {
@@ -1203,6 +1246,7 @@ export const createCacheRouter = (): Router => {
                 }
 
                 proxyRes.on('data', (c: any) => {
+                  if (responseSettled) return
                   received += c.length
                   if (received > maxAudioBytes) {
                     proxyRes.destroy(new Error('Remote file is too large'))
@@ -1224,16 +1268,13 @@ export const createCacheRouter = (): Router => {
                   }
                 })
                 proxyRes.pipe(tempStream)
+                proxyRes.on('aborted', () => failTaggedStream('Remote response aborted'))
                 proxyRes.on('error', (error: Error) => {
-                  if (taggedResponseSettled) return
-                  markProgressError(error.message || 'Download stream failed')
-                  try { tempStream.destroy() } catch { }
-                  fs.unlink(tempPath, () => { })
-                  settleTaggedResponse(ctx.fail(502, '下载数据流中断，请重试'))
+                  failTaggedStream(error.message || 'Download stream failed')
                 })
 
                 proxyRes.on('end', async () => {
-                  if (taggedResponseSettled) return
+                  if (responseSettled || taggedResponseSettled) return
                   if (taskId) {
                     fileCache.setCacheProgress(taskId, { progress: 100, status: 'tagging', total, received, speed: 0, updatedAt: Date.now() })
                   }
@@ -1249,6 +1290,7 @@ export const createCacheRouter = (): Router => {
                     const cleanup = () => {
                       if (cleaned) return
                       cleaned = true
+                      releaseProxySlot()
                       readStream.destroy()
                       fs.unlink(tempPath, () => { })
                     }
@@ -1320,7 +1362,7 @@ export const createCacheRouter = (): Router => {
 
                     headers['Content-Length'] = fs.statSync(tempPath).size.toString()
                     finishProgress()
-                    settleTaggedResponse(createTempFileResponse())
+                    settleTaggedResponse(createTempFileResponse(), false)
                   } catch (e: any) {
                     if (tempStreamError) {
                       markProgressError(tempStreamError.message || 'Download stream failed')
@@ -1329,7 +1371,7 @@ export const createCacheRouter = (): Router => {
                     } else if (fs.existsSync(tempPath)) {
                       finishProgress()
                       if (!headers['Content-Length']) headers['Content-Length'] = fs.statSync(tempPath).size.toString()
-                      settleTaggedResponse(createTempFileResponse())
+                      settleTaggedResponse(createTempFileResponse(), false)
                     } else {
                       markProgressError(e?.message || 'Download processing failed')
                       settleTaggedResponse(ctx.fail(502, '下载处理失败，请重试'))
@@ -1341,13 +1383,16 @@ export const createCacheRouter = (): Router => {
                 return
               }
 
-              const stream = createProxyResponseStream(proxyRes, proxyReq, maxAudioBytes)
+              const stream = createProxyResponseStream(proxyRes, proxyReq, maxAudioBytes, releaseProxySlot)
 
               settleResponse(new Response(stream, {
                 status: proxyRes.statusCode || 200,
                 headers,
-              }))
+              }), false)
             })
+
+            activeProxyRequest = proxyReq
+            proxyReq.setTimeout?.(30_000, () => proxyReq.destroy(new Error('Remote request timed out')))
 
             proxyReq.on('error', (err: any) => {
               if (isExpectedDownloadAbort(err, ctx.request.signal)) {

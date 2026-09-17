@@ -647,7 +647,7 @@ export function createSongListManager(context: SongListManagerContext) {
 
         const nameEl = document.getElementById('sl-detail-name');
         if (nameEl) {
-            nameEl.innerHTML = window.createMarqueeHtml ? window.createMarqueeHtml(info.name) : info.name;
+            nameEl.innerHTML = window.createMarqueeHtml ? window.createMarqueeHtml(info.name) : escapeHtmlText(info.name || '');
         }
 
         const titleEl = document.getElementById('sl-detail-title');
@@ -967,7 +967,7 @@ export function createSongListManager(context: SongListManagerContext) {
             } catch (e) {
                 if (e?.name === 'AbortError' || requestSerial !== listRequestSerial) return;
                 console.error('[SongList] Search failed:', e);
-                container.innerHTML = `<div class="col-span-full py-20 text-center text-red-500">搜索失败: ${toUserMessage(e)}</div>`;
+                container.innerHTML = `<div class="col-span-full py-20 text-center text-red-500">搜索失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
             } finally {
                 if (requestSerial === listRequestSerial) listLoading = false;
             }

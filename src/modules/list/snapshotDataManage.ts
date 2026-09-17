@@ -7,6 +7,21 @@ export interface SnapshotInfo {
   list: string[]
 }
 
+export const MAX_SNAPSHOT_ID_BYTES = 256
+export const MAX_SNAPSHOT_DATA_BYTES = 20 * 1024 * 1024
+
+export function assertSnapshotId(name: unknown): asserts name is string {
+  if (typeof name !== 'string' || !name || Buffer.byteLength(name, 'utf8') > MAX_SNAPSHOT_ID_BYTES || /[\u0000-\u001f\u007f]/.test(name)) {
+    throw new Error('快照标识无效')
+  }
+}
+
+function assertSnapshotData(data: unknown): asserts data is string {
+  if (typeof data !== 'string' || Buffer.byteLength(data, 'utf8') > MAX_SNAPSHOT_DATA_BYTES) {
+    throw new Error('快照数据过大或格式无效')
+  }
+}
+
 export class SnapshotDataManage {
   readonly userDataManage: UserDataManage
   readonly module = 'list'
@@ -35,6 +50,7 @@ export class SnapshotDataManage {
 
   saveSnapshotInfo = (info: SnapshotInfo): void => {
     if (!info.latest) return
+    assertSnapshotId(info.latest)
     getDb().run(
       'INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)',
       [this.userDataManage.userName, this.module, info.latest, info.time || Date.now()]
@@ -43,6 +59,7 @@ export class SnapshotDataManage {
   }
 
   getSnapshot = async (name: string): Promise<LX.List.ListData | null> => {
+    assertSnapshotId(name)
     const row = getDb().query<{ data: string }, [string, string, string]>(
       'SELECT data FROM snapshots WHERE user_name = ? AND module = ? AND id = ?'
     ).get(this.userDataManage.userName, this.module, name)
@@ -55,6 +72,8 @@ export class SnapshotDataManage {
   }
 
   saveSnapshot = async (name: string, data: string): Promise<void> => {
+    assertSnapshotId(name)
+    assertSnapshotData(data)
     getDb().run(
       'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       [name, this.userDataManage.userName, this.module, data, Buffer.byteLength(data, 'utf8'), Date.now()]
@@ -62,6 +81,8 @@ export class SnapshotDataManage {
   }
 
   saveSnapshotWithTime = async (name: string, data: string, time: number): Promise<void> => {
+    assertSnapshotId(name)
+    assertSnapshotData(data)
     getDb().run(
       'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       [name, this.userDataManage.userName, this.module, data, Buffer.byteLength(data, 'utf8'), time || Date.now()]
@@ -69,6 +90,7 @@ export class SnapshotDataManage {
   }
 
   removeSnapshot = async (name: string): Promise<void> => {
+    assertSnapshotId(name)
     getDb().run('DELETE FROM snapshots WHERE user_name = ? AND module = ? AND id = ?', [this.userDataManage.userName, this.module, name])
   }
 
@@ -80,6 +102,7 @@ export class SnapshotDataManage {
   }
 
   setLatest = (name: string): void => {
+    assertSnapshotId(name)
     getDb().run(
       'INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)',
       [this.userDataManage.userName, this.module, name, Date.now()]

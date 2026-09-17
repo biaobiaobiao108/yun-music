@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { isIP } from 'node:net'
 
 export interface ContextOptions {
   remoteAddress?: string
@@ -23,7 +24,61 @@ const forwardedParameter = (header: string | null, name: string): string | null 
  * 因此需要使用标准转发头还原公网协议与主机，避免把同站请求误判成跨域。
  * 代理必须覆盖这些请求头，而不是把客户端传入值继续透传到后端。
  */
-export const resolveRequestOrigin = (request: Request, internalUrl: URL): string => {
+const normalizeAddress = (value: string): string => value.replace(/^\[|\]$/g, '').toLowerCase()
+
+const normalizeForwardedAddress = (value: string | undefined): string | null => {
+  if (!value) return null
+  let candidate = value.trim()
+  if (candidate.startsWith('"') && candidate.endsWith('"')) {
+    candidate = candidate.slice(1, -1).trim()
+  }
+  const bracketed = candidate.match(/^\[([^\]]+)\](?::\d+)?$/)
+  if (bracketed) candidate = bracketed[1]
+  else {
+    const ipv4WithPort = candidate.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/)
+    if (ipv4WithPort) candidate = ipv4WithPort[1]
+  }
+  const normalized = normalizeAddress(candidate)
+  return isIP(normalized) > 0 ? normalized : null
+}
+
+const HTTP_TOKEN_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+
+/** Validate configuration values that are later passed to Headers.get(). */
+export const isValidHttpHeaderName = (value: unknown): value is string => (
+  typeof value === 'string' && value.length > 0 && value.length <= 256 && HTTP_TOKEN_PATTERN.test(value)
+)
+
+/** Normalize a trusted-proxy allowlist and reject non-IP entries early. */
+export const normalizeTrustedProxyAddresses = (value: unknown): string[] => {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : value == null
+        ? ['127.0.0.1', '::1']
+        : null
+  if (!values) throw new Error('可信代理地址格式无效')
+
+  const normalized = [...new Set(values
+    .map(item => String(item).trim())
+    .filter(Boolean)
+    .map(normalizeAddress))]
+  if (normalized.some(address => isIP(address) === 0)) throw new Error('可信代理地址必须是 IP 地址')
+  return normalized
+}
+
+const isTrustedProxyAddress = (socketAddress: string): boolean => {
+  if (!global.lx?.config?.['proxy.enabled']) return false
+  const configured = global.lx?.config?.['proxy.trustedAddresses']
+  if (!Array.isArray(configured) || configured.length === 0) return false
+  const normalizedSocket = normalizeAddress(socketAddress)
+  return configured.some(address => normalizeAddress(String(address)) === normalizedSocket)
+}
+
+export const resolveRequestOrigin = (request: Request, internalUrl: URL, trustForwardedHeaders = false): string => {
+  if (!trustForwardedHeaders) return internalUrl.origin
+
   const forwardedProtocol = firstHeaderValue(request.headers.get('x-forwarded-proto'))
     || forwardedParameter(request.headers.get('forwarded'), 'proto')
   const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'))
@@ -78,13 +133,17 @@ export class HttpContext {
   constructor(request: Request, options?: ContextOptions) {
     this.request = request
     this.url = new URL(request.url)
-    this.requestOrigin = resolveRequestOrigin(request, this.url)
-    this.isSecure = this.requestOrigin.startsWith('https://')
     this.pathname = this.url.pathname
     this.method = request.method.toUpperCase()
     this.query = this.url.searchParams
     this.headers = request.headers
+    const socketAddress = options?.remoteAddress || ''
     this.remoteAddress = this.resolveRemoteAddress(options?.remoteAddress)
+    // A missing socket address is only a test/in-process context. It must not
+    // implicitly become the configured loopback proxy, otherwise an attacker
+    // could make forwarded headers authoritative without a trusted socket.
+    this.requestOrigin = resolveRequestOrigin(request, this.url, isTrustedProxyAddress(socketAddress))
+    this.isSecure = this.requestOrigin.startsWith('https://')
     const incomingRequestId = request.headers.get('x-request-id')?.trim() || ''
     this.requestId = /^[A-Za-z0-9._-]{1,64}$/.test(incomingRequestId)
       ? incomingRequestId
@@ -97,12 +156,13 @@ export class HttpContext {
    * 避免反向代理后所有访客被合并成同一个 IP（会导致登录限流互相牵连）。
    */
   private resolveRemoteAddress(socketAddress?: string): string {
-    if (global.lx?.config?.['proxy.enabled']) {
+    if (global.lx?.config?.['proxy.enabled'] && isTrustedProxyAddress(socketAddress || '')) {
       const headerName = (global.lx.config['proxy.header'] || 'x-forwarded-for').toLowerCase()
       const forwarded = this.headers.get(headerName)
       if (forwarded) {
         const first = forwarded.split(',')[0]?.trim()
-        if (first) return first
+        const normalized = normalizeForwardedAddress(first)
+        if (normalized) return normalized
       }
     }
     return socketAddress || '127.0.0.1'
@@ -133,25 +193,30 @@ export class HttpContext {
 
   /** 解析 JSON 请求体 */
   async bodyJson<T = unknown>(maxBytes = 20 * 1024 * 1024): Promise<T> {
+    const body = await this.readBodyText(maxBytes)
     try {
-      return JSON.parse(await this.readBodyText(maxBytes)) as T
+      return JSON.parse(body) as T
     } catch {
       throw new Error('Invalid JSON body')
     }
   }
 
   /** 解析纯文本请求体 */
-  async bodyText(): Promise<string> {
-    return this.readBodyText()
+  async bodyText(maxBytes = 20 * 1024 * 1024): Promise<string> {
+    return this.readBodyText(maxBytes)
   }
 
   private async readBodyText(maxBytes = 20 * 1024 * 1024): Promise<string> {
+    return new TextDecoder().decode(await this.readBodyBytes(maxBytes))
+  }
+
+  private async readBodyBytes(maxBytes = 20 * 1024 * 1024): Promise<Uint8Array> {
     const declaredLength = Number(this.headers.get('content-length') || 0)
     if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
       throw new Error('Request body is too large')
     }
 
-    if (!this.request.body) return ''
+    if (!this.request.body) return new Uint8Array()
     const reader = this.request.body.getReader()
     const chunks: Uint8Array[] = []
     let total = 0
@@ -177,12 +242,22 @@ export class HttpContext {
       bytes.set(chunk, offset)
       offset += chunk.byteLength
     }
-    return new TextDecoder().decode(bytes)
+    return bytes
   }
 
   /** 原生 FormData 解析 (用于大文件/表单上传，零第三方依赖) */
-  async formData(): Promise<FormData> {
-    return await this.request.formData()
+  async formData(maxBytes = 20 * 1024 * 1024): Promise<FormData> {
+    // Request.formData() does not expose a size limit. Buffer the request
+    // through the same bounded reader first, then let the platform parse the
+    // already-bounded multipart payload.
+    const bytes = await this.readBodyBytes(maxBytes)
+    const headers = new Headers(this.headers)
+    headers.delete('content-length')
+    return await new Request(this.request.url, {
+      method: this.method,
+      headers,
+      body: bytes as unknown as BodyInit,
+    }).formData()
   }
 
   /** 构造 JSON 响应 */

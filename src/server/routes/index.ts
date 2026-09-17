@@ -58,6 +58,9 @@ export const createRootRouter = (): Router => {
   root.use(accessLogMiddleware)
   root.use(compressionMiddleware)
 
+  // 播放器接口鉴权要在业务路由和限流之前执行，避免未授权请求进入昂贵的业务处理。
+  root.use('/api/music', playerApiAuthMiddleware)
+
   // 1. Web 业务领域路由挂载
   root.mount('/', createAuthRouter())
   root.mount('/', createSystemRouter())
@@ -66,10 +69,7 @@ export const createRootRouter = (): Router => {
   root.mount('/', createMusicRouter())
   root.mount('/', createCacheRouter())
 
-  // 2. 播放器数据接口鉴权
-  root.use('/api/music', playerApiAuthMiddleware)
-
-  // 3. 静态资源与前端托管（必须挂在最后，作为兜底匹配）
+  // 2. 静态资源与前端托管（必须挂在最后，作为兜底匹配）
   root.mount('/', createStaticRouter())
 
   return root

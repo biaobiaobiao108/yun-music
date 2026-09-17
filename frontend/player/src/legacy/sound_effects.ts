@@ -1,6 +1,7 @@
 // @ts-nocheck
 // This legacy-compatible module is compiled as an isolated browser bundle.
 import { registerPlayerEventAction } from '../player_events';
+import { escapeHtmlText, safeInlineString } from '../player_security';
 /**
  * Sound Effects Manager for 云音播放器
  * Handles EQ, 3D Surround, Pitch Shifting, and Environment Reverb.
@@ -52,6 +53,41 @@ window.soundEffects = (function () {
         panner: { enable: false, speed: 25, distance: 5 },
         reverb: { id: 'none', mainGain: 1.0, sendGain: 0 },
         compressor: false
+    };
+
+    const clampNumber = (value, fallback, min, max) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+    };
+
+    const normalizePreset = (value) => {
+        if (!value || typeof value !== 'object') return null;
+        const name = String(value.name ?? '').trim().slice(0, 64);
+        if (!name || !Array.isArray(value.values)) return null;
+        const values = Array.from({ length: 10 }, (_, index) => clampNumber(value.values[index], 0, -12, 12));
+        return { name, values };
+    };
+
+    const normalizeSettings = (value) => {
+        const raw = value && typeof value === 'object' ? value : {};
+        const rawPanner = raw.panner && typeof raw.panner === 'object' ? raw.panner : {};
+        const rawReverb = raw.reverb && typeof raw.reverb === 'object' ? raw.reverb : {};
+        const reverb = reverbOptions.some(option => option.id === rawReverb.id) ? rawReverb.id : 'none';
+        return {
+            eq: Array.from({ length: 10 }, (_, index) => clampNumber(raw.eq?.[index], 0, -12, 12)),
+            pitch: clampNumber(raw.pitch, 1, 0.5, 2),
+            panner: {
+                enable: rawPanner.enable === true,
+                speed: clampNumber(rawPanner.speed, 25, 1, 50),
+                distance: clampNumber(rawPanner.distance, 5, 1, 30),
+            },
+            reverb: {
+                id: reverb,
+                mainGain: clampNumber(rawReverb.mainGain, 1, 0, 3),
+                sendGain: clampNumber(rawReverb.sendGain, 0, 0, 3),
+            },
+            compressor: raw.compressor === true,
+        };
     };
 
     let dryGainNode, wetGainNode, mixerNode;
@@ -203,8 +239,10 @@ window.soundEffects = (function () {
         if (saved) {
             try {
                 const data = JSON.parse(saved);
-                settings = { ...settings, ...data.settings };
-                customPresets = data.customPresets || [];
+                settings = normalizeSettings(data?.settings);
+                customPresets = Array.isArray(data?.customPresets)
+                    ? data.customPresets.map(normalizePreset).filter(Boolean).slice(0, 100)
+                    : [];
             } catch (e) { }
         }
     }
@@ -248,8 +286,10 @@ window.soundEffects = (function () {
             });
             if (res.ok) {
                 const data = await res.json();
-                settings = { ...settings, ...data.settings };
-                customPresets = data.customPresets || [];
+                settings = normalizeSettings(data?.settings);
+                customPresets = Array.isArray(data?.customPresets)
+                    ? data.customPresets.map(normalizePreset).filter(Boolean).slice(0, 100)
+                    : [];
                 // Save to local
                 localStorage.setItem('lx_sound_effects', JSON.stringify({
                     settings: settings,
@@ -393,27 +433,31 @@ window.soundEffects = (function () {
             // Render default presets
             let html = defaultPresets.map(p => {
                 const isActive = activePresetName === p.name || (activePresetName === '' && settings.eq.join(',') === p.values.join(','));
+                const safeName = escapeHtmlText(p.name);
+                const nameArg = safeInlineString(p.name);
                 return `
-                <button class="px-3 py-1.5 text-[11px] font-bold rounded-lg border t-border-main transition-all ${isActive ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20' : 't-bg-main t-text-muted hover:t-bg-item-hover'}"
-                    data-event-click-action="soundEffects.applyPreset" data-event-click-args="[&quot;${p.name}&quot;]">${p.name}</button>
+                <button type="button" class="px-3 py-1.5 text-[11px] font-bold rounded-lg border t-border-main transition-all ${isActive ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20' : 't-bg-main t-text-muted hover:t-bg-item-hover'}"
+                    data-event-click-action="soundEffects.applyPreset" data-event-click-args="[${nameArg}]">${safeName}</button>
             `;
             }).join('');
 
             // Render custom presets with edit/delete icons
             html += customPresets.map(p => {
                 const isActive = activePresetName === p.name;
+                const safeName = escapeHtmlText(p.name);
+                const nameArg = safeInlineString(p.name);
                 return `
                 <div class="relative group">
-                    <button class="px-3 py-1.5 pr-10 text-[11px] font-bold rounded-lg border t-border-main transition-all ${isActive ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20' : 't-bg-main t-text-muted hover:t-bg-item-hover'}"
-                        data-event-click-action="soundEffects.applyPreset" data-event-click-args="[&quot;${p.name}&quot;]">${p.name}</button>
+                    <button type="button" aria-label="应用预设 ${safeName}" class="px-3 py-1.5 pr-10 text-[11px] font-bold rounded-lg border t-border-main transition-all ${isActive ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20' : 't-bg-main t-text-muted hover:t-bg-item-hover'}"
+                        data-event-click-action="soundEffects.applyPreset" data-event-click-args="[${nameArg}]">${safeName}</button>
                     <div class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center transition-opacity">
-                        <button class="w-4 h-4 flex items-center justify-center text-[10px] text-gray-400 hover:text-emerald-500" 
-                            data-event-click-action="soundEffects.renameCustomPreset" data-event-click-args="[&quot;${p.name}&quot;]" data-event-stop="true" title="重命名">
-                            <i class="fas fa-edit"></i>
+                        <button type="button" class="w-4 h-4 flex items-center justify-center text-[10px] text-gray-400 hover:text-emerald-500"
+                            data-event-click-action="soundEffects.renameCustomPreset" data-event-click-args="[${nameArg}]" data-event-stop="true" title="重命名" aria-label="重命名预设 ${safeName}">
+                            <i class="fas fa-edit" aria-hidden="true"></i>
                         </button>
-                        <button class="w-4 h-4 flex items-center justify-center text-[10px] text-gray-400 hover:text-red-500" 
-                            data-event-click-action="soundEffects.deleteCustomPreset" data-event-click-args="[&quot;${p.name}&quot;]" data-event-stop="true" title="删除">
-                            <i class="fas fa-trash-alt"></i>
+                        <button type="button" class="w-4 h-4 flex items-center justify-center text-[10px] text-gray-400 hover:text-red-500"
+                            data-event-click-action="soundEffects.deleteCustomPreset" data-event-click-args="[${nameArg}]" data-event-stop="true" title="删除" aria-label="删除预设 ${safeName}">
+                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
                         </button>
                     </div>
                 </div>
@@ -424,14 +468,15 @@ window.soundEffects = (function () {
                 html += `
                     <div class="relative flex items-center">
                         <input type="text" id="new-preset-name" placeholder="输入名称..." 
+                            maxlength="64" aria-label="新预设名称"
                             class="w-24 px-2 py-1 text-[11px] rounded-lg border border-emerald-500 t-bg-main t-text-main focus:outline-none shadow-sm"
                             data-event-keydown-action="sound-effects-preset-key" data-event-keys="Enter,Escape" data-event-target-self="true" data-event-prevent="true"
                             data-event-blur-action="soundEffects.saveNewPreset" data-event-blur-args="[&quot;@value&quot;]">
                     </div>
                 `;
             } else {
-                html += `<button class="p-1 px-3 text-xs rounded-lg border border-dashed t-border-main hover:text-emerald-500 transition-colors" 
-                    data-event-click-action="soundEffects.startAddPreset" title="在此添加自定义预设">+</button>`;
+                html += `<button type="button" class="p-1 px-3 text-xs rounded-lg border border-dashed t-border-main hover:text-emerald-500 transition-colors"
+                    data-event-click-action="soundEffects.startAddPreset" title="在此添加自定义预设" aria-label="添加自定义预设">+</button>`;
             }
             presetContainer.innerHTML = html;
             if (isAddingPreset) setTimeout(() => document.getElementById('new-preset-name')?.focus(), 50);
@@ -563,7 +608,8 @@ window.soundEffects = (function () {
             }, 300);
         },
         setEQ: function (index, val) {
-            val = parseInt(val);
+            index = Math.max(0, Math.min(9, parseInt(index) || 0));
+            val = clampNumber(val, 0, -12, 12);
             settings.eq[index] = val;
             if (eqFilters[index]) eqFilters[index].gain.setTargetAtTime(val, audioContext.currentTime, 0.1);
             activePresetName = ''; // Reset when manually adjusted
@@ -593,11 +639,12 @@ window.soundEffects = (function () {
             renderUI();
         },
         setReverb: function (id) {
-            settings.reverb.id = id;
             const rev = reverbOptions.find(r => r.id === id);
+            if (!rev) return;
+            settings.reverb.id = rev.id;
             if (rev) {
-                settings.reverb.mainGain = rev.main;
-                settings.reverb.sendGain = rev.send;
+                settings.reverb.mainGain = clampNumber(rev.main, 1, 0, 3);
+                settings.reverb.sendGain = clampNumber(rev.send, 0, 0, 3);
 
                 // Animate the DRY/WET sliders visually
                 animateSlider('reverb-main-gain', rev.main * 100);
@@ -609,7 +656,7 @@ window.soundEffects = (function () {
         },
         setPitch: function (val) {
             const oldPitch = settings.pitch;
-            settings.pitch = parseFloat(val);
+            settings.pitch = clampNumber(val, 1, 0.5, 2);
 
             if (settings.pitch !== 1.0 && oldPitch === 1.0) {
                 connectPitchShifter();
@@ -631,7 +678,8 @@ window.soundEffects = (function () {
         },
         setPanner: function (key, val) {
             if (key === 'enable') settings.panner.enable = val;
-            else settings.panner[key] = parseInt(val);
+            else if (key === 'speed') settings.panner.speed = clampNumber(val, 25, 1, 50);
+            else if (key === 'distance') settings.panner.distance = clampNumber(val, 5, 1, 30);
             updatePanner();
             saveSettings();
             renderUI();
@@ -644,17 +692,19 @@ window.soundEffects = (function () {
         },
         getAnalyser: () => analyser,
         setReverbGain: function (type, val) {
-            if (type === 'main') settings.reverb.mainGain = val;
-            else settings.reverb.sendGain = val;
+            const gain = clampNumber(val, 0, 0, 3);
+            if (type === 'main') settings.reverb.mainGain = gain;
+            else if (type === 'send') settings.reverb.sendGain = gain;
+            else return;
             saveSettings();
 
             if (window._soundEffectsGains) {
-                if (type === 'main') window._soundEffectsGains.dry.gain.setTargetAtTime(val, audioContext.currentTime, 0.1);
-                else window._soundEffectsGains.wet.gain.setTargetAtTime(val, audioContext.currentTime, 0.1);
+                if (type === 'main') window._soundEffectsGains.dry.gain.setTargetAtTime(gain, audioContext.currentTime, 0.1);
+                else window._soundEffectsGains.wet.gain.setTargetAtTime(gain, audioContext.currentTime, 0.1);
             }
 
             const label = document.getElementById(`reverb-${type}-gain-val`);
-            if (label) label.innerText = Math.round(val * 100) + '%';
+            if (label) label.innerText = Math.round(gain * 100) + '%';
         },
         startAddPreset: function () {
             isAddingPreset = true;
@@ -667,7 +717,7 @@ window.soundEffects = (function () {
         saveNewPreset: function (name) {
             if (!isAddingPreset) return;
             if (name && name.trim()) {
-                const newName = name.trim();
+                const newName = name.trim().slice(0, 64);
                 // Check for duplicates
                 if ([...defaultPresets, ...customPresets].some(p => p.name === newName)) {
                     if (window.showError) window.showError('预设名称已存在');
@@ -697,7 +747,7 @@ window.soundEffects = (function () {
             });
 
             if (newName && newName.trim() && newName.trim() !== oldName) {
-                const name = newName.trim();
+                const name = newName.trim().slice(0, 64);
                 if ([...defaultPresets, ...customPresets].some(p => p.name === name)) {
                     if (window.showError) window.showError('名称已存在');
                     return;

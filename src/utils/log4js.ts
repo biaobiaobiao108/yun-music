@@ -25,6 +25,9 @@ const createLogConfig = (logPath: string) => {
       errorFile: {
         type: 'file',
         filename: path.join(logPath, 'errors.log'),
+        maxLogSize: 10485760,
+        backups: 10,
+        keepFileExt: true,
       },
       errors: {
         type: 'logLevelFilter',

@@ -101,33 +101,48 @@ describe('Core Router & HttpContext', () => {
     router.use(corsMiddleware)
     router.get('/api/data', (ctx) => ctx.json({ ok: true }))
 
-    const sameSiteThroughProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-      headers: {
-        Host: 'music.example.com',
-        Origin: 'https://music.example.com',
-        'X-Forwarded-Proto': 'https',
+    const previousLx = (global as any).lx
+    ;(global as any).lx = {
+      ...(previousLx || {}),
+      config: {
+        ...(previousLx?.config || {}),
+        'proxy.enabled': true,
+        'proxy.header': 'x-forwarded-for',
+        'proxy.trustedAddresses': ['127.0.0.1'],
       },
-    }))
-    expect(sameSiteThroughProxy.status).toBe(200)
-    expect(sameSiteThroughProxy.headers.get('Access-Control-Allow-Origin')).toBe('https://music.example.com')
+    }
 
-    const differentSiteThroughProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-      headers: {
-        Host: 'music.example.com',
-        Origin: 'https://attacker.example',
-        'X-Forwarded-Proto': 'https',
-      },
-    }))
-    expect(differentSiteThroughProxy.status).toBe(403)
+    try {
+      const sameSiteThroughProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
+        headers: {
+          Host: 'music.example.com',
+          Origin: 'https://music.example.com',
+          'X-Forwarded-Proto': 'https',
+        },
+      }), { remoteAddress: '127.0.0.1' })
+      expect(sameSiteThroughProxy.status).toBe(200)
+      expect(sameSiteThroughProxy.headers.get('Access-Control-Allow-Origin')).toBe('https://music.example.com')
 
-    const forwardedHeader = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-      headers: {
-        Host: 'music.example.com',
-        Origin: 'https://music.example.com',
-        Forwarded: 'for=192.0.2.10;proto=https;host=music.example.com',
-      },
-    }))
-    expect(forwardedHeader.status).toBe(200)
+      const differentSiteThroughProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
+        headers: {
+          Host: 'music.example.com',
+          Origin: 'https://attacker.example',
+          'X-Forwarded-Proto': 'https',
+        },
+      }), { remoteAddress: '127.0.0.1' })
+      expect(differentSiteThroughProxy.status).toBe(403)
+
+      const forwardedHeader = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
+        headers: {
+          Host: 'music.example.com',
+          Origin: 'https://music.example.com',
+          Forwarded: 'for=192.0.2.10;proto=https;host=music.example.com',
+        },
+      }), { remoteAddress: '127.0.0.1' })
+      expect(forwardedHeader.status).toBe(200)
+    } finally {
+      ;(global as any).lx = previousLx
+    }
   })
 
   test('security middleware adds request tracing and browser policy headers', async () => {

@@ -11,7 +11,7 @@ import { buildLyrics, parseLyrics } from '../utils/lrcTool'
 import { formatPlayTime } from '../utils/common'
 import { getDb } from '@/database'
 import { assertSafePathSegment, isPathInside, resolveInside } from '@/utils/pathSecurity'
-import { assertSafeRemoteHttpUrl, type SafeRemoteHttpUrl } from './networkSecurity'
+import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from './networkSecurity'
 import { NativeLruCache } from '@/utils/nativeLru'
 
 type MusicTagNative = {
@@ -282,7 +282,7 @@ export const getCacheDir = (
 
     const fullPath = path.join(baseDir, userDirName)
     if (create && !fs.existsSync(fullPath)) {
-        fs.mkdirSync(fullPath, { recursive: true })
+        fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 })
     }
     const resolvedBaseDir = fs.existsSync(baseDir)
         ? fs.realpathSync.native(baseDir)
@@ -301,7 +301,7 @@ export const getCoverCacheDir = (username: string) => {
     const userDirName = (username && username !== '_open' && username !== 'default') ? assertSafePathSegment(username, 'username') : '_open'
     const fullPath = path.join(baseDir, userDirName)
     if (!fs.existsSync(fullPath)) {
-        fs.mkdirSync(fullPath, { recursive: true })
+        fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 })
     }
     if (!isPathInside(fs.realpathSync.native(baseDir), fs.realpathSync.native(fullPath))) {
         throw new Error('Cover cache directory escapes allowed root')
@@ -545,7 +545,8 @@ const readCoverCache = (filename: string, username: string, stats?: Stats) => {
             const persistent = getCoverCachePaths(filename, username, stats)
             if (candidate.binPath !== persistent.binPath) {
                 fs.copyFileSync(candidate.binPath, persistent.binPath)
-                fs.writeFileSync(persistent.mimePath, detectedMime || storedMime || 'image/jpeg')
+                try { fs.chmodSync(persistent.binPath, 0o600) } catch { }
+                fs.writeFileSync(persistent.mimePath, detectedMime || storedMime || 'image/jpeg', { mode: 0o600 })
             }
             return { data, mime: detectedMime || storedMime || 'image/jpeg' }
         } catch (e) { }
@@ -562,8 +563,8 @@ const writeCoverCache = (filename: string, username: string, data: Buffer | Uint
     const detectedMime = detectImageMime(coverData)
     if (!detectedMime) return false
     const { binPath, mimePath } = getCoverCachePaths(filename, username, stats)
-    fs.writeFileSync(binPath, coverData)
-    fs.writeFileSync(mimePath, detectedMime || mime || 'image/jpeg')
+    fs.writeFileSync(binPath, coverData, { mode: 0o600 })
+    fs.writeFileSync(mimePath, detectedMime || mime || 'image/jpeg', { mode: 0o600 })
     return true
 }
 
@@ -810,7 +811,7 @@ export const embedLyricsIntoFile = (filePath: string, lyricText: string) => {
 const ensureDir = (username?: string, isOnlyDownload?: boolean) => {
     const dir = getCacheDir(username, isOnlyDownload)
     if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
     }
     return dir
 }
@@ -1681,10 +1682,10 @@ export const downloadCoverImage = async (imageUrl: string, redirects = 0): Promi
     }
 
     try {
-        const resp = await fetch(safeUrl.href, {
+        const resp = await fetchSafeRemote(safeUrl, {
             method: 'GET',
-            redirect: 'manual',
-            signal: AbortSignal.timeout(10000),
+            timeoutMs: 10000,
+            maxBytes: 10 * 1024 * 1024,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': safeUrl.origin,
@@ -1702,32 +1703,7 @@ export const downloadCoverImage = async (imageUrl: string, redirects = 0): Promi
 
         if (!resp.ok) return null
 
-        const maxBytes = 10 * 1024 * 1024
-        const declaredLength = Number(resp.headers.get('content-length') || 0)
-        if (declaredLength > maxBytes) {
-            await resp.body?.cancel()
-            return null
-        }
-
-        if (!resp.body) return null
-        const reader = resp.body.getReader()
-        const chunks: Uint8Array[] = []
-        let received = 0
-
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            if (value) {
-                received += value.byteLength
-                if (received > maxBytes) {
-                    await reader.cancel('Cover is too large')
-                    return null
-                }
-                chunks.push(value)
-            }
-        }
-
-        const data = Buffer.concat(chunks)
+        const data = Buffer.from(await resp.arrayBuffer())
         const mime = detectImageMime(data)
         return mime ? { data, mime } : null
     } catch {
@@ -2292,7 +2268,7 @@ export const saveLyricCache = (songInfo: any, lyricsObj: any, username?: string,
             return false
         }
 
-        fs.writeFileSync(finalPath, formattedLrc, { encoding: 'utf-8' })
+        fs.writeFileSync(finalPath, formattedLrc, { encoding: 'utf-8', mode: 0o600 })
         console.log(`[FileCache] Lyric cached saved to: ${finalPath}`)
 
         // If saving with a concrete quality, clean up any leftover 'unknown' lyric file for the same song
@@ -2460,7 +2436,9 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
     url = safeUrl.toString()
     const dir = ensureDir(username, isOnlyDownload)
     const baseName = getFileName(songInfo, quality, isOnlyDownload, username)
-    const tempPath = path.join(dir, baseName + '.tmp')
+    // Use a unique staging path so a crash cannot leave a stale .tmp file that
+    // blocks a later retry for the same song.
+    const tempPath = path.join(dir, `${baseName}.${process.pid}.${Date.now()}.${crypto.randomBytes(6).toString('hex')}.tmp`)
     const songKey = normalizeSongId(songInfo) + '_' + (quality || 'unknown')
     const requestedSource = provenance.requestedSource || songInfo.requestedSource || songInfo.source || 'unknown'
     const downloadSource = detectDownloadSource(url, provenance.downloadSource || songInfo.downloadSource || songInfo.source)
@@ -2699,10 +2677,11 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             else if (contentType.includes('audio/x-m4a') || contentType.includes('audio/mp4')) headerExt = '.m4a'
             else if (contentType.includes('audio/wav')) headerExt = '.wav'
 
-            const currentFileStream = fs.createWriteStream(tempPath)
+            const currentFileStream = fs.createWriteStream(tempPath, { flags: 'wx', mode: 0o600 })
             fileStream = currentFileStream
             let writeFinished = false
             res.on('data', (chunk) => {
+                if (settled) return
                 received += chunk.length
                 if (received > maxAudioBytes) {
                     res.destroy(new Error('Audio file is too large'))
@@ -2717,6 +2696,14 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                 const progress = total > 0 ? Math.round((received / total) * 100) : 0
                 setCacheProgress(songKey, { progress, status: 'downloading', total, received, speed: currentSpeed, updatedAt: now })
             })
+            const failRemoteResponse = (error: Error) => {
+                if (settled) return
+                try { currentFileStream.destroy() } catch { }
+                fs.unlink(tempPath, () => { })
+                fail(error)
+            }
+            res.on('aborted', () => failRemoteResponse(new Error('Download response aborted')))
+            res.on('error', (error) => failRemoteResponse(error instanceof Error ? error : new Error(String(error))))
 
             res.pipe(currentFileStream)
             currentFileStream.on('finish', () => { writeFinished = true })
@@ -3184,7 +3171,7 @@ export const switchFolder = async (filenames: string[], username: string | undef
             if (srcExists) {
                 // Ensure target directory exists (including any nested subfolders)
                 const targetPathDir = path.dirname(targetPath)
-                if (!fs.existsSync(targetPathDir)) fs.mkdirSync(targetPathDir, { recursive: true })
+                if (!fs.existsSync(targetPathDir)) fs.mkdirSync(targetPathDir, { recursive: true, mode: 0o700 })
 
                 // Check collision in target folder
                 if (fs.existsSync(targetPath)) {
@@ -3210,7 +3197,7 @@ export const switchFolder = async (filenames: string[], username: string | undef
                     const targetLrcPath = resolveCacheRelativePath(targetDir, item.lyricFilename)
                     if (sourceLrcPath && targetLrcPath && fs.existsSync(sourceLrcPath)) {
                         const targetLrcDir = path.dirname(targetLrcPath)
-                        if (!fs.existsSync(targetLrcDir)) fs.mkdirSync(targetLrcDir, { recursive: true })
+                        if (!fs.existsSync(targetLrcDir)) fs.mkdirSync(targetLrcDir, { recursive: true, mode: 0o700 })
                         if (fs.existsSync(targetLrcPath)) fs.unlinkSync(targetLrcPath)
                         try {
                             safeRenameSync(sourceLrcPath, targetLrcPath)
@@ -3291,7 +3278,7 @@ export const switchBaseLocation = async (filenames: string[], username: string |
         try {
             if (fs.existsSync(sourcePath)) {
                 const targetPathDir = path.dirname(targetPath)
-                if (!fs.existsSync(targetPathDir)) fs.mkdirSync(targetPathDir, { recursive: true })
+                if (!fs.existsSync(targetPathDir)) fs.mkdirSync(targetPathDir, { recursive: true, mode: 0o700 })
 
                 // Check collision in target location
                 if (fs.existsSync(targetPath)) {
@@ -3309,7 +3296,7 @@ export const switchBaseLocation = async (filenames: string[], username: string |
                     const targetLrcPath = resolveCacheRelativePath(targetDir, item.lyricFilename)
                     if (sourceLrcPath && targetLrcPath && fs.existsSync(sourceLrcPath)) {
                         const targetLrcDir = path.dirname(targetLrcPath)
-                        if (!fs.existsSync(targetLrcDir)) fs.mkdirSync(targetLrcDir, { recursive: true })
+                        if (!fs.existsSync(targetLrcDir)) fs.mkdirSync(targetLrcDir, { recursive: true, mode: 0o700 })
                         if (fs.existsSync(targetLrcPath)) fs.unlinkSync(targetLrcPath)
                         safeRenameSync(sourceLrcPath, targetLrcPath)
                     }
@@ -3372,7 +3359,7 @@ export const createSubDirectory = (username: string | undefined, folder: 'cache'
     if (typeof subPath !== 'string' || subPath.length > 512) throw new Error('Invalid subdirectory')
     const target = resolveInside(root, subPath)
     if (!fs.existsSync(target)) {
-        fs.mkdirSync(target, { recursive: true })
+        fs.mkdirSync(target, { recursive: true, mode: 0o700 })
         return true
     }
     return false
@@ -3391,7 +3378,7 @@ export const categorizeFiles = async (filenames: string[], targetSubPath: string
     const targetDir = resolveInside(root, targetSubPath)
 
     if (targetSubPath && !fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true })
+        fs.mkdirSync(targetDir, { recursive: true, mode: 0o700 })
     }
 
     const allItems = indexManager.getAll(normalizedUsername, folder)

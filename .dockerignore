@@ -16,3 +16,8 @@ public/music/bin
 .github
 Dockerfile*
 config.js
+public/*.db*
+public/*.sqlite*
+public/*.wal
+public/*.shm
+public/*.log

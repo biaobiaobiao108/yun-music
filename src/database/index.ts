@@ -1,8 +1,17 @@
 import { Database } from 'bun:sqlite'
 import path from 'node:path'
 import fs from 'node:fs'
+import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
+const stmtCache = new Map<string, any>()
+
+const clearStatementCache = (): void => {
+  for (const statement of stmtCache.values()) {
+    try { statement.finalize?.() } catch { }
+  }
+  stmtCache.clear()
+}
 
 export const getDbPath = (): string => {
   const dataPath = global.lx?.dataPath ?? path.join(process.cwd(), 'data')
@@ -129,11 +138,9 @@ export const initDatabase = (customDbPath?: string): Database => {
   db.run('PRAGMA user_version = 3')
 
   dbInstance = db
-  stmtCache.clear()
+  clearStatementCache()
   return db
 }
-
-const stmtCache = new Map<string, any>()
 
 /**
  * 获取或缓存已预编译的 SQLite Statement，避免高频调用时的重复 SQL 词法解析与编译开销
@@ -157,7 +164,7 @@ export const getDb = (): Database => {
 
 export const closeDb = (): void => {
   if (dbInstance) {
-    stmtCache.clear()
+    clearStatementCache()
     dbInstance.close()
     dbInstance = null
   }
@@ -187,6 +194,34 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
       if (JSON.stringify(columns) !== JSON.stringify(backupColumns)) throw new Error('备份数据库版本不兼容')
       return { table, columns }
     })
+
+    // The database is copied into runtime state, so validate values that later
+    // become filesystem names or authentication material before mutating the
+    // target database. A structurally valid SQLite file can still contain
+    // hostile application data.
+    for (const row of source.query<{
+      name: string
+      password_hash: string
+      max_snapshot_num: number
+      add_music_location_type: string
+    }, []>('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users').iterate()) {
+      if (row.name === '_open') throw new Error('备份数据库包含保留用户')
+      try {
+        assertSafePathSegment(row.name, 'user name')
+      } catch {
+        throw new Error('备份数据库包含不合法的用户名')
+      }
+      if (typeof row.password_hash !== 'string' || !/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i.test(row.password_hash)) {
+        throw new Error('备份数据库包含不合法的密码哈希')
+      }
+      if (!Number.isInteger(row.max_snapshot_num) || row.max_snapshot_num < 1 || row.max_snapshot_num > 10000) {
+        throw new Error('备份数据库包含不合法的快照数量配置')
+      }
+      if (row.add_music_location_type !== 'top' && row.add_music_location_type !== 'bottom') {
+        throw new Error('备份数据库包含不合法的歌单配置')
+      }
+    }
+
     target.transaction(() => {
       for (const table of [...tables].reverse()) target.run(`DELETE FROM "${table}"`)
       for (const { table, columns } of schemas) {
@@ -204,7 +239,7 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
       target.run('DELETE FROM user_sessions')
       target.run('DELETE FROM player_sessions')
     })()
-    stmtCache.clear()
+    clearStatementCache()
   } finally {
     source.close()
   }

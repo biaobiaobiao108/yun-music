@@ -17,7 +17,7 @@
         })();
     </script>
     <script src="/js/config.js"></script>
-    <link rel="preload" href="app-40nd3g8a.js" as="script">
+    <link rel="preload" href="app-ncz2n6g6.js" as="script">
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="assets/yun-yin.png">
@@ -80,7 +80,7 @@
             </div>
 
             <nav class="sidebar-nav">
-                <a href="#" class="nav-item active" data-view="dashboard">
+                <button type="button" class="nav-item active appearance-none border-0 bg-transparent text-left w-full" data-view="dashboard">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="3" width="7" height="7" />
                         <rect x="14" y="3" width="7" height="7" />
@@ -88,40 +88,40 @@
                         <rect x="3" y="14" width="7" height="7" />
                     </svg>
                     <span>仪表盘</span>
-                </a>
-                <a href="#" class="nav-item" data-view="users">
+                </button>
+                <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="users">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                         <circle cx="9" cy="7" r="4" />
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
                     <span>用户管理</span>
-                </a>
-                <a href="#" class="nav-item" data-view="data">
+                </button>
+                <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="data">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                     </svg>
                     <span>数据查看</span>
-                </a>
-                <a href="#" class="nav-item" data-view="config">
+                </button>
+                <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="config">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="3" />
                         <path
                             d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m4.2 4.2l4.2 4.2M1 12h6m6 0h6M5.6 18.4l4.2-4.2m4.2-4.2l4.2-4.2" />
                     </svg>
                     <span>系统配置</span>
-                </a>
+                </button>
 
-                <a href="#" class="nav-item" data-view="snapshots">
+                <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="snapshots">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 2v20M2 12h20" />
                         <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10 10 10 0 0 1-10-10 10 10 0 0 1 10-10z" />
                         <path d="M12 6v6l4 2" />
                     </svg>
                     <span>快照管理</span>
-                </a>
+                </button>
 
-                <a href="#" class="nav-item" data-view="logs">
+                <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="logs">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
@@ -130,18 +130,18 @@
                         <polyline points="10 9 9 9 8 9" />
                     </svg>
                     <span>系统日志</span>
-                </a>
+                </button>
 
 
-                <a href="#" class="nav-item" data-view="about">
+                <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="about">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="12" y1="16" x2="12" y2="12"></line>
                         <line x1="12" y1="8" x2="12.01" y2="8"></line>
                     </svg>
                     <span>关于</span>
-                </a>
-                <a href="#" class="nav-item" id="nav-player-link" data-view="music">
+                </button>
+                <a href="/music" class="nav-item" id="nav-player-link" data-view="music">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 18V5l12-2v13"></path>
                         <circle cx="6" cy="18" r="3"></circle>
@@ -916,6 +916,7 @@
                             </div>
                             <input type="hidden" id="snapshot-user-select" value="">
                             <input type="file" id="snapshot-upload-input" style="display: none;" accept=".json">
+                            <input type="file" id="local-backup-upload-input" style="display: none;" accept=".zip,application/zip">
                             <button data-admin-action="trigger-upload-snapshot" class="btn-secondary"
                                 style="white-space: nowrap; flex-shrink: 0;">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -924,6 +925,23 @@
                                     <line x1="12" y1="3" x2="12" y2="15"></line>
                                 </svg>
                                 上传
+                            </button>
+                            <button type="button" data-admin-action="download-local-backup" class="btn-secondary"
+                                style="white-space: nowrap; flex-shrink: 0;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 3v12"></path>
+                                    <path d="m7 10 5 5 5-5"></path>
+                                    <path d="M5 21h14"></path>
+                                </svg>
+                                下载全量备份
+                            </button>
+                            <button type="button" data-admin-action="trigger-local-restore" class="btn-secondary"
+                                style="white-space: nowrap; flex-shrink: 0;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+                                    <path d="M3 4v6h6"></path>
+                                </svg>
+                                还原全量备份
                             </button>
                             <button data-admin-action="load-snapshots" class="btn-secondary"
                                 style="white-space: nowrap; flex-shrink: 0;">
@@ -1014,7 +1032,7 @@
             </div>
         </div>
     </div>
-    <script src="app-40nd3g8a.js"></script>
+    <script src="app-ncz2n6g6.js"></script>
 </body>
 
 </html>

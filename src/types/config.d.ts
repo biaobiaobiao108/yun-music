@@ -46,6 +46,9 @@ declare namespace LX {
      */
     'proxy.header': string
 
+    /** 可信反向代理的套接字地址；只有这些来源可提供转发头 */
+    'proxy.trustedAddresses': string[]
+
     /**
      * 绑定IP
      */

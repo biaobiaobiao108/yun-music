@@ -107,6 +107,17 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     expect(res.headers.get('Content-Type')).toContain('text/html')
   })
 
+  test('does not serve runtime database files from the static root', async () => {
+    const router = new Router()
+    router.mount('/', createStaticRouter())
+
+    const database = await router.handle(new Request('http://localhost:9527/yun-yin.db'))
+    const wal = await router.handle(new Request('http://localhost:9527/yun-yin.db-wal'))
+
+    expect(database.status).toBe(404)
+    expect(wal.status).toBe(404)
+  })
+
   test('RootRouter with corsMiddleware handles unhandled routes with null fallback gracefully', async () => {
     const { createRootRouter } = await import('@/server/routes')
     const rootRouter = createRootRouter().setNotFound(() => null)

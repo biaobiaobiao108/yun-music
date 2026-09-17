@@ -42,7 +42,8 @@ WORKDIR /server
 RUN apk add --no-cache \
   chromaprint \
   gcompat \
-  libstdc++
+  libstdc++ \
+  unzip
 
 # 仅复制纯净生产依赖、编译打包产物与必要运行时配置，彻底剔除 src/、开发依赖与构建脚本
 COPY --from=prod-deps /app/node_modules ./node_modules
@@ -63,6 +64,7 @@ USER root
 VOLUME /server/data
 VOLUME /server/cache
 VOLUME /server/music
+VOLUME /server/cover_cache
 ENV DATA_PATH='/server/data'
 ENV CONFIG_PATH='/server/data/config.js'
 ENV LOG_PATH='/server/data/logs'

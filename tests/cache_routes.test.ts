@@ -72,7 +72,7 @@ describe('cache list user scope', () => {
     }
   })
 
-  test('keeps omitted and explicit public cache sync targets separate', async () => {
+  test('keeps personal cache sync private and protects public cache sync', async () => {
     const syncCacheIndex = spyOn(fileCache, 'syncCacheIndex').mockResolvedValue(undefined)
     try {
       const personalResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/sync', {
@@ -86,11 +86,22 @@ describe('cache list user scope', () => {
         method: 'POST',
         headers: { cookie: `lx_user_session=${sessionId}` },
       }))
-      expect(publicResponse.status).toBe(200)
-      expect(syncCacheIndex).toHaveBeenLastCalledWith('_open')
+      expect(publicResponse.status).toBe(403)
+      expect(syncCacheIndex).toHaveBeenCalledTimes(1)
     } finally {
       syncCacheIndex.mockRestore()
     }
+  })
+
+  test('rejects anonymous public cache mutations', async () => {
+    const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/queue', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tasks: [{ id: 'anonymous-task' }] }),
+    }))
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ success: false })
   })
 
   test('uses the authenticated user for cache removal when user is omitted', async () => {

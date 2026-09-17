@@ -4,7 +4,7 @@ import * as vm from 'node:vm'
 
 import * as crypto from 'crypto'
 
-import { assertSafeRemoteHttpUrl } from './networkSecurity'
+import { assertSafeRemoteHttpUrl, fetchSafeRemote } from './networkSecurity'
 import { assertSafePathSegment, resolveInside } from '@/utils/pathSecurity'
 import { isRetiredOnlineSource, UnsupportedSourceError } from '@/common/musicSources'
 
@@ -31,6 +31,24 @@ function decontextify(obj: any): any {
     try {
         if (Buffer.isBuffer(obj) || obj instanceof Uint8Array || (obj && obj.constructor && obj.constructor.name === 'Buffer')) {
             return Buffer.from(Uint8Array.from(obj as any))
+        }
+    } catch (e) { }
+
+    // Rebuild multipart bodies on the host side so a sandbox-owned FormData
+    // object (and its prototype chain) never crosses into the network layer.
+    try {
+        const isFormData = (typeof FormData !== 'undefined' && obj instanceof FormData)
+            || obj?.constructor?.name === 'FormData'
+        if (isFormData && typeof obj.entries === 'function') {
+            const formData = new FormData()
+            for (const [key, value] of obj.entries()) {
+                if (value && typeof value === 'object' && (value instanceof Blob || ['Blob', 'File'].includes(value.constructor?.name))) {
+                    formData.append(String(key), value as Blob, String((value as any).name || 'blob'))
+                } else {
+                    formData.append(String(key), String(value ?? ''))
+                }
+            }
+            return formData
         }
     } catch (e) { }
 
@@ -87,6 +105,22 @@ interface UserApiInfo {
 
 // 加载的 API 实例
 const loadedApis = new Map<string, any>()
+const USER_API_SYNC_TIMEOUT_MS = 5_000
+const USER_API_REQUEST_TIMEOUT_MS = 60_000
+const USER_API_UNLOAD_TIMEOUT_MS = 10_000
+const MAX_USER_API_TIMERS = 256
+const MAX_USER_API_TIMER_DELAY_MS = 24 * 60 * 60 * 1000
+const MAX_USER_API_UNLOAD_HANDLERS = 64
+
+const normalizeUserApiTimerDelay = (delay: unknown, fallback = 0): number => {
+    try {
+        const parsed = Number(delay)
+        if (!Number.isFinite(parsed)) return fallback
+        return Math.min(Math.max(Math.floor(parsed), 0), MAX_USER_API_TIMER_DELAY_MS)
+    } catch {
+        return fallback
+    }
+}
 
 // API 初始化状态追踪 map<id, status>
 const apiStatus = new Map<string, { status: 'success' | 'failed', error?: string }>()
@@ -131,9 +165,35 @@ export function extractMetadata(script: string): Partial<UserApiInfo> {
 
 // 创建 lx.request 包装器（基于 Bun 原生 fetch）
 type CleanupRegistration = (cleanup: () => void) => () => void
+type PendingRequestRegistration = (abort: () => void) => () => void
+type SandboxCallbackInvoker = (handler: Function, args?: any[]) => unknown
 
-function createLxRequest(registerCleanup?: CleanupRegistration) {
+function createLxRequest(
+    registerCleanup?: CleanupRegistration,
+    registerPendingRequest?: PendingRequestRegistration,
+    invokeSandboxCallback?: SandboxCallbackInvoker,
+    isDisposed?: () => boolean,
+) {
     return (url: string, options: any, callback: Function) => {
+        if (typeof callback !== 'function') return () => { }
+        const dispatchCallback = (...args: any[]) => {
+            try {
+                const result = invokeSandboxCallback
+                    ? invokeSandboxCallback(callback, args.map(decontextify))
+                    : callback.call(null, ...args)
+                if (result && typeof (result as any).then === 'function') {
+                    void Promise.resolve(result).catch(error => {
+                        console.warn('[UserApi] request callback failed:', error?.message || error)
+                    })
+                }
+            } catch (error: any) {
+                console.warn('[UserApi] request callback failed:', error?.message || error)
+            }
+        }
+        if (isDisposed?.()) {
+            dispatchCallback(new Error('自定义源已卸载'), null, null)
+            return () => { }
+        }
         const safeOptions = decontextify(options || {})
         const { method = 'get', timeout, headers, body, form, formData } = safeOptions
 
@@ -170,11 +230,11 @@ function createLxRequest(registerCleanup?: CleanupRegistration) {
                     ? Buffer.byteLength(fetchBody, 'utf8')
                     : 0
             if (bodyBytes > 5 * 1024 * 1024) {
-                callback(new Error('Request body is too large'), null, null)
+                dispatchCallback(new Error('Request body is too large'), null, null)
                 return () => { }
             }
         } catch (error) {
-            callback(decontextify(error), null, null)
+            dispatchCallback(decontextify(error), null, null)
             return () => { }
         }
 
@@ -191,6 +251,7 @@ function createLxRequest(registerCleanup?: CleanupRegistration) {
         }
 
         const unregister = registerCleanup ? registerCleanup(abort) : () => { }
+        const unregisterPendingRequest = registerPendingRequest ? registerPendingRequest(abort) : () => { }
 
         const start = async () => {
             try {
@@ -202,53 +263,26 @@ function createLxRequest(registerCleanup?: CleanupRegistration) {
                 }, timeoutMs)
 
                 const normalizedMethod = String(method || 'get').toUpperCase()
-                const fetchOptions: RequestInit & { proxy?: string } = {
+                const config = global.lx?.config || {}
+                const proxy = config['proxy.all.enabled'] && config['proxy.all.address']
+                    ? String(config['proxy.all.address'])
+                    : undefined
+                const resp = await fetchSafeRemote(safeUrl, {
                     method: normalizedMethod,
                     headers: fetchHeaders,
                     body: ['GET', 'HEAD'].includes(normalizedMethod) ? undefined : fetchBody,
                     signal: controller.signal,
-                    redirect: 'manual',
-                }
-
-                const config = global.lx?.config || {}
-                if (config['proxy.all.enabled'] && config['proxy.all.address']) {
-                    fetchOptions.proxy = config['proxy.all.address']
-                }
-
-                const resp = await fetch(safeUrl.href, fetchOptions)
+                    timeoutMs,
+                    maxBytes: 5 * 1024 * 1024,
+                    proxy,
+                })
                 if (timer) clearTimeout(timer)
 
-                const maxBytes = 5 * 1024 * 1024
-                const declaredLength = Number(resp.headers.get('content-length') || 0)
-                if (declaredLength > maxBytes) {
-                    await resp.body?.cancel()
-                    throw new Error('Remote response is too large')
-                }
-
-                let rawBuffer: Buffer
-                if (resp.body) {
-                    const reader = resp.body.getReader()
-                    const chunks: Uint8Array[] = []
-                    let received = 0
-                    while (true) {
-                        const { done, value } = await reader.read()
-                        if (done) break
-                        if (value) {
-                            received += value.byteLength
-                            if (received > maxBytes) {
-                                await reader.cancel('Remote response is too large')
-                                throw new Error('Remote response is too large')
-                            }
-                            chunks.push(value)
-                        }
-                    }
-                    rawBuffer = Buffer.concat(chunks)
-                } else {
-                    rawBuffer = Buffer.alloc(0)
-                }
+                const rawBuffer = Buffer.from(await resp.arrayBuffer())
 
                 completed = true
                 unregister()
+                unregisterPendingRequest()
 
                 const responseText = rawBuffer.toString('utf8')
                 let parsedBody: any = responseText
@@ -269,12 +303,13 @@ function createLxRequest(registerCleanup?: CleanupRegistration) {
                     raw: rawBuffer,
                 }
 
-                callback.call(null, null, safeResp, safeResp.body)
+                dispatchCallback(null, safeResp, safeResp.body)
             } catch (error: any) {
                 if (timer) clearTimeout(timer)
                 completed = true
                 unregister()
-                callback.call(null, decontextify(error), null, null)
+                unregisterPendingRequest()
+                dispatchCallback(decontextify(error), null, null)
             }
         }
 
@@ -282,6 +317,7 @@ function createLxRequest(registerCleanup?: CleanupRegistration) {
 
         return () => {
             unregister()
+            unregisterPendingRequest()
             abort()
         }
     }
@@ -299,19 +335,55 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     const cleanupHandlers = new Set<() => void>()
     const timeoutHandles = new Set<ReturnType<typeof setTimeout>>()
     const intervalHandles = new Set<ReturnType<typeof setInterval>>()
+    const pendingRequestAborts = new Set<() => void>()
     let registeredSources: any = {}
     let disposed = false
+    let vmContext: vm.Context | null = null
+    let callbackScript: vm.Script | null = null
+    let sandbox: any = null
+
+    const invokeSandboxCallback = (handler: Function, args: any[] = []): unknown => {
+        if (!vmContext || !callbackScript || !sandbox) return undefined
+        sandbox.__lxCallbackHandler = handler
+        sandbox.__lxCallbackArgs = args
+        try {
+            return callbackScript.runInContext(vmContext, {
+                timeout: USER_API_SYNC_TIMEOUT_MS,
+                displayErrors: true,
+            })
+        } finally {
+            delete sandbox.__lxCallbackHandler
+            delete sandbox.__lxCallbackArgs
+        }
+    }
 
     const registerCleanup = (cleanup: () => void) => {
         cleanupHandlers.add(cleanup)
         return () => cleanupHandlers.delete(cleanup)
     }
+    const runTimerCallback = (handler: (...args: any[]) => void, args: any[]): void => {
+        try {
+            const result = invokeSandboxCallback(handler, args)
+            if (result && typeof (result as any).then === 'function') {
+                void Promise.resolve(result).catch(error => {
+                    console.warn(`[UserApi-${fullApiInfo.name}] timer callback failed:`, error?.message || error)
+                })
+            }
+        } catch (error: any) {
+            console.warn(`[UserApi-${fullApiInfo.name}] timer callback failed:`, error?.message || error)
+        }
+    }
     const trackedSetTimeout = (handler: (...args: any[]) => void, delay?: number, ...args: any[]) => {
+        if (disposed) throw new Error('自定义源已卸载')
+        if (timeoutHandles.size + intervalHandles.size >= MAX_USER_API_TIMERS) {
+            throw new Error('自定义源定时器数量超过限制')
+        }
         let timer: ReturnType<typeof setTimeout>
         timer = setTimeout(() => {
             timeoutHandles.delete(timer)
-            handler(...args)
-        }, delay)
+            runTimerCallback(handler, args)
+        }, normalizeUserApiTimerDelay(delay))
+        timer.unref?.()
         timeoutHandles.add(timer)
         return timer
     }
@@ -320,7 +392,12 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
         timeoutHandles.delete(timer)
     }
     const trackedSetInterval = (handler: (...args: any[]) => void, delay?: number, ...args: any[]) => {
-        const timer = setInterval(handler, delay, ...args)
+        if (disposed) throw new Error('自定义源已卸载')
+        if (timeoutHandles.size + intervalHandles.size >= MAX_USER_API_TIMERS) {
+            throw new Error('自定义源定时器数量超过限制')
+        }
+        const timer = setInterval(() => runTimerCallback(handler, args), Math.max(10, normalizeUserApiTimerDelay(delay, 10)))
+        timer.unref?.()
         intervalHandles.add(timer)
         return timer
     }
@@ -332,16 +409,33 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     const dispose = async () => {
         if (disposed) return
         disposed = true
+        // Stop background activity before invoking user-provided unload hooks;
+        // otherwise a stuck hook can keep timers and network requests alive.
+        for (const timer of timeoutHandles) clearTimeout(timer)
+        for (const timer of intervalHandles) clearInterval(timer)
+        for (const abort of pendingRequestAborts) {
+            try { abort() } catch { }
+        }
+        timeoutHandles.clear()
+        intervalHandles.clear()
+        pendingRequestAborts.clear()
         for (const handler of unloadHandlers) {
-            try { await handler() } catch (error: any) {
+            let unloadTimeout: ReturnType<typeof setTimeout> | null = null
+            try {
+                await Promise.race([
+                    Promise.resolve(invokeSandboxCallback(handler)),
+                    new Promise<never>((_, reject) => {
+                        unloadTimeout = setTimeout(() => reject(new Error('自定义源卸载处理超时')), USER_API_UNLOAD_TIMEOUT_MS)
+                        unloadTimeout.unref?.()
+                    }),
+                ])
+            } catch (error: any) {
                 console.warn(`[UserApi-${fullApiInfo.name}] unload handler failed:`, error?.message || error)
+            } finally {
+                if (unloadTimeout) clearTimeout(unloadTimeout)
             }
         }
         unloadHandlers.clear()
-        for (const timer of timeoutHandles) clearTimeout(timer)
-        for (const timer of intervalHandles) clearInterval(timer)
-        timeoutHandles.clear()
-        intervalHandles.clear()
         for (const cleanup of cleanupHandlers) {
             try { cleanup() } catch { }
         }
@@ -413,7 +507,10 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     const lxObject = {
         ...lxDataInside,
         utils: lxUtils,
-        request: createLxRequest(registerCleanup),
+        request: createLxRequest(registerCleanup, (abort) => {
+            pendingRequestAborts.add(abort)
+            return () => pendingRequestAborts.delete(abort)
+        }, invokeSandboxCallback, () => disposed),
         send: (eventName: string, data: any) => {
             const dData = decontextify(data)
             // console.log(`[UserApi-${fullApiInfo.name}] send:`, eventName)
@@ -429,17 +526,22 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
             }
         },
         on: (eventName: string, handler: Function) => {
+            if (disposed) throw new Error('自定义源已卸载')
             // console.log(`[UserApi-${fullApiInfo.name}] on:`, eventName)
             if (eventName === 'request') {
                 eventHandlers.set(eventName, handler)
             } else if (eventName === 'unload') {
+                if (typeof handler !== 'function') throw new Error('自定义源 unload 处理器格式无效')
+                if (!unloadHandlers.has(handler) && unloadHandlers.size >= MAX_USER_API_UNLOAD_HANDLERS) {
+                    throw new Error('自定义源 unload 处理器数量超过限制')
+                }
                 unloadHandlers.add(handler)
             }
         }
     }
 
     // 完整沙箱环境
-    const sandbox: any = {
+    sandbox = {
         console: {
             log: (...args: any[]) => console.log(`[CustomSource:${fullApiInfo.name}]`, ...args.map(decontextify)),
             info: (...args: any[]) => console.info(`[CustomSource:${fullApiInfo.name}]`, ...args.map(decontextify)),
@@ -475,14 +577,22 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     sandbox.globalThis = sandbox
 
     try {
-        const vmContext = vm.createContext(sandbox, {
+        vmContext = vm.createContext(sandbox, {
             name: `custom-source:${fullApiInfo.name}`,
             codeGeneration: { strings: false, wasm: false },
+        })
+        callbackScript = new vm.Script('__lxCallbackHandler(...__lxCallbackArgs)', {
+            filename: `${fullApiInfo.name || apiInfo.id || 'custom-source'}:callback`,
         })
         const script = new vm.Script(apiInfo.script, {
             filename: `${fullApiInfo.name || apiInfo.id || 'custom-source'}.js`,
         })
         await script.runInContext(vmContext, { timeout: 10000, displayErrors: true })
+        const requestScript = new vm.Script('__lxRequestHandler(__lxRequestInput)', {
+            filename: `${fullApiInfo.name || apiInfo.id || 'custom-source'}:request`,
+        })
+        const activeVmContext = vmContext
+        if (!activeVmContext) throw new Error('自定义源沙箱初始化失败')
 
         // 等待脚本调用 lx.send('inited')（最多等待 3 秒）
         let initTimeout: ReturnType<typeof setTimeout> | null = null
@@ -503,18 +613,61 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
             handlers: eventHandlers,
             dispose,
             callRequest: async (action: string, source: string, info: any) => {
+                let abortRequestsStartedByCall: (() => void) | undefined
                 try {
                     if (disposed) throw new Error(`源 ${fullApiInfo.name} 已卸载`)
                     const handler = eventHandlers.get('request')
                     if (!handler) throw new Error(`源 ${fullApiInfo.name} 未注册 request 处理器`)
 
+                    const requestsBeforeCall = new Set(pendingRequestAborts)
+                    abortRequestsStartedByCall = () => {
+                        for (const abort of pendingRequestAborts) {
+                            if (requestsBeforeCall.has(abort)) continue
+                            try { abort() } catch { }
+                        }
+                    }
+
                     // 始终将请求参数作为 JSON 数据重新构造，避免把宿主原型链传入脚本上下文。
                     const serializedInput = JSON.stringify({ action, source, info })
-                    const inputData = vm.runInContext(`JSON.parse(${JSON.stringify(serializedInput)})`, vmContext)
+                    const inputData = vm.runInContext(`JSON.parse(${JSON.stringify(serializedInput)})`, activeVmContext)
 
-                    const result = await handler(inputData)
-                    return decontextify(result)
+                    // Run the synchronous part inside vm's interruptible
+                    // execution path; direct host calls would allow an
+                    // uploaded source to block the entire Bun event loop.
+                    sandbox.__lxRequestHandler = handler
+                    sandbox.__lxRequestInput = inputData
+                    let handlerResult: unknown
+                    try {
+                        handlerResult = requestScript.runInContext(activeVmContext, {
+                            timeout: USER_API_SYNC_TIMEOUT_MS,
+                            displayErrors: true,
+                        })
+                    } finally {
+                        delete sandbox.__lxRequestHandler
+                        delete sandbox.__lxRequestInput
+                    }
+
+                    let requestTimeout: ReturnType<typeof setTimeout> | undefined
+                    try {
+                        const result = await Promise.race([
+                            Promise.resolve(handlerResult),
+                            new Promise<never>((_, reject) => {
+                                requestTimeout = setTimeout(() => {
+                                    abortRequestsStartedByCall?.()
+                                    reject(new Error('自定义源请求超时'))
+                                }, USER_API_REQUEST_TIMEOUT_MS)
+                                requestTimeout.unref?.()
+                            }),
+                        ])
+                        return decontextify(result)
+                    } finally {
+                        if (requestTimeout) clearTimeout(requestTimeout)
+                    }
                 } catch (e: any) {
+                    if (/Script execution timed out after 5000ms/.test(String(e?.message || ''))) {
+                        abortRequestsStartedByCall?.()
+                        throw new Error('自定义源同步处理超时')
+                    }
                     console.error(`[UserApi-${fullApiInfo.name}] callRequest Error:`, e.message)
                     throw e
                 }

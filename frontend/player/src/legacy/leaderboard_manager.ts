@@ -1,6 +1,6 @@
 // @ts-nocheck
 // This legacy-compatible module is compiled as an isolated browser bundle.
-import { safeImageUrl, safeInlineJson, safeInlineString } from '../player_security';
+import { escapeHtmlText, safeImageUrl, safeInlineJson, safeInlineString } from '../player_security';
 import { toUserMessage } from '../player_notifications';
 /**
  * Leaderboard Manager for 云音
@@ -88,7 +88,7 @@ window.LeaderboardManager = (function () {
             if (e?.name === 'AbortError' || requestSerial !== boardsRequestSerial) return;
             console.error('[Leaderboard] loadBoards failed:', e);
             document.getElementById('lb-boards-list').innerHTML =
-                `<div class="p-4 text-red-500 text-sm">加载失败: ${toUserMessage(e)}</div>`;
+                `<div class="p-4 text-red-500 text-sm">加载失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
         } finally {
             if (requestSerial === boardsRequestSerial) showBoardsLoading(false);
         }
@@ -167,7 +167,7 @@ window.LeaderboardManager = (function () {
         } catch (e) {
             if (e?.name === 'AbortError' || requestSerial !== songsRequestSerial) return;
             console.error('[Leaderboard] loadSongs failed:', e);
-            container.innerHTML = `<div class="text-center text-red-500 p-10">加载失败: ${toUserMessage(e)}</div>`;
+            container.innerHTML = `<div class="text-center text-red-500 p-10">加载失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
         } finally {
             if (requestSerial === songsRequestSerial) state.loading = false;
         }
@@ -183,15 +183,19 @@ window.LeaderboardManager = (function () {
             return;
         }
 
-        container.innerHTML = boards.map((board, i) => `
-            <div id="lb-board-${board.bangid}"
+        container.innerHTML = boards.map((board, i) => {
+            const boardId = escapeHtmlText(String(board.bangid ?? ''));
+            const boardName = escapeHtmlText(board.name || '未命名榜单');
+            return `
+            <div id="lb-board-${boardId}"
                 data-event-click-action="window.LeaderboardManager.selectBoard" data-event-click-args="[${safeInlineString(board.bangid)}, ${safeInlineString(board.name)}]"
                 class="lb-board-item player-motion-item flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 group ${state.currentBangid == board.bangid ? 'active-option' : 'hover:t-bg-panel t-text-muted'}" style="--player-motion-index: ${Math.min(i, 7)};">
                 <span class="text-xs font-mono w-5 text-center flex-shrink-0 ${i < 3 ? 'text-emerald-600 dark:text-emerald-500 font-bold' : 't-text-muted'}">${i + 1}</span>
-                <span class="text-sm font-medium truncate flex-1 ${state.currentBangid == board.bangid ? '' : 't-text-main group-hover:t-text-main'}">${board.name}</span>
+                <span class="text-sm font-medium truncate flex-1 ${state.currentBangid == board.bangid ? '' : 't-text-main group-hover:t-text-main'}">${boardName}</span>
                 <i class="fas fa-chevron-right text-[10px] t-text-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"></i>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     function renderSongs(songs, direction = '') {
@@ -250,11 +254,23 @@ window.LeaderboardManager = (function () {
             const rank = index + 1;
             const rankClass = rank <= 3 ? 'text-emerald-600 dark:text-emerald-500 font-black text-base' : 'text-gray-400 font-mono text-xs';
 
-            const imgUrl = safeImageUrl(window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg));
+            const songName = String(song.name || '未命名歌曲');
+            const singerName = String(song.singer || '--');
+            const albumName = String(song.albumName || '--');
+            const interval = String(song.interval || '--:--');
+            const safeSongName = escapeHtmlText(songName);
+            const safeSingerName = escapeHtmlText(singerName);
+            const safeAlbumName = escapeHtmlText(albumName);
+            const safeInterval = escapeHtmlText(interval);
+            const safeSongId = escapeHtmlText(String(song.id ?? ''));
+            const safeAriaLabel = escapeHtmlText(window.batchMode
+                ? `${selectionLabel} ${songName}`
+                : `播放 ${songName}`);
+            const imgUrl = escapeHtmlText(safeImageUrl(window.getImgUrl ? window.getImgUrl(song) : (song.img || song.albumImg)));
 
             return `
-            <div id="lb-row-${index}" role="button" tabindex="0" aria-label="${window.batchMode ? `${selectionLabel} ${song.name || '未命名歌曲'}` : `播放 ${song.name || '未命名歌曲'}`}" ${selectionAttributes}
-                 data-selection-state="${isSelected ? 'selected' : 'unselected'}" class="${rowClass}" style="--player-motion-index: ${Math.min(pageIndex, 7)};" data-song-id="${String(song.id)}"
+            <div id="lb-row-${index}" role="button" tabindex="0" aria-label="${safeAriaLabel}" ${selectionAttributes}
+                 data-selection-state="${isSelected ? 'selected' : 'unselected'}" class="${rowClass}" style="--player-motion-index: ${Math.min(pageIndex, 7)};" data-song-id="${safeSongId}"
                  data-event-click-action="window.LeaderboardManager.handleRowClick" data-event-click-args="[${index}]"
                  data-event-keydown-action="window.LeaderboardManager.handleRowClick" data-event-keydown-args="[${index}]" data-event-keys="Enter, " data-event-target-self="true" data-event-prevent="true">
                 <!-- 序号 -->
@@ -264,7 +280,7 @@ window.LeaderboardManager = (function () {
                 <!-- 封面 + 歌名 -->
                 <div class="player-track-title flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 md:w-12 md:h-12 flex-shrink-0 relative rounded-lg overflow-hidden shadow-sm border t-border-main group-hover:shadow-md transition-all group-hover:scale-105 duration-300">
-                        <img data-src="${imgUrl}" src="/music/assets/yun-yin.png" alt="${song.name || '歌曲'}专辑封面" width="48" height="48" loading="lazy" decoding="async"
+                        <img data-src="${imgUrl}" src="/music/assets/yun-yin.png" alt="${safeSongName || '歌曲'}专辑封面" width="48" height="48" loading="lazy" decoding="async"
                              class="lazy-image w-full h-full object-cover dynamic-logo is-placeholder"
                              data-event-error-action="fallback-image">
                         <div class="absolute inset-0 bg-black/20 hidden group-hover:flex items-center justify-center transition-all">
@@ -273,28 +289,28 @@ window.LeaderboardManager = (function () {
                     </div>
                     <div class="min-w-0 flex-1 flex flex-col justify-center overflow-hidden">
                         <div class="font-bold text-sm t-text-main group-hover:text-emerald-500 transition-colors">
-                            ${window.createMarqueeHtml ? window.createMarqueeHtml(song.name) : `<span class="truncate">${song.name}</span>`}
+                            ${window.createMarqueeHtml ? window.createMarqueeHtml(songName) : `<span class="truncate">${safeSongName}</span>`}
                         </div>
                         <div class="flex items-center gap-1 mt-0.5 overflow-hidden">
                             ${window.getSourceTag ? window.getSourceTag(song.source || state.source) : ''}
                             ${window.getQualityTags ? window.getQualityTags(song) : ''}
                             <div class="player-track-compact-meta flex-1 min-w-0">
-                                ${window.createMarqueeHtml ? window.createMarqueeHtml(song.singer, 'text-[10px] t-text-muted') : `<span class="text-[10px] t-text-muted truncate">${song.singer}</span>`}
+                                ${window.createMarqueeHtml ? window.createMarqueeHtml(singerName, 'text-[10px] t-text-muted') : `<span class="text-[10px] t-text-muted truncate">${safeSingerName}</span>`}
                             </div>
                         </div>
                     </div>
                 </div>
                 <!-- 歌手 -->
                 <div class="player-track-artist items-center text-xs t-text-muted overflow-hidden">
-                    ${window.createMarqueeHtml ? window.createMarqueeHtml(song.singer) : `<span class="truncate">${song.singer || '--'}</span>`}
+                    ${window.createMarqueeHtml ? window.createMarqueeHtml(singerName) : `<span class="truncate">${safeSingerName}</span>`}
                 </div>
                 <!-- 专辑 -->
                 <div class="player-track-album items-center text-xs t-text-muted truncate">
-                    ${song.albumName || '--'}
+                    ${safeAlbumName}
                 </div>
                 <!-- 时长 -->
                 <div class="player-track-duration items-center justify-end text-xs font-mono t-text-muted">
-                    ${song.interval || '--:--'}
+                    ${safeInterval}
                 </div>
                 <!-- 操作 -->
                 <div class="player-track-actions flex items-center justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">

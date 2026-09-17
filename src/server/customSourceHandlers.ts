@@ -5,11 +5,13 @@ import type { HttpContext } from './core'
 import { verifyAdminAuth } from './auth'
 import { verifyUserAuth } from './routes/auth'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
-import { assertSafeRemoteHttpUrl } from './networkSecurity'
+import { assertSafeRemoteHttpUrl, fetchSafeRemote } from './networkSecurity'
 
 // 读取请求体
 async function readBody(ctx: HttpContext): Promise<string> {
-    return ctx.bodyText()
+    // Custom-source payloads contain scripts and metadata only. Keep the
+    // request envelope bounded as well as the script field itself.
+    return ctx.bodyText(6 * 1024 * 1024)
 }
 
 const getRequestedOwner = (ctx: HttpContext, requested?: string): string => {
@@ -279,14 +281,22 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
             if (depth > 5) throw new Error('Too many redirects')
             const safeUrl = await assertSafeRemoteHttpUrl(targetUrl)
 
-            const response = await fetch(safeUrl.href, {
-                method: 'GET',
-                redirect: 'manual',
-                signal: AbortSignal.timeout(10000),
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                },
-            })
+            let response: Response
+            try {
+                response = await fetchSafeRemote(safeUrl, {
+                    method: 'GET',
+                    timeoutMs: 10000,
+                    maxBytes: 5 * 1024 * 1024,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    },
+                })
+            } catch (error) {
+                if (error instanceof Error && error.message === 'Remote response is too large') {
+                    throw new Error('Remote script is too large')
+                }
+                throw error
+            }
 
             // 手动处理重定向，确保逐跳经过 assertSafeRemoteHttpUrl 校验防止 SSRF 绕过
             if (response.status >= 300 && response.status < 400) {
@@ -301,38 +311,9 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
                 throw new Error(`Failed to download: status code ${response.status}`)
             }
 
-            const maxBytes = 5 * 1024 * 1024
-            const declaredLength = Number(response.headers.get('content-length') || 0)
-            if (declaredLength > maxBytes) {
-                throw new Error('Remote script is too large')
-            }
-
-            // 使用 Web Streams 流式读取并限制最大尺寸，超限立即 cancel 中止底层连接
-            const reader = response.body?.getReader()
-            if (!reader) {
-                const text = await response.text()
-                if (Buffer.byteLength(text, 'utf8') > maxBytes) {
-                    throw new Error('Remote script is too large')
-                }
-                return text
-            }
-
-            const chunks: Uint8Array[] = []
-            let totalBytes = 0
-            while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-                if (value) {
-                    totalBytes += value.byteLength
-                    if (totalBytes > maxBytes) {
-                        await reader.cancel('Remote script is too large')
-                        throw new Error('Remote script is too large')
-                    }
-                    chunks.push(value)
-                }
-            }
-
-            return Buffer.concat(chunks).toString('utf-8')
+            const content = await response.text()
+            if (!content) throw new Error('Empty response')
+            return content
         }
 
         const content = await download(url)
@@ -519,6 +500,9 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
         const { id, sourceId, enabled, username } = JSON.parse(body)
         const targetId = id || sourceId
         assertSafePathSegment(targetId, 'source id')
+        if (enabled !== undefined && typeof enabled !== 'boolean') {
+            throw new Error('enabled must be a boolean')
+        }
 
         let targetOwner = getRequestedOwner(ctx, username)
 
@@ -611,6 +595,7 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
         if (!Array.isArray(sourceIds) || sourceIds.length > 500 || sourceIds.some(id => typeof id !== 'string' || id.length > 128)) {
             throw new Error('sourceIds must be an array')
         }
+        for (const id of sourceIds) assertSafePathSegment(id, 'source id')
 
         let targetOwner = getRequestedOwner(ctx, username)
 

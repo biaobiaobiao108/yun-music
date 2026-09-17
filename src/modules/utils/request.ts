@@ -17,6 +17,8 @@ export interface HttpOptions extends Record<string, any> {
   formData?: any
   format?: string
   timeout?: number
+  /** Maximum response size retained in memory for one upstream API call. */
+  maxBytes?: number
   json?: boolean
   jsonpCallback?: string
 }
@@ -109,11 +111,58 @@ const createResponse = (statusCode: number, statusMessage: string, headers: Reco
   body: parseBody(raw),
 })
 
+const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
+const MAX_ALLOWED_RESPONSE_BYTES = 50 * 1024 * 1024
+
+const normalizeMaxResponseBytes = (value: unknown): number => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(Math.floor(parsed), MAX_ALLOWED_RESPONSE_BYTES)
+    : DEFAULT_MAX_RESPONSE_BYTES
+}
+
+const normalizeTimeout = (value: unknown): number => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(Math.floor(parsed), 5 * 60 * 1000)
+    : 15_000
+}
+
+const readResponseBody = async (response: Response, maxBytes: number): Promise<Buffer> => {
+  const declaredLength = Number(response.headers.get('content-length') || 0)
+  if (declaredLength > maxBytes) {
+    await response.body?.cancel()
+    throw new Error('Remote response is too large')
+  }
+  if (!response.body) return Buffer.alloc(0)
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      received += value.byteLength
+      if (received > maxBytes) {
+        await reader.cancel('Remote response is too large')
+        throw new Error('Remote response is too large')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk)))
+}
+
 const requestThroughSocks = async (
   url: string,
   options: RequestInit,
   proxyAddress: string,
   controller: AbortController,
+  maxBytes: number,
 ): Promise<FetchResponse> => {
   const { SocksProxyAgent } = await import('socks-proxy-agent')
   const target = new URL(url)
@@ -122,31 +171,61 @@ const requestThroughSocks = async (
   const headers: Record<string, string> = {}
   new Headers(options.headers).forEach((value, key) => { headers[key] = value })
 
-  return await new Promise((resolve, reject) => {
+  return await new Promise<FetchResponse>((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      controller.signal.removeEventListener('abort', abort)
+      callback()
+    }
+    const fail = (error: unknown) => finish(() => reject(error))
     const request = requestModule.request({
       protocol: target.protocol,
-      hostname: target.hostname,
+      hostname: target.hostname.replace(/^\[|\]$/g, ''),
       port: target.port || undefined,
       path: `${target.pathname}${target.search}`,
       method: options.method,
       headers,
       agent,
     }, response => {
+      const declaredLength = Number(response.headers['content-length'] || 0)
+      if (declaredLength > maxBytes) {
+        response.resume()
+        request.destroy()
+        fail(new Error('Remote response is too large'))
+        return
+      }
       const chunks: Buffer[] = []
-      response.on('data', chunk => chunks.push(Buffer.from(chunk)))
-      response.on('end', () => resolve(createResponse(
-        response.statusCode || 0,
-        response.statusMessage || '',
-        Object.fromEntries(Object.entries(response.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value ?? '')])),
-        Buffer.concat(chunks),
-      )))
-      response.on('error', reject)
+      let received = 0
+      response.on('data', chunk => {
+        const buffer = Buffer.from(chunk)
+        received += buffer.byteLength
+        if (received > maxBytes) {
+          response.destroy()
+          request.destroy()
+          fail(new Error('Remote response is too large'))
+          return
+        }
+        chunks.push(buffer)
+      })
+      response.on('end', () => finish(() => resolve(createResponse(
+          response.statusCode || 0,
+          response.statusMessage || '',
+          Object.fromEntries(Object.entries(response.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value ?? '')])),
+          Buffer.concat(chunks),
+        ))))
+      response.on('aborted', () => fail(new Error('Remote response aborted')))
+      response.on('error', fail)
     })
 
-    const abort = () => request.destroy(new Error(requestMsg.cancelRequest))
+    const abort = () => {
+      request.destroy(new Error(requestMsg.cancelRequest))
+      fail(new Error(requestMsg.cancelRequest))
+    }
     if (controller.signal.aborted) abort()
     else controller.signal.addEventListener('abort', abort, { once: true })
-    request.on('error', reject)
+    request.on('error', fail)
 
     if (options.body != null) {
       const body = options.body instanceof URLSearchParams
@@ -164,10 +243,11 @@ const fetchResponse = async (
   url: string,
   options: RequestInit,
   controller: AbortController,
+  maxBytes: number,
 ): Promise<FetchResponse> => {
   const proxy = parseProxy(getConfiguredProxy(url))
   if (proxy && proxy.protocol.startsWith('socks')) {
-    return requestThroughSocks(url, options, proxy.href, controller)
+    return requestThroughSocks(url, options, proxy.href, controller, maxBytes)
   }
 
   const fetchOptions: RequestInit & { proxy?: string } = { ...options }
@@ -175,12 +255,7 @@ const fetchResponse = async (
     fetchOptions.proxy = proxy.href
   }
   const response = await fetch(url, fetchOptions)
-  return createResponse(
-    response.status,
-    response.statusText,
-    collectHeaders(response.headers),
-    Buffer.from(await response.arrayBuffer()),
-  )
+  return createResponse(response.status, response.statusText, collectHeaders(response.headers), await readResponseBody(response, maxBytes))
 }
 
 const buildBody = (options: HttpOptions, headers: Record<string, string>): BodyInit | undefined => {
@@ -205,7 +280,7 @@ const buildBody = (options: HttpOptions, headers: Record<string, string>): BodyI
 const fetchData = async (
   url: string,
   method: string,
-  { headers = {}, timeout = 15000, ...options }: HttpOptions,
+  { headers = {}, timeout = 15000, maxBytes, ...options }: HttpOptions,
   callback: (err: any, resp: FetchResponse | null, body: any) => void,
   controller = new AbortController(),
 ): Promise<FetchResponse> => {
@@ -226,20 +301,25 @@ const fetchData = async (
 
   const normalizedMethod = String(method || 'get').toUpperCase()
   const body = ['GET', 'HEAD'].includes(normalizedMethod) ? undefined : buildBody(options, requestHeaders)
+  const responseLimit = normalizeMaxResponseBytes(maxBytes)
+  const timeoutMs = normalizeTimeout(timeout)
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+  let callbackStarted = false
   try {
-    timeoutHandle = setTimeout(() => controller.abort(), Math.max(1, timeout))
+    timeoutHandle = setTimeout(() => controller.abort(), timeoutMs)
+    timeoutHandle.unref?.()
     const response = await fetchResponse(url, {
       method: normalizedMethod,
       headers: requestHeaders,
       body,
       signal: controller.signal,
       redirect: 'follow',
-    }, controller)
+    }, controller, responseLimit)
+    callbackStarted = true
     callback(null, response, response.body)
     return response
   } catch (error) {
-    callback(error, null, null)
+    if (!callbackStarted) callback(error, null, null)
     throw error
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle)
@@ -267,7 +347,10 @@ const buildHttpPromise = <T = any>(url: string, options: HttpOptions): HttpPromi
     if (debugRequest) console.log(`\n---send request------${url}------------`)
     void fetchData(url, options.method || 'get', options, (err, _resp, body) => {
       if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
-      if (err) return
+      if (err) {
+        reject(err)
+        return
+      }
       resolve(_resp as T)
     }, controller).catch(() => undefined).finally(() => {
       obj.requestObj = null

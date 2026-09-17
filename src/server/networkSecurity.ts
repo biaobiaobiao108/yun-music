@@ -1,4 +1,6 @@
 import dns from 'node:dns/promises'
+import http from 'node:http'
+import https from 'node:https'
 import { isIP, type LookupFunction } from 'node:net'
 
 const ipv4ToNumber = (value: string): number | null => {
@@ -76,6 +78,252 @@ const isBlockedHostname = (hostname: string): boolean => {
 
 export type SafeRemoteHttpUrl = URL & { lookup: LookupFunction }
 
+export interface SafeRemoteFetchOptions extends Omit<RequestInit, 'redirect'> {
+  /** Bun 原生 fetch 的代理扩展；配置代理时由调用方显式传入。 */
+  proxy?: string
+  /** 限制响应体大小，避免远端响应造成内存放大。 */
+  maxBytes?: number
+  /** 仅在调用方没有提供 signal 时生效。 */
+  timeoutMs?: number
+}
+
+const DEFAULT_REMOTE_RESPONSE_BYTES = 10 * 1024 * 1024
+const MAX_REMOTE_RESPONSE_BYTES = 50 * 1024 * 1024
+const REMOTE_DNS_TIMEOUT_MS = 5_000
+
+const normalizeRemoteResponseLimit = (value: unknown): number => {
+  try {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_REMOTE_RESPONSE_BYTES
+    return Math.min(Math.floor(parsed), MAX_REMOTE_RESPONSE_BYTES)
+  } catch {
+    return DEFAULT_REMOTE_RESPONSE_BYTES
+  }
+}
+
+const normalizeRemoteTimeout = (value: unknown): number => {
+  try {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 15_000
+    return Math.min(Math.floor(parsed), 5 * 60 * 1000)
+  } catch {
+    return 15_000
+  }
+}
+
+type ResolvedRemoteAddress = { address: string; family: number }
+
+const lookupRemoteAddresses = async (hostname: string): Promise<ResolvedRemoteAddress[]> => {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      dns.lookup(hostname, { all: true, verbatim: true }),
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error('Remote DNS lookup timed out')), REMOTE_DNS_TIMEOUT_MS)
+        timeoutHandle.unref?.()
+      }),
+    ])
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle)
+  }
+}
+
+const responseHeaderEntries = (headers: http.IncomingHttpHeaders): Headers => {
+  const result = new Headers()
+  for (const [name, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) result.append(name, item)
+    } else if (value !== undefined) {
+      result.set(name, String(value))
+    }
+  }
+  return result
+}
+
+const bodyToBuffer = async (body: BodyInit | null | undefined): Promise<Buffer | undefined> => {
+  if (body == null) return undefined
+  if (typeof body === 'string') return Buffer.from(body)
+  if (body instanceof Uint8Array) return Buffer.from(body)
+  if (body instanceof ArrayBuffer) return Buffer.from(new Uint8Array(body))
+  if (body instanceof URLSearchParams) return Buffer.from(body.toString())
+  if (body instanceof Blob) return Buffer.from(await body.arrayBuffer())
+  throw new Error('Unsupported remote request body')
+}
+
+const responseBody = (body: Uint8Array): BodyInit => body as unknown as BodyInit
+
+const readResponseBody = async (response: Response, maxBytes: number): Promise<Buffer> => {
+  const declaredLength = Number(response.headers.get('content-length') || 0)
+  if (declaredLength > maxBytes) {
+    await response.body?.cancel()
+    throw new Error('Remote response is too large')
+  }
+
+  if (!response.body) return Buffer.alloc(0)
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      received += value.byteLength
+      if (received > maxBytes) {
+        await reader.cancel('Remote response is too large')
+        throw new Error('Remote response is too large')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk)))
+}
+
+const fetchViaBunProxy = async (
+  safeUrl: SafeRemoteHttpUrl,
+  options: SafeRemoteFetchOptions,
+): Promise<Response> => {
+  const { proxy, signal: inputSignal, ...requestInit } = options
+  const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
+  const timeoutMs = normalizeRemoteTimeout(options.timeoutMs)
+  const signal = inputSignal || AbortSignal.timeout(timeoutMs)
+  const response = await fetch(safeUrl.href, {
+    ...requestInit,
+    signal,
+    redirect: 'manual',
+    proxy,
+  } as RequestInit & { proxy: string })
+  const body = await readResponseBody(response, maxBytes)
+  const headers = new Headers(response.headers)
+  headers.delete('content-length')
+  return new Response(responseBody(body), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
+/**
+ * 使用已验证的 DNS 地址发起远程请求。
+ *
+ * Bun fetch 目前没有 Node `lookup` 等价的连接级钉扎参数，因此直连请求
+ * 使用 node:http(s)；只有显式配置了 Bun 代理时才交给 Bun fetch，由代理
+ * 负责解析原始主机名。所有响应都经过统一的字节上限处理。
+ */
+export const fetchSafeRemote = async (
+  safeUrl: SafeRemoteHttpUrl,
+  options: SafeRemoteFetchOptions = {},
+): Promise<Response> => {
+  if (options.proxy) return fetchViaBunProxy(safeUrl, options)
+
+  const {
+    method = 'GET',
+    headers: inputHeaders,
+    body: inputBody,
+    signal,
+  } = options
+  const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
+  const timeoutMs = normalizeRemoteTimeout(options.timeoutMs)
+  const normalizedMethod = String(method).toUpperCase()
+  const requestHostname = safeUrl.hostname.replace(/^\[|\]$/g, '')
+  const formDataRequest = !['GET', 'HEAD'].includes(normalizedMethod)
+    && typeof FormData !== 'undefined' && inputBody instanceof FormData
+    ? new Request('http://remote.invalid/', { method: normalizedMethod, body: inputBody })
+    : null
+  const body = ['GET', 'HEAD'].includes(normalizedMethod)
+    ? undefined
+    : formDataRequest
+      ? Buffer.from(await formDataRequest.arrayBuffer())
+      : await bodyToBuffer(inputBody)
+  const requestHeaders = new Headers(inputHeaders)
+  if (body && formDataRequest && !requestHeaders.has('content-type')) {
+    const contentType = formDataRequest.headers.get('content-type')
+    if (contentType) requestHeaders.set('content-type', contentType)
+  }
+  if (body && !requestHeaders.has('content-length')) requestHeaders.set('content-length', String(body.byteLength))
+
+  const requestModule = safeUrl.protocol === 'https:' ? https : http
+  return await new Promise<Response>((resolve, reject) => {
+    let settled = false
+    let response: http.IncomingMessage | null = null
+
+    const finish = (callback: () => void): void => {
+      if (settled) return
+      settled = true
+      if (signal) signal.removeEventListener('abort', onAbort)
+      callback()
+    }
+
+    const fail = (error: unknown): void => {
+      finish(() => reject(error instanceof Error ? error : new Error(String(error))))
+    }
+
+    const onAbort = (): void => {
+      request?.destroy(new Error('Remote request aborted'))
+      response?.destroy()
+      fail(new Error('Remote request aborted'))
+    }
+
+    const request = requestModule.request({
+      protocol: safeUrl.protocol,
+      hostname: requestHostname,
+      port: safeUrl.port || undefined,
+      path: `${safeUrl.pathname}${safeUrl.search}`,
+      method: normalizedMethod,
+      headers: Object.fromEntries(requestHeaders.entries()),
+      lookup: safeUrl.lookup,
+      agent: false,
+    }, (incomingResponse) => {
+      response = incomingResponse
+      const declaredLength = Number(incomingResponse.headers['content-length'] || 0)
+      if (declaredLength > maxBytes) {
+        incomingResponse.resume()
+        fail(new Error('Remote response is too large'))
+        request.destroy()
+        return
+      }
+
+      const chunks: Buffer[] = []
+      let received = 0
+      incomingResponse.on('data', (chunk: Buffer | Uint8Array | string) => {
+        const buffer = Buffer.from(chunk)
+        received += buffer.byteLength
+        if (received > maxBytes) {
+          incomingResponse.destroy()
+          fail(new Error('Remote response is too large'))
+          return
+        }
+        chunks.push(buffer)
+      })
+      incomingResponse.on('aborted', () => fail(new Error('Remote response aborted')))
+      incomingResponse.on('error', fail)
+      incomingResponse.on('end', () => {
+        const bodyBuffer = Buffer.concat(chunks)
+        const headers = responseHeaderEntries(incomingResponse.headers)
+        headers.delete('content-length')
+        finish(() => resolve(new Response(responseBody(bodyBuffer), {
+          status: incomingResponse.statusCode || 0,
+          statusText: incomingResponse.statusMessage || '',
+          headers,
+        })))
+      })
+    })
+
+    request.on('error', fail)
+    request.setTimeout(Math.max(1, timeoutMs), () => {
+      request.destroy(new Error('Remote request timed out'))
+      fail(new Error('Remote request timed out'))
+    })
+    if (signal) {
+      if (signal.aborted) onAbort()
+      else signal.addEventListener('abort', onAbort, { once: true })
+    }
+    request.end(body)
+  })
+}
+
 /** Validate once and pin the connection to these addresses, keeping Host/TLS hostname intact. */
 export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemoteHttpUrl> => {
   if (typeof rawUrl !== 'string' || rawUrl.length === 0 || rawUrl.length > 2048) {
@@ -94,7 +342,7 @@ export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemot
 
   const hostname = url.hostname.replace(/^\[|\]$/g, '')
   const hostnameIsIpLiteral = isIP(hostname) !== 0
-  const addresses = await dns.lookup(hostname, { all: true, verbatim: true })
+  const addresses = await lookupRemoteAddresses(hostname)
   const hasPrivateAddress = addresses.some(address => isPrivateAddress(address.address))
   const onlySyntheticAddresses = !hostnameIsIpLiteral
     && addresses.length > 0

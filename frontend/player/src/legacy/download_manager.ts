@@ -1219,7 +1219,7 @@ export class DownloadManager {
                     (window.settings?.embedLyricToFile !== false) ? 'lyric=1' : ''
                 ].filter(Boolean).join('&');
 
-                finalUrl = `/api/music/download?url=${encodeURIComponent(finalUrl)}&filename=${encodeURIComponent(filename)}&taskId=${task.id}&${metadataParams}`;
+                finalUrl = `/api/music/download?url=${encodeURIComponent(finalUrl)}&filename=${encodeURIComponent(filename)}&taskId=${encodeURIComponent(String(task.id || ''))}&${metadataParams}`;
                 console.log('[DownloadManager] Download with metadata proxy:', finalUrl);
             } else {
                 console.log('[DownloadManager] Simple download:', finalUrl);
@@ -1773,6 +1773,7 @@ export class DownloadManager {
     // Render a single task row item to HTML
     renderTaskHtml(task) {
         const coverSrc = this.getSongCover(task.song);
+        const safeTaskId = this.escapeHtml(String(task.id || ''));
         const sourceName = {
             'wy': '网易', 'tx': 'QQ'
         }[task.song.source] || task.song.source;
@@ -1803,7 +1804,7 @@ export class DownloadManager {
 
             if (!isServerTask && !task.nativeDownloadDispatched) {
                 actionBtnHTML = `
-                    <button data-download-action="pause" data-task-id="${task.id}" class="w-8 h-8 rounded-full border border-yellow-200 text-yellow-500 hover:bg-yellow-50 flex items-center justify-center transition-colors shadow-sm" title="暂停">
+                    <button data-download-action="pause" data-task-id="${safeTaskId}" class="w-8 h-8 rounded-full border border-yellow-200 text-yellow-500 hover:bg-yellow-50 flex items-center justify-center transition-colors shadow-sm" title="暂停">
                         <i class="fas fa-pause text-xs"></i>
                     </button>
                 `;
@@ -1816,7 +1817,7 @@ export class DownloadManager {
             statusBg = 'bg-yellow-100 text-yellow-600';
             statusText = '已暂停';
             actionBtnHTML = `
-                <button data-download-action="resume" data-task-id="${task.id}" class="w-8 h-8 rounded-full border border-emerald-200 text-emerald-500 hover:bg-emerald-50 flex items-center justify-center transition-colors shadow-sm" title="继续">
+                <button data-download-action="resume" data-task-id="${safeTaskId}" class="w-8 h-8 rounded-full border border-emerald-200 text-emerald-500 hover:bg-emerald-50 flex items-center justify-center transition-colors shadow-sm" title="继续">
                     <i class="fas fa-play text-xs"></i>
                 </button>
             `;
@@ -1824,7 +1825,7 @@ export class DownloadManager {
             statusBg = 'bg-red-100 text-red-600';
             statusText = task.retryCount > 0 && task.retryCount < task.maxRetries ? `重试 (${task.retryCount})` : '失败';
             actionBtnHTML = `
-                <button data-download-action="resume" data-task-id="${task.id}" class="w-8 h-8 rounded-full border border-red-200 text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors shadow-sm" title="重试">
+                <button data-download-action="resume" data-task-id="${safeTaskId}" class="w-8 h-8 rounded-full border border-red-200 text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors shadow-sm" title="重试">
                     <i class="fas fa-redo text-xs"></i>
                 </button>
             `;
@@ -1836,7 +1837,7 @@ export class DownloadManager {
             statusText = isServerTask ? '云端排队' : '等待中';
             if (!isServerTask) {
                 actionBtnHTML = `
-                    <button data-download-action="pause" data-task-id="${task.id}" class="w-8 h-8 rounded-full border border-yellow-200 text-yellow-500 hover:bg-yellow-50 flex items-center justify-center transition-colors shadow-sm" title="暂停">
+                    <button data-download-action="pause" data-task-id="${safeTaskId}" class="w-8 h-8 rounded-full border border-yellow-200 text-yellow-500 hover:bg-yellow-50 flex items-center justify-center transition-colors shadow-sm" title="暂停">
                         <i class="fas fa-pause text-xs"></i>
                     </button>
                 `;
@@ -1846,20 +1847,20 @@ export class DownloadManager {
         // Always show delete button mostly
         if (task.status !== 'downloading' || isServerTask) {
             actionBtnHTML += `
-                <button data-download-action="delete" data-task-id="${task.id}" class="w-8 h-8 rounded-full border border-red-100 text-red-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors ml-1 shadow-sm" title="移除任务">
+                <button data-download-action="delete" data-task-id="${safeTaskId}" class="w-8 h-8 rounded-full border border-red-100 text-red-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors ml-1 shadow-sm" title="移除任务">
                     <i class="fas fa-trash-alt text-xs"></i>
                 </button>
             `;
         } else {
             actionBtnHTML += `
-                <button data-download-action="delete" data-task-id="${task.id}" class="w-8 h-8 rounded-full border border-red-100 text-red-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors ml-1 shadow-sm" title="取消下载">
+                <button data-download-action="delete" data-task-id="${safeTaskId}" class="w-8 h-8 rounded-full border border-red-100 text-red-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors ml-1 shadow-sm" title="取消下载">
                     <i class="fas fa-times text-xs"></i>
                 </button>
             `;
         }
 
         return `
-            <div id="dl-task-${task.id}" class="relative p-3 rounded-xl t-bg-panel hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors border border-transparent hover:t-border-main group flex gap-3 overflow-hidden shadow-sm mb-2">
+            <div id="dl-task-${safeTaskId}" class="relative p-3 rounded-xl t-bg-panel hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors border border-transparent hover:t-border-main group flex gap-3 overflow-hidden shadow-sm mb-2">
                 <!-- Progress Bar Background -->
                 ${task.status !== 'waiting' && task.status !== 'error' ? `
                 <div class="absolute bottom-0 left-0 h-1.5 ${isServerTask ? 'bg-orange-400' : 'bg-emerald-400'} transition-all duration-300 opacity-60" style="width: ${progressWidth}%"></div>
@@ -1896,7 +1897,7 @@ export class DownloadManager {
                                 ${task.hasLyric === true ? `
                                     <span class="text-[9px] bg-emerald-500 text-white px-1 rounded h-3.5 flex items-center shadow-sm" title="歌词已同步">LRC</span>
                                 ` : task.hasLyric === false ? `
-                                    <div data-download-action="retry-lyric" data-task-id="${task.id}" class="text-[9px] bg-red-400 hover:bg-red-500 text-white px-1 rounded h-3.5 flex items-center gap-0.5 cursor-pointer shadow-sm transition-colors" title="歌词缺失，点击重试">
+                                    <div data-download-action="retry-lyric" data-task-id="${safeTaskId}" class="text-[9px] bg-red-400 hover:bg-red-500 text-white px-1 rounded h-3.5 flex items-center gap-0.5 cursor-pointer shadow-sm transition-colors" title="歌词缺失，点击重试">
                                         <span>LRC+</span>
                                         <i class="fas fa-redo-alt text-[7px]"></i>
                                     </div>

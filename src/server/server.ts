@@ -16,6 +16,9 @@ const startHttp = async (port = 9527, bindIp = '127.0.0.1'): Promise<void> => {
     port,
     hostname: bindIp,
     maxRequestBodySize: 1024 * 1024 * 100, // 100MB 支持大文件与源文件上传
+    // SSE progress channels send a heartbeat every 15 seconds; keep the
+    // connection alive beyond Bun's 10-second default idle timeout.
+    idleTimeout: 60,
     async fetch(req, server) {
       const remoteAddress = server.requestIP(req)?.address || '127.0.0.1'
       const webRes = await rootRouter.handle(req, { remoteAddress })

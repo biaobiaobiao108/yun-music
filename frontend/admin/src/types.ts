@@ -125,6 +125,8 @@ export interface AdminApp {
     handleSnapshotUpload: AdminMethod;
     deleteSnapshot: AdminMethod;
     downloadSnapshot: AdminMethod;
+    downloadLocalBackup: AdminMethod;
+    triggerLocalRestore: AdminMethod;
     handleLocalRestore: AdminMethod;
     restoreSnapshot: AdminMethod;
     restartServer: AdminMethod;

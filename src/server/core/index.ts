@@ -82,6 +82,7 @@ export const accessLogMiddleware: Middleware = async (ctx, next) => {
 /** 值得压缩的响应类型（文本类） */
 const COMPRESSIBLE_TYPE = /^(?:text\/|application\/(?:json|javascript|xml|xhtml\+xml|manifest\+json)|image\/svg\+xml)/i
 const COMPRESS_MIN_BYTES = 1024
+const COMPRESS_MAX_BUFFER_BYTES = 32 * 1024 * 1024
 /** 已压缩结果缓存上限：key 为 ETag + 编码，用于避免重复压缩同一静态资源 */
 const COMPRESS_CACHE_MAX_ENTRIES = 32
 const COMPRESS_CACHE_MAX_BYTES = 32 * 1024 * 1024
@@ -134,6 +135,7 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
 
   const contentType = response.headers.get('content-type') || ''
   if (!COMPRESSIBLE_TYPE.test(contentType)) return response
+  if (!response.body || typeof CompressionStream !== 'function') return response
 
   const etag = response.headers.get('etag')
   const cacheKey = etag ? `${etag}|gzip` : ''
@@ -146,6 +148,28 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
       withVary(headers, 'Accept-Encoding')
       return new Response(asBody(cached), { status: response.status, statusText: response.statusText, headers })
     }
+  }
+
+  const declaredLengthText = response.headers.get('content-length')
+  const declaredLength = declaredLengthText === null ? null : Number(declaredLengthText)
+  const canBuffer = declaredLength !== null
+    && Number.isInteger(declaredLength)
+    && declaredLength >= 0
+    && declaredLength <= COMPRESS_MAX_BUFFER_BYTES
+
+  // Responses without a trustworthy bounded length (for example large JSON
+  // exports) must remain streaming. Buffering an attacker-controlled body
+  // here would defeat the request-size limits enforced by individual routes.
+  if (!canBuffer) {
+    const headers = new Headers(response.headers)
+    headers.delete('content-length')
+    headers.set('content-encoding', 'gzip')
+    withVary(headers, 'Accept-Encoding')
+    return new Response(response.body.pipeThrough(new CompressionStream('gzip')), {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
   }
 
   const body = new Uint8Array(await response.arrayBuffer())

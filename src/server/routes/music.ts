@@ -1,4 +1,4 @@
-import { Router, type HttpContext } from '../core'
+import { Router, type HttpContext, type Middleware } from '../core'
 import { toUserMessage } from '../core/context'
 import { verifyUserAuth } from './auth'
 import { normalizeSongInfo, resolveServerSong } from '../services/musicResolver'
@@ -8,13 +8,42 @@ import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import * as fileCache from '../fileCache'
 import fs from 'node:fs'
 import path from 'node:path'
-import { assertSafeRemoteHttpUrl } from '../networkSecurity'
+import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from '../networkSecurity'
 
 /** 音乐解析进度 SSE 专属通道: requestId -> Controller */
 export const musicProgressControllers = new Map<string, ReadableStreamDefaultController<Uint8Array>>()
 const musicProgressTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const musicProgressHeartbeatTimers = new Map<string, ReturnType<typeof setInterval>>()
+const musicProgressClientIps = new Map<string, string>()
+const musicProgressIpCounts = new Map<string, number>()
 const MUSIC_PROGRESS_TTL = 10 * 60 * 1000
 const MAX_MUSIC_PROGRESS_CHANNELS = 2_048
+const MAX_MUSIC_PROGRESS_CHANNELS_PER_IP = 32
+const MUSIC_PROGRESS_HEARTBEAT = 15 * 1000
+const MUSIC_REQUEST_WINDOW = 60 * 1000
+const MUSIC_REQUEST_LIMIT = 120
+const MUSIC_REQUEST_BUCKET_LIMIT = 10_000
+const musicRequestBuckets = new Map<string, { startedAt: number; count: number }>()
+
+const musicRateLimitMiddleware: Middleware = async (ctx, next) => {
+  const now = Date.now()
+  const key = ctx.remoteAddress || 'unknown'
+  const current = musicRequestBuckets.get(key)
+  const bucket = !current || now - current.startedAt >= MUSIC_REQUEST_WINDOW
+    ? { startedAt: now, count: 0 }
+    : current
+  bucket.count += 1
+  musicRequestBuckets.set(key, bucket)
+  while (musicRequestBuckets.size > MUSIC_REQUEST_BUCKET_LIMIT) {
+    const oldest = musicRequestBuckets.keys().next().value
+    if (!oldest) break
+    musicRequestBuckets.delete(oldest)
+  }
+  if (bucket.count > MUSIC_REQUEST_LIMIT) {
+    return ctx.fail(429, '请求过于频繁，请稍后重试', { retryAfter: 60 })
+  }
+  return next()
+}
 
 const cleanupMusicProgress = (reqId: string, controller?: ReadableStreamDefaultController<Uint8Array>) => {
   if (controller && musicProgressControllers.get(reqId) !== controller) return
@@ -22,6 +51,16 @@ const cleanupMusicProgress = (reqId: string, controller?: ReadableStreamDefaultC
   const timer = musicProgressTimers.get(reqId)
   if (timer) clearTimeout(timer)
   musicProgressTimers.delete(reqId)
+  const heartbeat = musicProgressHeartbeatTimers.get(reqId)
+  if (heartbeat) clearInterval(heartbeat)
+  musicProgressHeartbeatTimers.delete(reqId)
+  const clientIp = musicProgressClientIps.get(reqId)
+  if (clientIp) {
+    const nextCount = (musicProgressIpCounts.get(clientIp) || 1) - 1
+    if (nextCount > 0) musicProgressIpCounts.set(clientIp, nextCount)
+    else musicProgressIpCounts.delete(clientIp)
+  }
+  musicProgressClientIps.delete(reqId)
 }
 
 /** 格式化字节大小 */
@@ -49,7 +88,7 @@ const parseContentLength = (headers: Headers): number | null => {
 const getAudioRemoteSize = async (audioUrl: string): Promise<number | null> => {
   if (!/^https?:\/\//i.test(audioUrl)) return null
 
-  let safeUrl: URL
+  let safeUrl: SafeRemoteHttpUrl
   try {
     safeUrl = await assertSafeRemoteHttpUrl(audioUrl)
   } catch {
@@ -61,10 +100,10 @@ const getAudioRemoteSize = async (audioUrl: string): Promise<number | null> => {
   }
 
   try {
-    const resp = await fetch(safeUrl.href, {
+    const resp = await fetchSafeRemote(safeUrl, {
       method: 'HEAD',
-      redirect: 'manual',
-      signal: AbortSignal.timeout(8000),
+      timeoutMs: 8000,
+      maxBytes: 1024,
       headers,
     })
     const size = parseContentLength(resp.headers)
@@ -74,10 +113,10 @@ const getAudioRemoteSize = async (audioUrl: string): Promise<number | null> => {
   }
 
   try {
-    const resp = await fetch(safeUrl.href, {
+    const resp = await fetchSafeRemote(safeUrl, {
       method: 'GET',
-      redirect: 'manual',
-      signal: AbortSignal.timeout(8000),
+      timeoutMs: 8000,
+      maxBytes: 1024,
       headers: {
         ...headers,
         Range: 'bytes=0-0',
@@ -96,6 +135,7 @@ const getAudioRemoteSize = async (audioUrl: string): Promise<number | null> => {
 /** 注册在线音乐检索、解析与播放元数据路由 */
 export const createMusicRouter = (): Router => {
   const router = new Router()
+  router.use('/api/music', musicRateLimitMiddleware)
   const boundedInt = (value: string | null, fallback: number, min: number, max: number) => {
     const parsed = Number.parseInt(value || '', 10)
     return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback
@@ -272,8 +312,19 @@ export const createMusicRouter = (): Router => {
 
   // 7. 音乐解析进度 SSE 端点 (无需登录, 用 reqId 区分)
   router.get('/api/music/progress', (ctx) => {
-    const reqId = ctx.query.get('reqId')
-    if (!reqId) return ctx.fail(400, '缺少必要参数：reqId')
+    const rawReqId = ctx.query.get('reqId')?.trim() || ''
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(rawReqId)) return ctx.fail(400, '进度请求标识格式无效')
+    const reqId = rawReqId
+
+    const clientIp = ctx.remoteAddress || 'unknown'
+    const previous = musicProgressControllers.get(reqId)
+    if (previous) {
+      try { previous.close() } catch { }
+      cleanupMusicProgress(reqId, previous)
+    }
+    if ((musicProgressIpCounts.get(clientIp) || 0) >= MAX_MUSIC_PROGRESS_CHANNELS_PER_IP) {
+      return ctx.fail(429, '该客户端的进度连接数过多，请稍后重试', { retryAfter: 15 })
+    }
 
     const encoder = new TextEncoder()
     let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
@@ -281,11 +332,6 @@ export const createMusicRouter = (): Router => {
       start(controller) {
         streamController = controller
         controller.enqueue(encoder.encode('retry: 3000\n\n'))
-        const previous = musicProgressControllers.get(reqId)
-        if (previous) {
-          try { previous.close() } catch { }
-          cleanupMusicProgress(reqId, previous)
-        }
         while (musicProgressControllers.size >= MAX_MUSIC_PROGRESS_CHANNELS) {
           const oldestReqId = musicProgressControllers.keys().next().value
           if (!oldestReqId) break
@@ -294,10 +340,22 @@ export const createMusicRouter = (): Router => {
           cleanupMusicProgress(oldestReqId, oldest)
         }
         musicProgressControllers.set(reqId, controller)
+        musicProgressClientIps.set(reqId, clientIp)
+        musicProgressIpCounts.set(clientIp, (musicProgressIpCounts.get(clientIp) || 0) + 1)
+        musicProgressHeartbeatTimers.set(reqId, setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(': heartbeat\n\n'))
+          } catch {
+            try { controller.close() } catch { }
+            cleanupMusicProgress(reqId, controller)
+          }
+        }, MUSIC_PROGRESS_HEARTBEAT))
         musicProgressTimers.set(reqId, setTimeout(() => {
           try { controller.close() } catch { }
           cleanupMusicProgress(reqId, controller)
         }, MUSIC_PROGRESS_TTL))
+        ;(musicProgressHeartbeatTimers.get(reqId) as any)?.unref?.()
+        ;(musicProgressTimers.get(reqId) as any)?.unref?.()
       },
       cancel() {
         cleanupMusicProgress(reqId, streamController || undefined)
@@ -318,7 +376,8 @@ export const createMusicRouter = (): Router => {
   router.post('/api/music/url', async (ctx) => {
     const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
-    const reqId = ctx.headers.get('x-req-id') || undefined
+    const rawReqId = ctx.headers.get('x-req-id')?.trim() || ''
+    const reqId = /^[A-Za-z0-9_-]{8,128}$/.test(rawReqId) ? rawReqId : undefined
 
     const pushProgress = async (attempt: any, retries = 10): Promise<void> => {
       if (!reqId) return
@@ -404,16 +463,23 @@ export const createMusicRouter = (): Router => {
 
       if (attempts.length > 0) result.attempts = attempts
 
-      if (result && result.url) {
-        if (result.url.startsWith('http')) {
+      if (!result || typeof result.url !== 'string' || !result.url.trim()) {
+        const err: any = new Error('音源未返回有效播放链接')
+        err.code = 422
+        err.attempts = attempts
+        throw err
+      }
+
+      if (result.url) {
+        if (/^https?:\/\//i.test(result.url)) {
           const checkRedirect = async (u: string, depth = 0): Promise<string> => {
             const safeUrl = await assertSafeRemoteHttpUrl(u)
             if (depth > 3) return safeUrl.toString()
             try {
-              const resp = await fetch(safeUrl.href, {
+              const resp = await fetchSafeRemote(safeUrl, {
                 method: 'HEAD',
-                redirect: 'manual',
-                signal: AbortSignal.timeout(4000),
+                timeoutMs: 4000,
+                maxBytes: 1024,
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                   'Referer': safeUrl.origin,
@@ -439,6 +505,11 @@ export const createMusicRouter = (): Router => {
 
           const finalUrl = await checkRedirect(result.url)
           result.url = finalUrl
+        } else {
+          const err: any = new Error('音源返回了不支持的播放链接')
+          err.code = 422
+          err.attempts = attempts
+          throw err
         }
 
         result.requestedSource = songInfo.source

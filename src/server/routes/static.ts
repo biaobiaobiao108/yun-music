@@ -13,11 +13,20 @@ export const isPathInside = (child: string, parent: string): boolean => {
   return resolvedChild.startsWith(withSep)
 }
 
+/** 静态目录只允许发布前端资产，禁止数据库、配置、日志和隐藏文件外泄。 */
+const isSensitiveStaticPath = (staticRoot: string, filePath: string): boolean => {
+  const relative = path.relative(staticRoot, filePath).replaceAll('\\', '/')
+  if (!relative || relative.startsWith('../') || relative === '..') return true
+  if (relative.split('/').some(part => part.startsWith('.'))) return true
+  return /(?:^|\/)(?:config\.js|.*\.(?:db(?:[-.].*)?|sqlite(?:3)?|wal|shm|log|key|pem))$/i.test(relative)
+}
+
 /** 基于 Bun.file 原生零拷贝分发静态文件 */
 export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promise<Response | null> => {
   const staticRoot = global.lx?.staticPath ?? path.join(process.cwd(), 'public')
   let safeFilePath: string
   try { safeFilePath = await resolveInsideAsync(staticRoot, filePath) } catch { return ctx.fail(403, '没有权限执行该操作') }
+  if (isSensitiveStaticPath(staticRoot, safeFilePath)) return ctx.fail(404, '资源不存在')
 
   let stats: fs.Stats
   try {
@@ -41,6 +50,7 @@ export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promi
     : 'no-cache, no-store, must-revalidate'
   const responseHeaders = {
     'Content-Type': bunFile.type || 'application/octet-stream',
+    'Content-Length': String(size),
     'ETag': etag,
     'Last-Modified': lastModified,
     'Cache-Control': cacheControl,

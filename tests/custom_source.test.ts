@@ -6,6 +6,8 @@ import path from 'node:path'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession, USER_SESSION_COOKIE_NAME } from '@/server/auth'
 import { userSessions } from '@/server/routes/auth'
 import { createCustomSourceRouter } from '@/server/routes/customSource'
+import * as networkSecurity from '@/server/networkSecurity'
+import { closeDb } from '@/database'
 
 describe('Custom Source Security and Isolation', () => {
   let tempRoot: string
@@ -25,6 +27,7 @@ describe('Custom Source Security and Isolation', () => {
   })
 
   afterEach(() => {
+    closeDb()
     ;(global as any).lx = prevGlobalLx
     try {
       fs.rmSync(tempRoot, { recursive: true, force: true })
@@ -99,30 +102,11 @@ describe('Custom Source Security and Isolation', () => {
 
   test('handleImport uses Bun native download and enforces 5MB size limit', async () => {
     const router = createCustomSourceRouter()
-    const prevFetch = globalThis.fetch
     const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
+    const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote').mockRejectedValue(new Error('Remote response is too large'))
 
     try {
-      // 模拟一个超过 5MB 的响应流
-      const largeChunk = new Uint8Array(2 * 1024 * 1024) // 2MB chunk
-      let chunksServed = 0
-      globalThis.fetch = async () => {
-        return new Response(new ReadableStream({
-          pull(controller) {
-            if (chunksServed < 3) {
-              chunksServed++
-              controller.enqueue(largeChunk)
-            } else {
-              controller.close()
-            }
-          },
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/javascript' },
-        })
-      }
-
       const req = new Request('http://localhost:9527/api/custom-source/import', {
         method: 'POST',
         headers: {
@@ -140,8 +124,8 @@ describe('Custom Source Security and Isolation', () => {
       expect(json.success).toBe(false)
       expect(json.error).toContain('Remote script is too large')
     } finally {
+      remoteFetch.mockRestore()
       lookup.mockRestore()
-      globalThis.fetch = prevFetch
     }
   })
 
@@ -162,20 +146,16 @@ describe('Custom Source Security and Isolation', () => {
 
   test('sandbox lx.request dispatches request via native fetch and delivers parsed JSON', async () => {
     const { loadUserApi } = await import('@/server/userApi')
-    const prevFetch = globalThis.fetch
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
+    const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote').mockResolvedValue(new Response(JSON.stringify({ code: 0, message: 'hello from test' }), {
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Custom-Header': 'lx-music',
+      },
+    }))
     try {
-      globalThis.fetch = async (input: any) => {
-        return new Response(JSON.stringify({ code: 0, message: 'hello from test' }), {
-          status: 200,
-          statusText: 'OK',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Custom-Header': 'lx-music',
-          },
-        })
-      }
-
       let capturedResp: any = null
       let capturedBody: any = null
 
@@ -212,9 +192,34 @@ describe('Custom Source Security and Isolation', () => {
       expect(result.resp.headers['x-custom-header']).toBe('lx-music')
       expect(result.body).toEqual({ code: 0, message: 'hello from test' })
     } finally {
+      remoteFetch.mockRestore()
       lookup.mockRestore()
-      globalThis.fetch = prevFetch
     }
   })
-})
 
+  test('interrupts synchronous request handlers that never yield', async () => {
+    const { loadUserApi } = await import('@/server/userApi')
+    const { success, apiInstance } = await loadUserApi({
+      id: 'test_timeout_source.js',
+      name: 'Test Timeout Source',
+      description: 'Testing synchronous VM interruption',
+      version: 1,
+      author: 'Tester',
+      homepage: '',
+      script: `
+        lx.on('request', () => { while (true) {} })
+        lx.send('inited', { status: true, sources: {} })
+      `,
+      sources: {},
+      enabled: true,
+      persist: false,
+    })
+
+    expect(success).toBe(true)
+    try {
+      await expect(apiInstance.callRequest('getMusicUrl', 'test', {})).rejects.toThrow('自定义源同步处理超时')
+    } finally {
+      await apiInstance.dispose()
+    }
+  }, 8_000)
+})

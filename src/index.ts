@@ -12,6 +12,7 @@ import defaultConfig from './defaultConfig'
 import { ENV_PARAMS, File } from './constants'
 import { checkAndCreateDirSync } from './utils'
 import { assertSafePathSegment } from './utils/pathSecurity'
+import { isValidHttpHeaderName, normalizeTrustedProxyAddresses } from './server/core/context'
 
 // Declare Env Params Type
 type ENV_PARAMS_Type = typeof ENV_PARAMS
@@ -68,22 +69,30 @@ const getConfigHash = (filePath: string) => {
 const dataPath = envParams.DATA_PATH ?? path.join(__dirname, '../data')
 const saveConfigToFile = async () => {
   const configPath = process.env.CONFIG_PATH || path.join(dataPath, 'config.js')
-  const configForFile = { ...global.lx.config, users: [] }
+  const configForFile: Record<string, any> = { ...global.lx.config, users: [] }
+  // Environment-managed secrets must not be copied into the bind-mounted
+  // config file. They will be applied again during the next startup.
+  if (Object.prototype.hasOwnProperty.call(process.env, 'FRONTEND_PASSWORD')) delete configForFile['frontend.password']
+  if (Object.prototype.hasOwnProperty.call(process.env, 'WEBPLAYER_PASSWORD')) delete configForFile['player.password']
+  if (Object.prototype.hasOwnProperty.call(process.env, 'PROXY_ALL_ADDRESS')) delete configForFile['proxy.all.address']
   const content = `module.exports = ${JSON.stringify(configForFile, null, 2)}\n`
   try {
     const file = Bun.file(configPath)
     if (await file.exists()) {
       const existing = await file.text()
       if (existing.trim() === content.trim()) {
+        try { fs.chmodSync(configPath, 0o600) } catch { }
         lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
         return
       }
     }
     await Bun.write(configPath, content)
+    try { fs.chmodSync(configPath, 0o600) } catch { }
     lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
     // console.log('Current memory config saved to config.js')
   } catch (err) {
     console.error('Failed to save config.js:', err)
+    throw err
   }
 }
 
@@ -162,6 +171,12 @@ envParams.CONFIG_PATH && envParams.CONFIG_PATH !== dataConfigPath && fs.existsSy
 if (envParams.PROXY_HEADER) {
   global.lx.config['proxy.enabled'] = true
   global.lx.config['proxy.header'] = envParams.PROXY_HEADER
+}
+if (envParams.TRUSTED_PROXY_ADDRESSES) {
+  global.lx.config['proxy.trustedAddresses'] = envParams.TRUSTED_PROXY_ADDRESSES
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean)
 }
 if (envParams.MAX_SNAPSHOT_NUM) {
   const num = parseInt(envParams.MAX_SNAPSHOT_NUM)
@@ -270,7 +285,7 @@ if (envUsers.length) {
 
 const exit = (message: string): never => {
   console.error(message)
-  process.exit(0)
+  process.exit(1)
 }
 
 const checkAndCreateDir = (path: string) => {
@@ -298,26 +313,35 @@ const checkUserConfig = (users: LX.Config['users']) => {
     if (user.name === '_open') exit('User name is reserved: _open')
     if (userNames.includes(user.name)) exit('User name duplicate: ' + user.name)
     if (typeof user.password !== 'string' || user.password.trim() === '') exit(`User ${user.name} must have a non-empty password`)
+    if (user.password.length > 1024) exit(`User ${user.name} password is too long`)
     if (!allowDuplicatePasswords && passwords.includes(user.password)) exit(`Duplicate password is not allowed for user ${user.name}`)
     userNames.push(user.name)
     passwords.push(user.password)
   }
 }
 
+try {
+  global.lx.config['proxy.trustedAddresses'] = normalizeTrustedProxyAddresses(global.lx.config['proxy.trustedAddresses'])
+} catch (error: any) {
+  exit(error?.message || 'proxy.trustedAddresses is invalid')
+}
+if (!isValidHttpHeaderName(global.lx.config['proxy.header'])) {
+  exit('proxy.header must be a valid HTTP header name')
+}
+
 checkAndCreateDir(global.lx.logPath)
 checkAndCreateDir(global.lx.dataPath)
-checkAndCreateDir(global.lx.userPath)
 checkAndCreateDir(global.lx.userPath)
 
 checkUserConfig(global.lx.config.users)
 
 const frontendPassword = global.lx.config['frontend.password']
-if (typeof frontendPassword !== 'string' || frontendPassword.trim() === '' || frontendPassword === '123456') {
+if (typeof frontendPassword !== 'string' || frontendPassword.length > 1024 || frontendPassword.trim() === '' || frontendPassword === '123456') {
   exit('frontend.password must be explicitly configured and must not use the example password')
 }
 if (global.lx.config['player.enableAuth']) {
   const playerPassword = global.lx.config['player.password']
-  if (typeof playerPassword !== 'string' || playerPassword.trim() === '' || playerPassword === '123456') {
+  if (typeof playerPassword !== 'string' || playerPassword.length > 1024 || playerPassword.trim() === '' || playerPassword === '123456') {
     exit('player.password must be explicitly configured when player authentication is enabled')
   }
 }
