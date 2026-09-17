@@ -2,7 +2,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { Router, type HttpContext } from '../core'
 import { checkPlayerAuthSession } from '../auth'
-import { resolveInside } from '@/utils/pathSecurity'
+import { resolveInsideAsync } from '@/utils/pathSecurity'
 
 /** 防目录穿越检查：确保目标路径在安全根目录内 */
 export const isPathInside = (child: string, parent: string): boolean => {
@@ -17,21 +17,21 @@ export const isPathInside = (child: string, parent: string): boolean => {
 export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promise<Response | null> => {
   const staticRoot = global.lx?.staticPath ?? path.join(process.cwd(), 'public')
   let safeFilePath: string
-  try { safeFilePath = resolveInside(staticRoot, filePath) } catch { return ctx.fail(403, '没有权限执行该操作') }
+  try { safeFilePath = await resolveInsideAsync(staticRoot, filePath) } catch { return ctx.fail(403, '没有权限执行该操作') }
 
-  if (!fs.existsSync(safeFilePath)) {
-    return null
-  }
+  let stats: fs.Stats
   try {
-    const stats = fs.statSync(safeFilePath)
-    if (!stats.isFile()) return null
+    stats = await fs.promises.stat(safeFilePath)
   } catch {
     return null
   }
+  if (!stats.isFile()) return null
 
   const bunFile = Bun.file(safeFilePath)
-  const size = bunFile.size
-  const mtime = bunFile.lastModified
+  const size = stats.size
+  // BunFile.lastModified is millisecond precision truncated to an integer;
+  // retain that format so existing validators remain stable.
+  const mtime = Math.trunc(stats.mtimeMs)
   const etag = `W/"${size}-${mtime}"`
   const lastModified = new Date(mtime).toUTCString()
   const normalizedPath = safeFilePath.replaceAll('\\', '/')

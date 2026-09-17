@@ -1,6 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+const isMissingPathError = (error: unknown): boolean => {
+  const code = (error as NodeJS.ErrnoException).code
+  return code === 'ENOENT' || code === 'ENOTDIR'
+}
+
 /** Validate a value that will be used as one filesystem path segment. */
 export const assertSafePathSegment = (value: unknown, label = 'path segment'): string => {
   if (typeof value !== 'string' || value.length === 0 || value === '.' || value === '..') {
@@ -32,5 +37,37 @@ export const resolveInside = (root: string, ...parts: string[]): string => {
     const realProbe = fs.realpathSync.native(probe)
     if (!isPathInside(realRoot, realProbe)) throw new Error('Path escapes allowed directory')
   }
+  return candidate
+}
+
+/** Async counterpart for read-only request paths; avoids blocking the event loop on realpath checks. */
+export const resolveInsideAsync = async (root: string, ...parts: string[]): Promise<string> => {
+  const resolvedRoot = path.resolve(root)
+  const candidate = path.resolve(resolvedRoot, ...parts)
+  if (!isPathInside(resolvedRoot, candidate)) throw new Error('Path escapes allowed directory')
+
+  let realRoot = resolvedRoot
+  try {
+    realRoot = await fs.promises.realpath(resolvedRoot)
+  } catch (error) {
+    if (!isMissingPathError(error)) throw error
+  }
+
+  // If the target does not exist yet, validate the nearest existing ancestor.
+  // Stop at the lexical root so callers can still create a previously missing root.
+  let probe = candidate
+  while (probe !== resolvedRoot) {
+    try {
+      const realProbe = await fs.promises.realpath(probe)
+      if (!isPathInside(realRoot, realProbe)) throw new Error('Path escapes allowed directory')
+      return candidate
+    } catch (error) {
+      if (!isMissingPathError(error)) throw error
+      const parent = path.dirname(probe)
+      if (parent === probe) break
+      probe = parent
+    }
+  }
+
   return candidate
 }

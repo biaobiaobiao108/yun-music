@@ -26,6 +26,9 @@ import { verifyUserPassword } from '@/user/data'
 /** Web 用户会话只允许通过 HttpOnly Cookie 使用。 */
 export const userSessions = new Map<string, { username: string; createdAt: number }>()
 const MAX_USER_SESSIONS = 10_000
+const USER_SESSION_PRUNE_INTERVAL_MS = 60 * 1000
+let lastUserSessionPruneAt = 0
+let lastUserConfigReference: unknown = Symbol('uninitialized')
 
 const hashUserSession = (sessionId: string): string => crypto.createHash('sha256').update(sessionId).digest('hex')
 
@@ -33,7 +36,16 @@ const deletePersistedUserSession = (sessionId: string): void => {
   getDb().run('DELETE FROM user_sessions WHERE session_hash = ?', [hashUserSession(sessionId)])
 }
 
-const pruneUserSessions = (now = Date.now()): void => {
+const pruneUserSessions = (now = Date.now(), force = false): void => {
+  const configuredUsers = global.lx?.config?.users
+  const configChanged = configuredUsers !== lastUserConfigReference
+  if (!force && !configChanged && now - lastUserSessionPruneAt < USER_SESSION_PRUNE_INTERVAL_MS) {
+    while (userSessions.size > MAX_USER_SESSIONS) userSessions.delete(userSessions.keys().next().value!)
+    return
+  }
+
+  lastUserSessionPruneAt = now
+  lastUserConfigReference = configuredUsers
   for (const [sessionId, session] of userSessions) {
     if (now - session.createdAt > USER_SESSION_TTL || !isActiveUser(session.username)) {
       userSessions.delete(sessionId)
@@ -45,7 +57,7 @@ const pruneUserSessions = (now = Date.now()): void => {
 }
 
 const issueUserSession = (username: string): string => {
-  pruneUserSessions()
+  pruneUserSessions(Date.now(), true)
   const sessionId = crypto.randomBytes(32).toString('hex')
   const createdAt = Date.now()
   userSessions.set(sessionId, { username, createdAt })
@@ -73,11 +85,14 @@ export const verifyUserAuth = (ctx: HttpContext | HeaderSource): string | null =
   if (!sessionId) return null
 
   const cached = userSessions.get(sessionId)
-  if (cached && Date.now() - cached.createdAt <= USER_SESSION_TTL) {
-    return isActiveUser(cached.username) ? cached.username : null
-  }
-
+  const now = Date.now()
   if (cached) {
+    if (now - cached.createdAt <= USER_SESSION_TTL) {
+      if (isActiveUser(cached.username)) return cached.username
+      userSessions.delete(sessionId)
+      deletePersistedUserSession(sessionId)
+      return null
+    }
     userSessions.delete(sessionId)
     deletePersistedUserSession(sessionId)
   }

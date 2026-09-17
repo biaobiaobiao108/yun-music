@@ -14,6 +14,7 @@ interface RouteEntry {
   pattern: string
   isPrefix: boolean
   handler: RouteHandler
+  order: number
 }
 
 interface MiddlewareEntry {
@@ -24,6 +25,10 @@ interface MiddlewareEntry {
 export class Router {
   private routes: RouteEntry[] = []
   private middlewares: MiddlewareEntry[] = []
+  private nextRouteOrder = 0
+  private routeIndexDirty = true
+  private readonly routesByMethod = new Map<string, RouteEntry[]>()
+  private readonly routeCandidatesByMethod = new Map<string, RouteEntry[]>()
   private notFoundHandler: RouteHandler = (ctx) =>
     ctx.fail(404, '接口不存在', { path: ctx.pathname })
 
@@ -64,8 +69,11 @@ export class Router {
       this.routes.push({
         ...route,
         pattern: combined,
+        order: this.nextRouteOrder++,
       })
     }
+    this.routeIndexDirty = true
+    this.routeCandidatesByMethod.clear()
     return this
   }
 
@@ -78,7 +86,10 @@ export class Router {
       pattern: pattern || '/',
       isPrefix,
       handler,
+      order: this.nextRouteOrder++,
     })
+    this.routeIndexDirty = true
+    this.routeCandidatesByMethod.clear()
     return this
   }
 
@@ -121,6 +132,55 @@ export class Router {
     return pathname === route.pattern
   }
 
+  /**
+   * 按请求方法缓存路由候选，避免每个请求都遍历其他方法的规则。
+   * 通配方法路由与具体方法路由按注册顺序归并，保持原有匹配语义。
+   */
+  private getRouteCandidates(method: string): RouteEntry[] {
+    if (this.routeIndexDirty) {
+      this.routesByMethod.clear()
+      for (const route of this.routes) {
+        const entries = this.routesByMethod.get(route.method)
+        if (entries) entries.push(route)
+        else this.routesByMethod.set(route.method, [route])
+      }
+      this.routeIndexDirty = false
+      this.routeCandidatesByMethod.clear()
+    }
+
+    const cached = this.routeCandidatesByMethod.get(method)
+    if (cached) return cached
+
+    const methodRoutes = this.routesByMethod.get(method) || []
+    const wildcardRoutes = this.routesByMethod.get('*') || []
+    if (wildcardRoutes.length === 0) {
+      this.routeCandidatesByMethod.set(method, methodRoutes)
+      return methodRoutes
+    }
+    if (methodRoutes.length === 0) {
+      this.routeCandidatesByMethod.set(method, wildcardRoutes)
+      return wildcardRoutes
+    }
+
+    const merged: RouteEntry[] = []
+    let methodIndex = 0
+    let wildcardIndex = 0
+    while (methodIndex < methodRoutes.length || wildcardIndex < wildcardRoutes.length) {
+      const methodRoute = methodRoutes[methodIndex]
+      const wildcardRoute = wildcardRoutes[wildcardIndex]
+      if (!wildcardRoute || (methodRoute && methodRoute.order < wildcardRoute.order)) {
+        merged.push(methodRoute)
+        methodIndex++
+      } else {
+        merged.push(wildcardRoute)
+        wildcardIndex++
+      }
+    }
+
+    this.routeCandidatesByMethod.set(method, merged)
+    return merged
+  }
+
   /** 处理单个 Request 并返回 Response */
   async handle(request: Request, options?: ContextOptions): Promise<Response> {
     const ctx = new HttpContext(request, options)
@@ -142,7 +202,7 @@ export class Router {
       }
 
       // 所有中间件执行完毕，匹配路由
-      for (const route of this.routes) {
+      for (const route of this.getRouteCandidates(ctx.method)) {
         if (this.matchRoute(route, ctx.method, ctx.pathname)) {
           const res = await route.handler(ctx)
           if (res instanceof Response) return res

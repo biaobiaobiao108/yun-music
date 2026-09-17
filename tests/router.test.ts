@@ -204,5 +204,34 @@ describe('Core Router & HttpContext', () => {
     expect(resPass.status).toBe(200)
     expect(intercepted).toBe(false)
   })
-})
 
+  test('keeps wildcard and method-specific routes in registration order', async () => {
+    const router = new Router()
+    const trail: string[] = []
+
+    router.all('/ordered/*', () => {
+      trail.push('wildcard')
+      return null
+    })
+    router.get('/ordered/exact', (ctx) => {
+      trail.push('exact')
+      return ctx.text('ok')
+    })
+
+    const res = await router.handle(new Request('http://localhost:9527/ordered/exact'))
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('ok')
+    expect(trail).toEqual(['wildcard', 'exact'])
+  })
+
+  test('invalidates the route index when a route is added after handling', async () => {
+    const router = new Router()
+    const first = await router.handle(new Request('http://localhost:9527/late'))
+    expect(first.status).toBe(404)
+
+    router.get('/late', (ctx) => ctx.text('found'))
+    const second = await router.handle(new Request('http://localhost:9527/late'))
+    expect(second.status).toBe(200)
+    expect(await second.text()).toBe('found')
+  })
+})

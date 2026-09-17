@@ -14,7 +14,7 @@ import * as serverDownloadQueue from '../serverDownloadQueue'
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import { accessLog } from '@/utils/log4js'
 import { assertSafeRemoteHttpUrl } from '../networkSecurity'
-import { resolveInside } from '@/utils/pathSecurity'
+import { resolveInsideAsync } from '@/utils/pathSecurity'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 
@@ -496,6 +496,7 @@ export const createCacheRouter = (): Router => {
       ? [requestedFolder as fileCache.CacheFolder]
       : ['cache', 'music']
     let filePath = ''
+    let fileStats: fs.Stats | null = null
 
     for (const loc of locations) {
       for (const folder of roots) {
@@ -503,29 +504,22 @@ export const createCacheRouter = (): Router => {
         const safeFilename = decodedFilename.replace(/\\/g, '/')
         let checkPath: string
         try {
-          checkPath = resolveInside(dir, safeFilename)
+          checkPath = await resolveInsideAsync(dir, safeFilename)
         } catch {
           continue
         }
-        if (fs.existsSync(checkPath)) {
+        try {
+          fileStats = await fs.promises.stat(checkPath)
           filePath = checkPath
           break
+        } catch {
+          // The cache may disappear between index lookup and file delivery.
         }
       }
       if (filePath) break
     }
 
-    if (!filePath || !fs.existsSync(filePath)) {
-      return ctx.fail(404, '文件不存在')
-    }
-
-    let fileStats: fs.Stats
-    try {
-      fileStats = fs.statSync(filePath)
-    } catch {
-      return ctx.fail(404, '文件不存在')
-    }
-    if (!fileStats.isFile() || fileStats.size <= 0) {
+    if (!filePath || !fileStats || !fileStats.isFile() || fileStats.size <= 0) {
       return ctx.fail(404, '文件不存在')
     }
 

@@ -38,13 +38,10 @@ const loginFailures = new Map<string, number[]>()
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const MAX_LOGIN_FAILURES = 10
 const MAX_LOGIN_FAILURE_KEYS = 10_000
+const LOGIN_FAILURE_PRUNE_INTERVAL_MS = 60 * 1000
+let lastLoginFailurePruneAt = 0
 
-const pruneLoginFailures = (now = Date.now()): void => {
-  for (const [ip, failures] of loginFailures) {
-    const active = failures.filter(timestamp => now - timestamp < LOGIN_WINDOW_MS)
-    if (active.length === 0) loginFailures.delete(ip)
-    else loginFailures.set(ip, active)
-  }
+const trimLoginFailureKeys = (): void => {
   while (loginFailures.size > MAX_LOGIN_FAILURE_KEYS) {
     const oldest = loginFailures.keys().next().value
     if (!oldest) break
@@ -52,21 +49,39 @@ const pruneLoginFailures = (now = Date.now()): void => {
   }
 }
 
+const pruneLoginFailures = (now = Date.now(), force = false): void => {
+  if (!force && now - lastLoginFailurePruneAt < LOGIN_FAILURE_PRUNE_INTERVAL_MS) return
+  lastLoginFailurePruneAt = now
+  for (const [ip, failures] of loginFailures) {
+    const active = failures.filter(timestamp => now - timestamp < LOGIN_WINDOW_MS)
+    if (active.length === 0) loginFailures.delete(ip)
+    else loginFailures.set(ip, active)
+  }
+  trimLoginFailureKeys()
+}
+
+const getActiveLoginFailures = (ip: string, now: number): number[] => {
+  const failures = loginFailures.get(ip) || []
+  const active = failures.filter(timestamp => now - timestamp < LOGIN_WINDOW_MS)
+  if (active.length === 0) loginFailures.delete(ip)
+  else loginFailures.set(ip, active)
+  return active
+}
+
 export const isLoginRateLimited = (ip: string): boolean => {
   const now = Date.now()
   pruneLoginFailures(now)
-  const failures = (loginFailures.get(ip) || []).filter(timestamp => now - timestamp < LOGIN_WINDOW_MS)
-  loginFailures.set(ip, failures)
+  const failures = getActiveLoginFailures(ip, now)
   return failures.length >= MAX_LOGIN_FAILURES
 }
 
 export const recordLoginFailure = (ip: string): void => {
   const now = Date.now()
   pruneLoginFailures(now)
-  const failures = (loginFailures.get(ip) || []).filter(timestamp => now - timestamp < LOGIN_WINDOW_MS)
+  const failures = getActiveLoginFailures(ip, now)
   failures.push(now)
   loginFailures.set(ip, failures)
-  pruneLoginFailures(now)
+  trimLoginFailureKeys()
 }
 
 export const clearLoginFailures = (ip: string): void => {
@@ -77,6 +92,7 @@ const playerSessions = new Map<string, { createdAt: number }>()
 const adminSessions = new Map<string, number>()
 const MAX_SESSIONS = 10_000
 const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000
+const SESSION_PRUNE_INTERVAL_MS = 60 * 1000
 
 const hashSession = (sessionId: string): string => new Bun.CryptoHasher('sha256').update(sessionId).digest('hex')
 
@@ -90,15 +106,23 @@ const prunePersistedSessions = (now = Date.now()): void => {
   }
 }
 
-const prunePlayerSessions = (now = Date.now()): void => {
-  for (const [sessionId, session] of playerSessions) {
-    if (now - session.createdAt > PLAYER_SESSION_TTL) playerSessions.delete(sessionId)
+let lastPlayerSessionPruneAt = 0
+const prunePlayerSessions = (now = Date.now(), force = false): void => {
+  const shouldPrune = force || now - lastPlayerSessionPruneAt >= SESSION_PRUNE_INTERVAL_MS
+  if (shouldPrune) {
+    lastPlayerSessionPruneAt = now
+    for (const [sessionId, session] of playerSessions) {
+      if (now - session.createdAt > PLAYER_SESSION_TTL) playerSessions.delete(sessionId)
+    }
+    prunePersistedSessions(now)
   }
-  prunePersistedSessions(now)
   while (playerSessions.size > MAX_SESSIONS) playerSessions.delete(playerSessions.keys().next().value!)
 }
 
-export const clearPlayerSessionCache = (): void => playerSessions.clear()
+export const clearPlayerSessionCache = (): void => {
+  playerSessions.clear()
+  lastPlayerSessionPruneAt = 0
+}
 
 export const createPlayerSession = (): string => {
   prunePlayerSessions()
@@ -133,9 +157,13 @@ export const checkPlayerAuthSession = (cookies: Record<string, string>): boolean
   return true
 }
 
+let lastAdminSessionPruneAt = 0
 const pruneAdminSessions = (now = Date.now()): void => {
-  for (const [sessionId, expiresAt] of adminSessions) {
-    if (expiresAt <= now) adminSessions.delete(sessionId)
+  if (now - lastAdminSessionPruneAt >= SESSION_PRUNE_INTERVAL_MS) {
+    lastAdminSessionPruneAt = now
+    for (const [sessionId, expiresAt] of adminSessions) {
+      if (expiresAt <= now) adminSessions.delete(sessionId)
+    }
   }
   while (adminSessions.size > MAX_SESSIONS) adminSessions.delete(adminSessions.keys().next().value!)
 }
