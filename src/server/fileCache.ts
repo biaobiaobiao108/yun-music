@@ -296,18 +296,39 @@ export const getCacheDir = (
     return fullPath
 }
 
-export const getCoverCacheDir = (username: string) => {
-    const baseDir = path.join(process.cwd(), 'cover_cache')
+const getCoverCacheBaseDirs = (): string[] => {
+    const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
+    return [...new Set([
+        path.resolve(process.cwd(), 'cover_cache'),
+        path.resolve(dataPath, 'cover_cache'),
+    ])]
+}
+
+const getCoverCacheUserDir = (baseDir: string, username: string, create: boolean): string => {
     const userDirName = (username && username !== '_open' && username !== 'default') ? assertSafePathSegment(username, 'username') : '_open'
     const fullPath = path.join(baseDir, userDirName)
-    if (!fs.existsSync(fullPath)) {
+    if (create && !fs.existsSync(fullPath)) {
         fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 })
     }
-    if (!isPathInside(fs.realpathSync.native(baseDir), fs.realpathSync.native(fullPath))) {
+    const resolvedBaseDir = fs.existsSync(baseDir)
+        ? fs.realpathSync.native(baseDir)
+        : path.resolve(baseDir)
+    const resolvedFullPath = fs.existsSync(fullPath)
+        ? fs.realpathSync.native(fullPath)
+        : path.resolve(fullPath)
+    if (!isPathInside(resolvedBaseDir, resolvedFullPath)) {
         throw new Error('Cover cache directory escapes allowed root')
     }
     return fullPath
 }
+
+export const getCoverCacheDir = (username: string, create = true) => (
+    getCoverCacheUserDir(getCoverCacheBaseDirs()[0], username, create)
+)
+
+const getCoverCacheUserDirs = (username: string, create = false): string[] => (
+    getCoverCacheBaseDirs().map(baseDir => getCoverCacheUserDir(baseDir, username, create))
+)
 
 // --- Cache Index Manager ---
 export interface CacheItem {
@@ -515,8 +536,7 @@ const getCoverCachePaths = (filename: string, username: string, stats?: Stats) =
 
 const getLegacyCoverCachePaths = (filename: string, username: string, stats?: Stats) => {
     const hash = getCoverCacheHash(filename, stats)
-    const userDirName = (username && username !== '_open' && username !== 'default') ? assertSafePathSegment(username, 'username') : '_open'
-    const coverCacheDir = path.join(global.lx.dataPath, 'cover_cache', userDirName)
+    const coverCacheDir = getCoverCacheUserDirs(username, false)[1] || getCoverCacheDir(username, false)
     return {
         binPath: path.join(coverCacheDir, `${hash}.bin`),
         mimePath: path.join(coverCacheDir, `${hash}.mime`),
@@ -632,7 +652,9 @@ export const resolveCompanionLyricFilename = (root: string, audioFilename: strin
 
 const invalidateCacheListSync = (username?: string) => {
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
-    cacheListSyncState.delete(`${currentCacheLocation}:${normalizedUsername}`)
+    for (const location of [CACHE_ROOTS.ROOT, CACHE_ROOTS.DATA]) {
+        cacheListSyncState.delete(`${location}:${normalizedUsername}`)
+    }
 }
 
 const reconcileCacheItemFromDisk = (
@@ -1800,13 +1822,15 @@ export const getCacheCover = async (filename: string, username?: string, request
 /**
  * Remove a specific cache file
  */
-export const removeCacheFile = (filename: string, username?: string, requestedFolder?: CacheFolder): RemoveCacheFileResult => {
+export const removeCacheFile = (filename: string, username?: string, requestedFolder?: CacheFolder, requestedLocation?: string): RemoveCacheFileResult => {
     if (!filename || typeof filename !== 'string') throw new Error('Invalid filename')
     if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') throw new Error('Invalid folder')
+    if (requestedLocation && requestedLocation !== CACHE_ROOTS.DATA && requestedLocation !== CACHE_ROOTS.ROOT) throw new Error('Invalid cache location')
 
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
     const candidateFolders: CacheFolder[] = requestedFolder ? [requestedFolder] : ['cache', 'music']
-    const matches = getCacheLocations().flatMap(location => candidateFolders.map(folder => {
+    const candidateLocations = requestedLocation ? [requestedLocation] : getCacheLocations()
+    const matches = candidateLocations.flatMap(location => candidateFolders.map(folder => {
         const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
         const filePath = resolveCacheRelativePath(dir, filename)
         return filePath && fs.existsSync(filePath) ? { folder, dir, filePath, location } : null
@@ -1849,25 +1873,18 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
     const item = items.find(i => i.filename === filename)
     if (item) indexManager.remove(normalizedUsername, item.id, folder, item.quality, location)
 
-    // Cover cache is shared by filename. Preserve it while the same relative file
-    // still exists in the other root so deleting cache does not affect downloads.
-    const otherFolder: CacheFolder = folder === 'cache' ? 'music' : 'cache'
-    const hasCounterpart = getCacheLocations().some(otherLocation => {
-        const otherDir = getCacheDir(normalizedUsername, otherFolder === 'music', otherLocation, false)
-        const otherPath = resolveCacheRelativePath(otherDir, filename)
-        return !!otherPath && fs.existsSync(otherPath)
-    })
+    // Cover cache is shared by filename. Preserve it while the same relative
+    // file still exists in any other cache/download location.
+    const hasCounterpart = getCacheLocations().some(otherLocation => (
+        (['cache', 'music'] as const).some(otherFolder => {
+            if (otherLocation === location && otherFolder === folder) return false
+            const otherDir = getCacheDir(normalizedUsername, otherFolder === 'music', otherLocation, false)
+            const otherPath = resolveCacheRelativePath(otherDir, filename)
+            return !!otherPath && fs.existsSync(otherPath)
+        })
+    ))
     if (!hasCounterpart) {
-        try {
-            const coverCacheDir = getCoverCacheDir(normalizedUsername)
-            const hashes = [coverCacheHash, crypto.createHash('md5').update(filename).digest('hex')].filter(Boolean)
-            for (const hash of hashes) {
-                const binPath = path.join(coverCacheDir, `${hash}.bin`)
-                const mimePath = path.join(coverCacheDir, `${hash}.mime`)
-                if (fs.existsSync(binPath)) fs.unlinkSync(binPath)
-                if (fs.existsSync(mimePath)) fs.unlinkSync(mimePath)
-            }
-        } catch (e) { }
+        removeCoverCacheFiles(filename, normalizedUsername, coverCacheHash)
     }
 
     return { deleted: true, folder }
@@ -2893,6 +2910,25 @@ export const getIndexItemByFilename = (filename: string, username: string) => {
 // [新增] 暴露 lyricFetcher 引用，供外部接口（如 embedLyric）使用
 export const getLyricFetcher = () => _lyricFetcher
 
+const removeCoverCacheFiles = (filename: string, username: string, knownHash = ''): void => {
+    const hashes = [...new Set([knownHash, crypto.createHash('md5').update(filename).digest('hex')].filter(Boolean))]
+    for (const coverCacheDir of getCoverCacheUserDirs(username, false)) {
+        for (const hash of hashes) {
+            for (const suffix of ['.bin', '.mime']) {
+                try {
+                    fs.unlinkSync(path.join(coverCacheDir, `${hash}${suffix}`))
+                } catch (error: any) {
+                    if (error?.code !== 'ENOENT') {
+                        // Cover cleanup is best-effort; the audio file and its
+                        // SQLite index must not be kept from being deleted by a
+                        // stale/locked thumbnail file.
+                    }
+                }
+            }
+        }
+    }
+}
+
 // [新增] 更新索引中指定文件的 hasEmbedLyric 状态（由 embedLyric 接口成功写入后调用）
 export const setIndexEmbedLyric = (
     filename: string,
@@ -2919,19 +2955,21 @@ export const getCacheStats = (username?: string) => {
     const result: any = { cache: { totalSize: 0, fileCount: 0 }, music: { totalSize: 0, fileCount: 0 }, totalSize: 0, fileCount: 0 }
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
     const extensions = CACHE_SIZE_EXTENSIONS
-    for (const folder of roots) {
-        const dir = getCacheDir(normalizedUsername, folder === 'music')
-        if (!fs.existsSync(dir)) continue
-        const files = getCacheFilesRecursively(dir)
-        for (const filePath of files) {
-            const ext = path.extname(filePath).toLowerCase()
-            if (extensions.has(ext)) {
-                try {
-                    const stats = fs.statSync(filePath)
-                    result[folder].totalSize += stats.size
-                    result.totalSize += stats.size
-                    if (ext !== '.lrc') { result[folder].fileCount++; result.fileCount++ }
-                } catch (e) { }
+    for (const location of getCacheLocations()) {
+        for (const folder of roots) {
+            const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
+            if (!fs.existsSync(dir)) continue
+            const files = getCacheFilesRecursively(dir)
+            for (const filePath of files) {
+                const ext = path.extname(filePath).toLowerCase()
+                if (extensions.has(ext)) {
+                    try {
+                        const stats = fs.statSync(filePath)
+                        result[folder].totalSize += stats.size
+                        result.totalSize += stats.size
+                        if (ext !== '.lrc') { result[folder].fileCount++; result.fileCount++ }
+                    } catch (e) { }
+                }
             }
         }
     }
@@ -2961,51 +2999,190 @@ const getCacheFilesRecursively = (root: string): string[] => {
     return files
 }
 
-export const clearAllCache = (username?: string) => {
-    const roots: CacheFolder[] = ['cache', 'music']
+export interface CacheCleanupResult {
+    deletedCount: number
+    freedSize: number
+}
+
+const pathExists = (targetPath: string): boolean => {
+    try {
+        fs.lstatSync(targetPath)
+        return true
+    } catch (error: any) {
+        return error?.code !== 'ENOENT'
+    }
+}
+
+const removeDirectoryTree = (dir: string): CacheCleanupResult => {
+    if (!pathExists(dir)) return { deletedCount: 0, freedSize: 0 }
+    const files = getCacheFilesRecursively(dir)
     let deletedCount = 0
     let freedSize = 0
-    const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
-    for (const folder of roots) {
-        const dir = getCacheDir(normalizedUsername, folder === 'music')
-        if (!fs.existsSync(dir)) continue
-        for (const filePath of getCacheFilesRecursively(dir)) {
-            try {
-                const stats = fs.statSync(filePath)
-                fs.unlinkSync(filePath)
-                deletedCount++; freedSize += stats.size
-            } catch (e) { }
+    for (const filePath of files) {
+        try {
+            const stats = fs.statSync(filePath)
+            fs.unlinkSync(filePath)
+            deletedCount++
+            freedSize += stats.size
+        } catch (error: any) {
+            if (error?.code !== 'ENOENT') {
+                // Continue cleaning the remaining files. A locked file should
+                // not prevent the rest of a user's disposable cache from being removed.
+            }
         }
-        indexManager.clear(normalizedUsername, folder)
+    }
+    try {
+        fs.rmSync(dir, { recursive: true, force: true })
+    } catch {
+        // File-level cleanup above is still useful when directory removal is blocked.
+    }
+    return { deletedCount, freedSize }
+}
+
+const addCleanupResult = (target: CacheCleanupResult, source: CacheCleanupResult): void => {
+    target.deletedCount += source.deletedCount
+    target.freedSize += source.freedSize
+}
+
+const getUserCacheDirectories = (username: string): string[] => {
+    const directories = new Set<string>()
+    for (const location of getCacheLocations()) {
+        for (const folder of ['cache', 'music'] as const) {
+            directories.add(getCacheDir(username, folder === 'music', location, false))
+        }
+    }
+    for (const dir of getCoverCacheUserDirs(username, false)) directories.add(dir)
+    return [...directories]
+}
+
+/** Remove all disposable cache files and their SQLite index rows for a user. */
+export const deleteUserCacheData = (username: string): CacheCleanupResult => {
+    const normalizedUsername = normalizeCacheUsername(username)
+    const result: CacheCleanupResult = { deletedCount: 0, freedSize: 0 }
+    for (const dir of getUserCacheDirectories(normalizedUsername)) {
+        addCleanupResult(result, removeDirectoryTree(dir))
+    }
+    for (const location of getCacheLocations()) {
+        for (const folder of ['cache', 'music'] as const) {
+            indexManager.clear(normalizedUsername, folder, location)
+        }
     }
     invalidateCacheListSync(normalizedUsername)
-    return { deletedCount, freedSize }
+    return result
+}
+
+/** Move a user's physical cache when their login name changes. */
+export const moveUserCacheData = (oldUsername: string, newUsername: string): { movedDirectories: number } => {
+    const oldName = normalizeCacheUsername(oldUsername)
+    const newName = normalizeCacheUsername(newUsername)
+    if (oldName === '_open' || newName === '_open' || oldName === newName) return { movedDirectories: 0 }
+
+    // Validate names before constructing any filesystem path. This also keeps
+    // reserved public-cache names out of the account migration path.
+    assertSafePathSegment(oldName, 'old username')
+    assertSafePathSegment(newName, 'new username')
+
+    const moves: Array<{ source: string; target: string }> = []
+    const seen = new Set<string>()
+    const addMove = (source: string, target: string): void => {
+        const key = `${source}\u0000${target}`
+        if (!seen.has(key)) {
+            seen.add(key)
+            moves.push({ source, target })
+        }
+    }
+    for (const location of getCacheLocations()) {
+        for (const folder of ['cache', 'music'] as const) {
+            addMove(
+                getCacheDir(oldName, folder === 'music', location, false),
+                getCacheDir(newName, folder === 'music', location, false),
+            )
+        }
+    }
+    const coverDirs = getCoverCacheBaseDirs()
+    for (const baseDir of coverDirs) {
+        addMove(
+            getCoverCacheUserDir(baseDir, oldName, false),
+            getCoverCacheUserDir(baseDir, newName, false),
+        )
+    }
+
+    const existingMoves = moves.filter(move => pathExists(move.source))
+    for (const move of existingMoves) {
+        const sourceStats = fs.lstatSync(move.source)
+        if (!sourceStats.isDirectory() || sourceStats.isSymbolicLink()) {
+            throw new Error('用户缓存目录不是安全的普通目录')
+        }
+        if (pathExists(move.target)) {
+            throw new Error(`目标缓存目录已存在：${newName}`)
+        }
+    }
+
+    const completed: Array<{ source: string; target: string }> = []
+    try {
+        for (const move of existingMoves) {
+            fs.mkdirSync(path.dirname(move.target), { recursive: true, mode: 0o700 })
+            fs.renameSync(move.source, move.target)
+            completed.push(move)
+        }
+    } catch (error) {
+        for (const move of completed.reverse()) {
+            try {
+                if (pathExists(move.target) && !pathExists(move.source)) fs.renameSync(move.target, move.source)
+            } catch { }
+        }
+        throw error
+    }
+
+    invalidateCacheListSync(oldName)
+    invalidateCacheListSync(newName)
+    return { movedDirectories: completed.length }
+}
+
+export const clearAllCache = (username?: string) => {
+    const normalizedUsername = normalizeCacheUsername(username)
+    const result: CacheCleanupResult = { deletedCount: 0, freedSize: 0 }
+    for (const dir of getUserCacheDirectories(normalizedUsername)) {
+        addCleanupResult(result, removeDirectoryTree(dir))
+    }
+    for (const location of getCacheLocations()) {
+        for (const folder of ['cache', 'music'] as const) {
+            indexManager.clear(normalizedUsername, folder, location)
+        }
+    }
+    invalidateCacheListSync(normalizedUsername)
+    return result
 }
 
 export const clearLyricCache = (username?: string) => {
     const roots: Array<'cache' | 'music'> = ['cache', 'music']
     let deletedCount = 0
     let freedSize = 0
-    const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
-    for (const folder of roots) {
-        const dir = getCacheDir(normalizedUsername, folder === 'music')
-        if (!fs.existsSync(dir)) continue
-        for (const filePath of getCacheFilesRecursively(dir)) {
-            if (path.extname(filePath).toLowerCase() === '.lrc') {
-                try {
-                    const stats = fs.statSync(filePath)
-                    fs.unlinkSync(filePath)
-                    deletedCount++; freedSize += stats.size
-                } catch (e) { }
+    const normalizedUsername = normalizeCacheUsername(username)
+    for (const location of getCacheLocations()) {
+        for (const folder of roots) {
+            const dir = getCacheDir(normalizedUsername, folder === 'music', location, false)
+            if (!fs.existsSync(dir)) continue
+            for (const filePath of getCacheFilesRecursively(dir)) {
+                if (path.extname(filePath).toLowerCase() === '.lrc') {
+                    try {
+                        const stats = fs.statSync(filePath)
+                        fs.unlinkSync(filePath)
+                        deletedCount++
+                        freedSize += stats.size
+                    } catch (error: any) {
+                        if (error?.code !== 'ENOENT') { }
+                    }
+                }
             }
+            const items = indexManager.getAll(normalizedUsername, folder, location)
+            items.forEach(item => {
+                if (!item.hasLyric && !item.lyricFilename) return
+                item.hasLyric = false
+                item.lyricFilename = undefined
+                indexManager.update(normalizedUsername, item, folder, location)
+            })
         }
-        const items = indexManager.getAll(normalizedUsername, folder)
-        items.forEach(item => {
-            if (!item.hasLyric && !item.lyricFilename) return
-            item.hasLyric = false
-            item.lyricFilename = undefined
-            indexManager.update(normalizedUsername, item, folder)
-        })
     }
     invalidateCacheListSync(normalizedUsername)
     return { deletedCount, freedSize }
@@ -3019,63 +3196,67 @@ export const checkAndCleanupCache = async (username?: string) => {
     const limitBytes = (config['user.cacheSizeLimit'] || 2000) * 1024 * 1024
     if (cacheSize <= limitBytes) return
 
-    const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
-    const dir = getCacheDir(normalizedUsername, false)
-    if (!fs.existsSync(dir)) return
+    const normalizedUsername = normalizeCacheUsername(username)
 
     type CleanupCandidate = {
         path: string
+        location: string
         size: number
         mtime: number
         lastPlayedAt: number
     }
     const allFiles: CleanupCandidate[] = []
-    const indexedFiles = new Set<string>()
-    const indexedItems = indexManager.getAll(normalizedUsername, 'cache')
+    for (const location of getCacheLocations()) {
+        const dir = getCacheDir(normalizedUsername, false, location, false)
+        if (!fs.existsSync(dir)) continue
+        const indexedFiles = new Set<string>()
+        const indexedItems = indexManager.getAll(normalizedUsername, 'cache', location)
 
-    // 以歌曲为清理单元，把同名歌词一起计入大小，避免先删掉歌词、
-    // 后删音频时出现索引状态和实际占用不一致。
-    for (const item of indexedItems) {
-        const audioPath = resolveCacheRelativePath(dir, item.filename)
-        if (!audioPath || !fs.existsSync(audioPath)) continue
-        if (!CACHE_SIZE_EXTENSIONS.has(path.extname(audioPath).toLowerCase())) continue
+        // 以歌曲为清理单元，把同名歌词一起计入大小，避免先删掉歌词、
+        // 后删音频时出现索引状态和实际占用不一致。
+        for (const item of indexedItems) {
+            const audioPath = resolveCacheRelativePath(dir, item.filename)
+            if (!audioPath || !fs.existsSync(audioPath)) continue
+            if (!CACHE_SIZE_EXTENSIONS.has(path.extname(audioPath).toLowerCase())) continue
 
-        const relatedPaths = [audioPath]
-        const lyricFilename = item.lyricFilename || resolveCompanionLyricFilename(dir, item.filename)
-        const lyricPath = lyricFilename ? resolveCacheRelativePath(dir, lyricFilename) : null
-        if (lyricPath && fs.existsSync(lyricPath)) relatedPaths.push(lyricPath)
+            const relatedPaths = [audioPath]
+            const lyricFilename = item.lyricFilename || resolveCompanionLyricFilename(dir, item.filename)
+            const lyricPath = lyricFilename ? resolveCacheRelativePath(dir, lyricFilename) : null
+            if (lyricPath && fs.existsSync(lyricPath)) relatedPaths.push(lyricPath)
 
-        let size = 0
-        let mtime = Number.POSITIVE_INFINITY
-        for (const relatedPath of relatedPaths) {
+            let size = 0
+            let mtime = Number.POSITIVE_INFINITY
+            for (const relatedPath of relatedPaths) {
+                try {
+                    const fileStat = fs.statSync(relatedPath)
+                    size += fileStat.size
+                    mtime = Math.min(mtime, fileStat.mtime.getTime())
+                    indexedFiles.add(relatedPath)
+                } catch (e) { }
+            }
+            if (size > 0) {
+                const lastPlayedAt = Number(item.lastPlayedAt)
+                allFiles.push({
+                    path: audioPath,
+                    location,
+                    size,
+                    mtime: Number.isFinite(mtime) ? mtime : 0,
+                    // 旧缓存没有播放记录时按“从未播放”处理，优先清理；
+                    // 同为从未播放时再沿用 mtime 作为稳定的次级排序。
+                    lastPlayedAt: Number.isFinite(lastPlayedAt) && lastPlayedAt >= 0 ? lastPlayedAt : 0,
+                })
+            }
+        }
+
+        // 没有索引的历史文件也要纳入清理，并按从未播放处理。
+        for (const filePath of getCacheFilesRecursively(dir)) {
+            if (indexedFiles.has(filePath)) continue
+            if (!CACHE_SIZE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue
             try {
-                const fileStat = fs.statSync(relatedPath)
-                size += fileStat.size
-                mtime = Math.min(mtime, fileStat.mtime.getTime())
-                indexedFiles.add(relatedPath)
+                const fileStat = fs.statSync(filePath)
+                allFiles.push({ path: filePath, location, size: fileStat.size, mtime: fileStat.mtime.getTime(), lastPlayedAt: 0 })
             } catch (e) { }
         }
-        if (size > 0) {
-            const lastPlayedAt = Number(item.lastPlayedAt)
-            allFiles.push({
-                path: audioPath,
-                size,
-                mtime: Number.isFinite(mtime) ? mtime : 0,
-                // 旧缓存没有播放记录时按“从未播放”处理，优先清理；
-                // 同为从未播放时再沿用 mtime 作为稳定的次级排序。
-                lastPlayedAt: Number.isFinite(lastPlayedAt) && lastPlayedAt >= 0 ? lastPlayedAt : 0,
-            })
-        }
-    }
-
-    // 没有索引的历史文件也要纳入清理，并按从未播放处理。
-    for (const filePath of getCacheFilesRecursively(dir)) {
-        if (indexedFiles.has(filePath)) continue
-        if (!CACHE_SIZE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue
-        try {
-            const fileStat = fs.statSync(filePath)
-            allFiles.push({ path: filePath, size: fileStat.size, mtime: fileStat.mtime.getTime(), lastPlayedAt: 0 })
-        } catch (e) { }
     }
 
     allFiles.sort((a, b) => a.lastPlayedAt - b.lastPlayedAt || a.mtime - b.mtime)
@@ -3086,8 +3267,9 @@ export const checkAndCleanupCache = async (username?: string) => {
         if (currentSize <= targetSize) break
         if (!fs.existsSync(file.path)) continue
         try {
+            const dir = getCacheDir(normalizedUsername, false, file.location, false)
             const relPath = path.relative(dir, file.path).replace(/\\/g, '/')
-            const res = removeCacheFile(relPath, normalizedUsername, 'cache')
+            const res = removeCacheFile(relPath, normalizedUsername, 'cache', file.location)
             if (res.deleted) {
                 currentSize -= file.size
                 deletedCount++
@@ -3095,6 +3277,10 @@ export const checkAndCleanupCache = async (username?: string) => {
         } catch (e) {
             try {
                 fs.unlinkSync(file.path)
+                const dir = getCacheDir(normalizedUsername, false, file.location, false)
+                const relPath = path.relative(dir, file.path).replace(/\\/g, '/')
+                const item = indexManager.getAll(normalizedUsername, 'cache', file.location).find(candidate => candidate.filename === relPath)
+                if (item) indexManager.remove(normalizedUsername, item.id, 'cache', item.quality, file.location)
                 currentSize -= file.size
                 deletedCount++
             } catch (_) { }

@@ -667,6 +667,87 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('should clear both cache roots and per-user cover files', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-cover-clear-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'cover-clear-user'
+      const cacheDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.DATA)
+      const audioPath = path.join(cacheDir, 'song.mp3')
+      fs.writeFileSync(audioPath, Buffer.from('audio'))
+      const legacyCacheDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.ROOT)
+      const legacyAudioPath = path.join(legacyCacheDir, 'legacy.mp3')
+      fs.writeFileSync(legacyAudioPath, Buffer.from('legacy'))
+      const coverDir = path.join(dataPath, 'cover_cache', username)
+      fs.mkdirSync(coverDir, { recursive: true })
+      fs.writeFileSync(path.join(coverDir, 'orphan.bin'), Buffer.from('cover'))
+
+      const result = fileCache.clearAllCache(username)
+      expect(result.deletedCount).toBe(3)
+      expect(fs.existsSync(audioPath)).toBe(false)
+      expect(fs.existsSync(legacyAudioPath)).toBe(false)
+      expect(fs.existsSync(coverDir)).toBe(false)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+      fs.rmSync(path.join(process.cwd(), 'cache', 'cover-clear-user'), { recursive: true, force: true })
+    }
+  })
+
+  it('should move and delete all disposable cache data during account lifecycle changes', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-lifecycle-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const oldUsername = 'cache-old-user'
+      const newUsername = 'cache-new-user'
+      const oldCacheDir = fileCache.getCacheDir(oldUsername)
+      const oldMusicDir = fileCache.getCacheDir(oldUsername, true)
+      fs.writeFileSync(path.join(oldCacheDir, 'cached.mp3'), Buffer.from('cache'))
+      fs.writeFileSync(path.join(oldMusicDir, 'downloaded.flac'), Buffer.from('music'))
+      const oldCoverDir = path.join(dataPath, 'cover_cache', oldUsername)
+      fs.mkdirSync(oldCoverDir, { recursive: true })
+      fs.writeFileSync(path.join(oldCoverDir, 'cover.bin'), Buffer.from('cover'))
+
+      expect(fileCache.moveUserCacheData(oldUsername, newUsername).movedDirectories).toBe(3)
+      expect(fs.existsSync(path.join(dataPath, 'cache', oldUsername))).toBe(false)
+      expect(fs.existsSync(path.join(dataPath, 'cache', newUsername, 'cached.mp3'))).toBe(true)
+      expect(fs.existsSync(path.join(dataPath, 'music', newUsername, 'downloaded.flac'))).toBe(true)
+      expect(fs.existsSync(path.join(dataPath, 'cover_cache', newUsername, 'cover.bin'))).toBe(true)
+
+      fileCache.deleteUserCacheData(newUsername)
+      expect(fs.existsSync(path.join(dataPath, 'cache', newUsername))).toBe(false)
+      expect(fs.existsSync(path.join(dataPath, 'music', newUsername))).toBe(false)
+      expect(fs.existsSync(path.join(dataPath, 'cover_cache', newUsername))).toBe(false)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+      fs.rmSync(path.join(process.cwd(), 'cache', 'cache-old-user'), { recursive: true, force: true })
+      fs.rmSync(path.join(process.cwd(), 'cache', 'cache-new-user'), { recursive: true, force: true })
+      fs.rmSync(path.join(process.cwd(), 'music', 'cache-old-user'), { recursive: true, force: true })
+      fs.rmSync(path.join(process.cwd(), 'music', 'cache-new-user'), { recursive: true, force: true })
+      fs.rmSync(path.join(process.cwd(), 'cover_cache', 'cache-old-user'), { recursive: true, force: true })
+      fs.rmSync(path.join(process.cwd(), 'cover_cache', 'cache-new-user'), { recursive: true, force: true })
+    }
+  })
+
   it('should clean up only cache directory and preserve music directory when limit exceeded', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-cleanup-'))
     const previousLx = (global as any).lx

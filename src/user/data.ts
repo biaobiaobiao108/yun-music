@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import { filterFileName, toMD5 } from '@/utils'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
+import { moveUserCacheData } from '@/server/fileCache'
 
 export interface ServerInfo {
   serverId: string
@@ -246,11 +247,13 @@ export const migrateUserData = (oldName: string, newName: string): string => {
   }
 
   let moved = false
+  let movedCache = false
   try {
     if (shouldMoveDirectory) {
       fs.renameSync(oldDirPath, newDirPath)
       moved = true
     }
+    movedCache = moveUserCacheData(oldName, newName).movedDirectories > 0
 
     const db = getDb()
     const now = Date.now()
@@ -266,6 +269,11 @@ export const migrateUserData = (oldName: string, newName: string): string => {
       db.run('UPDATE cache_index SET user_name = ? WHERE user_name = ?', [newName, oldName])
     })()
   } catch (error) {
+    if (movedCache) {
+      try { moveUserCacheData(newName, oldName) } catch (rollbackError) {
+        console.error('[User] 用户缓存迁移回滚失败:', rollbackError)
+      }
+    }
     if (moved && fs.existsSync(newDirPath) && !fs.existsSync(oldDirPath)) {
       try { fs.renameSync(newDirPath, oldDirPath) } catch (rollbackError) {
         console.error('[User] 用户目录迁移回滚失败:', rollbackError)

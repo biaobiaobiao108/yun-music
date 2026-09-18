@@ -12,6 +12,7 @@ import { createLocalBackup, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '.
 import { refreshUsersFromDatabase } from '@/user/data'
 import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
+import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -209,7 +210,27 @@ export const createSystemRouter = (): Router => {
     return ctx.json(stats)
   })
 
-  // 1.1 详细系统状态 /api/status
+  // 1.1 SQLite 存储状态与显式压缩。VACUUM 可能短暂占用额外磁盘空间，
+  // 因此只允许管理员按需执行，不在普通请求或启动时自动触发。
+  router.get('/api/admin/database/stats', (ctx) => {
+    if (!verifyAdminAuth(ctx.request)) {
+      return ctx.fail(401, '登录状态已失效，请重新登录')
+    }
+    return ctx.json({ success: true, data: getDatabaseStorageStats() })
+  })
+
+  router.post('/api/admin/database/vacuum', (ctx) => {
+    if (!verifyAdminAuth(ctx.request)) {
+      return ctx.fail(401, '登录状态已失效，请重新登录')
+    }
+    try {
+      return ctx.json({ success: true, data: vacuumDatabase() })
+    } catch (error) {
+      return ctx.fail(500, toUserMessage(error, '数据库压缩失败，请稍后重试'))
+    }
+  })
+
+  // 1.2 详细系统状态 /api/status
   router.get('/api/status', (ctx) => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')

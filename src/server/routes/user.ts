@@ -18,6 +18,7 @@ import { startupLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { assertSnapshotId } from '@/modules/list/snapshotDataManage'
+import { deleteUserCacheData } from '@/server/fileCache'
 
 const MAX_USER_SETTING_BODY_BYTES = 2 * 1024 * 1024
 
@@ -253,7 +254,7 @@ export const createUserRouter = (): Router => {
       }
 
       let deletedCount = 0
-      const deletedUsers: { name: string; dataPath: string }[] = []
+      const deletedUsers: { name: string; dataPath?: string }[] = []
       const previousUsers = [...global.lx.config.users]
 
       for (const targetName of targets) {
@@ -261,9 +262,10 @@ export const createUserRouter = (): Router => {
         if (idx !== -1) {
           const user = global.lx.config.users[idx]
           releaseUserSpace(targetName, true)
-          if (body.deleteData && user.dataPath) {
-            deletedUsers.push({ name: targetName, dataPath: user.dataPath })
-          }
+          // Audio/cover/lyric caches are disposable derived data. Once the
+          // account is removed, retaining them would leave inaccessible files
+          // and stale cache_index rows even when deleteData is unchecked.
+          deletedUsers.push({ name: targetName, dataPath: user.dataPath })
           global.lx.config.users.splice(idx, 1)
           deletedCount++
         }
@@ -276,19 +278,22 @@ export const createUserRouter = (): Router => {
           global.lx.config.users.splice(0, global.lx.config.users.length, ...previousUsers)
           throw error
         }
-        if (body.deleteData && deletedUsers.length > 0) {
+        const cleanupWarnings: string[] = []
+        if (deletedUsers.length > 0) {
           for (const user of deletedUsers) {
             try {
+              deleteUserCacheData(user.name)
               releaseUserSpace(user.name, true)
-              if (fs.existsSync(user.dataPath)) {
+              if (body.deleteData && user.dataPath && fs.existsSync(user.dataPath)) {
                 fs.rmSync(user.dataPath, { recursive: true, force: true })
               }
             } catch (err) {
-              console.error(`Failed to delete user data folder for ${user.name}:`, err)
+              console.error(`Failed to delete disposable data for ${user.name}:`, err)
+              cleanupWarnings.push(user.name)
             }
           }
         }
-        return ctx.json({ success: true, deletedCount })
+        return ctx.json({ success: true, deletedCount, ...(cleanupWarnings.length > 0 ? { cleanupWarnings } : {}) })
       }
       return ctx.fail(404, '用户不存在')
     } catch {

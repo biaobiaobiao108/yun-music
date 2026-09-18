@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
+let activeDbPath: string | null = null
 const stmtCache = new Map<string, any>()
 
 const clearStatementCache = (): void => {
@@ -138,6 +139,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   db.run('PRAGMA user_version = 3')
 
   dbInstance = db
+  activeDbPath = dbPath
   clearStatementCache()
   return db
 }
@@ -168,6 +170,67 @@ export const closeDb = (): void => {
     dbInstance.close()
     dbInstance = null
   }
+  activeDbPath = null
+}
+
+export interface DatabaseStorageStats {
+  pageSize: number
+  pageCount: number
+  freelistCount: number
+  logicalBytes: number
+  freeBytes: number
+  fileBytes: number
+  walBytes: number
+  shmBytes: number
+  totalBytes: number
+}
+
+const readPragmaNumber = (name: string): number => {
+  const row = getDb().query<Record<string, number>, []>(`PRAGMA ${name}`).get()
+  const value = Number(row?.[name] ?? 0)
+  return Number.isFinite(value) ? value : 0
+}
+
+const getDatabaseFileBytes = (suffix = ''): number => {
+  if (!activeDbPath || activeDbPath === ':memory:') return 0
+  try {
+    return fs.statSync(`${activeDbPath}${suffix}`).size
+  } catch {
+    return 0
+  }
+}
+
+/** Return SQLite page and sidecar-file usage without mutating the database. */
+export const getDatabaseStorageStats = (): DatabaseStorageStats => {
+  const pageSize = readPragmaNumber('page_size')
+  const pageCount = readPragmaNumber('page_count')
+  const freelistCount = readPragmaNumber('freelist_count')
+  const fileBytes = getDatabaseFileBytes()
+  const walBytes = getDatabaseFileBytes('-wal')
+  const shmBytes = getDatabaseFileBytes('-shm')
+  return {
+    pageSize,
+    pageCount,
+    freelistCount,
+    logicalBytes: pageSize * pageCount,
+    freeBytes: pageSize * freelistCount,
+    fileBytes,
+    walBytes,
+    shmBytes,
+    totalBytes: fileBytes + walBytes + shmBytes,
+  }
+}
+
+/** Compact the live database during an explicit administrator maintenance action. */
+export const vacuumDatabase = (): { before: DatabaseStorageStats; after: DatabaseStorageStats; reclaimedBytes: number } => {
+  try { getDb().run('PRAGMA wal_checkpoint(TRUNCATE)') } catch { }
+  const before = getDatabaseStorageStats()
+  clearStatementCache()
+  getDb().run('VACUUM')
+  clearStatementCache()
+  try { getDb().run('PRAGMA wal_checkpoint(TRUNCATE)') } catch { }
+  const after = getDatabaseStorageStats()
+  return { before, after, reclaimedBytes: Math.max(0, before.totalBytes - after.totalBytes) }
 }
 
 /** VACUUM INTO produces a consistent standalone snapshot including committed WAL data. */

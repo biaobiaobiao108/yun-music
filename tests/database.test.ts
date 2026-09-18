@@ -2,18 +2,17 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
-import { randomUUID } from 'crypto'
-import { initDatabase, getDb, closeDb } from '../src/database'
+import { closeDb, getDatabaseStorageStats, getDb, initDatabase, vacuumDatabase } from '../src/database'
 import { hashUserPassword, syncUsersToDatabase, verifyUserPassword } from '../src/user/data'
 
 let testDbPath = ''
+let testDataDir = ''
 
 describe('Database (bun:sqlite) Structured Storage', () => {
   beforeEach(() => {
-    const dataDir = path.join(process.cwd(), 'data')
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
+    testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-database-test-'))
     ;(global as any).lx = {
-      dataPath: dataDir,
+      dataPath: testDataDir,
       config: {
         maxSnapshotNum: 5,
         'list.addMusicLocationType': 'bottom',
@@ -21,19 +20,15 @@ describe('Database (bun:sqlite) Structured Storage', () => {
       },
     }
     closeDb()
-    testDbPath = path.join(dataDir, `lx-test-${randomUUID()}.db`)
+    testDbPath = path.join(testDataDir, 'yun-yin.db')
     initDatabase(testDbPath)
   })
 
   afterEach(() => {
     closeDb()
-    try {
-      if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath)
-      const wal = testDbPath + '-wal'
-      const shm = testDbPath + '-shm'
-      if (fs.existsSync(wal)) fs.unlinkSync(wal)
-      if (fs.existsSync(shm)) fs.unlinkSync(shm)
-    } catch {}
+    if (testDataDir) fs.rmSync(testDataDir, { recursive: true, force: true })
+    testDbPath = ''
+    testDataDir = ''
   })
 
   it('should initialize tables with foreign keys and WAL mode', () => {
@@ -120,5 +115,23 @@ describe('Database (bun:sqlite) Structured Storage', () => {
 
     expect(cacheRow).toBeDefined()
     expect(JSON.parse(cacheRow.data)).toEqual(cacheItem)
+  })
+
+  it('should report SQLite storage usage and compact free pages on demand', () => {
+    const db = getDb()
+    const payload = 'x'.repeat(128 * 1024)
+    const now = Date.now()
+    db.run(
+      'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      ['large_snapshot', 'testuser', 'list', payload, payload.length, now],
+    )
+    const beforeDelete = getDatabaseStorageStats()
+    db.run('DELETE FROM snapshots WHERE id = ?', ['large_snapshot'])
+    const result = vacuumDatabase()
+
+    expect(beforeDelete.totalBytes).toBeGreaterThan(0)
+    expect(result.after.totalBytes).toBeGreaterThan(0)
+    expect(result.after.freeBytes).toBeLessThanOrEqual(result.before.freeBytes)
+    expect(result.reclaimedBytes).toBeGreaterThanOrEqual(0)
   })
 })

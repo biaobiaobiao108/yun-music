@@ -93,6 +93,29 @@ describe('User snapshot permissions', () => {
     expect((await router.handle(snapshotRequest('upload', 'another_user', userHeaders))).status).toBe(403)
   })
 
+  test('bounds imported snapshot history and repairs latest metadata after deletion', async () => {
+    const manager = getUserSpace(username).listManage
+    for (let index = 0; index < 12; index++) {
+      await manager.saveSnapshotWithTime(
+        `history-${index}`,
+        JSON.stringify({ ...initialData, userList: [{ id: `song-${index}` }] }),
+        Date.now() + index,
+      )
+    }
+
+    const retained = await manager.getSnapshotList()
+    expect(retained.length).toBeLessThanOrEqual(10)
+    expect(retained.some(item => item.id === 'history-11')).toBe(true)
+
+    await manager.restoreSnapshot('history-11')
+    await manager.removeSnapshot('history-11')
+    const latest = getDb().query<{ latest_id: string }, [string]>(
+      'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?'
+    ).get(username, 'list')
+    expect(latest?.latest_id).toBeTruthy()
+    expect(latest?.latest_id).not.toBe('history-11')
+  })
+
   test('public library writes require an administrator while personal libraries remain writable', async () => {
     const router = createUserRouter()
     for (const type of ['artists', 'albums']) {
