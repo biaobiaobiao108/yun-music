@@ -4915,6 +4915,15 @@ body > .flex.flex-1.overflow-hidden.relative {
     box-shadow: 0 18px 18px 0 rgb(15 23 42 / 0.22) !important;
 }
 
+/* Light surfaces need a quiet halo to separate the translucent capsule from
+   the white page background. Keep the ring restrained so it does not become
+   another hard divider above the song rows. */
+:root:not(.dark):not([data-appearance="dark"]) #player-footer {
+    box-shadow:
+        0 0 0 1px rgb(15 23 42 / 0.055),
+        0 8px 24px -12px rgb(15 23 42 / 0.22) !important;
+}
+
 #player-footer::before {
     background: transparent !important;
     box-shadow: none !important;
