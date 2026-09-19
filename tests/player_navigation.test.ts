@@ -340,9 +340,10 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(distContent).toContain('reloadLibraryData');
     });
 
-    it('all player list surfaces use the same header and pagination boundaries', () => {
+    it('player list surfaces keep pagination boundaries and the songlist uses inline loading', () => {
         const html = fs.readFileSync(path.join(import.meta.dir, '../public/music/index.html'), 'utf8');
         const css = fs.readFileSync(playerCssPath, 'utf8');
+        const songListSource = fs.readFileSync(songListSrcPath, 'utf8');
 
         const sharedHeaders = html.match(/player-track-list-header player-track-grid/g) ?? [];
         expect(sharedHeaders.length).toBe(0);
@@ -350,10 +351,16 @@ describe('Player Navigation and State Restoration Safety', () => {
             const element = html.match(new RegExp(`id="${id}"[\\s\\S]{0,240}`))?.[0] ?? '';
             expect(element).toContain('player-floating-capsule');
         }
-        for (const id of ['search-pagination-bar', 'songlist-pagination', 'lb-pagination', 'lm-pagination']) {
+        for (const id of ['search-pagination-bar', 'lb-pagination', 'lm-pagination']) {
             const element = html.match(new RegExp(`id="${id}"[\\s\\S]{0,240}`))?.[0] ?? '';
             expect(element).toContain('player-pagination-bar');
         }
+        expect(html).not.toContain('id="songlist-pagination"');
+        expect(html).toContain('id="songlist-load-more"');
+        expect(songListSource).toContain("case 'load-more':");
+        expect(songListSource).toContain('function hasMoreSongLists()');
+        expect(css).toContain('scale: 1 !important;');
+        expect(css).toContain('box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 18%, transparent) !important;');
         expect(css).toContain('inline-size: 100%;');
         expect(css).toContain('padding-inline: 0 !important;');
         expect(css).toContain('.player-pagination-center');

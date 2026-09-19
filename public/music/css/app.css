@@ -4258,7 +4258,6 @@ dialog.runtime-input-dialog #modal-input {
     padding: 0.25rem 0 0.75rem !important;
 }
 
-#songlist-pagination,
 #lb-pagination {
     flex: 0 0 3rem;
     border-block-start: 1px solid color-mix(in srgb, var(--border-main) 78%, transparent);
@@ -4585,7 +4584,6 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 /* Keep the plaza and leaderboard surfaces on the same opaque content plane. */
 #songlist-grid,
-#songlist-pagination,
 #lb-sidebar,
 #lb-songs-container,
 #lb-songs-list,
@@ -4705,5 +4703,112 @@ body > .flex.flex-1.overflow-hidden.relative {
     #player-footer,
     #player-footer.player-footer-immersive {
         border-radius: 9999px !important;
+    }
+}
+
+/* The plaza loads the next page inside its own scroll flow, so it no longer
+   needs a fixed pagination shelf at the bottom of the card. */
+#songlist-grid {
+    padding-block-end: 0.75rem !important;
+}
+
+.songlist-load-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.75rem 0.25rem 1rem;
+}
+
+.songlist-load-more.hidden {
+    display: none;
+}
+
+.songlist-load-more-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-block-size: 2.25rem;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid color-mix(in srgb, var(--border-main) 82%, transparent);
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--bg-panel) 92%, var(--c-500, #10b981) 8%);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.songlist-load-more-button:hover:not(:disabled),
+.songlist-load-more-button:focus-visible {
+    border-color: color-mix(in srgb, var(--c-500, #10b981) 45%, var(--border-main));
+    background: color-mix(in srgb, var(--c-500, #10b981) 10%, var(--bg-panel));
+    color: var(--c-600, #059669);
+}
+
+.songlist-load-more-button:active:not(:disabled) {
+    transform: translateY(1px) scale(0.98);
+}
+
+.songlist-load-more-button:disabled {
+    cursor: wait;
+    opacity: 0.68;
+}
+
+.songlist-load-more-status {
+    min-block-size: 1rem;
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+}
+
+/* Keep the footer's leading column and cover anchor identical in normal and
+   lyric-detail modes. Only the visual treatment changes when immersive mode
+   is toggled; the flex geometry and cover position do not. */
+#player-footer #player-song-info,
+#player-footer.player-footer-immersive #player-song-info {
+    flex: 0 1 clamp(13rem, 32%, 17rem) !important;
+    inline-size: clamp(13rem, 32%, 17rem) !important;
+    width: clamp(13rem, 32%, 17rem) !important;
+    max-inline-size: 17rem !important;
+    min-inline-size: 0 !important;
+    transform: none !important;
+    transition: opacity 180ms ease !important;
+}
+
+#player-footer #player-song-info > .relative.flex-shrink-0,
+#player-footer.player-footer-immersive #player-song-info > .relative.flex-shrink-0 {
+    flex: 0 0 3rem;
+    inline-size: 3rem;
+    block-size: 3rem;
+    transform: none !important;
+}
+
+#player-footer #player-cover,
+#player-footer.player-footer-immersive #player-cover {
+    inline-size: 3rem;
+    block-size: 3rem;
+    transform: none;
+    scale: 1 !important;
+}
+
+/* A selected nav item uses an inset ring instead of a rectangular external
+   shadow, keeping the rounded highlight visually contained in the sidebar. */
+#main-sidebar .netease-nav-item.active-tab {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 18%, transparent) !important;
+}
+
+@media (max-width: 1024px) {
+    #player-footer #player-song-info,
+    #player-footer.player-footer-immersive #player-song-info {
+        flex: 0 0 100% !important;
+        inline-size: 100% !important;
+        width: 100% !important;
+        max-inline-size: none !important;
+    }
+
+    #player-footer #player-song-info > .relative.flex-shrink-0,
+    #player-footer.player-footer-immersive #player-song-info > .relative.flex-shrink-0 {
+        flex-basis: 3rem;
     }
 }

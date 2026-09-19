@@ -531,21 +531,15 @@
                                     <p class="font-bold tracking-wider">正在加载歌单...</p>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Pagination -->
-                        <div id="songlist-pagination" class="player-pagination-bar">
-                            <button data-songlist-action="change-page" data-delta="-1" id="btn-songlist-prev"
-                                class="player-pagination-button" aria-label="上一页" title="上一页">
-                                <i class="fas fa-chevron-left text-xs" aria-hidden="true"></i> <span class="hidden sm:inline">上一页</span>
-                            </button>
-                            <div class="player-pagination-center">
-                                <span id="songlist-page-info" class="player-pagination-info text-sm font-mono font-bold t-text-main">第 1 页</span>
+                            <div id="songlist-load-more" class="songlist-load-more hidden" role="status" aria-live="polite">
+                                <button type="button" data-songlist-action="load-more" id="btn-songlist-load-more"
+                                    class="songlist-load-more-button" aria-label="加载更多歌单">
+                                    <i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i>
+                                    <span>加载更多</span>
+                                </button>
+                                <span id="songlist-load-more-status" class="songlist-load-more-status"></span>
                             </div>
-                            <button data-songlist-action="change-page" data-delta="1" id="btn-songlist-next"
-                                class="player-pagination-button" aria-label="下一页" title="下一页">
-                                <span class="hidden sm:inline">下一页</span> <i class="fas fa-chevron-right text-xs" aria-hidden="true"></i>
-                            </button>
                         </div>
                     </div>
 

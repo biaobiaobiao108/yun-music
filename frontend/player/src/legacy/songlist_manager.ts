@@ -35,6 +35,9 @@ export function createSongListManager(context: SongListManagerContext) {
         page: 1,
         total: 0,
         limit: 30,
+        query: '',
+        loadMoreError: false,
+        hasMore: true,
         list: [],
         tags: [],
         hotTags: []
@@ -137,6 +140,9 @@ export function createSongListManager(context: SongListManagerContext) {
                 break;
             case 'change-page':
                 manager.changePage(Number(data.delta || 0));
+                break;
+            case 'load-more':
+                manager.loadMore();
                 break;
             case 'toggle-header':
                 toggleSlDetailHeader();
@@ -347,42 +353,94 @@ export function createSongListManager(context: SongListManagerContext) {
     }
 
     async function loadList(page = 1) {
+        const requestedPage = Math.max(1, Number(page) || 1);
+        if (listLoading && requestedPage > 1) return false;
         listRequestController?.abort();
         const requestSerial = ++listRequestSerial;
         listRequestController = new AbortController();
         listLoading = true;
-        currentState.page = page;
-        const { source, tagId, sortId } = currentState;
+        currentState.page = requestedPage;
+        currentState.loadMoreError = false;
+        const { source, tagId, sortId, query } = currentState;
         const container = document.getElementById('songlist-container');
 
-        container.innerHTML = `
-            <div class="col-span-full py-20 text-center t-text-muted">
-                <i class="fas fa-spinner fa-spin text-4xl mb-4 text-emerald-500"></i>
-                <p>正在拉取 ${source.toUpperCase()} 歌单...</p>
-            </div>
-        `;
+        if (requestedPage === 1) {
+            currentState.list = [];
+            currentState.total = 0;
+            currentState.hasMore = true;
+            container.innerHTML = `
+                <div class="col-span-full py-20 text-center t-text-muted">
+                    <i class="fas fa-spinner fa-spin text-4xl mb-4 text-emerald-500"></i>
+                    <p>${query ? '正在搜索歌单...' : `正在拉取 ${source.toUpperCase()} 歌单...`}</p>
+                </div>
+            `;
+        }
+        updateLoadMoreUI();
 
         try {
-            const url = `${API_BASE}/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${page}`;
+            const url = query
+                ? `${API_BASE}/songList/search?source=${encodeURIComponent(source)}&text=${encodeURIComponent(query)}&page=${requestedPage}`
+                : `${API_BASE}/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${requestedPage}`;
             const res = await fetch(url, { signal: listRequestController.signal });
             const data = await res.json();
-            if (requestSerial !== listRequestSerial || currentState.page !== page) return;
+            if (requestSerial !== listRequestSerial || currentState.page !== requestedPage) return false;
 
-            currentState.list = data.list || [];
-            currentState.total = data.total || 0;
-            currentState.limit = data.limit || 30;
+            const incomingList = Array.isArray(data.list) ? data.list : [];
+            currentState.list = requestedPage === 1
+                ? incomingList
+                : [...currentState.list, ...incomingList];
+            const total = Number(data.total);
+            currentState.total = Number.isFinite(total) && total >= 0 ? total : currentState.total;
+            currentState.limit = Number(data.limit) || currentState.limit || 30;
+            currentState.hasMore = Number.isFinite(total) && total >= 0
+                ? currentState.list.length < total
+                : incomingList.length >= currentState.limit;
 
             renderList();
-            updatePaginationUI();
+            updateLoadMoreUI();
+            return true;
         } catch (e) {
             if (e?.name === 'AbortError' || requestSerial !== listRequestSerial) return;
             console.error('[SongList] Load list failed:', e);
-            container.innerHTML = `<div class="col-span-full py-20 text-center text-red-500">加载失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
+            if (requestedPage === 1) {
+                container.innerHTML = `<div class="col-span-full py-20 text-center text-red-500">加载失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
+            } else {
+                currentState.loadMoreError = true;
+            }
         } finally {
             if (requestSerial === listRequestSerial) {
                 listLoading = false;
-                updatePaginationUI();
+                updateLoadMoreUI();
             }
+        }
+    }
+
+    function hasMoreSongLists() {
+        return currentState.hasMore && currentState.list.length > 0;
+    }
+
+    function updateLoadMoreUI() {
+        const wrapper = document.getElementById('songlist-load-more');
+        const button = document.getElementById('btn-songlist-load-more') as HTMLButtonElement | null;
+        const status = document.getElementById('songlist-load-more-status');
+        if (!wrapper || !button) return;
+
+        const hasMore = hasMoreSongLists();
+        const isAppending = listLoading && currentState.list.length > 0;
+        const showRetry = currentState.loadMoreError && !listLoading;
+        wrapper.classList.toggle('hidden', !hasMore && !isAppending && !showRetry);
+        button.disabled = listLoading;
+        button.setAttribute('aria-busy', String(listLoading));
+
+        if (listLoading) {
+            button.innerHTML = '<i class="fas fa-circle-notch fa-spin text-[10px]" aria-hidden="true"></i><span>正在加载...</span>';
+            if (status) status.textContent = '';
+        } else if (showRetry) {
+            button.innerHTML = '<i class="fas fa-rotate-right text-[10px]" aria-hidden="true"></i><span>加载失败，点击重试</span>';
+            if (status) status.textContent = '';
+        } else {
+            button.innerHTML = '<i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span>';
+            if (status) status.textContent = hasMore ? '' : '已加载全部歌单';
         }
     }
 
@@ -832,13 +890,6 @@ export function createSongListManager(context: SongListManagerContext) {
         }
     }
 
-    function updatePaginationUI() {
-        document.getElementById('songlist-page-info').innerText = `第 ${currentState.page} 页`;
-        document.getElementById('btn-songlist-prev').disabled = currentState.page <= 1;
-        // Simplified check for next page, can be improved with total/limit
-        document.getElementById('btn-songlist-next').disabled = currentState.list.length < currentState.limit;
-    }
-
     // --- Public Methods ---
 
     return {
@@ -849,6 +900,9 @@ export function createSongListManager(context: SongListManagerContext) {
             init();
             currentState.tagId = id;
             currentState.tagName = name;
+            currentState.query = '';
+            const searchInput = document.getElementById('songlist-search-input') as HTMLInputElement | null;
+            if (searchInput) searchInput.value = '';
             document.getElementById('current-tag-name').innerText = name;
             toggleTagSelector(false);
             loadList(1);
@@ -862,6 +916,9 @@ export function createSongListManager(context: SongListManagerContext) {
 
             currentState.tagId = '';
             currentState.tagName = '全部分类';
+            currentState.query = '';
+            const searchInput = document.getElementById('songlist-search-input') as HTMLInputElement | null;
+            if (searchInput) searchInput.value = '';
             document.getElementById('current-tag-name').innerText = '全部分类';
             currentState.tags = [];
             currentState.sortList = [];
@@ -873,16 +930,21 @@ export function createSongListManager(context: SongListManagerContext) {
         changeSort: function (sort) {
             init();
             currentState.sortId = sort;
+            currentState.query = '';
+            const searchInput = document.getElementById('songlist-search-input') as HTMLInputElement | null;
+            if (searchInput) searchInput.value = '';
             renderSortTabs();
             loadList(1);
         },
         changePage: function (delta) {
             init();
-            const next = currentState.page + delta;
-            if (next < 1) return;
-            if (listLoading) return;
-            loadList(next);
-            document.getElementById('songlist-grid').scrollTo({ top: 0, behavior: 'smooth' });
+            if (delta > 0) return this.loadMore();
+            return false;
+        },
+        loadMore: function () {
+            init();
+            if (listLoading || !hasMoreSongLists()) return false;
+            return loadList(currentState.page + 1);
         },
         openDetail: function (id, source, fromHistory = false) {
             init();
@@ -942,35 +1004,8 @@ export function createSongListManager(context: SongListManagerContext) {
         },
         search: async function () {
             const text = document.getElementById('songlist-search-input').value.trim();
-            if (!text) {
-                loadList(1);
-                return;
-            }
-
-            listRequestController?.abort();
-            const requestSerial = ++listRequestSerial;
-            listRequestController = new AbortController();
-            listLoading = true;
-            currentState.page = 1;
-            const container = document.getElementById('songlist-container');
-            container.innerHTML = '<div class="col-span-full py-20 text-center t-text-muted"><i class="fas fa-spinner fa-spin text-4xl mb-4 text-emerald-500"></i><p>正在搜索歌单...</p></div>';
-
-            try {
-                const url = `${API_BASE}/songList/search?source=${currentState.source}&text=${encodeURIComponent(text)}&page=1`;
-                const res = await fetch(url, { signal: listRequestController.signal });
-                const data = await res.json();
-                if (requestSerial !== listRequestSerial) return;
-                currentState.list = data.list || [];
-                currentState.total = data.total || 0;
-                renderList();
-                document.getElementById('songlist-pagination').classList.add('hidden');
-            } catch (e) {
-                if (e?.name === 'AbortError' || requestSerial !== listRequestSerial) return;
-                console.error('[SongList] Search failed:', e);
-                container.innerHTML = `<div class="col-span-full py-20 text-center text-red-500">搜索失败: ${escapeHtmlText(toUserMessage(e))}</div>`;
-            } finally {
-                if (requestSerial === listRequestSerial) listLoading = false;
-            }
+            currentState.query = text;
+            return loadList(1);
         },
         handleRowClick: function (index) {
             if (window.batchMode) {
