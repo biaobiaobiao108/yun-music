@@ -662,7 +662,7 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
     state.preSelectedNextIndex = null;
 
     state.currentPlayingSong = song;
-    window.currentPlayingSong = song; // expose for lyric-card.js
+    window.currentPlayingSong = song;
     // The advertised quality is not necessarily the quality that will be played.
     // Clear the previous song's quality until URL resolution confirms the actual one.
     updatePlayerInfo(song, null);

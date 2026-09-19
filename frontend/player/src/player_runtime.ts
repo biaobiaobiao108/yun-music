@@ -70,14 +70,6 @@ export function ensureLocalMusicLoaded() {
     );
 }
 
-export function ensureLyricCardLoaded() {
-    return loadLazyModule(
-        'lyric-card',
-        () => import('./legacy/lyric_card'),
-        'lyricCard',
-    );
-}
-
 export function ensureSoundEffectsLoaded() {
     return loadLazyModule(
         'sound-effects',
@@ -90,17 +82,6 @@ function showError(message: string) {
     const handler = (window as any).showError;
     if (typeof handler === 'function') handler(message);
     else console.error(message);
-}
-
-export function openLyricCard() {
-    const lyricCard = (window as any).lyricCard;
-    if (lyricCard) {
-        lyricCard.open();
-        return;
-    }
-    ensureLyricCardLoaded()
-        .then(() => (window as any).lyricCard?.open())
-        .catch(() => showError('歌词卡片模块加载失败，请稍后重试'));
 }
 
 export function toggleSoundEffects() {

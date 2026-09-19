@@ -13,10 +13,8 @@ import {
     ensureLeaderboardLoaded,
     ensureLocalMusicLoaded,
     ensureMarkedLoaded,
-    ensureLyricCardLoaded,
     ensureSoundEffectsLoaded,
     ensureVisualizerLoaded,
-    openLyricCard,
     toggleSoundEffects,
 } from './player_runtime';
 import {
@@ -188,7 +186,6 @@ function isCurrentlyViewingLocalList(targetListId?: string): boolean {
 }
 (window as any).isCurrentlyViewingLocalList = isCurrentlyViewingLocalList;
 
-window.openLyricCard = openLyricCard;
 window.toggleSoundEffects = toggleSoundEffects;
 
 initAccessibleOverlays();
@@ -612,13 +609,6 @@ registerPlayerEventAction('trigger-player-like', () => {
 });
 registerPlayerEventAction('open-script-file', () => {
     document.getElementById('script-file')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-});
-registerPlayerEventAction('set-lyric-lines', (_event, _element, args) => {
-    const lines = String(args[0] ?? '');
-    (window as any).lyricCard?.setLyricLines(Number(lines));
-    document.querySelectorAll<HTMLElement>('.lc-lines-btn').forEach(button => {
-        button.classList.toggle('lc-btn-active', button.dataset.lines === lines);
-    });
 });
 bindPlayerEvents();
 
@@ -1314,8 +1304,7 @@ async function loadLocalFonts(targetSelectId = 'lyric-font-family-select', btnEl
 
         sortedFamilies.forEach(family => {
             const option = document.createElement('option');
-            // 如果是歌词卡片，保持带引号格式；如果是设置页，保持原样（lyric-card.js 会处理字体族名称）
-            option.value = targetSelectId === 'lc-font-select' ? `"${family}", sans-serif` : family;
+            option.value = family;
             option.textContent = family;
             group.appendChild(option);
         });

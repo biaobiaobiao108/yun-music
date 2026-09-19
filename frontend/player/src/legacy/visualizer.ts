@@ -220,9 +220,6 @@ const musicVisualizer = (function () {
             waveFooter.start();
             footerCanvas.style.opacity = opacity;
 
-            // 调整内容区域高度
-            const footerIsHidden = playerFooter && playerFooter.classList.contains('translate-y-[110%]');
-
             // 增加容器高度和 Footer 高度
             const isShortWindow = window.innerHeight <= 845;
             visualizerContainer.style.height = isShortWindow ? '32px' : '48px';
@@ -246,19 +243,9 @@ const musicVisualizer = (function () {
                 audioContext.resume();
             }
 
-            const measuredFooterHeight = playerFooter && !footerIsHidden
-                ? Math.ceil(playerFooter.getBoundingClientRect().height)
-                : 0;
-            // 主页面的底部避让由 .player-main-view + --player-footer-offset 统一负责，
-            // 可视化模块只维护自身的画布、播放栏尺寸以及侧栏避让。
-            const targetPb = footerIsHidden ? '' : `${measuredFooterHeight}px`;
-
-            // 调整侧边栏底部 Padding
-            const sidebar = document.querySelector('aside');
-            if (sidebar) {
-                sidebar.style.transition = 'padding-bottom 0.3s ease';
-                sidebar.style.paddingBottom = targetPb;
-            }
+            // 主页面的底部避让由 .player-main-view + --player-footer-offset 统一负责。
+            // 播放栏位于主内容区域内，不再给整张侧栏写入动态底部留白，
+            // 这样侧栏卡片可以稳定延伸到页面底部。
         } else if (footerCanvas && visualizerContainer) {
             waveFooter.stop();
             footerCanvas.style.opacity = '0';
@@ -273,10 +260,6 @@ const musicVisualizer = (function () {
             if (detailContainer) {
                 detailContainer.style.marginTop = '';
                 detailContainer.style.marginBottom = '';
-            }
-            const sidebar = document.querySelector('aside');
-            if (sidebar) {
-                sidebar.style.paddingBottom = '';
             }
         }
 

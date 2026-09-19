@@ -67,7 +67,6 @@ const overlayCloseActions: Record<string, () => void> = {
     'playlist-add-modal': () => (window as any).closePlaylistAddModal?.(),
     'subpath-select-modal': () => (window as any).LocalMusicManager?.closeSubPathModal?.(),
     'sleep-timer-modal': () => (window as any).closeSleepTimerModal?.(),
-    'lyric-card-modal': () => (window as any).lyricCard?.close?.(),
     'comment-modal': () => (window as any).toggleCommentModal?.(),
     'sound-effects-modal': () => (window as any).soundEffects?.close?.(),
     'project-agreement-modal': () => (window as any).acceptProjectAgreement?.(),

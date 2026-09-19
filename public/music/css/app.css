@@ -1059,7 +1059,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 /* Playlist detail view (Songlist) unified scroll and sticky controls */
-#songlist-detail-view {
+#player-main-content #songlist-detail-view {
     min-inline-size: 0;
     max-inline-size: 100%;
 }
@@ -1967,31 +1967,7 @@ aside {
     white-space: normal !important;
 }
 
-/* Lyric Card Share - Button States */
-.lc-layout-btn,
-.lc-color-btn,
-.lc-lines-btn {
-    color: #6b7280;
-    border-color: #e5e7eb;
-    background: #f9fafb;
-}
-
-.lc-layout-btn:hover,
-.lc-color-btn:hover,
-.lc-lines-btn:hover {
-    border-color: var(--c-300);
-    color: var(--c-600);
-    background: var(--c-50);
-}
-
-.lc-btn-active {
-    border-color: var(--c-500) !important;
-    color: var(--c-600) !important;
-    background: var(--c-50) !important;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-500) 15%, transparent);
-}
-
-/* Lyric Card - 主题色滑动条 */
+/* Theme-colored range inputs are shared by the sound-effects panel. */
 .lc-range-input {
     accent-color: var(--c-500);
 }
@@ -2124,7 +2100,6 @@ aside {
     #player-footer.player-footer-immersive #player-quality-control,
     #player-footer.player-footer-immersive #btn-player-download,
     #player-footer.player-footer-immersive #btn-sound-effects,
-    #player-footer.player-footer-immersive button[data-event-click-action="openLyricCard"],
     #player-footer.player-footer-immersive button[data-event-click-action="toggleCommentModal"] {
         display: none !important;
     }
@@ -4514,5 +4489,221 @@ dialog.runtime-input-dialog #modal-input {
 @media (prefers-reduced-motion: reduce) {
     .lyric-detail-action {
         transition: none;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Final player shell alignment
+
+   The shell itself reaches the bottom edge.  Only the view content reserves
+   space for the floating player, so pagination remains reachable while the
+   sidebar and main card keep one continuous bottom edge.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+    --player-sidebar-width: 15rem;
+}
+
+body > .flex.flex-1.overflow-hidden.relative {
+    padding-block-end: var(--player-shell-gap) !important;
+}
+
+#player-main-content,
+#player-main-content > header,
+#player-main-content > .flex-1 {
+    background: var(--bg-panel) !important;
+}
+
+#player-main-content > header {
+    overflow: hidden;
+    border-start-start-radius: var(--player-shell-radius) !important;
+    border-start-end-radius: var(--player-shell-radius) !important;
+}
+
+#player-main-content .player-main-view {
+    padding-block-end: calc(
+        var(--player-footer-offset, 0px) +
+        var(--player-content-bottom-gap, 0.5rem)
+    ) !important;
+}
+
+/* The detail screen is an opaque layer above the plaza.  The scroll owner is
+   kept singular so the sticky toolbar cannot reveal the card grid underneath. */
+#songlist-detail-view {
+    z-index: 45 !important;
+    isolation: isolate;
+    background: var(--bg-main) !important;
+}
+
+#player-main-content #songlist-detail-view > .flex-1 {
+    min-block-size: 0;
+    min-inline-size: 0;
+    overflow: hidden !important;
+    isolation: isolate;
+    border: 1px solid var(--player-shell-border) !important;
+    border-radius: var(--player-shell-radius) !important;
+    background: var(--bg-panel) !important;
+    box-shadow: var(--player-shell-shadow) !important;
+}
+
+#sl-detail-scroll-container,
+#sl-detail-header,
+#sl-detail-sticky-wrap,
+#sl-detail-tabs-bar,
+#sl-detail-list {
+    background: var(--bg-panel) !important;
+}
+
+#sl-detail-scroll-container {
+    min-block-size: 0;
+    flex: 1 1 auto;
+    isolation: isolate;
+    overscroll-behavior: contain;
+}
+
+#sl-detail-header {
+    border-block-end: 1px solid var(--player-shell-border) !important;
+    opacity: 1 !important;
+}
+
+#sl-detail-sticky-wrap {
+    z-index: 30;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+#sl-detail-tabs-bar {
+    border-block-end: 1px solid var(--player-shell-border) !important;
+    box-shadow: 0 4px 12px -10px rgb(15 23 42 / 0.32) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+#sl-detail-list {
+    min-block-size: 0;
+    isolation: isolate;
+}
+
+/* Keep the plaza and leaderboard surfaces on the same opaque content plane. */
+#songlist-grid,
+#songlist-pagination,
+#lb-sidebar,
+#lb-songs-container,
+#lb-songs-list,
+#lb-pagination {
+    background: var(--bg-panel) !important;
+}
+
+#view-songlist > .flex-1,
+#view-leaderboard > .flex-1 {
+    min-block-size: 0;
+    min-inline-size: 0;
+    isolation: isolate;
+}
+
+/* Favorite playlists use indentation only; no collapsed divider or gray tray. */
+#main-sidebar .favorite-sidebar-children,
+#main-sidebar .favorite-sidebar-children[style*="height: 0px"],
+#main-sidebar #my-lists-container {
+    margin-inline: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+#main-sidebar .favorite-sidebar-children > li {
+    padding-inline: 0 !important;
+    padding-block: 0.125rem !important;
+}
+
+#main-sidebar [data-event-click-action="handleCreateList"] {
+    justify-content: flex-start;
+    padding-inline: 0.5rem;
+    border: 0 !important;
+    border-radius: 0.55rem;
+    background: transparent !important;
+}
+
+/* Remove the second capsule around lyric-detail actions. Individual icons
+   retain quiet hover/focus feedback without a shared pill background. */
+.lyric-detail-actions {
+    gap: 0.55rem;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.lyric-detail-action {
+    inline-size: 2rem;
+    block-size: 2rem;
+    border-radius: 0.6rem;
+    color: var(--text-muted);
+}
+
+/* Compact desktop player: center it inside the main card rather than across
+   the sidebar, and let the song title/like controls stay content-sized. */
+@media (min-width: 1025px) {
+    #main-sidebar {
+        flex-basis: var(--player-sidebar-width);
+        inline-size: var(--player-sidebar-width);
+        min-inline-size: var(--player-sidebar-width);
+        max-inline-size: var(--player-sidebar-width);
+        align-self: stretch;
+    }
+
+    #player-footer,
+    #player-footer.player-footer-immersive {
+        inset-inline-start: calc(
+            var(--player-sidebar-width) +
+            (var(--player-shell-gap) * 2)
+        ) !important;
+        inset-inline-end: var(--player-shell-gap) !important;
+        inline-size: min(
+            70rem,
+            calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))
+        ) !important;
+        width: min(
+            70rem,
+            calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))
+        ) !important;
+        max-inline-size: 100% !important;
+        margin-inline: auto !important;
+    }
+
+    #player-footer #player-song-info {
+        flex: 0 1 17rem !important;
+        inline-size: min(17rem, 32%) !important;
+        width: min(17rem, 32%) !important;
+        max-inline-size: 17rem !important;
+    }
+
+    #player-footer #player-song-info > .ml-auto {
+        margin-inline-start: 0.25rem !important;
+    }
+
+    #player-footer .player-footer-center {
+        flex: 1 1 24rem !important;
+        max-inline-size: 28rem !important;
+        margin-inline: 0.75rem !important;
+        min-inline-size: 0;
+    }
+}
+
+@media (max-width: 1024px) {
+    body > .flex.flex-1.overflow-hidden.relative {
+        padding-block-end: 0.75rem !important;
+    }
+
+    #main-sidebar {
+        inset-block-end: 0.75rem !important;
+        padding-block-end: 0.75rem !important;
+    }
+
+    #player-footer,
+    #player-footer.player-footer-immersive {
+        border-radius: 9999px !important;
     }
 }

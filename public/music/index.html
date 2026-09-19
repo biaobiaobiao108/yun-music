@@ -20,7 +20,7 @@
     <link rel="icon" href="/music/assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="/music/assets/yun-yin.png">
     <link rel="manifest" href="/music/manifest.json">
-    <link rel="modulepreload" href="app-5kdfkdff.js">
+    <link rel="modulepreload" href="app-qyz1txkn.js">
     <link rel="stylesheet" href="css/theme_variables.css">
     <link rel="stylesheet" href="css/tailwind.generated.css">
     <script src="js/vendor-bridge.js"></script>
@@ -2919,10 +2919,6 @@
                         title="均衡器与音效" aria-label="均衡器与音效">
                         <i class="fas fa-sliders-h" aria-hidden="true"></i>
                     </button>
-                    <button type="button" class="lyric-detail-action" data-event-click-action="openLyricCard"
-                        title="分享歌词卡片" aria-label="分享歌词卡片">
-                        <i class="fas fa-image" aria-hidden="true"></i>
-                    </button>
                     <button type="button" class="lyric-detail-action" data-event-click-action="toggleCommentModal"
                         title="查看评论" aria-label="查看评论">
                         <i class="fas fa-comment-dots" aria-hidden="true"></i>
@@ -3505,255 +3501,6 @@
         </div>
     </div>
 
-    <!-- Lyric Card Share Modal -->
-    <div id="lyric-card-modal"
-        class="fixed inset-0 z-[70] hidden items-center justify-center p-3 md:p-6 transition-all duration-300">
-        <!-- 背景遮罩 -->
-        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            data-event-click-action="lyricCard.close"></div>
-
-        <!-- 弹窗主体 -->
-        <div id="lyric-card-modal-content"
-            class="relative w-full max-w-4xl h-[92vh] md:h-[88vh] t-bg-panel/92 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/20 flex flex-col overflow-hidden transform translate-y-10 opacity-0 transition-all duration-500">
-
-            <!-- Header -->
-            <div class="p-4 md:p-5 border-b t-border-main flex items-center justify-between flex-shrink-0 t-bg-panel">
-                <div class="flex items-center gap-3">
-                    <i class="fas fa-image text-xl" style="color: var(--c-500)"></i>
-                    <div>
-                        <h3 class="text-lg font-black t-text-main">歌词卡片分享</h3>
-                        <p class="text-[10px] t-text-muted font-bold uppercase tracking-wider mt-0.5">Lyric Card Share
-                        </p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <!-- 刷新预览 -->
-                    <button data-event-click-action="lyricCard.scheduleRender"
-                        class="w-8 h-8 flex items-center justify-center t-text-muted transition-colors rounded-xl"
-                        style="--hover-color: var(--c-500)"
-                        data-event-mouseenter-action="set-theme-hover-c500"
-                        data-event-mouseleave-action="clear-theme-hover-color" title="刷新预览">
-                        <i class="fas fa-sync-alt text-sm"></i>
-                    </button>
-                    <button data-event-click-action="lyricCard.close"
-                        class="w-8 h-8 flex items-center justify-center t-text-muted hover:text-red-500 transition-colors rounded-xl hover:bg-red-50">
-                        <i class="fas fa-times text-lg"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Body: 左右布局（移动端上下） -->
-            <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
-
-                <!-- 左：预览区 -->
-                <div
-                    class="flex-1 md:flex-[3] flex flex-col items-center justify-center p-3 md:p-5 t-bg-main/60 overflow-hidden relative min-h-[40vh] md:min-h-0">
-                    <div id="lyric-card-preview-wrapper"
-                        class="relative overflow-hidden rounded-2xl shadow-2xl cursor-grab select-none"
-                        style="max-width:100%; max-height:100%; display:flex; align-items:center; justify-content:center;">
-                        <img id="lyric-card-preview-img" width="960" height="960"
-                            class="block max-w-full max-h-[35vh] md:max-h-[70vh] object-contain rounded-xl transition-transform duration-100"
-                            alt="卡片预览" />
-                    </div>
-                    <!-- 操作提示 -->
-                    <p class="absolute bottom-2 text-[10px] t-text-muted pointer-events-none">滚轮缩放 · 拖拽移动 · 双击重置</p>
-                    <!-- 加载中遮罩 -->
-                    <div id="lyric-card-loading"
-                        class="absolute inset-0 flex items-center justify-center t-bg-main/80 rounded-2xl hidden">
-                        <div class="flex flex-col items-center gap-3">
-                            <div
-                                class="w-10 h-10 border-4 border-violet-100 border-t-violet-500 rounded-full animate-spin">
-                            </div>
-                            <p class="text-xs t-text-muted font-bold">渲染中...</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 右：选项区 -->
-                <div
-                    class="flex-1 md:flex-none md:w-72 border-t md:border-t-0 md:border-l t-border-main/60 overflow-y-auto custom-scrollbar p-4 space-y-5 t-bg-panel min-h-0">
-
-                    <!-- 内容选项 -->
-                    <div>
-                        <p class="text-[10px] font-black t-text-muted uppercase tracking-widest mb-3">显示内容</p>
-                        <div class="space-y-2">
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="lc-show-cover" checked
-                                    class="w-4 h-4 rounded accent-violet-500 cursor-pointer"
-                                    data-event-change-action="lyricCard.toggleOption" data-event-change-args="[&quot;showCover&quot;]">
-                                <span
-                                    class="text-sm t-text-main group-hover:text-violet-600 transition-colors">显示封面</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="lc-show-title" checked
-                                    class="w-4 h-4 rounded accent-violet-500 cursor-pointer"
-                                    data-event-change-action="lyricCard.toggleOption" data-event-change-args="[&quot;showTitle&quot;]">
-                                <span
-                                    class="text-sm t-text-main group-hover:text-violet-600 transition-colors">显示标题</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="lc-show-artist" checked
-                                    class="w-4 h-4 rounded accent-violet-500 cursor-pointer"
-                                    data-event-change-action="lyricCard.toggleOption" data-event-change-args="[&quot;showArtist&quot;]">
-                                <span
-                                    class="text-sm t-text-main group-hover:text-violet-600 transition-colors">显示歌手</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="lc-show-lyric" checked
-                                    class="w-4 h-4 rounded accent-violet-500 cursor-pointer"
-                                    data-event-change-action="lyricCard.toggleOption" data-event-change-args="[&quot;showLyric&quot;]">
-                                <span
-                                    class="text-sm t-text-main group-hover:text-violet-600 transition-colors">显示歌词</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- 布局选项 -->
-                    <div>
-                        <p class="text-[10px] font-black t-text-muted uppercase tracking-widest mb-3">卡片比例</p>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button
-                                class="lc-layout-btn lc-btn-active py-2 px-1 rounded-xl text-xs font-bold transition-all border-2"
-                                data-layout="portrait"
-                                data-event-click-action="lyricCard.setLayout" data-event-click-args="[&quot;portrait&quot;]">
-                                <i class="fas fa-mobile-alt block mb-1"></i>竖版
-                            </button>
-                            <button class="lc-layout-btn py-2 px-1 rounded-xl text-xs font-bold transition-all border-2"
-                                data-layout="landscape"
-                                data-event-click-action="lyricCard.setLayout" data-event-click-args="[&quot;landscape&quot;]">
-                                <i class="fas fa-desktop block mb-1"></i>横版
-                            </button>
-                            <button class="lc-layout-btn py-2 px-1 rounded-xl text-xs font-bold transition-all border-2"
-                                data-layout="square" data-event-click-action="lyricCard.setLayout" data-event-click-args="[&quot;square&quot;]">
-                                <i class="fas fa-square block mb-1"></i>方形
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 色彩主题 -->
-                    <div>
-                        <p class="text-[10px] font-black t-text-muted uppercase tracking-widest mb-3">色彩风格</p>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button
-                                class="lc-color-btn lc-btn-active py-2 px-1 rounded-xl text-xs font-bold transition-all border-2 flex flex-col items-center gap-1"
-                                data-color="dark" data-event-click-action="lyricCard.setColorTheme" data-event-click-args="[&quot;dark&quot;]">
-                                <span
-                                    class="w-5 h-5 rounded-full bg-gradient-to-br from-gray-800 to-gray-950 block"></span>
-                                深色
-                            </button>
-                            <button
-                                class="lc-color-btn py-2 px-1 rounded-xl text-xs font-bold transition-all border-2 flex flex-col items-center gap-1"
-                                data-color="light"
-                                data-event-click-action="lyricCard.setColorTheme" data-event-click-args="[&quot;light&quot;]">
-                                <span
-                                    class="w-5 h-5 rounded-full bg-gradient-to-br from-gray-100 to-gray-300 block border t-border-main"></span>
-                                浅色
-                            </button>
-                            <button
-                                class="lc-color-btn py-2 px-1 rounded-xl text-xs font-bold transition-all border-2 flex flex-col items-center gap-1"
-                                data-color="album"
-                                data-event-click-action="lyricCard.setColorTheme" data-event-click-args="[&quot;album&quot;]">
-                                <span
-                                    class="w-5 h-5 rounded-full bg-gradient-to-br from-violet-400 to-pink-500 block"></span>
-                                专辑色
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 歌词行数 -->
-                    <div>
-                        <p class="text-[10px] font-black t-text-muted uppercase tracking-widest mb-3">歌词行数</p>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button class="lc-lines-btn py-2 rounded-xl text-xs font-bold transition-all border-2"
-                                data-lines="1"
-                                data-event-click-action="set-lyric-lines" data-event-click-args="[1]">1
-                                行</button>
-                            <button
-                                class="lc-lines-btn lc-btn-active py-2 rounded-xl text-xs font-bold transition-all border-2"
-                                data-lines="3"
-                                data-event-click-action="set-lyric-lines" data-event-click-args="[3]">3
-                                行</button>
-                            <button class="lc-lines-btn py-2 rounded-xl text-xs font-bold transition-all border-2"
-                                data-lines="5"
-                                data-event-click-action="set-lyric-lines" data-event-click-args="[5]">5
-                                行</button>
-                        </div>
-                    </div>
-
-                    <!-- 字体大小 -->
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <p class="text-[10px] font-black t-text-muted uppercase tracking-widest">字体大小</p>
-                            <span id="lc-font-size-label" class="text-[10px] font-bold"
-                                style="color: var(--c-500)">100%</span>
-                        </div>
-                        <input type="range" id="lc-font-size-input" min="0.5" max="2.0" step="0.05" value="1.0"
-                            class="w-full h-1.5 rounded-full lc-range-input cursor-pointer"
-                            data-event-input-action="lyricCard.setFontSize" data-event-input-args="[&quot;@value&quot;]">
-                    </div>
-
-                    <!-- 行间距 -->
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <p class="text-[10px] font-black t-text-muted uppercase tracking-widest">行间距</p>
-                            <span id="lc-line-spacing-label" class="text-[10px] font-bold"
-                                style="color: var(--c-500)">1.0x</span>
-                        </div>
-                        <input type="range" id="lc-line-spacing-input" min="0.5" max="2.5" step="0.1" value="1.0"
-                            class="w-full h-1.5 rounded-full lc-range-input cursor-pointer"
-                            data-event-input-action="lyricCard.setLineSpacing" data-event-input-args="[&quot;@value&quot;]">
-                    </div>
-
-                    <!-- 字体选择 -->
-                    <div>
-                        <p class="text-[10px] font-black t-text-muted uppercase tracking-widest mb-2">卡片字体</p>
-                        <div class="flex gap-2">
-                            <select id="lc-font-select" class="lm-select !w-32 !py-1"
-                                style="--focus-border: var(--c-400)"
-                                data-event-change-action="lyricCard.setFontFamily" data-event-change-args="[&quot;@value&quot;]">
-                                <option value="">跟随设置</option>
-                                <option value="-apple-system, sans-serif">系统默认</option>
-                                <option value='"PingFang SC", sans-serif'>苹方</option>
-                                <option value='"Microsoft YaHei", sans-serif'>微软雅黑</option>
-                                <option value='"SimSun", serif'>宋体</option>
-                                <option value='"SimHei", sans-serif'>黑体</option>
-                                <option value='"KaiTi", serif'>楷体</option>
-                            </select>
-                            <button data-event-click-action="loadLocalFonts" data-event-click-args="[&quot;lc-font-select&quot;,&quot;@this&quot;]"
-                                class="flex-shrink-0 text-xs px-2 py-1.5 border t-border-main rounded-xl text-gray-500 transition-colors whitespace-nowrap"
-                                data-event-mouseenter-action="set-theme-hover-c500-border-c300"
-                                data-event-mouseleave-action="clear-theme-hover-color-border">
-                                <i class="fas fa-sync-alt mr-1"></i>读取
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 操作按钮 -->
-                    <div class="space-y-3 pt-2">
-                        <button data-event-click-action="lyricCard.download"
-                            class="w-full py-3 text-white font-bold rounded-2xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                            style="background: linear-gradient(to right, var(--c-500), var(--c-700))">
-                            <i class="fas fa-download"></i>
-                            下载图片
-                        </button>
-                        <button data-event-click-action="lyricCard.copyToClipboard"
-                            class="w-full py-3 t-bg-panel t-text-main font-bold rounded-2xl border-2 t-border-main transition-all flex items-center justify-center gap-2"
-                            data-event-mouseenter-action="set-theme-hover-border-c200-color-c600"
-                            data-event-mouseleave-action="clear-theme-hover-border-color">
-                            <i class="fas fa-copy"></i>
-                            复制图片
-                        </button>
-                    </div>
-
-                    <!-- 提示 -->
-                    <p class="text-[10px] t-text-muted text-center leading-relaxed pb-2">
-                        图片将包含当前播放歌曲信息<br>点击刷新按钮可更新歌词内容
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Comment Modal -->
     <div id="comment-modal"
         class="comment-modal fixed inset-0 z-[70] hidden items-center justify-center p-3 sm:p-4 md:p-6 transition-all duration-300">
@@ -4295,7 +4042,7 @@
     <audio id="audio-player" crossorigin="anonymous"></audio>
 
     <!-- The player module owns feature initialization and delegated events. -->
-    <script type="module" src="app-5kdfkdff.js"></script>
+    <script type="module" src="app-qyz1txkn.js"></script>
 </body>
 
 </html>

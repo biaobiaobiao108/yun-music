@@ -427,7 +427,15 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(css).toContain('--player-content-bottom-gap: 0.5rem');
         expect(css).toContain('padding-block-end: calc(');
         expect(css).toContain('border-radius: 9999px !important;');
-        expect(css).toContain('inline-size: min(82rem, calc(100% - 2rem)) !important;');
+        expect(css).toContain('--player-sidebar-width: 15rem');
+        expect(css).toContain('inline-size: min(');
+        expect(css).toContain('70rem');
+        expect(css).toContain('#songlist-detail-view > .flex-1');
+        expect(css).toContain('background: var(--bg-panel) !important;');
+        expect(html).not.toContain('lyric-card-modal');
+        expect(html).not.toContain('openLyricCard');
+        expect(source).not.toContain('openLyricCard');
+        expect(fs.existsSync(path.join(import.meta.dir, '../frontend/player/src/legacy/lyric_card.ts'))).toBe(false);
     });
 
     it('mobile player menu closes with Escape and supports the tablet breakpoint', () => {

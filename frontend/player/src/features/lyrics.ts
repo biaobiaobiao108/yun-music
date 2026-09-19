@@ -483,7 +483,6 @@ function initLyricPlayer() {
             },
             onSetLyric: (lines, offset) => {
                 state.currentLyricLines = lines;
-                window.currentLyricLines = lines; // expose for lyric-card.js
                 renderLyric(lines);
             }
         });
@@ -561,9 +560,6 @@ function syncLyricByLineNum(lineNum) {
     // Check if index actually changed to update classes
     if (lineNum !== state.currentLyricIndex) {
         state.currentLyricIndex = lineNum;
-        window.currentLyricIndex = lineNum;   // expose for lyric-card.js
-        window.currentLyricLines = state.currentLyricLines; // expose for lyric-card.js
-
         // Remove active class from previous line
         const prev = container.querySelector('.active');
         if (prev) prev.classList.remove('active');
