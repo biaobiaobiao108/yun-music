@@ -124,7 +124,6 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const showPlaybackStatus = context.showPlaybackStatus || (() => { });
     const pushDataChange = context.pushDataChange;
     const renderMyLists = context.renderMyLists;
-    const PLAYBACK_QUEUE_LIMIT = 99;
     let hintTimeout: ReturnType<typeof setTimeout> | null = null;
     // A restored source may still be resolving while the user presses play.
     // Keep the intent until that source has been installed instead of calling
@@ -1083,30 +1082,11 @@ async function playSong(song, index, forceQuality = null, noPlay = false, isRetr
             const finalAdd = shouldAddToDefault !== null ? shouldAddToDefault : (state.currentPlayingScope === 'network' || state.currentPlayingScope === 'songlist' || state.currentPlayingScope === 'leaderboard');
             if (finalAdd) {
                 addToDefaultList(playbackSong);
-                // 切换逻辑说明：
-                // - 搜索结果(network)：updatePlaylist 把队列设为搜索结果，开启设置才把队列切换到 defaultList
-                // - 歌单/排行榜(songlist/leaderboard)：updatePlaylist 已把队列设为歌单/排行榜，
-                //   开启设置=保持歌单/排行榜队列(do nothing)，关闭设置=退回 defaultList
-                const isSongListOrLeaderboard = state.currentPlayingScope === 'songlist' || state.currentPlayingScope === 'leaderboard';
-                if (isSongListOrLeaderboard) {
-                    // 歌单/排行榜：关闭"切换歌单"时，才退回 defaultList
-                    const shouldFallback = settings.switchPlaylistOnSongListPlay === false;
-                    if (shouldFallback && typeof context.getCurrentListData() !== 'undefined' && context.getCurrentListData().defaultList) {
-                        state.currentPlaylist = context.getCurrentListData().defaultList;
-                        state.currentIndex = 0;
-                        state.currentPlayingScope = 'local_list';
-                        updateQueueBadge();
-                    }
-                } else {
-                    // 搜索结果：关闭"切换歌单"时，才退回 defaultList
-                    const shouldSearchFallback = settings.switchPlaylistOnSearchPlay === false;
-                    if (shouldSearchFallback && typeof context.getCurrentListData() !== 'undefined' && context.getCurrentListData().defaultList) {
-                        state.currentPlaylist = context.getCurrentListData().defaultList;
-                        state.currentIndex = 0;
-                        state.currentPlayingScope = 'local_list';
-                        updateQueueBadge();
-                    }
-                }
+                // 播放队列始终保持用户触发播放时传入的完整列表。默认列表仍
+                // 继续保存试听记录，但不再把当前播放上下文静默替换掉。
+                // 旧版的 shouldFallback = settings.switchPlaylistOnSongListPlay === false
+                // 分支曾把 currentIndex = 0; currentPlayingScope = 'local_list';，
+                // 现在仅作为迁移说明保留，运行时不再执行该回退。
             }
         } catch (playError) {
             playbackAttempt.stage = 'recovering';
@@ -1308,19 +1288,14 @@ function updatePlaylist(list, startIndex = 0, scope = 'local_list', shouldAddToD
         list = deduplicated;
     }
 
-    // 所有列表入口统一使用最多 99 首，且尽量保留当前点击的歌曲。
-    // 这样搜索页、歌单、榜单和本地音乐不会因为分页方式不同而出现
-    // “只加入当前 20 首”或一次加入过多歌曲的差异。
+    // 所有列表入口统一把完整列表放入队列，且保留当前点击的歌曲索引。
+    // 列表是否分批加载由各自的视图负责；一旦触发播放，队列不再按入口
+    // 截断，避免搜索、歌单、榜单和本地音乐出现不同的播放范围。
     const normalizedStartIndex = Math.min(
         Math.max(Number(startIndex) || 0, 0),
         Math.max(list.length - 1, 0),
     );
-    const queueOffset = Math.min(
-        normalizedStartIndex,
-        Math.max(list.length - PLAYBACK_QUEUE_LIMIT, 0),
-    );
-    list = list.slice(queueOffset, queueOffset + PLAYBACK_QUEUE_LIMIT);
-    startIndex = normalizedStartIndex - queueOffset;
+    startIndex = normalizedStartIndex;
 
     // [New] Use a shallow copy to prevent mutations from affecting the source list
     state.currentPlaylist = [...list];

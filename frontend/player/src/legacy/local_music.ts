@@ -1168,24 +1168,23 @@ window.LocalMusicManager = {
         const totalPages = this.getTotalPages();
         if (this.currentPage > totalPages) this.currentPage = totalPages;
         if (this.currentPage < 1) this.currentPage = 1;
-        const start = (this.currentPage - 1) * this.pageSize;
-        const end = Math.min(start + this.pageSize, this.displayData.length);
+        const start = 0;
+        const end = Math.min(this.currentPage * this.pageSize, this.displayData.length);
         return {
             start,
             end,
-            list: this.displayData.slice(start, end),
+            list: this.displayData.slice(0, end),
             totalPages
         };
     },
 
     changePage(delta) {
+        if (delta <= 0) return;
         const totalPages = this.getTotalPages();
         const nextPage = Math.min(totalPages, Math.max(1, this.currentPage + delta));
         if (nextPage === this.currentPage) return;
         this.currentPage = nextPage;
         this.render();
-        const container = document.getElementById('lm-list-container');
-        if (container) container.scrollTop = 0;
     },
 
     updatePagination() {
@@ -1199,11 +1198,7 @@ window.LocalMusicManager = {
         const totalPages = this.getTotalPages();
         if (this.currentPage > totalPages) this.currentPage = totalPages;
         if (this.currentPage < 1) this.currentPage = 1;
-        if (total <= this.pageSize) {
-            pagination.classList.add('hidden');
-        } else {
-            pagination.classList.remove('hidden');
-        }
+        pagination.classList.add('hidden');
 
         if (info) info.textContent = `第 ${this.currentPage} / ${totalPages} 页 (${total} 首)`;
         if (prev) prev.disabled = this.currentPage <= 1;
@@ -1437,6 +1432,24 @@ window.LocalMusicManager = {
             window.unobserveLazyImages(container);
         }
         container.innerHTML = html;
+        const hasMore = page.end < this.displayData.length;
+        if (hasMore) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'player-load-more-bar local-music-load-more';
+            wrapper.setAttribute('role', 'status');
+            wrapper.setAttribute('aria-live', 'polite');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'player-load-more-button';
+            button.setAttribute('aria-label', '加载更多本地音乐');
+            button.innerHTML = '<i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span>';
+            button.addEventListener('click', () => this.changePage(1));
+            const status = document.createElement('span');
+            status.className = 'player-load-more-status';
+            status.textContent = `${page.end} / ${this.displayData.length} 首已加载`;
+            wrapper.append(button, status);
+            container.appendChild(wrapper);
+        }
         container.querySelectorAll('.lm-cover-image').forEach(img => {
             img.addEventListener('error', () => {
                 const index = parseInt(img.dataset.lmCoverIndex || '', 10);

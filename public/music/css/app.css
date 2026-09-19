@@ -562,7 +562,8 @@ body > .flex.flex-1.overflow-hidden.relative {
     max-block-size: none;
     height: auto !important;
     margin: 0 !important;
-    padding: 1.1rem 0.5rem 0.9rem !important;
+    padding-block: 1.1rem !important;
+    padding-inline: 0.5rem !important;
     gap: 1rem;
     border: 1px solid var(--player-shell-border) !important;
     border-radius: var(--player-shell-radius) !important;
@@ -1738,6 +1739,17 @@ body > .flex.flex-1.overflow-hidden.relative {
     #view-settings,
     #view-about {
         view-transition-name: player-view;
+    }
+
+    /* The player is a persistent fixed layer. Give it its own transition
+       group so tab changes never fade it out with the view snapshots. */
+    #player-footer {
+        view-transition-name: player-footer;
+    }
+
+    ::view-transition-old(player-footer),
+    ::view-transition-new(player-footer) {
+        animation: none !important;
     }
 
     ::view-transition-group(player-view) {
@@ -4829,7 +4841,10 @@ body > .flex.flex-1.overflow-hidden.relative {
 /* A selected nav item uses an inset ring instead of a rectangular external
    shadow, keeping the rounded highlight visually contained in the sidebar. */
 #main-sidebar .netease-nav-item.active-tab {
+    background: var(--c-50, #ecfdf5) !important;
+    color: var(--c-600, #059669) !important;
     box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 18%, transparent) !important;
+    border: 1px solid transparent;
 }
 
 @media (max-width: 1024px) {
@@ -4847,10 +4862,10 @@ body > .flex.flex-1.overflow-hidden.relative {
     }
 }
 
-/* The player is a true overlay: normal views run underneath it instead of
-   changing their usable height or reserving a hidden footer shelf. */
+/* The player is a true overlay: normal views run underneath it. Keep a small
+   shell gap at the very bottom so both cards remain optically balanced. */
 body > .flex.flex-1.overflow-hidden.relative {
-    padding-block-end: 0 !important;
+    padding-block-end: var(--player-shell-gap) !important;
 }
 
 #player-main-content .player-main-view,
@@ -4865,7 +4880,14 @@ body > .flex.flex-1.overflow-hidden.relative {
     #lm-list-container,
     #sl-detail-list
 ) {
-    padding-block-end: 0.75rem !important;
+    padding-block-end: calc(
+        var(--player-footer-offset, 0px) +
+        var(--player-footer-safe-space, 5.75rem)
+    ) !important;
+    scroll-padding-block-end: calc(
+        var(--player-footer-offset, 0px) +
+        var(--player-footer-safe-space, 5.75rem)
+    );
     box-shadow:
         inset 0 10px 16px -18px rgb(15 23 42 / 0.42),
         inset 0 -10px 16px -18px rgb(15 23 42 / 0.42);
@@ -4935,13 +4957,98 @@ body > .flex.flex-1.overflow-hidden.relative {
     /* Keep the desktop capsule compact even after the legacy width rules. */
     #player-footer,
     #player-footer.player-footer-immersive {
-        inline-size: min(60rem, calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))) !important;
-        width: min(60rem, calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))) !important;
+        inline-size: min(54rem, calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))) !important;
+        width: min(54rem, calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))) !important;
     }
 }
 
 @media (max-width: 1024px) {
     #main-sidebar {
         inset-block-end: 0.75rem !important;
+        padding-block: 1rem !important;
+    }
+}
+
+/* One restrained load-more treatment for every scrollable music list. The
+   control lives inside the list, so it never creates a fixed pagination shelf
+   or leaves an empty band at the bottom of a card. */
+:root {
+    --player-footer-safe-space: 5.75rem;
+}
+
+.player-load-more-legacy {
+    display: none !important;
+}
+
+.player-load-more-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    inline-size: 100%;
+    min-block-size: 4.25rem;
+    block-size: auto !important;
+    flex: 0 0 auto !important;
+    padding: 0.85rem 0.5rem 1.35rem;
+    box-sizing: border-box;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--text-muted);
+}
+
+.player-load-more-bar.hidden {
+    display: none !important;
+}
+
+.player-load-more-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-block-size: 2.25rem;
+    padding: 0.5rem 0.95rem;
+    border: 1px solid color-mix(in srgb, var(--border-main) 84%, transparent);
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--bg-panel) 90%, var(--c-500, #10b981) 10%);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.player-load-more-button:hover:not(:disabled),
+.player-load-more-button:focus-visible {
+    border-color: color-mix(in srgb, var(--c-500, #10b981) 45%, var(--border-main));
+    background: color-mix(in srgb, var(--c-500, #10b981) 10%, var(--bg-panel));
+    color: var(--c-600, #059669);
+}
+
+.player-load-more-button:active:not(:disabled) {
+    transform: translateY(1px) scale(0.98);
+}
+
+.player-load-more-button:disabled {
+    cursor: wait;
+    opacity: 0.68;
+}
+
+.player-load-more-status {
+    min-block-size: 1rem;
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+}
+
+.player-load-more-bar.is-loading .player-load-more-button {
+    pointer-events: none;
+}
+
+@media (max-width: 1024px) {
+    :root {
+        --player-footer-safe-space: 8.75rem;
+    }
+
+    body > .flex.flex-1.overflow-hidden.relative {
+        padding-block-end: 0.75rem !important;
     }
 }

@@ -354,79 +354,36 @@ export function updatePaginationInfo(start, end, total, current, totalPages) {
 }
 
 function goToPage(page) {
-    setCurrentPage(page);
-    globalState.renderResults(window.viewingPlaylist);
-    scrollToSearchResultsTop();
+    if (Number(page) > getCurrentPage() && window.currentSearchScope === 'network') {
+        void window.loadMoreSearchResults?.();
+        return;
+    }
+    setCurrentPage(1);
+    globalState.renderResults(window.viewingPlaylist || []);
 }
 
 async function nextPage() {
-    const totalItems = window.viewingPlaylist ? window.viewingPlaylist.length : 0;
-    const itemsPerPage = globalState.settings.itemsPerPage === 'all' ? totalItems : parseInt(globalState.settings.itemsPerPage);
-    const totalPages = Math.ceil((totalItems || 1) / (itemsPerPage || 1));
-    const currentPage = getCurrentPage();
-
-    if (currentPage < totalPages) {
-        setCurrentPage(currentPage + 1);
-        globalState.renderResults(window.viewingPlaylist);
-        scrollToSearchResultsTop();
-    } else if (window.currentSearchScope === 'network' && window.searchHasMore !== false) {
-        const btn = document.querySelector('button[data-event-click-action="nextPage"]');
-        const oldHtml = btn ? btn.innerHTML : '';
-        if (btn) {
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 加载中...';
-            btn.disabled = true;
-        }
-
-        try {
-            // 翻页时也让列表回到顶端，虽然是追加模式，但因为是用户主动点击下一页，体感上是进入新内容
-            scrollToSearchResultsTop();
-
-            //翻页步长
-            const FETCH_PAGES_STEP = 1;
-            const nextNetPage = (window.currentNetworkPage || 1) + FETCH_PAGES_STEP;
-            await window.doSearch(nextNetPage, true);
-        } finally {
-            if (btn) {
-                btn.innerHTML = oldHtml;
-            }
-            const totalAfterLoad = window.viewingPlaylist ? window.viewingPlaylist.length : 0;
-            const itemsPerPageAfterLoad = globalState.settings.itemsPerPage === 'all'
-                ? totalAfterLoad
-                : parseInt(globalState.settings.itemsPerPage);
-            const totalPagesAfterLoad = Math.max(1, Math.ceil((totalAfterLoad || 1) / (itemsPerPageAfterLoad || 1)));
-            updatePaginationInfo(0, 0, totalAfterLoad, getCurrentPage(), totalPagesAfterLoad);
-        }
+    if (window.currentSearchScope === 'network') {
+        await window.loadMoreSearchResults?.();
+        return;
     }
+    globalState.renderResults(window.viewingPlaylist || []);
 }
 
 function prevPage() {
-    const currentPage = getCurrentPage();
-    if (currentPage > 1) {
-        setCurrentPage(currentPage - 1);
-        globalState.renderResults(globalState.viewingPlaylist);
-        scrollToSearchResultsTop();
-    }
+    // Append-only lists intentionally do not navigate backwards.
 }
 
 function jumpToPage() {
     const input = document.getElementById('jump-page-input');
     if (!input) return;
-    let page = parseInt(input.value);
-
-    const totalItems = window.viewingPlaylist ? window.viewingPlaylist.length : 0;
-    const itemsPerPage = globalState.settings.itemsPerPage === 'all' ? totalItems : parseInt(globalState.settings.itemsPerPage);
-    const totalPages = Math.ceil((totalItems || 1) / (itemsPerPage || 1));
-
-    if (isNaN(page) || page < 1) page = 1;
-    if (page > totalPages) page = totalPages;
-
-    const currentPage = getCurrentPage();
-    if (page !== currentPage) {
-        setCurrentPage(page);
-        globalState.renderResults(window.viewingPlaylist);
-        scrollToSearchResultsTop();
+    const page = Number.parseInt(input.value, 10);
+    if (page > getCurrentPage() && window.currentSearchScope === 'network') {
+        void window.loadMoreSearchResults?.();
+    } else {
+        globalState.renderResults(window.viewingPlaylist || []);
     }
-    input.value = page;
+    input.value = '1';
 }
 
 // Settings: Items Per Page

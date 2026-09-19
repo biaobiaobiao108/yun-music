@@ -110,6 +110,10 @@ window.LeaderboardManager = (function () {
                 <div class="flex items-center justify-center py-20">
                     <i class="fas fa-spinner fa-spin text-4xl text-emerald-500"></i>
                 </div>`;
+        } else if (state.songs.length > 0) {
+            // Keep the already rendered rows visible while the next server
+            // page is requested, only changing the inline control state.
+            renderSongs(state.songs);
         }
 
         try {
@@ -138,6 +142,7 @@ window.LeaderboardManager = (function () {
 
             state.total = data.total || state.songs.length;
             state.limit = data.limit || 100;
+            state.loading = false;
 
             // 同步 viewingPlaylist 供批量操作全局函数使用
             window.viewingPlaylist = state.songs;
@@ -149,9 +154,8 @@ window.LeaderboardManager = (function () {
                         renderSongs(state.songs);
                         renderPagination();
                     },
-                    getCurrentPage: () => state.localPage,
-                    paginationCallback: (targetPage, targetSongIndex) => {
-                        state.localPage = targetPage;
+                    getCurrentPage: () => 1,
+                    paginationCallback: (_targetPage, targetSongIndex) => {
                         renderSongs(state.songs);
                         renderPagination();
                         setTimeout(() => {
@@ -224,16 +228,9 @@ window.LeaderboardManager = (function () {
             ? window.ListSearch.getDisplayList(songs)
             : songs.map((item, idx) => ({ item, originalIndex: idx }));
 
-        const itemsPerPage = typeof settings !== 'undefined' ? (settings.itemsPerPage === 'all' ? displayList.length : parseInt(settings.itemsPerPage)) : 20;
-        const totalItems = displayList.length;
-        const totalPages = Math.ceil(totalItems / (itemsPerPage || 20)) || 1;
-
-        if (state.localPage > totalPages) state.localPage = totalPages || 1;
-        if (state.localPage < 1) state.localPage = 1;
-
-        const startIndex = (state.localPage - 1) * itemsPerPage;
-        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-        const pageList = displayList.slice(startIndex, endIndex);
+        // Leaderboard rows stay in one continuous list. Loading another server
+        // page appends to the existing list instead of replacing a local page.
+        const pageList = displayList;
 
         container.innerHTML = pageList.map(({ item: song, originalIndex: index }, pageIndex) => {
             const isSelected = window.selectedItems && window.selectedItems.has(String(song.id));
@@ -329,8 +326,50 @@ window.LeaderboardManager = (function () {
             `;
         }).join('');
 
+        renderLoadMore(container);
+
         if (typeof window.lazyLoadImages === 'function') window.lazyLoadImages();
         if (typeof window.applyMarqueeChecks === 'function') window.applyMarqueeChecks();
+    }
+
+    function hasMoreSongs() {
+        if (!state.currentBangid || state.loading && state.songs.length === 0) return false;
+        if (state.total > 0) return state.songs.length < state.total;
+        return state.songs.length >= state.limit * state.page;
+    }
+
+    function renderLoadMore(container) {
+        const old = container.querySelector('.leaderboard-load-more');
+        old?.remove();
+
+        const loading = state.loading && state.songs.length > 0;
+        const canLoad = hasMoreSongs();
+        if (!canLoad && !loading) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'player-load-more-bar leaderboard-load-more' + (loading ? ' is-loading' : '');
+        wrapper.setAttribute('role', 'status');
+        wrapper.setAttribute('aria-live', 'polite');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'player-load-more-button';
+        button.disabled = loading;
+        button.setAttribute('aria-busy', String(loading));
+        button.innerHTML = loading
+            ? '<i class="fas fa-circle-notch fa-spin text-[10px]" aria-hidden="true"></i><span>正在加载...</span>'
+            : '<i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span>';
+        button.addEventListener('click', () => void loadMore());
+        const status = document.createElement('span');
+        status.className = 'player-load-more-status';
+        status.textContent = state.total > 0 ? `${state.songs.length} / ${state.total} 首已加载` : `${state.songs.length} 首已加载`;
+        wrapper.append(button, status);
+        container.appendChild(wrapper);
+    }
+
+    async function loadMore() {
+        if (state.loading || !hasMoreSongs()) return;
+        await loadSongs(state.currentBangid, state.source, state.page + 1);
+        updateSongCountAfterLoad();
     }
 
     function renderPagination() {
@@ -346,13 +385,9 @@ window.LeaderboardManager = (function () {
         const totalItems = displayList.length;
         const totalPages = Math.ceil(totalItems / (itemsPerPage || 20)) || 1;
 
-        if (prevBtn) prevBtn.disabled = state.localPage <= 1;
-        if (nextBtn) {
-            // 当本地页数超出，且已经无法再次从后端拿到新数据时，才禁用“下一页”
-            const canLoadMore = state.songs.length >= state.limit * state.page;
-            nextBtn.disabled = state.localPage >= totalPages && !canLoadMore;
-        }
-        if (info) info.innerText = `第 ${state.localPage} 页 / 共 ${totalPages} 页`;
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+        if (info) info.innerText = `${state.songs.length} 首已加载`;
     }
 
     function showBoardsLoading(show) {
@@ -369,6 +404,13 @@ window.LeaderboardManager = (function () {
         if (target) {
             target.classList.add('active-option');
             target.classList.remove('hover:t-bg-panel', 't-text-muted');
+        }
+    }
+
+    async function ensureAllSongsLoaded() {
+        if (state.loading) return;
+        while (hasMoreSongs()) {
+            await loadSongs(state.currentBangid, state.source, state.page + 1);
         }
     }
 
@@ -399,7 +441,8 @@ window.LeaderboardManager = (function () {
         loadSongs(bangid, state.source, 1).then(() => updateSongCountAfterLoad());
     }
 
-    function playSong(index) {
+    async function playSong(index) {
+        await ensureAllSongsLoaded();
         const displayList = window.ListSearch && window.ListSearch.state && window.ListSearch.state.active && window.ListSearch.state.id === 'leaderboard'
             ? window.ListSearch.getDisplayList(state.songs).map(item => item.item)
             : state.songs;
@@ -417,8 +460,9 @@ window.LeaderboardManager = (function () {
         }
     }
 
-    function playAll() {
+    async function playAll() {
         if (state.songs.length === 0) return;
+        await ensureAllSongsLoaded();
         if (typeof window.updatePlaylist === 'function') {
             const listWithSource = state.songs.map(s => ({ ...s, source: s.source || state.source }));
             window.updatePlaylist(listWithSource, 0, 'leaderboard', false);
@@ -426,42 +470,7 @@ window.LeaderboardManager = (function () {
     }
 
     function changePage(delta) {
-        if (state.loading || state.pageTransitioning || !delta) return;
-
-        const displayList = window.ListSearch && window.ListSearch.state && window.ListSearch.state.active && window.ListSearch.state.id === 'leaderboard'
-            ? window.ListSearch.getDisplayList(state.songs)
-            : state.songs.map((item, idx) => ({ item, originalIndex: idx }));
-
-        const itemsPerPage = typeof settings !== 'undefined' ? (settings.itemsPerPage === 'all' ? displayList.length : parseInt(settings.itemsPerPage)) : 20;
-        const totalItems = displayList.length;
-        const totalPages = Math.ceil(totalItems / (itemsPerPage || 20)) || 1;
-
-        const nextLocal = state.localPage + delta;
-
-        const canChangeLocal = nextLocal >= 1 && nextLocal <= totalPages;
-        const canLoadMore = delta > 0 && nextLocal > totalPages && state.songs.length >= state.limit * state.page;
-        if (!canChangeLocal && !canLoadMore) return;
-        state.pageTransitioning = true;
-
-        if (delta > 0 && nextLocal > totalPages) {
-            // 需要向后端加载更多
-            if (canLoadMore) {
-                loadSongs(state.currentBangid, state.source, state.page + 1).then(() => {
-                    state.localPage++; // 加载完后，本地页码加1
-                    renderSongs(state.songs, delta); // 刷新视图
-                    renderPagination();       // 刷新底部页码标示
-                    updateSongCountAfterLoad();
-                    document.getElementById('lb-songs-container') && document.getElementById('lb-songs-container').scrollTo({ top: 0, behavior: 'smooth' });
-                }).finally(() => window.setTimeout(() => { state.pageTransitioning = false; }, 360));
-            }
-        } else if (nextLocal >= 1 && nextLocal <= totalPages) {
-            // 本地直接翻页面
-            state.localPage = nextLocal;
-            renderSongs(state.songs, delta);
-            renderPagination();
-            document.getElementById('lb-songs-container') && document.getElementById('lb-songs-container').scrollTo({ top: 0, behavior: 'smooth' });
-            window.setTimeout(() => { state.pageTransitioning = false; }, 360);
-        }
+        if (delta > 0) void loadMore();
     }
 
     function changeSource() {

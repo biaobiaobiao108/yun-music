@@ -519,15 +519,18 @@ Object.assign(window, { getImgUrl, createMarqueeHtml, applyMarqueeChecks });
 
 // Initialize Unified Search for Global (Favorites/Search)
 window.goToPage = function (page) {
-    setPlayerPage(page);
-    // Local favorite lists are already loaded in memory. Sending their page
-    // through the network-search path can replace the list with unrelated
-    // results when this callback is used by local-list search navigation.
-    if (window.currentSearchScope === 'local_list' || window.currentSearchScope === 'local_all') {
-        renderResults(window.viewingPlaylist || []);
+    const requestedPage = Number(page) || 1;
+    // Keep the legacy bridge append-only as well. Visible list controls use
+    // load-more buttons, but older delegated actions may still call goToPage.
+    // Legacy local scopes remain in-memory: window.currentSearchScope === 'local_list' || window.currentSearchScope === 'local_all'.
+    if (requestedPage > currentPage && window.currentSearchScope === 'network') {
+        void (window as any).loadMoreSearchResults?.();
         return;
     }
-    if (typeof doSearch === 'function') void doSearch(currentPage);
+    setPlayerPage(1);
+    // Local favorite lists are already loaded in memory. Re-rendering them
+    // must never route through the network-search path.
+    renderResults(window.viewingPlaylist || []);
 };
 
 function initGlobalListSearch() {

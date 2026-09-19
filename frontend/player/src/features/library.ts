@@ -75,10 +75,13 @@ const libraryViewState: Record<LibraryKind, { page: number; list: any[] }> = {
 function getLibraryPage(kind: LibraryKind, list: any[], requestedPage?: number) {
     const pageSize = LIBRARY_RENDER_PAGE_SIZE[kind];
     const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
-    const page = Math.min(totalPages, Math.max(1, Number(requestedPage ?? libraryViewState[kind].page) || 1));
+    const listChanged = libraryViewState[kind].list !== list;
+    const page = Math.min(totalPages, Math.max(1, Number(requestedPage ?? (listChanged ? 1 : libraryViewState[kind].page)) || 1));
     libraryViewState[kind] = { page, list };
-    const startIndex = (page - 1) * pageSize;
-    return { page, totalPages, visibleList: list.slice(startIndex, startIndex + pageSize) };
+    // Library data is already local; load-more reveals another chunk without
+    // replacing the cards that are currently on screen.
+    // Legacy slice expression: visibleList: list.slice(startIndex, startIndex + pageSize)
+    return { page, totalPages, visibleList: list.slice(0, page * pageSize) };
 }
 
 function reconcileLibraryBatchSelection(list: any[]) {
@@ -96,21 +99,15 @@ function resetLibraryBatchContext() {
 }
 
 function renderLibraryPagination(kind: LibraryKind, page: number, totalPages: number, total: number) {
-    if (totalPages <= 1) return '';
+    if (totalPages <= 1 || page >= totalPages) return '';
     const label = kind === 'artists' ? '位' : '张';
     return `
-        <div class="player-pagination-bar library-pagination">
-            <button type="button" data-event-click-action="libraryGoToPage" data-event-click-args="[&quot;${kind}&quot;, ${page - 1}]"
-                class="player-pagination-button" aria-label="上一页" title="上一页" ${page <= 1 ? 'disabled' : ''}>
-                <i class="fas fa-chevron-left" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
-            </button>
-            <div class="player-pagination-center">
-                <span class="player-pagination-info t-text-muted">第 ${page} / ${totalPages} 页 (${total} ${label})</span>
-            </div>
+        <div class="player-pagination-bar player-load-more-bar library-pagination" role="status" aria-live="polite">
             <button type="button" data-event-click-action="libraryGoToPage" data-event-click-args="[&quot;${kind}&quot;, ${page + 1}]"
-                class="player-pagination-button" aria-label="下一页" title="下一页" ${page >= totalPages ? 'disabled' : ''}>
-                <span class="hidden sm:inline">下一页</span><i class="fas fa-chevron-right" aria-hidden="true"></i>
+                class="player-load-more-button" aria-label="加载更多${kind === 'artists' ? '歌手' : '专辑'}">
+                <i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span>
             </button>
+            <span class="player-load-more-status">已加载 ${Math.min(page * (kind === 'artists' ? LIBRARY_RENDER_PAGE_SIZE.artists : LIBRARY_RENDER_PAGE_SIZE.albums), total)} / ${total} ${label}</span>
         </div>`;
 }
 
@@ -715,7 +712,6 @@ function libraryGoToPage(kind: LibraryKind, page: number) {
     const list = libraryViewState[kind].list;
     if (kind === 'artists') renderLibraryArtists(list, page);
     else renderLibraryAlbums(list, page);
-    document.getElementById('search-results')?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 window.libraryGoToPage = libraryGoToPage;
 

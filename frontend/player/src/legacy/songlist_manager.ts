@@ -978,11 +978,18 @@ export function createSongListManager(context: SongListManagerContext) {
             setTimeout(() => detailView.classList.add('hidden'), 300);
         },
         toggleTagSelector,
-        playSong: function (index) {
+        playSong: async function (index) {
+            if (detailState.total > detailState.list.length) {
+                const loaded = await ensureAllLoaded();
+                if (!loaded) {
+                    if (window.showToast) window.showToast('error', '歌单仍在加载中，请稍后重试');
+                    return;
+                }
+            }
             const song = detailState.list[index];
             if (typeof window.updatePlaylist === 'function') {
                 const listWithSource = detailState.list.map(s => ({ ...s, source: detailState.source }));
-                // 单曲点击：加入默认列表 (shouldAddToDefault = true)
+                // 单曲点击也使用完整歌单队列；默认列表仍记录试听历史。
                 window.updatePlaylist(listWithSource, index, 'songlist', true);
             }
         },

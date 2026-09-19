@@ -417,36 +417,10 @@
                                 <i class="fas fa-search text-xs" aria-hidden="true"></i>
                             </button>
                         </div>
-                        <!-- Pagination -->
-                        <div id="search-pagination-bar" class="player-pagination-bar">
-                            <button type="button" data-event-click-action="prevPage"
-                                class="player-pagination-button" aria-label="上一页" title="上一页">
-                                <i class="fas fa-chevron-left text-[10px]" aria-hidden="true"></i> <span
-                                    class="hidden sm:inline">上一页</span>
-                            </button>
-
-                            <div class="player-pagination-center">
-                                <span id="pagination-info"
-                                    class="text-[10px] md:text-xs t-text-muted font-mono whitespace-nowrap">第 1 / 1
-                                    页</span>
-                                <div id="page-jump-container" class="player-pagination-jump">
-                                    <input id="jump-page-input" type="number" min="1"
-                                        aria-label="跳转到页码"
-                                        class="player-pagination-jump-input"
-                                        placeholder="页" data-event-keydown-action="jumpToPage" data-event-key="Enter">
-                                    <span aria-hidden="true"></span>
-                                    <button type="button" data-event-click-action="jumpToPage">
-                                        跳转
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button type="button" data-event-click-action="nextPage"
-                                class="player-pagination-button" aria-label="下一页" title="下一页">
-                                <span class="hidden sm:inline">下一页</span> <i
-                                    class="fas fa-chevron-right text-[10px]" aria-hidden="true"></i>
-                            </button>
-                        </div>
+                        <!-- Legacy anchor kept for search state compatibility. The visible
+                             control is rendered inside the scroll surface as load-more. -->
+                        <div id="search-pagination-bar" class="player-pagination-bar player-load-more-legacy hidden"
+                            aria-hidden="true"></div>
                     </div>
                 </div>
 
@@ -905,21 +879,10 @@
                                 </button>
                             </div>
 
-                            <!-- 分页 -->
-                            <div id="lb-pagination" class="player-pagination-bar">
-                                <button id="lb-btn-prev" data-event-click-action="leaderboardChangePage" data-event-click-args="[-1]" disabled
-                                    class="player-pagination-button" aria-label="上一页" title="上一页">
-                                    <i class="fas fa-chevron-left md:mr-1" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
-                                </button>
-                                <div class="player-pagination-center">
-                                    <span id="lb-page-info" class="player-pagination-info text-[10px] md:text-sm t-text-muted font-medium">第 1 页</span>
-                                </div>
-                                <button id="lb-btn-next" data-event-click-action="leaderboardChangePage" data-event-click-args="[1]" disabled
-                                    class="player-pagination-button" aria-label="下一页" title="下一页">
-                                    <span class="hidden sm:inline">下一页</span><i
-                                        class="fas fa-chevron-right md:ml-1" aria-hidden="true"></i>
-                                </button>
-                            </div>
+                            <!-- Legacy anchor kept for batch-mode compatibility. The visible
+                                 control is rendered inside the leaderboard scroll surface. -->
+                            <div id="lb-pagination" class="player-pagination-bar player-load-more-legacy hidden"
+                                aria-hidden="true"></div>
                         </div>
                     </div>
                 </div>
@@ -1285,19 +1248,10 @@
                             <p class="font-bold tracking-wider">正在加载本地音乐...</p>
                         </div>
                     </div>
-                    <div id="lm-pagination" class="player-pagination-bar hidden">
-                        <button id="lm-page-prev" data-event-click-action="LocalMusicManager.changePage" data-event-click-args="[-1]"
-                            class="player-pagination-button" aria-label="上一页" title="上一页">
-                            <i class="fas fa-chevron-left md:mr-1" aria-hidden="true"></i><span class="hidden sm:inline">上一页</span>
-                        </button>
-                        <div class="player-pagination-center">
-                            <span id="lm-page-info" class="player-pagination-info text-[10px] md:text-sm t-text-muted font-medium">第 1 / 1 页</span>
-                        </div>
-                        <button id="lm-page-next" data-event-click-action="LocalMusicManager.changePage" data-event-click-args="[1]"
-                            class="player-pagination-button" aria-label="下一页" title="下一页">
-                            <span class="hidden sm:inline">下一页</span><i class="fas fa-chevron-right md:ml-1" aria-hidden="true"></i>
-                        </button>
-                    </div>
+                    <!-- Legacy anchor kept for compatibility. Local music renders its
+                         load-more control at the end of the list. -->
+                    <div id="lm-pagination" class="player-pagination-bar player-load-more-legacy hidden"
+                        aria-hidden="true"></div>
                 </div>
 
                 <!-- Settings View -->

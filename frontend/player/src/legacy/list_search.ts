@@ -99,39 +99,20 @@ function navigate(direction: number): void {
     const targetIndex = state.matches[nextIndex];
     const count = document.getElementById(`${prefix()}local-search-count`);
     if (count) count.textContent = `${nextIndex + 1}/${state.matches.length}`;
-    if (!config.paginationCallback) {
-        config.renderCallback?.();
-        scrollToMatch(targetIndex);
-        return;
-    }
-    const itemsPerPage = config.itemsPerPage || 20;
-    const referenceIndex = state.onlyShowMatches ? nextIndex : targetIndex;
-    const targetPage = Math.floor(referenceIndex / itemsPerPage) + 1;
-    const currentPage = config.getCurrentPage?.() || ((state.id === 'global' && (window as any).currentPage) || 1);
-    if (targetPage !== currentPage) config.paginationCallback(targetPage, targetIndex);
-    else {
-        config.renderCallback?.();
-        scrollToMatch(targetIndex);
-    }
+    // Every player list is append-only now. Local search navigates within the
+    // loaded list instead of restoring the old page replacement flow.
+    config.renderCallback?.();
+    scrollToMatch(targetIndex);
 }
 
 function toggleFilter(): void {
     const filter = document.getElementById(`${prefix()}local-search-filter`) as HTMLInputElement | null;
     state.onlyShowMatches = !!filter?.checked;
     if (state.active && state.currentIndex !== -1) {
-        const targetIndex = state.matches[state.currentIndex];
-        const referenceIndex = state.onlyShowMatches ? state.currentIndex : targetIndex;
-        const targetPage = Math.floor(referenceIndex / (config.itemsPerPage || 20)) + 1;
-        const currentPage = config.getCurrentPage?.() || ((state.id === 'global' && (window as any).currentPage) || 1);
-        if (currentPage !== targetPage && config.paginationCallback) {
-            config.paginationCallback(targetPage, targetIndex);
-            return;
-        }
-        if (currentPage !== targetPage && state.id === 'global' && typeof (window as any).goToPage === 'function') {
-            (window as any).goToPage(targetPage);
-            setTimeout(() => scrollToMatch(targetIndex), 300);
-            return;
-        }
+        // Filtering also keeps the current append-only list in place.
+        config.renderCallback?.();
+        if (state.currentIndex !== -1) setTimeout(() => scrollToMatch(state.matches[state.currentIndex]), 50);
+        return;
     }
     config.renderCallback?.();
     if (state.currentIndex !== -1) setTimeout(() => scrollToMatch(state.matches[state.currentIndex]), 50);
@@ -142,7 +123,13 @@ const listSearch = {
     config,
     init(id: string, nextConfig: Partial<ListSearchConfig>) {
         state.id = id;
-        Object.assign(config, nextConfig);
+        Object.assign(config, {
+            renderCallback: null,
+            paginationCallback: null,
+            getList: null,
+            getCurrentPage: null,
+            itemsPerPage: 20,
+        }, nextConfig);
         resetState();
     },
     resetState,
