@@ -522,7 +522,7 @@ html, body {
 
    Keep the existing player DOM and behavior, but give the page the same
    separated-card composition as the admin console: a padded canvas, a
-   floating navigation card, a floating top bar, and a floating play bar.
+   floating navigation card, one shared main card, and a floating play bar.
    ────────────────────────────────────────────────────────────────────────── */
 :root {
     --player-shell-gap: 1rem;
@@ -544,16 +544,23 @@ body {
 body > .flex.flex-1.overflow-hidden.relative {
     gap: var(--player-shell-gap);
     padding: var(--player-shell-gap);
+    padding-block-end: calc(
+        var(--player-footer-offset, 0px) +
+        (var(--player-shell-gap) * 2)
+    );
     background: transparent;
 }
 
 #main-sidebar {
-    align-self: flex-start;
+    align-self: stretch;
     flex: 0 0 15rem;
     inline-size: 15rem;
     min-inline-size: 15rem;
     max-inline-size: 15rem;
-    block-size: calc(100dvh - (var(--player-shell-gap) * 2));
+    block-size: auto;
+    min-block-size: 0;
+    max-block-size: none;
+    height: auto !important;
     margin: 0 !important;
     padding: 1.25rem 0.75rem 1rem !important;
     gap: 1rem;
@@ -588,9 +595,15 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 #main-sidebar .netease-nav-item.active-tab {
-    background: linear-gradient(135deg, var(--c-600, #059669), var(--c-700, #047857));
-    color: #fff !important;
-    box-shadow: 0 8px 18px color-mix(in srgb, var(--c-600, #059669) 24%, transparent);
+    background: color-mix(in srgb, var(--c-500, #10b981) 12%, var(--bg-panel));
+    color: var(--c-500, #10b981) !important;
+    box-shadow: none !important;
+}
+
+:root[data-appearance="dark"] #main-sidebar .netease-nav-item.active-tab,
+.dark #main-sidebar .netease-nav-item.active-tab {
+    background: color-mix(in srgb, var(--c-500, #10b981) 22%, transparent);
+    color: var(--c-400, #34d399) !important;
 }
 
 #main-sidebar .favorite-sidebar-children {
@@ -610,8 +623,12 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 #player-main-content {
     min-inline-size: 0;
-    gap: var(--player-shell-gap);
-    background: transparent !important;
+    min-block-size: 0;
+    gap: 0;
+    border: 1px solid var(--player-shell-border) !important;
+    border-radius: var(--player-shell-radius) !important;
+    background: var(--bg-panel) !important;
+    box-shadow: var(--player-shell-shadow) !important;
     overflow: visible;
 }
 
@@ -619,10 +636,11 @@ body > .flex.flex-1.overflow-hidden.relative {
     flex: 0 0 auto;
     block-size: 4.5rem !important;
     min-block-size: 4.5rem;
-    border: 1px solid var(--player-shell-border) !important;
-    border-radius: var(--player-shell-radius) !important;
-    background: var(--bg-panel) !important;
-    box-shadow: var(--player-shell-shadow) !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--player-shell-border) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 #player-main-content > .flex-1 {
@@ -632,14 +650,16 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 #player-main-content .player-main-view {
     background: transparent !important;
+    padding-block-end: var(--player-content-bottom-gap, 0.5rem) !important;
 }
 
 #player-main-content .player-main-view > [class~="t-bg-panel"],
 #player-main-content .player-main-view > .flex-1 > [class~="t-bg-panel"],
 #player-main-content .player-main-view > .flex-1 > [class~="flex-1"][class~="t-bg-panel"] {
-    border-color: var(--player-shell-border) !important;
-    border-radius: var(--player-shell-radius) !important;
-    box-shadow: var(--player-shell-shadow) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
 }
 
 #player-main-content :is(input, select, [contenteditable="true"]) {
@@ -666,20 +686,26 @@ body > .flex.flex-1.overflow-hidden.relative {
     body > .flex.flex-1.overflow-hidden.relative {
         gap: 0.75rem;
         padding: 0.75rem;
+        padding-block-end: calc(
+            var(--player-footer-offset, 0px) + 1.5rem
+        );
     }
 
     #main-sidebar {
         inset-block-start: 0.75rem !important;
-        inset-block-end: 0.75rem !important;
+        inset-block-end: calc(
+            var(--player-footer-offset, 0px) + 1.5rem
+        ) !important;
         inset-inline-start: 0.75rem !important;
         block-size: auto !important;
+        height: auto !important;
         padding: 1rem 0.75rem !important;
         border-radius: 1rem !important;
     }
 
     #player-main-content > header {
         min-block-size: calc(4rem + env(safe-area-inset-top, 0px));
-        border-radius: 0.875rem !important;
+        border-radius: 0 !important;
     }
 
     #player-footer {
