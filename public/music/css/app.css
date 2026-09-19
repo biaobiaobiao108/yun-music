@@ -517,6 +517,180 @@ html, body {
     }
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Admin-aligned player shell
+
+   Keep the existing player DOM and behavior, but give the page the same
+   separated-card composition as the admin console: a padded canvas, a
+   floating navigation card, a floating top bar, and a floating play bar.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+    --player-shell-gap: 1rem;
+    --player-shell-radius: 1rem;
+    --player-shell-shadow: 0 14px 34px -16px rgb(23 33 29 / 0.24),
+        0 4px 12px -4px rgb(23 33 29 / 0.08);
+    --player-shell-border: color-mix(in srgb, var(--border-main) 88%, transparent);
+}
+
+body {
+    background:
+        linear-gradient(
+            135deg,
+            color-mix(in srgb, var(--bg-main) 92%, var(--c-50, #ecfdf5)),
+            color-mix(in srgb, var(--bg-main) 84%, var(--c-50, #ecfdf5))
+        ) !important;
+}
+
+body > .flex.flex-1.overflow-hidden.relative {
+    gap: var(--player-shell-gap);
+    padding: var(--player-shell-gap);
+    background: transparent;
+}
+
+#main-sidebar {
+    align-self: flex-start;
+    flex: 0 0 15rem;
+    inline-size: 15rem;
+    min-inline-size: 15rem;
+    max-inline-size: 15rem;
+    block-size: calc(100dvh - (var(--player-shell-gap) * 2));
+    margin: 0 !important;
+    padding: 1.25rem 0.75rem 1rem !important;
+    gap: 1rem;
+    border: 1px solid var(--player-shell-border) !important;
+    border-radius: var(--player-shell-radius) !important;
+    background: var(--bg-panel) !important;
+    box-shadow: var(--player-shell-shadow) !important;
+    overflow: hidden;
+}
+
+#main-sidebar > div:first-child {
+    block-size: auto !important;
+    min-block-size: 0;
+    padding: 0 0.5rem 0.9rem !important;
+    border: 0 !important;
+}
+
+#main-sidebar nav {
+    padding-block: 0.25rem;
+}
+
+#main-sidebar .netease-nav-category {
+    padding-inline: 0.5rem;
+}
+
+#main-sidebar .netease-nav-item {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    margin-inline: 0;
+    padding-inline: 0.75rem;
+    border-radius: 0.75rem;
+}
+
+#main-sidebar .netease-nav-item.active-tab {
+    background: linear-gradient(135deg, var(--c-600, #059669), var(--c-700, #047857));
+    color: #fff !important;
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--c-600, #059669) 24%, transparent);
+}
+
+#main-sidebar .favorite-sidebar-children {
+    margin-inline: 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--border-main) 72%, transparent);
+    background: color-mix(in srgb, var(--bg-main) 68%, var(--bg-panel)) !important;
+}
+
+#main-sidebar .sidebar-song-info-wrapper {
+    border-top: 1px solid var(--border-main);
+}
+
+#main-sidebar #sidebar-song-info {
+    padding-inline: 0.25rem;
+    border-top: 0;
+}
+
+#player-main-content {
+    min-inline-size: 0;
+    gap: var(--player-shell-gap);
+    background: transparent !important;
+    overflow: visible;
+}
+
+#player-main-content > header {
+    flex: 0 0 auto;
+    block-size: 4.5rem !important;
+    min-block-size: 4.5rem;
+    border: 1px solid var(--player-shell-border) !important;
+    border-radius: var(--player-shell-radius) !important;
+    background: var(--bg-panel) !important;
+    box-shadow: var(--player-shell-shadow) !important;
+}
+
+#player-main-content > .flex-1 {
+    min-block-size: 0;
+    min-inline-size: 0;
+}
+
+#player-main-content .player-main-view {
+    background: transparent !important;
+}
+
+#player-main-content .player-main-view > [class~="t-bg-panel"],
+#player-main-content .player-main-view > .flex-1 > [class~="t-bg-panel"],
+#player-main-content .player-main-view > .flex-1 > [class~="flex-1"][class~="t-bg-panel"] {
+    border-color: var(--player-shell-border) !important;
+    border-radius: var(--player-shell-radius) !important;
+    box-shadow: var(--player-shell-shadow) !important;
+}
+
+#player-main-content :is(input, select, [contenteditable="true"]) {
+    border-radius: 0.75rem;
+}
+
+#player-footer {
+    border: 1px solid var(--player-shell-border) !important;
+    border-radius: var(--player-shell-radius) !important;
+    background: var(--bg-panel) !important;
+    box-shadow: var(--player-shell-shadow) !important;
+}
+
+@media (min-width: 1025px) {
+    #player-footer {
+        inset-inline: var(--player-shell-gap) !important;
+        inset-block-end: var(--player-shell-gap) !important;
+        inline-size: auto !important;
+        max-inline-size: none !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    body > .flex.flex-1.overflow-hidden.relative {
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+
+    #main-sidebar {
+        inset-block-start: 0.75rem !important;
+        inset-block-end: 0.75rem !important;
+        inset-inline-start: 0.75rem !important;
+        block-size: auto !important;
+        padding: 1rem 0.75rem !important;
+        border-radius: 1rem !important;
+    }
+
+    #player-main-content > header {
+        min-block-size: calc(4rem + env(safe-area-inset-top, 0px));
+        border-radius: 0.875rem !important;
+    }
+
+    #player-footer {
+        inset-inline: 0.75rem !important;
+        inset-block-end: 0.75rem !important;
+        inline-size: auto !important;
+        max-inline-size: none !important;
+        border-radius: 1rem !important;
+    }
+}
+
 /* 评论弹窗使用层次化背景和柔和投影，不使用会在深色主题下变成硬黑线的
    border-* 分隔线。所有规则限定在弹窗内，避免影响其它面板。 */
 #comment-modal {
@@ -3954,5 +4128,23 @@ dialog.runtime-input-dialog #modal-input {
 
     html {
         scroll-behavior: auto !important;
+    }
+}
+
+/* Match the admin console's 260px navigation rail on wide screens. */
+@media (min-width: 1025px) {
+    #main-sidebar {
+        flex-basis: 16.25rem;
+        inline-size: 16.25rem;
+        min-inline-size: 16.25rem;
+        max-inline-size: 16.25rem;
+    }
+}
+
+@media (max-width: 1024px) {
+    /* The drawer keeps a 12px breathing room when open, so move it the same
+       amount farther left while closed to avoid a visible edge on the canvas. */
+    #main-sidebar.-translate-x-full {
+        translate: calc(-100% - 0.75rem) 0 !important;
     }
 }
