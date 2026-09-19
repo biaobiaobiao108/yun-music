@@ -1529,8 +1529,6 @@ const playbackFeature = initPlaybackFeature({
     updateQueueBadge,
     cleanSongData,
     getImgUrl,
-    getQualityTags,
-    getSourceTag,
     applyMarqueeChecks,
     performSearch,
     showOptions,

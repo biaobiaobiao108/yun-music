@@ -4878,7 +4878,8 @@ body > .flex.flex-1.overflow-hidden.relative {
     #songlist-grid,
     #lb-songs-list,
     #lm-list-container,
-    #sl-detail-list
+    #sl-detail-list,
+    #view-settings
 ) {
     padding-block-end: calc(
         var(--player-footer-offset, 0px) +
@@ -4891,6 +4892,19 @@ body > .flex.flex-1.overflow-hidden.relative {
     box-shadow:
         inset 0 10px 16px -18px rgb(15 23 42 / 0.42),
         inset 0 -10px 16px -18px rgb(15 23 42 / 0.42);
+}
+
+/* The footer keeps only the title and artist metadata. Source/quality badges
+   are intentionally omitted here because the quality control already lives
+   in the trailing action group. Let the title use the reclaimed inline space
+   on every viewport, not only on desktop. */
+#player-footer #player-title,
+#player-footer.player-footer-immersive #player-title {
+    flex: 1 1 auto !important;
+    inline-size: auto !important;
+    width: auto !important;
+    min-inline-size: 0 !important;
+    max-inline-size: 100% !important;
 }
 
 /* Static edge fades soften the boundary of scroll surfaces without a scroll

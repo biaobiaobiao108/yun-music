@@ -54,8 +54,6 @@ export type PlaybackFeatureContext = {
     updateQueueBadge?: () => void;
     cleanSongData: (...args: any[]) => any;
     getImgUrl: (...args: any[]) => any;
-    getQualityTags: (...args: any[]) => any;
-    getSourceTag: (...args: any[]) => any;
     applyMarqueeChecks: (...args: any[]) => any;
     performSearch: (...args: any[]) => any;
     showOptions: (...args: any[]) => any;
@@ -109,8 +107,6 @@ export function initPlaybackFeature(context: PlaybackFeatureContext) {
     const updateQueueBadge = context.updateQueueBadge || (() => (window as any).updateQueueBadge?.());
     const cleanSongData = context.cleanSongData;
     const getImgUrl = context.getImgUrl;
-    const getQualityTags = context.getQualityTags;
-    const getSourceTag = context.getSourceTag;
     const applyMarqueeChecks = context.applyMarqueeChecks;
     const performSearch = context.performSearch;
     const showOptions = context.showOptions;
@@ -1419,7 +1415,6 @@ function updatePlayerQualityBadge(quality) {
 
 function updatePlayerInfo(song, actualQuality) {
     const titleEl = document.getElementById('player-title');
-    const sourceEl = document.getElementById('player-source');
     const artistEl = document.getElementById('player-artist');
     const albumEl = document.getElementById('player-album');
     const albumSeparator = document.getElementById('player-meta-separator');
@@ -1442,10 +1437,6 @@ function updatePlayerInfo(song, actualQuality) {
             titleEl.classList.add('truncate');
         }
         updatePlayerQualityBadge(null);
-        if (sourceEl) {
-            sourceEl.innerHTML = '';
-            sourceEl.classList.add('hidden');
-        }
         if (artistEl) {
             artistEl.innerText = '选择一首歌曲播放';
             artistEl.setAttribute('data-text', '选择一首歌曲播放');
@@ -1494,20 +1485,6 @@ function updatePlayerInfo(song, actualQuality) {
         ? (song === state.currentPlayingSong ? state.currentQuality : null)
         : actualQuality;
     updatePlayerQualityBadge(resolvedQuality);
-
-    // Bottom Player - 更新来源标签
-    if (sourceEl) {
-        if (song.source) {
-            // Without an explicitly resolved quality, only show the source.
-            // This prevents the player's badge from claiming a higher advertised quality.
-            const qualityTags = resolvedQuality ? getQualityTags({ quality: resolvedQuality }) : '';
-            sourceEl.innerHTML = getSourceTag(song.source) + qualityTags;
-            sourceEl.classList.remove('hidden');
-        } else {
-            sourceEl.innerHTML = '';
-            sourceEl.classList.add('hidden');
-        }
-    }
 
     // Bottom Player - 更新艺术家
     if (artistEl) {
