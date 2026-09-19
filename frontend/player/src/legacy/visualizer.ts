@@ -243,9 +243,8 @@ const musicVisualizer = (function () {
                 audioContext.resume();
             }
 
-            // 主页面的底部避让由 .player-main-view + --player-footer-offset 统一负责。
-            // 播放栏位于主内容区域内，不再给整张侧栏写入动态底部留白，
-            // 这样侧栏卡片可以稳定延伸到页面底部。
+            // 播放栏是独立的固定悬浮层，主页面内容不再为它预留底部空间。
+            // 这里只保留可视化刷新，不让音频频谱状态参与页面布局计算。
         } else if (footerCanvas && visualizerContainer) {
             waveFooter.stop();
             footerCanvas.style.opacity = '0';
