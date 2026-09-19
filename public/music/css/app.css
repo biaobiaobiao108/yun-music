@@ -4907,6 +4907,30 @@ body > .flex.flex-1.overflow-hidden.relative {
     max-inline-size: 100% !important;
 }
 
+/* Do not let the floating footer paint a false divider across the song rows.
+   Keep its separation below the capsule, while removing the bright top rim
+   and the upward-facing shadow that landed around song seven. */
+#player-footer {
+    border-block-start-color: transparent !important;
+    box-shadow: 0 18px 18px 0 rgb(15 23 42 / 0.22) !important;
+}
+
+#player-footer::before {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* The detail list already sits under an opaque sticky toolbar. Its generic
+   edge fade only creates a second hard boundary in this view. */
+#player-main-content #sl-detail-tabs-bar {
+    border-block-end-color: transparent !important;
+    box-shadow: none !important;
+}
+
+#player-main-content #sl-detail-list {
+    box-shadow: none !important;
+}
+
 /* Static edge fades soften the boundary of scroll surfaces without a scroll
    listener, layout thrash, or a heavy blur on every card. */
 .player-scroll-surface {
