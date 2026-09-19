@@ -650,12 +650,20 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
 export async function handleDelete(ctx: HttpContext): Promise<Response> {
     try {
         const body = await readBody(ctx)
-        const { id, sourceId, username } = JSON.parse(body)
+        const { id, sourceId, username, owner, sourceOwner } = JSON.parse(body)
         const targetId = id || sourceId
         assertSafePathSegment(targetId, 'source id')
 
-        // 查找逻辑同 Toggle
-        let targetOwner = getRequestedOwner(ctx, username)
+        // 列表是公开源与用户源的合并结果，同一个 ID 可能同时存在于两个所有者下。
+        // 前端传入列表中的 owner 后必须按该所有者删除，不能仅凭 ID 猜测并误删另一份源。
+        const explicitOwner = typeof sourceOwner === 'string' && sourceOwner
+            ? sourceOwner
+            : typeof owner === 'string' && owner
+                ? owner
+                : ''
+        const requestedOwner = explicitOwner || username
+        const hasExplicitOwner = Boolean(explicitOwner)
+        let targetOwner = getRequestedOwner(ctx, requestedOwner)
 
         // 检查权限限制
         if (targetOwner === 'open') {
@@ -679,7 +687,7 @@ export async function handleDelete(ctx: HttpContext): Promise<Response> {
             }
         }
 
-        if (!found && targetOwner !== 'open') {
+        if (!found && targetOwner !== 'open' && !hasExplicitOwner) {
             const openSourcesDir = getSourceDir('open')
             const openMetaPath = path.join(openSourcesDir, 'sources.json')
 
@@ -713,10 +721,38 @@ export async function handleDelete(ctx: HttpContext): Promise<Response> {
         writeJsonFileAtomic(metaPath, sources)
         if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath)
 
+        // 同步清理已经删除源的排序和个人状态引用，避免后续列表合并继续携带脏元数据。
+        const orderPath = path.join(sourcesDir, 'order.json')
+        if (fs.existsSync(orderPath)) {
+            try {
+                const order = JSON.parse(fs.readFileSync(orderPath, 'utf-8'))
+                if (Array.isArray(order)) {
+                    writeJsonFileAtomic(orderPath, order.filter(id => id !== targetId))
+                }
+            } catch (error: any) {
+                console.warn('[CustomSource] 清理源排序引用失败:', error?.message || error)
+            }
+        }
+
+        if (targetOwner !== 'open') {
+            const statesPath = path.join(sourcesDir, 'states.json')
+            if (fs.existsSync(statesPath)) {
+                try {
+                    const states = JSON.parse(fs.readFileSync(statesPath, 'utf-8'))
+                    if (states && typeof states === 'object' && !Array.isArray(states)) {
+                        delete states[targetId]
+                        writeJsonFileAtomic(statesPath, states)
+                    }
+                } catch (error: any) {
+                    console.warn('[CustomSource] 清理源状态引用失败:', error?.message || error)
+                }
+            }
+        }
+
         // 重新初始化
         await initUserApis(targetOwner)
 
-        return ctx.json({ success: true })
+        return ctx.json({ success: true, id: targetId, owner: targetOwner })
         })
     } catch (err: any) {
         console.error('[CustomSource] Delete error:', err)

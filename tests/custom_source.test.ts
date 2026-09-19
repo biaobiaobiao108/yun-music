@@ -144,6 +144,87 @@ describe('Custom Source Security and Isolation', () => {
     expect(json.error).toContain('当前系统已开启访问限制')
   })
 
+  test('handleDelete removes the explicitly requested owner when public and private IDs overlap', async () => {
+    const router = createCustomSourceRouter()
+    const sourceId = 'shared-source.js'
+    const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
+    const userDir = path.join(tempRoot, 'data', 'users', 'source', 'normal_user')
+    const metadata = {
+      id: sourceId,
+      name: 'Shared Source',
+      enabled: false,
+    }
+
+    fs.mkdirSync(openDir, { recursive: true })
+    fs.mkdirSync(userDir, { recursive: true })
+    fs.writeFileSync(path.join(openDir, sourceId), '// public source')
+    fs.writeFileSync(path.join(userDir, sourceId), '// private source')
+    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([metadata]))
+    fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([metadata]))
+    fs.writeFileSync(path.join(userDir, 'order.json'), JSON.stringify([sourceId]))
+    fs.writeFileSync(path.join(userDir, 'states.json'), JSON.stringify({ [sourceId]: { enabled: true } }))
+
+    const sessionId = 'delete-source-user-session'
+    userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
+
+    const privateDelete = await router.handle(new Request('http://localhost:9527/api/custom-source/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `${USER_SESSION_COOKIE_NAME}=${sessionId}`,
+      },
+      body: JSON.stringify({
+        username: 'normal_user',
+        sourceId,
+        owner: 'normal_user',
+      }),
+    }))
+
+    expect(privateDelete.status).toBe(200)
+    expect(await privateDelete.json()).toEqual({ success: true, id: sourceId, owner: 'normal_user' })
+    expect(JSON.parse(fs.readFileSync(path.join(userDir, 'sources.json'), 'utf-8'))).toEqual([])
+    expect(fs.existsSync(path.join(userDir, sourceId))).toBe(false)
+    expect(fs.existsSync(path.join(openDir, sourceId))).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(userDir, 'order.json'), 'utf-8'))).toEqual([])
+    expect(JSON.parse(fs.readFileSync(path.join(userDir, 'states.json'), 'utf-8'))).toEqual({})
+
+    const stalePrivateDelete = await router.handle(new Request('http://localhost:9527/api/custom-source/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+      },
+      body: JSON.stringify({
+        username: 'normal_user',
+        sourceId,
+        owner: 'normal_user',
+      }),
+    }))
+
+    expect(stalePrivateDelete.status).toBe(500)
+    expect(await stalePrivateDelete.text()).toContain('源不存在')
+    expect(fs.existsSync(path.join(openDir, sourceId))).toBe(true)
+
+    const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const publicDelete = await router.handle(new Request('http://localhost:9527/api/custom-source/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: adminCookie,
+      },
+      body: JSON.stringify({
+        username: 'normal_user',
+        sourceId,
+        owner: 'open',
+      }),
+    }))
+
+    expect(publicDelete.status).toBe(200)
+    expect(await publicDelete.json()).toEqual({ success: true, id: sourceId, owner: 'open' })
+    expect(fs.existsSync(path.join(openDir, sourceId))).toBe(false)
+    expect(JSON.parse(fs.readFileSync(path.join(openDir, 'sources.json'), 'utf-8'))).toEqual([])
+  })
+
   test('sandbox lx.request dispatches request via native fetch and delivers parsed JSON', async () => {
     const { loadUserApi } = await import('@/server/userApi')
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)

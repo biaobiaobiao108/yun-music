@@ -287,8 +287,8 @@ function togglePublicSourcesSetting() {
     updateSetting('enablePublicSources', !settings.enablePublicSources);
 }
 
-async function renderCustomSources() {
-    let list = await fetchCustomSources();
+async function renderCustomSources(preloadedList?: any[] | null) {
+    let list = preloadedList === undefined ? await fetchCustomSources() : preloadedList;
 
     // 判断当前状态：是否由于权限被拦截
     // list === null 表示后端返回了 403
@@ -449,7 +449,7 @@ async function renderCustomSources() {
                         </button>` : ''}
                         
                         ${canManageSource ? `
-                        <button data-event-click-action="deleteSource" data-event-click-args="[${safeInlineString(source.id)}]"
+                        <button data-event-click-action="deleteSource" data-event-click-args="[${safeInlineString(source.id)}, ${safeInlineString(source.owner || '')}]"
                                 class="p-1.5 t-text-muted hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-lg transition-colors"
                                 title="删除">
                             <i class="fas fa-trash-alt text-sm"></i>
@@ -531,6 +531,8 @@ async function renderCustomSources() {
     if (typeof applyMarqueeChecks === 'function') {
         applyMarqueeChecks();
     }
+
+    return list;
 }
 
 // 重新加载源 (强制重新启用)
@@ -594,31 +596,57 @@ async function toggleSource(sourceId, currentEnabled) {
 }
 
 // 删除源
-async function deleteSource(sourceId) {
+async function deleteSource(sourceId, sourceOwner = '') {
     if (!(await showSelect('删除自定义源', '确定要删除这个自定义源吗？', { danger: true }))) return;
 
     try {
         const username = currentListData?.username || 'default';
         const headers = { 'Content-Type': 'application/json', ...getUserAuthHeaders() };
+        const body = { username, sourceId };
+        if (typeof sourceOwner === 'string' && sourceOwner) body.owner = sourceOwner;
 
         const response = await fetch('/api/custom-source/delete', {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify({ username, sourceId })
+            body: JSON.stringify(body)
         });
 
         if (response.status === 403) {
             const data = await response.json();
             showError(data.error || '权限限制：需要管理员身份。');
             const authorized = await handleAdminAuth('删除自定义源需要管理员权限');
-            if (authorized) return await deleteSource(sourceId);
+            if (authorized) return await deleteSource(sourceId, sourceOwner);
             return;
         }
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        let result = null;
+        try {
+            result = await response.json();
+        } catch (error) {
+            // 非 JSON 错误由统一的 HTTP 错误提示处理，避免把刷新当成成功。
+        }
+        if (!response.ok || result?.success !== true) {
+            throw new Error(result?.error || `HTTP ${response.status}`);
+        }
 
-        showSuccess('已删除');
-        await renderCustomSources();
+        // 删除后再次读取服务端列表，确保 UI 只反映已经提交成功的状态。
+        const remainingSources = await fetchCustomSources();
+        const deletedOwner = sourceOwner || result.owner || username;
+        const deletedSourceStillExists = Array.isArray(remainingSources) && remainingSources.some(source =>
+            String(source?.id || '') === String(sourceId) &&
+            (!deletedOwner || String(source?.owner || '') === String(deletedOwner))
+        );
+        if (deletedSourceStillExists) {
+            throw new Error('服务端仍返回待删除的自定义源');
+        }
+
+        const sameIdPublicSourceRemains = Array.isArray(remainingSources) && remainingSources.some(source =>
+            String(source?.id || '') === String(sourceId)
+        );
+        await renderCustomSources(remainingSources);
+        showSuccess(sameIdPublicSourceRemains
+            ? '已删除当前用户源，公开源仍保留'
+            : '已删除');
     } catch (error) {
         console.error('[CustomSource] 删除失败:', error);
         showError(`删除失败: ${error.message}`);
