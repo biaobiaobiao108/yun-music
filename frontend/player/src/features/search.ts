@@ -42,6 +42,7 @@ export type SearchDetailHistoryState = {
 
 export function initSearchFeature(context: SearchFeatureContext) {
     const API_BASE = '/api/music';
+    const ONLINE_PAGE_SIZE = 40;
     const settings = new Proxy<Record<string, any>>({}, {
         get: (_target, property) => context.getSettings()?.[property],
         set: (_target, property, value) => {
@@ -454,9 +455,9 @@ async function doSearch(page = 1, append = false, prefetch = false) {
 
     // Network Search Logic
     const source = document.getElementById('search-source').value;
-    const SEARCH_PAGE_SIZE = 20;
+    const SEARCH_PAGE_SIZE = ONLINE_PAGE_SIZE;
     const SEARCH_RESULT_LIMIT = SEARCH_PAGE_SIZE;
-    // 搜索结果采用显式加载更多，避免首屏一次性拉取并渲染多页。
+    // 搜索结果只请求首屏固定数量，接近列表底部时再追加下一页。
     const fetchPages = 1;
     const requestSearchKey = getSearchStateKey();
 
@@ -474,9 +475,8 @@ async function doSearch(page = 1, append = false, prefetch = false) {
         currentSearch = { name: input, source };
         pageState.value = 1;
         window.currentNetworkPage = page;
+        searchLoadMoreError = false;
         resultsContainer.innerHTML = '<div class="flex items-center justify-center h-full"><i class="fas fa-spinner fa-spin text-4xl text-emerald-500"></i></div>';
-    } else {
-        window.currentNetworkPage = page;
     }
 
     try {
@@ -487,10 +487,10 @@ async function doSearch(page = 1, append = false, prefetch = false) {
         if (source === 'all') {
             // Aggregate Search (Only supported for songs)
             const pageInfoEl = document.getElementById('page-info');
-            if (pageInfoEl) pageInfoEl.innerText = `聚合搜索 (前20条/源)`;
+            if (pageInfoEl) pageInfoEl.innerText = `聚合搜索 (前${SEARCH_PAGE_SIZE}条/源)`;
 
             const promises = SOURCES.map(s =>
-                fetch(`${API_BASE}/search?name=${encodeURIComponent(input)}&source=${s}&page=1&type=${type}`, {
+                fetch(`${API_BASE}/search?name=${encodeURIComponent(input)}&source=${s}&page=1&type=${type}&limit=${SEARCH_PAGE_SIZE}`, {
                     headers,
                     signal: request.controller.signal,
                 })
@@ -524,8 +524,11 @@ async function doSearch(page = 1, append = false, prefetch = false) {
             }
 
             list = data.map(item => ({ ...item, source }));
-            const minimumPageResult = append ? SEARCH_PAGE_SIZE : SEARCH_RESULT_LIMIT;
-            (window as any).searchHasMore = list.length >= minimumPageResult;
+            // The source adapters do not all honor a 40-item page (some
+            // return 20). Any non-empty page is therefore a candidate for the
+            // next request; the append branch stops when the page is empty or
+            // contains no new IDs.
+            (window as any).searchHasMore = list.length > 0;
         }
 
         // 进入专辑/歌手详情后，旧搜索请求即使晚返回也不能覆盖详情页。
@@ -582,11 +585,25 @@ async function doSearch(page = 1, append = false, prefetch = false) {
 }
 
 let searchLoadMorePromise: Promise<void> | null = null;
+let searchLoadMoreObserver: IntersectionObserver | null = null;
+let searchLoadMoreError = false;
+
+function disconnectSearchLoadMoreObserver() {
+    searchLoadMoreObserver?.disconnect();
+    searchLoadMoreObserver = null;
+}
 
 async function loadMoreSearchResults(button?: HTMLButtonElement | null) {
     if (searchLoadMorePromise || window.currentSearchScope !== 'network' || window.searchHasMore === false) return;
     const source = document.getElementById('search-source')?.value;
     if (!source || source === 'all') return;
+
+    searchLoadMoreError = false;
+    const wrapper = document.getElementById('search-load-more');
+    const status = wrapper?.querySelector('.player-load-more-status');
+    wrapper?.classList.add('is-loading');
+    wrapper?.classList.remove('has-error');
+    if (status) status.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1" aria-hidden="true"></i>正在加载更多...';
 
     if (button) {
         button.disabled = true;
@@ -597,6 +614,14 @@ async function loadMoreSearchResults(button?: HTMLButtonElement | null) {
     const nextPage = Math.max(1, Number(window.currentNetworkPage || 1) + 1);
     searchLoadMorePromise = doSearch(nextPage, true).then(() => undefined).finally(() => {
         searchLoadMorePromise = null;
+        const currentWrapper = document.getElementById('search-load-more');
+        const currentStatus = currentWrapper?.querySelector('.player-load-more-status');
+        currentWrapper?.classList.remove('is-loading');
+        if (window.searchHasMore !== false && Number(window.currentNetworkPage || 1) < nextPage) {
+            searchLoadMoreError = true;
+            currentWrapper?.classList.add('has-error');
+            if (currentStatus) currentStatus.textContent = '加载失败，点击重试';
+        }
     });
     await searchLoadMorePromise;
 }
@@ -606,6 +631,7 @@ function changePage(delta) {
 }
 
 function appendSearchLoadMore(container: HTMLElement) {
+    disconnectSearchLoadMoreObserver();
     const type = (document.getElementById('search-type') as HTMLSelectElement | null)?.value || 'song';
     const source = (document.getElementById('search-source') as HTMLSelectElement | null)?.value;
     const canLoadMore = window.currentSearchScope === 'network'
@@ -632,9 +658,23 @@ function appendSearchLoadMore(container: HTMLElement) {
     button.addEventListener('click', () => void loadMoreSearchResults(button));
     const status = document.createElement('span');
     status.className = 'player-load-more-status';
-    status.textContent = `${window.viewingPlaylist?.length || 0} 条已加载`;
+    status.textContent = searchLoadMoreError
+        ? '加载失败，点击重试'
+        : `继续下滑加载更多 · ${window.viewingPlaylist?.length || 0} 条已加载`;
+    if (searchLoadMoreError) wrapper.classList.add('has-error');
     wrapper.append(button, status);
     container.appendChild(wrapper);
+
+    if (typeof IntersectionObserver !== 'undefined' && !searchLoadMoreError) {
+        searchLoadMoreObserver = new IntersectionObserver(entries => {
+            if (entries.some(entry => entry.isIntersecting)) void loadMoreSearchResults();
+        }, {
+            root: container,
+            rootMargin: '0px 0px 520px 0px',
+            threshold: 0,
+        });
+        searchLoadMoreObserver.observe(wrapper);
+    }
 }
 
 (window as any).loadMoreSearchResults = loadMoreSearchResults;
@@ -1076,8 +1116,9 @@ let artistRequestSerial = 0;
 let artistRequestController: AbortController | null = null;
 let artistSongsUsesServerPagination = false;
 let artistSongsTotal = 0;
-let artistSongsPageSize = 20;
+let artistSongsPageSize = ONLINE_PAGE_SIZE;
 let artistSongsLoadingMore = false;
+let artistLoadMoreObserver: IntersectionObserver | null = null;
 const ARTIST_SONG_PAGE_CACHE_MAX = 24;
 const artistSongsPageCache = new Map<number, any[]>();
 
@@ -1107,9 +1148,7 @@ function getLoadedArtistSongs() {
 }
 
 function getArtistSongsPageSize() {
-    if (settings?.itemsPerPage === 'all') return 100;
-    const configured = Number.parseInt(settings?.itemsPerPage || '20', 10);
-    return Math.min(100, Math.max(1, Number.isFinite(configured) ? configured : 20));
+    return ONLINE_PAGE_SIZE;
 }
 
 function resetArtistSongsCache() {
@@ -1526,6 +1565,8 @@ async function loadArtistSongs(
 window.loadArtistSongs = loadArtistSongs;
 
 function renderArtistSongsLoading() {
+    artistLoadMoreObserver?.disconnect();
+    artistLoadMoreObserver = null;
     const content = document.getElementById('artist-detail-content');
     if (!content) return;
     window.viewingPlaylist = [];
@@ -1535,6 +1576,23 @@ function renderArtistSongsLoading() {
             <span class="text-sm font-medium">正在加载歌曲...</span>
         </div>
     `;
+}
+
+function observeArtistLoadMore(wrapper: Element | null, canLoad: boolean, onLoad: () => void) {
+    artistLoadMoreObserver?.disconnect();
+    artistLoadMoreObserver = null;
+    if (!wrapper || !canLoad || artistSongsLoadingMore || artistAlbumsLoadingMore) return;
+    const root = document.getElementById('artist-detail-view');
+    if (!root || typeof IntersectionObserver === 'undefined') return;
+
+    artistLoadMoreObserver = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) onLoad();
+    }, {
+        root,
+        rootMargin: '0px 0px 520px 0px',
+        threshold: 0,
+    });
+    artistLoadMoreObserver.observe(wrapper);
 }
 
 function animateArtistDetailContent(content: HTMLElement) {
@@ -1685,14 +1743,16 @@ function renderArtistSongsUI(list, page) {
 
         <div class="player-pagination-bar player-load-more-bar artist-songs-pagination ${artistSongsLoadingMore || artistSongsUsesServerPagination && displayList.length < artistSongsTotal ? '' : 'hidden'}"
             role="status" aria-live="polite">
-            ${artistSongsLoadingMore
-                ? '<button type="button" class="player-load-more-button" disabled><i class="fas fa-circle-notch fa-spin text-[10px]" aria-hidden="true"></i><span>正在加载...</span></button>'
-                : `<button type="button" data-event-click-action="loadMoreArtistSongs" class="player-load-more-button" aria-label="加载更多歌手歌曲"><i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span></button>`}
-            <span id="artist-songs-page-info" class="player-load-more-status">${displayList.length} / ${artistSongsUsesServerPagination ? totalItems : displayList.length} 首已加载</span>
+            <span id="artist-songs-page-info" class="player-load-more-status">${artistSongsLoadingMore ? '<i class="fas fa-circle-notch fa-spin mr-1" aria-hidden="true"></i>正在加载更多歌曲...' : `继续下滑加载更多 · ${displayList.length} / ${artistSongsUsesServerPagination ? totalItems : displayList.length} 首已加载`}</span>
         </div>
     `;
     content.innerHTML = html;
     animateArtistDetailContent(content);
+    observeArtistLoadMore(
+        content.querySelector('.artist-songs-pagination'),
+        artistSongsUsesServerPagination && displayList.length < artistSongsTotal,
+        () => void loadMoreArtistSongs(),
+    );
 
     // Init Marquee if needed (though we use truncate here)
     if (window.applyMarqueeChecks) applyMarqueeChecks();
@@ -1728,8 +1788,8 @@ window.artistSongsPrevPage = artistSongsPrevPage;
 window.artistSongsNextPage = artistSongsNextPage;
 window.artistSongsGoToPage = artistSongsGoToPage;
 
-const ARTIST_ALBUM_PAGE_SIZE = 50;
-// 音源接口本身按 50 张专辑分页；详情页一次只渲染/请求一页。
+const ARTIST_ALBUM_PAGE_SIZE = ONLINE_PAGE_SIZE;
+// 详情页一次只请求固定数量的专辑，继续下滑时追加下一页。
 const ARTIST_ALBUM_RENDER_PAGE_SIZE = ARTIST_ALBUM_PAGE_SIZE;
 const ARTIST_ALBUM_PAGE_CACHE_MAX = 12;
 let artistAlbumsPage = 1;
@@ -1764,6 +1824,8 @@ function getLoadedArtistAlbums() {
 }
 
 function renderArtistAlbumsLoading(loaded = 0, total = 0) {
+    artistLoadMoreObserver?.disconnect();
+    artistLoadMoreObserver = null;
     const content = document.getElementById('artist-detail-content');
     if (!content) return;
     const progressText = loaded > 0
@@ -1798,7 +1860,14 @@ async function loadArtistAlbums(id, source, forceFetch = false, requestContext: 
     else renderArtistAlbumsLoading();
 
     try {
-        const query = new URLSearchParams({ id: String(id), source: String(source), page: String(page) });
+        const query = new URLSearchParams({
+            id: String(id),
+            source: String(source),
+            page: String(page),
+            limit: String(ARTIST_ALBUM_PAGE_SIZE),
+        });
+        // Legacy query shape retained as a migration marker:
+        // const query = new URLSearchParams({ id: String(id), source: String(source), page: String(page) });
         const res = await fetch(API_BASE + '/artistAlbums?' + query.toString(), { signal: request.controller.signal });
         if (!res.ok) throw new Error('Failed to fetch artist albums page ' + page);
         const data = await res.json();
@@ -1881,14 +1950,16 @@ function renderArtistAlbumsUI(list, requestedPage = artistAlbumsPage) {
         </div>
         <div class="player-pagination-bar player-load-more-bar artist-albums-pagination ${artistAlbumsLoadingMore || usesServerPagination && visibleAlbums.length < totalItems ? '' : 'hidden'}"
             role="status" aria-live="polite">
-            ${artistAlbumsLoadingMore
-                ? '<button type="button" class="player-load-more-button" disabled><i class="fas fa-circle-notch fa-spin text-[10px]" aria-hidden="true"></i><span>正在加载...</span></button>'
-                : `<button type="button" data-event-click-action="loadMoreArtistAlbums" class="player-load-more-button" aria-label="加载更多专辑"><i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span></button>`}
-            <span class="player-load-more-status">${visibleAlbums.length} / ${usesServerPagination ? totalItems : visibleAlbums.length} 张已加载</span>
+            <span class="player-load-more-status">${artistAlbumsLoadingMore ? '<i class="fas fa-circle-notch fa-spin mr-1" aria-hidden="true"></i>正在加载更多专辑...' : `继续下滑加载更多 · ${visibleAlbums.length} / ${usesServerPagination ? totalItems : visibleAlbums.length} 张已加载`}</span>
         </div>
     `;
     content.innerHTML = html;
     animateArtistDetailContent(content);
+    observeArtistLoadMore(
+        content.querySelector('.artist-albums-pagination'),
+        usesServerPagination && visibleAlbums.length < totalItems,
+        () => void loadMoreArtistAlbums(),
+    );
 
     content.querySelectorAll('.artist-album-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -2416,7 +2487,7 @@ function renderResults(list) {
     lazyLoadImages(container);
     applyMarqueeChecks(container);
     // 旧版自动预取条件：if (!searchDetailOpen && window.currentSearchScope === 'network'
-    // 已由显式“加载更多”替代，避免滚动或渲染触发隐式网络请求。
+    // 已由列表底部 IntersectionObserver 哨兵替代，只在接近底部时追加请求。
 }
 window.renderResults = renderResults;
 

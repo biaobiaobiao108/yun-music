@@ -5052,3 +5052,78 @@ body > .flex.flex-1.overflow-hidden.relative {
         padding-block-end: 0.75rem !important;
     }
 }
+
+/* Online discovery lists load their next server page from this quiet bottom
+   sentinel. There is no fixed or centered action button in the normal flow. */
+.songlist-load-more {
+    display: flex;
+    position: relative;
+    inset-block-end: auto;
+    z-index: auto;
+    inline-size: 100%;
+    max-inline-size: none;
+    min-block-size: 3rem;
+    margin-inline: 0;
+    padding: 0.75rem 0 1.5rem;
+    border-radius: 0;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+.songlist-load-more-button,
+.search-load-more .player-load-more-button,
+.leaderboard-load-more .player-load-more-button,
+.artist-songs-pagination .player-load-more-button,
+.artist-albums-pagination .player-load-more-button {
+    display: none;
+}
+
+.songlist-load-more.has-error .songlist-load-more-button,
+.search-load-more.has-error .player-load-more-button {
+    display: inline-flex;
+}
+
+.songlist-load-more-status,
+.search-load-more .player-load-more-status,
+.leaderboard-load-more .player-load-more-status,
+.artist-songs-pagination .player-load-more-status,
+.artist-albums-pagination .player-load-more-status {
+    color: color-mix(in srgb, var(--text-muted) 86%, transparent);
+    font-size: 0.6875rem;
+    line-height: 1.25rem;
+}
+
+/* Give the title column real room on desktop. The title itself is allowed to
+   shrink independently from the source badge instead of collapsing to w-fit. */
+@media (min-width: 1025px) {
+    #player-footer,
+    #player-footer.player-footer-immersive {
+        inline-size: min(68rem, calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))) !important;
+        width: min(68rem, calc(100% - var(--player-sidebar-width) - (var(--player-shell-gap) * 3))) !important;
+    }
+
+    #player-footer #player-song-info,
+    #player-footer.player-footer-immersive #player-song-info {
+        flex: 0 1 22rem !important;
+        inline-size: min(22rem, 36%) !important;
+        width: min(22rem, 36%) !important;
+        max-inline-size: 22rem !important;
+        min-inline-size: 0 !important;
+    }
+
+    #player-footer #player-song-info > div:nth-child(2),
+    #player-footer #player-song-info > div:nth-child(2) > div:first-child {
+        min-inline-size: 0 !important;
+        inline-size: 100%;
+        max-inline-size: 100%;
+    }
+
+    #player-footer #player-title {
+        flex: 1 1 auto !important;
+        inline-size: auto !important;
+        width: auto !important;
+        min-inline-size: 0 !important;
+        max-inline-size: 100% !important;
+    }
+}

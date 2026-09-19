@@ -9,6 +9,7 @@ import { toUserMessage } from '../player_notifications';
 
 window.LeaderboardManager = (function () {
     const API_BASE = '/api/music/leaderboard';
+    const ONLINE_PAGE_SIZE = 40;
 
     let state = {
         source: 'wy',
@@ -19,7 +20,7 @@ window.LeaderboardManager = (function () {
         page: 1,             // 后端页码
         localPage: 1,        // 前端渲染页码
         total: 0,
-        limit: 100,          // 后端一页加载数量限制
+        limit: ONLINE_PAGE_SIZE, // 后端一页加载数量限制
         loading: false,
         pageTransitioning: false,
     };
@@ -29,6 +30,7 @@ window.LeaderboardManager = (function () {
     let songsRequestController = null;
     let boardsRequestSerial = 0;
     let songsRequestSerial = 0;
+    let loadMoreObserver: IntersectionObserver | null = null;
 
     function clearSongBatchSelection() {
         if (typeof window.resetSharedBatchSelection === 'function') {
@@ -117,7 +119,7 @@ window.LeaderboardManager = (function () {
         }
 
         try {
-            const url = `${API_BASE}/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(bangid)}&page=${page}`;
+            const url = `${API_BASE}/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(bangid)}&page=${page}&limit=${ONLINE_PAGE_SIZE}`;
             const res = await fetch(url, { signal: songsRequestController.signal });
             const data = await res.json();
             if (requestSerial !== songsRequestSerial || state.currentBangid !== bangid || state.source !== source) return;
@@ -141,7 +143,7 @@ window.LeaderboardManager = (function () {
             }
 
             state.total = data.total || state.songs.length;
-            state.limit = data.limit || 100;
+            state.limit = data.limit || ONLINE_PAGE_SIZE;
             state.loading = false;
 
             // 同步 viewingPlaylist 供批量操作全局函数使用
@@ -341,6 +343,8 @@ window.LeaderboardManager = (function () {
     function renderLoadMore(container) {
         const old = container.querySelector('.leaderboard-load-more');
         old?.remove();
+        loadMoreObserver?.disconnect();
+        loadMoreObserver = null;
 
         const loading = state.loading && state.songs.length > 0;
         const canLoad = hasMoreSongs();
@@ -350,20 +354,24 @@ window.LeaderboardManager = (function () {
         wrapper.className = 'player-load-more-bar leaderboard-load-more' + (loading ? ' is-loading' : '');
         wrapper.setAttribute('role', 'status');
         wrapper.setAttribute('aria-live', 'polite');
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'player-load-more-button';
-        button.disabled = loading;
-        button.setAttribute('aria-busy', String(loading));
-        button.innerHTML = loading
-            ? '<i class="fas fa-circle-notch fa-spin text-[10px]" aria-hidden="true"></i><span>正在加载...</span>'
-            : '<i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span>';
-        button.addEventListener('click', () => void loadMore());
         const status = document.createElement('span');
         status.className = 'player-load-more-status';
-        status.textContent = state.total > 0 ? `${state.songs.length} / ${state.total} 首已加载` : `${state.songs.length} 首已加载`;
-        wrapper.append(button, status);
+        status.innerHTML = loading
+            ? '<i class="fas fa-circle-notch fa-spin mr-1" aria-hidden="true"></i>正在加载更多歌曲...'
+            : `继续下滑加载更多 · ${state.total > 0 ? `${state.songs.length} / ${state.total}` : state.songs.length} 首已加载`;
+        wrapper.append(status);
         container.appendChild(wrapper);
+
+        if (!loading && canLoad && typeof IntersectionObserver !== 'undefined') {
+            loadMoreObserver = new IntersectionObserver(entries => {
+                if (entries.some(entry => entry.isIntersecting)) void loadMore();
+            }, {
+                root: container,
+                rootMargin: '0px 0px 520px 0px',
+                threshold: 0,
+            });
+            loadMoreObserver.observe(wrapper);
+        }
     }
 
     async function loadMore() {

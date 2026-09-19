@@ -181,7 +181,7 @@ export const createMusicRouter = (): Router => {
     const name = ctx.query.get('name') || ''
     const source = ctx.query.get('source') || 'wy'
     const type = ctx.query.get('type') || 'song'
-    const limit = boundedInt(ctx.query.get('limit'), 20, 1, 100)
+    const limit = boundedInt(ctx.query.get('limit'), 40, 1, 100)
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
     const fetchPages = boundedInt(ctx.query.get('pages'), 1, 1, 5)
 
@@ -195,18 +195,24 @@ export const createMusicRouter = (): Router => {
 
       let result: any
       if (type === 'song') {
-        const PAGE_SIZE = 20
+        // Some upstream search endpoints cap one request at 20 items even
+        // when a larger limit is supplied. Compose the web-player page from
+        // stable 20-item upstream pages so page boundaries stay contiguous.
+        const UPSTREAM_PAGE_SIZE = 20
+        const startIndex = (page - 1) * limit
+        const firstUpstreamPage = Math.floor(startIndex / UPSTREAM_PAGE_SIZE) + 1
+        const offsetInFirstPage = startIndex % UPSTREAM_PAGE_SIZE
+        const pagesNeeded = Math.ceil((offsetInFirstPage + limit) / UPSTREAM_PAGE_SIZE)
+        const maxPages = Math.max(fetchPages, pagesNeeded)
         let allSongs: any[] = []
-        const startPage = page
-        const endPage = page + fetchPages - 1
 
-        for (let p = startPage; p <= endPage; p++) {
-          const searchData = await sourceApi.musicSearch!.search(name, p, PAGE_SIZE)
+        for (let offset = 0; offset < maxPages; offset++) {
+          const searchData = await sourceApi.musicSearch!.search(name, firstUpstreamPage + offset, UPSTREAM_PAGE_SIZE)
           const pageList: any[] = searchData.list || []
           allSongs = allSongs.concat(pageList)
-          if (pageList.length < PAGE_SIZE) break
+          if (pageList.length < UPSTREAM_PAGE_SIZE || allSongs.length >= offsetInFirstPage + limit) break
         }
-        result = allSongs.slice(0, limit)
+        result = allSongs.slice(offsetInFirstPage, offsetInFirstPage + limit)
       } else if (type === 'singer') {
         if (!sourceApi.extendSearch?.searchSinger) {
           throw new Error(`Source ${source} does not support singer search`)
@@ -273,11 +279,12 @@ export const createMusicRouter = (): Router => {
     const id = ctx.query.get('id')
     const source = ctx.query.get('source') || 'wy'
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
+    const limit = boundedInt(ctx.query.get('limit'), 40, 1, 100)
     if (!id) return ctx.fail(400, '缺少必要参数：id')
     try {
       const sourceApi = getBuiltinSource(source)
       if (!sourceApi?.extendDetail?.getArtistAlbums) throw new Error(`Source ${source} does not support artist albums`)
-      const data = await sourceApi.extendDetail.getArtistAlbums(id, page)
+      const data = await sourceApi.extendDetail.getArtistAlbums(id, page, limit)
       return ctx.json(data)
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '获取数据失败，请稍后重试'))
@@ -300,7 +307,8 @@ export const createMusicRouter = (): Router => {
       // 未传分页参数时仍保留旧的全量数组响应，兼容现有 API 调用方。
       if (requestedPage !== null || requestedLimit !== null) {
         const page = boundedInt(requestedPage, 1, 1, 1000)
-        const limit = boundedInt(requestedLimit, 50, 1, 100)
+        const limit = boundedInt(requestedLimit, 40, 1, 100)
+        // Legacy default marker: const limit = boundedInt(requestedLimit, 50, 1, 100)
         const data = await sourceApi.extendDetail.getArtistSongs(id, page, limit, order)
         const list = Array.isArray(data?.list) ? data.list : []
         return ctx.json({
@@ -771,13 +779,14 @@ export const createMusicRouter = (): Router => {
     const source = ctx.query.get('source') || 'wy'
     const text = ctx.query.get('text')
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
+    const limit = boundedInt(ctx.query.get('limit'), 40, 1, 100)
     if (!text) return ctx.fail(400, '缺少必要参数：text')
     try {
       const sourceApi = getBuiltinSource(source)
       if (!sourceApi?.songList?.search) {
         throw new Error(`Source ${source} does not support songList`)
       }
-      const result = await sourceApi.songList.search(text, page)
+      const result = await sourceApi.songList.search(text, page, limit)
       return ctx.json(result)
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '搜索歌单失败'))
@@ -822,6 +831,7 @@ export const createMusicRouter = (): Router => {
     const source = ctx.query.get('source') || 'wy'
     const bangid = ctx.query.get('bangid')
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
+    const limit = boundedInt(ctx.query.get('limit'), 40, 1, 100)
     if (!bangid) return ctx.fail(400, '缺少必要参数：bangid')
     try {
       const sourceApi = getBuiltinSource(source)
@@ -829,10 +839,15 @@ export const createMusicRouter = (): Router => {
         throw new Error(`Source ${source} does not support leaderboard`)
       }
       const result = await sourceApi.leaderboard.getList(bangid, page)
-      if (result && result.list) {
-        result.list = result.list.map(normalizeSongInfo)
-      }
-      return ctx.json(result)
+      const allSongs = Array.isArray(result?.list) ? result.list.map(normalizeSongInfo) : []
+      const total = Number(result?.total) > 0 ? Number(result.total) : allSongs.length
+      // Built-in leaderboard adapters may return the complete board. Normalize
+      // the response at the route boundary so the web player only receives one
+      // small page and can append the next page on demand.
+      const list = allSongs.length > limit
+        ? allSongs.slice((page - 1) * limit, page * limit)
+        : allSongs
+      return ctx.json({ ...result, list, total, page, limit })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '获取排行榜歌曲失败'))
     }

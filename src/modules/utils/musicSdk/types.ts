@@ -64,7 +64,7 @@ export interface ExtendSearchApi {
 
 export interface ExtendDetailApi {
   getArtistDetail?: (id: string) => Promise<any>
-  getArtistAlbums?: (id: string, page: number) => Promise<MusicSearchResult>
+  getArtistAlbums?: (id: string, page: number, limit?: number) => Promise<MusicSearchResult>
   getArtistSongs?: (id: string, page: number, limit: number, order?: string) => Promise<MusicSearchResult>
   getAlbumSongs?: (id: string) => Promise<MusicSearchResult>
 }
@@ -74,7 +74,7 @@ export interface SongListApi {
   getTags?: () => Promise<any>
   getList?: (sortId: string, tagId: string, page: number) => Promise<MusicSearchResult>
   getListDetail?: (id: string, page: number, limit?: number) => Promise<MusicSearchResult>
-  search?: (text: string, page: number) => Promise<MusicSearchResult>
+  search?: (text: string, page: number, limit?: number) => Promise<MusicSearchResult>
 }
 
 export interface LeaderboardApi {

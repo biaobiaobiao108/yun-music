@@ -18,9 +18,10 @@ export type SongListManagerContext = {
 export function createSongListManager(context: SongListManagerContext) {
     const manager = (function () {
     const API_BASE = '/api/music';
-    // 播放队列统一最多使用 99 首；详情页首批加载同样保持这个上限，
-    // 避免单曲点击时只能把当前较小分页放入队列。
-    const DETAIL_PAGE_LIMIT = 99;
+    // 在线歌单按固定的小分页追加，避免首屏请求和渲染过重。
+    // 播放单曲/全部时仍会通过 ensureAllLoaded 补齐整个歌单队列。
+    const ONLINE_PAGE_SIZE = 40;
+    const DETAIL_PAGE_LIMIT = ONLINE_PAGE_SIZE;
     let initialized = false;
     let initialLoadPromise = null;
     let detailLoading = false;
@@ -34,7 +35,7 @@ export function createSongListManager(context: SongListManagerContext) {
         sortList: [{ name: '最热', id: 'hot' }], // Default for WY
         page: 1,
         total: 0,
-        limit: 30,
+        limit: ONLINE_PAGE_SIZE,
         query: '',
         loadMoreError: false,
         hasMore: true,
@@ -58,6 +59,7 @@ export function createSongListManager(context: SongListManagerContext) {
     let tagsRequestSerial = 0;
     let listRequestSerial = 0;
     let detailRequestSerial = 0;
+    let listLoadMoreObserver: IntersectionObserver | null = null;
 
     function resetSongBatchContext() {
         window.batchMode = false;
@@ -379,8 +381,8 @@ export function createSongListManager(context: SongListManagerContext) {
 
         try {
             const url = query
-                ? `${API_BASE}/songList/search?source=${encodeURIComponent(source)}&text=${encodeURIComponent(query)}&page=${requestedPage}`
-                : `${API_BASE}/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${requestedPage}`;
+                ? `${API_BASE}/songList/search?source=${encodeURIComponent(source)}&text=${encodeURIComponent(query)}&page=${requestedPage}&limit=${ONLINE_PAGE_SIZE}`
+                : `${API_BASE}/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${requestedPage}&limit=${ONLINE_PAGE_SIZE}`;
             const res = await fetch(url, { signal: listRequestController.signal });
             const data = await res.json();
             if (requestSerial !== listRequestSerial || currentState.page !== requestedPage) return false;
@@ -391,7 +393,7 @@ export function createSongListManager(context: SongListManagerContext) {
                 : [...currentState.list, ...incomingList];
             const total = Number(data.total);
             currentState.total = Number.isFinite(total) && total >= 0 ? total : currentState.total;
-            currentState.limit = Number(data.limit) || currentState.limit || 30;
+            currentState.limit = Number(data.limit) || ONLINE_PAGE_SIZE;
             currentState.hasMore = Number.isFinite(total) && total >= 0
                 ? currentState.list.length < total
                 : incomingList.length >= currentState.limit;
@@ -419,6 +421,27 @@ export function createSongListManager(context: SongListManagerContext) {
         return currentState.hasMore && currentState.list.length > 0;
     }
 
+    function bindListLoadMoreObserver() {
+        listLoadMoreObserver?.disconnect();
+        listLoadMoreObserver = null;
+
+        const wrapper = document.getElementById('songlist-load-more');
+        const root = document.getElementById('songlist-grid');
+        if (!wrapper || !root || !hasMoreSongLists() || currentState.loadMoreError || listLoading) return;
+        if (typeof IntersectionObserver === 'undefined') return;
+
+        listLoadMoreObserver = new IntersectionObserver(entries => {
+            if (entries.some(entry => entry.isIntersecting)) {
+                void manager.loadMore();
+            }
+        }, {
+            root,
+            rootMargin: '0px 0px 520px 0px',
+            threshold: 0,
+        });
+        listLoadMoreObserver.observe(wrapper);
+    }
+
     function updateLoadMoreUI() {
         const wrapper = document.getElementById('songlist-load-more');
         const button = document.getElementById('btn-songlist-load-more') as HTMLButtonElement | null;
@@ -429,19 +452,22 @@ export function createSongListManager(context: SongListManagerContext) {
         const isAppending = listLoading && currentState.list.length > 0;
         const showRetry = currentState.loadMoreError && !listLoading;
         wrapper.classList.toggle('hidden', !hasMore && !isAppending && !showRetry);
+        wrapper.classList.toggle('has-error', showRetry);
         button.disabled = listLoading;
         button.setAttribute('aria-busy', String(listLoading));
 
         if (listLoading) {
             button.innerHTML = '<i class="fas fa-circle-notch fa-spin text-[10px]" aria-hidden="true"></i><span>正在加载...</span>';
-            if (status) status.textContent = '';
+            if (status) status.textContent = currentState.list.length > 0 ? '正在加载更多歌单...' : '';
         } else if (showRetry) {
             button.innerHTML = '<i class="fas fa-rotate-right text-[10px]" aria-hidden="true"></i><span>加载失败，点击重试</span>';
             if (status) status.textContent = '';
         } else {
             button.innerHTML = '<i class="fas fa-chevron-down text-[10px]" aria-hidden="true"></i><span>加载更多</span>';
-            if (status) status.textContent = hasMore ? '' : '已加载全部歌单';
+            if (status) status.textContent = hasMore ? '继续下滑加载更多' : '已加载全部歌单';
         }
+
+        bindListLoadMoreObserver();
     }
 
     function bindDetailScroll() {

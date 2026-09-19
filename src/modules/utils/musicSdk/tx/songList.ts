@@ -7,7 +7,7 @@ export default {
   _requestObj_tags: null as any,
   _requestObj_hotTags: null as any,
   _requestObj_list: null as any,
-  limit_list: 36,
+  limit_list: 40,
   limit_song: 100000,
   successCode: 0,
   sortList: [
