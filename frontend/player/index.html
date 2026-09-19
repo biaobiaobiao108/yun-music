@@ -85,16 +85,16 @@
                         <i id="favorites-arrow"
                             class="fas fa-chevron-down shrink-0 text-xs transition-transform duration-200"></i>
                     </button>
-                    <ul id="favorites-children" class="favorite-sidebar-children t-bg-main/50 overflow-hidden transition-all duration-300 rounded-lg mx-2.5">
-                        <li class="px-3 py-2">
+                    <ul id="favorites-children" class="favorite-sidebar-children overflow-hidden transition-all duration-300 mx-1">
+                        <li class="px-1 py-1">
                             <div id="my-lists-container" class="favorite-sidebar-list space-y-1 pb-1">
                                 <!-- Lists will be injected here -->
                                 <div class="favorite-sidebar-empty">请先在设置中登录</div>
                             </div>
                         </li>
-                        <li class="px-3 pb-3">
+                        <li class="px-1 pb-1">
                             <button type="button" data-event-click-action="handleCreateList"
-                                class="w-full py-1.5 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-xs text-gray-500 hover:text-emerald-500 hover:border-emerald-400 transition-colors flex items-center justify-center gap-1.5">
+                                class="w-full py-1.5 border border-dashed border-gray-300 dark:border-gray-700 rounded-md text-xs text-gray-500 hover:text-emerald-500 hover:border-emerald-400 transition-colors flex items-center justify-center gap-1.5">
                                 <i class="fas fa-plus"></i> 新建歌单
                             </button>
                         </li>
@@ -1956,34 +1956,6 @@
                                     <i class="fas fa-desktop mr-2 text-emerald-500"></i> 界面与布局
                                 </h4>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <!-- Auto Compact Playbar Toggle -->
-                                    <div
-                                        class="t-bg-panel rounded-xl border t-border-main p-4 hover:shadow-sm transition-shadow">
-                                        <div class="flex items-center justify-between">
-                                            <div>
-                                                <h4 class="text-sm font-bold t-text-main flex items-center">
-                                                    自动精简控制栏
-                                                    <span class="setting-tooltip-trigger ml-1">
-                                                        <i class="fas fa-question-circle"></i>
-                                                        <span class="setting-tooltip-content">
-                                                            (仅手机版) 进入歌词界面自动精简播放栏，关闭界面时自动恢复展开。<br>
-                                                            <span class="text-emerald-500 font-medium">*
-                                                                提示：长按播放键可手动切换。</span>
-                                                        </span>
-                                                    </span>
-                                                </h4>
-                                            </div>
-                                            <label class="relative inline-flex items-center cursor-pointer">
-                                                <input type="checkbox" id="setting-auto-compact-playbar"
-                                                    class="sr-only peer"
-                                                    data-event-change-action="updateSetting" data-event-change-args="[&quot;autoCompactPlaybar&quot;,&quot;@checked&quot;]">
-                                                <div
-                                                    class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 transition-all">
-                                                </div>
-                                            </label>
-                                        </div>
-                                    </div>
-
                                     <!-- Sidebar Info Toggle -->
                                     <div
                                         class="t-bg-panel rounded-xl border t-border-main p-4 hover:shadow-sm transition-shadow">
@@ -2906,7 +2878,7 @@
             class="relative z-10 flex-1 flex flex-col md:flex-row items-center justify-start md:justify-center gap-4 md:gap-20 pt-8 mt-4 md:mt-0 md:pt-0 pb-6 overflow-hidden transition-all duration-300 ease-out [@media(max-height:500px)]:pt-0 [@media(max-height:500px)]:justify-center">
 
             <!-- Left: NetEase Vinyl Turntable (黑胶唱片机) -->
-            <div id="mobile-player-cover-container" class="flex flex-col items-center justify-center flex-shrink-0 relative my-auto">
+            <div id="mobile-player-cover-container" class="lyric-cover-column flex flex-col items-center justify-center flex-shrink-0 relative my-auto">
                 <!-- Turntable Wrap -->
                 <div class="vinyl-player-container">
                     <!-- Radial Visualizer Canvas (Centered behind spinning vinyl disc) -->
@@ -2939,6 +2911,22 @@
                             <div class="vinyl-center-hole"></div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Lyrics actions: keep secondary controls close to the turntable. -->
+                <div class="lyric-detail-actions" role="toolbar" aria-label="歌词详情操作">
+                    <button type="button" class="lyric-detail-action" data-event-click-action="toggleSoundEffects"
+                        title="均衡器与音效" aria-label="均衡器与音效">
+                        <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="lyric-detail-action" data-event-click-action="openLyricCard"
+                        title="分享歌词卡片" aria-label="分享歌词卡片">
+                        <i class="fas fa-image" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="lyric-detail-action" data-event-click-action="toggleCommentModal"
+                        title="查看评论" aria-label="查看评论">
+                        <i class="fas fa-comment-dots" aria-hidden="true"></i>
+                    </button>
                 </div>
             </div>
 
@@ -3007,11 +2995,11 @@
 
     <!-- Player Bar (NetEase 3-Column Modern Player Bar) -->
     <footer id="player-footer" aria-label="当前播放控制"
-        class="fixed bottom-0 left-0 w-full h-auto md:min-h-[4.75rem] py-1.5 md:py-2 t-bg-panel/95 backdrop-blur-xl border-t t-border-main shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex flex-col md:flex-row items-center px-3 md:px-6 z-[60] transition-all duration-300">
+        class="player-footer-capsule fixed bottom-0 left-0 w-full h-auto md:min-h-[4.75rem] py-1.5 md:py-2 t-bg-panel/95 backdrop-blur-xl border t-border-main shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex flex-col md:flex-row items-center px-3 md:px-6 z-[60] transition-all duration-300">
 
         <!-- Left: Song Info (Cover + Title + Like) -->
         <div id="player-song-info"
-            class="player-footer-song-info w-full md:w-[28%] flex items-center gap-2.5 md:gap-3.5 mb-0 pr-2 md:pr-0 transition-all duration-300 min-w-0">
+            class="player-footer-song-info w-full md:w-[28%] flex items-center gap-2.5 md:gap-3.5 mb-0 transition-all duration-300 min-w-0">
             <!-- Cover with Hover Expand -->
             <div
                 class="w-11 h-11 md:w-12 md:h-12 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm relative group flex-shrink-0 cursor-pointer"
@@ -3064,18 +3052,6 @@
                         <button type="button" role="menuitem" aria-label="下载或缓存" data-event-click-action="handleDownloadClick" data-event-click-args="[&quot;@event&quot;]"
                             class="player-menu-action" title="下载/缓存">
                             <i class="fas fa-download"></i><span>下载或缓存</span>
-                        </button>
-                        <button type="button" role="menuitem" aria-label="均衡器与音效"
-                            data-event-click-action="toggleSoundEffects" class="player-menu-action">
-                            <i class="fas fa-sliders-h"></i><span>均衡器与音效</span>
-                        </button>
-                        <button type="button" role="menuitem" aria-label="查看评论" data-event-click-action="toggleCommentModal"
-                            class="player-menu-action">
-                            <i class="fas fa-comment"></i><span>查看评论</span>
-                        </button>
-                        <button type="button" role="menuitem" aria-label="分享歌词卡片"
-                            data-event-click-action="openLyricCard" class="player-menu-action">
-                            <i class="fas fa-image"></i><span>分享歌词卡片</span>
                         </button>
                         <button type="button" role="menuitem" aria-label="播放队列" aria-controls="queue-drawer" data-event-click-action="toggleQueueDrawer"
                             class="player-menu-action">
@@ -3199,7 +3175,7 @@
         </div>
 
         <!-- Right: Audio Quality, Volume & Queue Tools -->
-        <div id="player-right-tools" class="player-footer-right-tools w-full md:w-[28%] hidden md:flex items-center justify-end gap-2.5 lg:gap-3.5 order-2 md:order-none pr-8">
+        <div id="player-right-tools" class="player-footer-right-tools w-full md:w-auto hidden md:flex items-center justify-end gap-2.5 lg:gap-3.5 order-2 md:order-none">
             <!-- Quality Badge Button -->
             <div id="player-quality-control" class="relative flex items-center">
                 <button id="player-quality-tag" type="button" class="badge-quality-runtime player-secondary-action player-quality-tag select-none"
@@ -3216,32 +3192,6 @@
                 data-event-click-action="handleDownloadClick" data-event-click-args="[&quot;@event&quot;]" title="下载/缓存">
                 <i class="fas fa-download"></i>
             </button>
-
-            <!-- Sound Effects Button -->
-            <button id="btn-sound-effects" aria-label="均衡器与音效"
-                class="player-secondary-action"
-                data-event-click-action="toggleSoundEffects" title="均衡器 & 音效">
-                <i class="fas fa-sliders-h"></i>
-            </button>
-
-            <!-- Share Card Button -->
-            <button aria-label="分享歌词卡片"
-                class="player-secondary-action"
-                data-event-click-action="openLyricCard" title="分享歌词卡片">
-                <i class="fas fa-image"></i>
-            </button>
-
-            <!-- Comments Button -->
-            <button aria-label="查看评论"
-                class="player-secondary-action"
-                data-event-click-action="toggleCommentModal" title="查看评论">
-                <i class="fas fa-comment-dots"></i>
-            </button>
-
-            <!-- Lyrics Toggle Button -->
-            <button aria-label="打开歌词详情"
-                class="player-secondary-action player-lyrics-action"
-                data-event-click-action="toggleLyrics" title="歌词与唱片">词</button>
 
             <!-- Volume Slider Group -->
             <div class="flex items-center gap-1.5 group ml-1">
@@ -3276,19 +3226,7 @@
             <span data-playback-status-text class="truncate">正在准备播放</span>
         </div>
 
-        <!-- Collapse Panel Button -->
-        <button id="btn-collapse-panel" aria-label="收起播放栏" aria-expanded="true"
-            class="player-footer-collapse-button absolute right-2 md:right-4 top-2 md:top-1/2 md:-translate-y-1/2 t-text-muted p-2 hover:t-text-muted transition-all z-10"
-            data-event-click-action="togglePlayerPanel">
-            <i class="fas fa-chevron-down text-sm"></i>
-        </button>
     </footer>
-
-    <!-- Expand Panel Button (Hidden by default, shown when panel is collapsed) -->
-    <button id="btn-expand-panel" aria-label="展开播放栏" aria-expanded="false" data-event-click-action="togglePlayerPanel"
-        class="fixed bottom-24 right-6 z-40 w-12 h-12 flex items-center justify-center t-bg-panel/80 backdrop-blur-md rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-gray-500 hover:text-emerald-500 transform transition-all duration-300 translate-y-20 opacity-0 border border-white/50">
-        <i class="fas fa-chevron-up text-lg"></i>
-    </button>
 
     <!-- External Song List Modal -->
     <div id="external-list-modal"

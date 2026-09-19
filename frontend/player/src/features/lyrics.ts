@@ -185,10 +185,6 @@ function toggleLyrics(fromPopState = false) {
             if (footerEl.hasAttribute('inert')) footerEl.removeAttribute('inert');
         }
 
-        // 如果开启了自动精简，且在手机端进入详情页，则自动精简
-        if (settings.autoCompactPlaybar !== false && window.innerWidth < 1025) {
-            window.setCompactPlaybar(true);
-        }
     } else {
         view.classList.add('translate-y-[100%]', 'opacity-0');
         hideLyricOffsetCapsuleImmediately();
@@ -206,10 +202,6 @@ function toggleLyrics(fromPopState = false) {
             if (window.musicVisualizer) window.musicVisualizer.applySettings();
         }, 600); // match transition duration
 
-        // 关闭详情页自动展开控制栏
-        if (settings.autoCompactPlaybar !== false && window.innerWidth < 1025) {
-            window.setCompactPlaybar(false);
-        }
     }
 }
 

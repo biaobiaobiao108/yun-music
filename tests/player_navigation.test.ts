@@ -391,7 +391,11 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(html).toContain('class="player-footer-control-row');
         expect(html).toContain('class="player-footer-progress-row');
         expect(html).toContain('aria-haspopup="menu" aria-expanded="false"');
-        expect(html).toContain('class="player-footer-collapse-button ');
+        expect(html).toContain('class="player-footer-capsule');
+        expect(html).not.toContain('id="btn-collapse-panel"');
+        expect(html).not.toContain('id="btn-expand-panel"');
+        expect(html).not.toContain('class="player-lyrics-action');
+        expect(html).not.toContain('id="btn-sound-effects"');
         expect(css).toContain('@media (max-width: 1024px)');
         expect(css).toContain('#player-footer .player-footer-control-row');
         expect(css).toContain('#player-footer .player-footer-progress-row');
@@ -403,23 +407,27 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(css).not.toContain('#player-footer > .flex-1 > div:last-child #play-mode-btn');
     });
 
-    it('player footer toggle preserves the compact view bottom spacing', () => {
+    it('player footer stays unified and floating across player views', () => {
         const source = fs.readFileSync(playerSrcPath, 'utf8');
         const html = fs.readFileSync(path.join(import.meta.dir, '../frontend/player/index.html'), 'utf8');
         const visualizer = fs.readFileSync(visualizerSrcPath, 'utf8');
         const css = fs.readFileSync(playerCssPath, 'utf8');
-        const toggleBlock = source.match(/if \(isHidden\) \{[\s\S]*?\n    \} else \{/)?.[0] ?? '';
         const footerClass = html.match(/<footer id="player-footer"[\s\S]*?class="([^"]+)"/)?.[1] ?? '';
 
-        expect(toggleBlock).toContain("el.classList.remove('pb-32', 'pb-44', 'md:pb-32')");
-        expect(toggleBlock).not.toContain("el.classList.add('pb-44', 'md:pb-32')");
+        expect(source).toContain('window.setCompactPlaybar = function');
+        expect(source).not.toContain('function togglePlayerPanel');
+        expect(source).not.toContain('window.togglePlayerPanel');
+        expect(html).not.toContain('id="btn-collapse-panel"');
         expect(html).toContain('id="view-search"\n                    class="player-main-view absolute inset-0 flex flex-col px-2 pt-2 md:px-6 md:pt-6 pb-2 md:pb-2');
         expect(footerClass).toContain('fixed');
+        expect(footerClass).toContain('player-footer-capsule');
         expect(footerClass).not.toContain('relative');
         expect(visualizer).toContain('主页面的底部避让由 .player-main-view + --player-footer-offset 统一负责');
         expect(visualizer).not.toContain('const contentGap = 8;');
         expect(css).toContain('--player-content-bottom-gap: 0.5rem');
         expect(css).toContain('padding-block-end: calc(');
+        expect(css).toContain('border-radius: 9999px !important;');
+        expect(css).toContain('inline-size: min(82rem, calc(100% - 2rem)) !important;');
     });
 
     it('mobile player menu closes with Escape and supports the tablet breakpoint', () => {
@@ -468,7 +476,7 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(selectedQualityRule.includes('background: transparent')).toBe(true);
         expect(selectedQualityRule.includes('box-shadow: none')).toBe(true);
         expect(css.includes('background: color-mix(in srgb, var(--c-500) 12%, transparent)')).toBe(false);
-        expect(css.includes('.active-option')).toBe(false);
+        expect(css.includes('.active-option')).toBe(true);
         expect(css.includes('.cs-option:hover')).toBe(true);
         expect(css.includes('.header-clock-immersive')).toBe(true);
         expect(css.includes('.header-source-pill')).toBe(false);

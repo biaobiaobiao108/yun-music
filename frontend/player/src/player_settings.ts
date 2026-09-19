@@ -33,7 +33,6 @@ export const DEFAULT_SETTINGS = {
     showLyricTranslation: true, // 显示歌词翻译
     showLyricRoma: false, // 显示歌词罗马音
     swapLyricTransRoma: false, // 交换翻译与罗马音位置
-    autoCompactPlaybar: true, // 自动精简控制栏
     enableAutoSwitchSource: true, // 自动尝试换源
     enableAutoSwitchApiSource: true, // 自动解析换源
     enableAutoSkipOnError: true, // 失败自动下一曲

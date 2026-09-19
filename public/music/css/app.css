@@ -562,7 +562,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     max-block-size: none;
     height: auto !important;
     margin: 0 !important;
-    padding: 1.25rem 0.75rem 1rem !important;
+    padding: 1.1rem 0.5rem 0.9rem !important;
     gap: 1rem;
     border: 1px solid var(--player-shell-border) !important;
     border-radius: var(--player-shell-radius) !important;
@@ -574,7 +574,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 #main-sidebar > div:first-child {
     block-size: auto !important;
     min-block-size: 0;
-    padding: 0 0.5rem 0.9rem !important;
+    padding: 0 0.35rem 0.8rem !important;
     border: 0 !important;
 }
 
@@ -583,33 +583,33 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 #main-sidebar .netease-nav-category {
-    padding-inline: 0.5rem;
+    padding-inline: 0.35rem;
 }
 
 #main-sidebar .netease-nav-item {
     inline-size: 100%;
     max-inline-size: 100%;
     margin-inline: 0;
-    padding-inline: 0.75rem;
+    padding-inline: 0.6rem;
     border-radius: 0.75rem;
 }
 
 #main-sidebar .netease-nav-item.active-tab {
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, var(--bg-panel));
-    color: var(--c-500, #10b981) !important;
-    box-shadow: none !important;
+    background: linear-gradient(135deg, var(--c-600, #059669), var(--c-700, #047857));
+    color: #fff !important;
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--c-600, #059669) 24%, transparent) !important;
 }
 
 :root[data-appearance="dark"] #main-sidebar .netease-nav-item.active-tab,
 .dark #main-sidebar .netease-nav-item.active-tab {
-    background: color-mix(in srgb, var(--c-500, #10b981) 22%, transparent);
-    color: var(--c-400, #34d399) !important;
+    background: linear-gradient(135deg, var(--c-600, #059669), var(--c-700, #047857));
+    color: #fff !important;
 }
 
 #main-sidebar .favorite-sidebar-children {
-    margin-inline: 0.5rem;
-    border: 1px solid color-mix(in srgb, var(--border-main) 72%, transparent);
-    background: color-mix(in srgb, var(--bg-main) 68%, var(--bg-panel)) !important;
+    margin-inline: 0.25rem;
+    border: 0 !important;
+    background: transparent !important;
 }
 
 #main-sidebar .sidebar-song-info-wrapper {
@@ -629,7 +629,9 @@ body > .flex.flex-1.overflow-hidden.relative {
     border-radius: var(--player-shell-radius) !important;
     background: var(--bg-panel) !important;
     box-shadow: var(--player-shell-shadow) !important;
-    overflow: visible;
+    overflow: hidden;
+    overflow: clip;
+    overflow-clip-margin: 0;
 }
 
 #player-main-content > header {
@@ -638,7 +640,8 @@ body > .flex.flex-1.overflow-hidden.relative {
     min-block-size: 4.5rem;
     border: 0 !important;
     border-bottom: 1px solid var(--player-shell-border) !important;
-    border-radius: 0 !important;
+    border-start-start-radius: var(--player-shell-radius) !important;
+    border-start-end-radius: var(--player-shell-radius) !important;
     background: transparent !important;
     box-shadow: none !important;
 }
@@ -699,13 +702,14 @@ body > .flex.flex-1.overflow-hidden.relative {
         inset-inline-start: 0.75rem !important;
         block-size: auto !important;
         height: auto !important;
-        padding: 1rem 0.75rem !important;
+        padding: 1rem 0.5rem !important;
         border-radius: 1rem !important;
     }
 
     #player-main-content > header {
         min-block-size: calc(4rem + env(safe-area-inset-top, 0px));
-        border-radius: 0 !important;
+        border-start-start-radius: 1rem !important;
+        border-start-end-radius: 1rem !important;
     }
 
     #player-footer {
@@ -4172,5 +4176,343 @@ dialog.runtime-input-dialog #modal-input {
        amount farther left while closed to avoid a visible edge on the canvas. */
     #main-sidebar.-translate-x-full {
         translate: calc(-100% - 0.75rem) 0 !important;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Player follow-up polish
+
+   The shell is intentionally one clipped card. Inner list views stay flat so
+   the header and content read as one surface, while list spacing and footer
+   controls keep their own bounded scroll regions.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Restore the pre-refactor selected treatment for navigation and injected
+   option items. Focus rings remain the keyboard-only affordance. */
+.active-option {
+    background-color: var(--c-500) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px var(--c-200);
+}
+
+[data-appearance="dark"] .active-option,
+.dark .active-option {
+    background-color: var(--c-600, var(--c-500)) !important;
+    color: #fff !important;
+}
+
+.active-option i,
+.active-option span {
+    color: #fff !important;
+}
+
+#main-sidebar nav {
+    padding-inline: 0.125rem;
+}
+
+#main-sidebar .favorite-sidebar-children,
+#main-sidebar .favorite-sidebar-children[style*="height: 0px"] {
+    margin-inline: 0.25rem;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+#main-sidebar .favorite-sidebar-children > li {
+    padding-inline: 0.25rem !important;
+}
+
+#main-sidebar .favorite-sidebar-list {
+    row-gap: 0.25rem;
+}
+
+#main-sidebar .favorite-sidebar-item {
+    min-block-size: 2.25rem;
+    padding-block: 0.35rem;
+    padding-inline: 0.5rem;
+    border-radius: 0.55rem;
+}
+
+#main-sidebar .favorite-sidebar-empty {
+    padding: 0.35rem 0.5rem;
+}
+
+/* Keep the rounded shell as the clipping boundary; this fixes the header's
+   two top corners without letting inner surfaces paint rectangular edges. */
+#player-main-content {
+    align-self: stretch;
+    border-radius: var(--player-shell-radius) !important;
+    overflow: hidden !important;
+    overflow: clip !important;
+    overflow-clip-margin: 0;
+}
+
+#player-main-content > header {
+    border-start-start-radius: var(--player-shell-radius) !important;
+    border-start-end-radius: var(--player-shell-radius) !important;
+}
+
+/* Song-list plaza: one content owner, stable card widths, no stretched empty
+   columns on wide screens. */
+#view-songlist,
+#view-leaderboard {
+    padding-inline: clamp(0.75rem, 1.8vw, 1.5rem) !important;
+    padding-block-start: clamp(0.75rem, 1.8vw, 1.5rem) !important;
+}
+
+#view-songlist > .flex-shrink-0,
+#view-leaderboard > .flex-shrink-0 {
+    margin-block-end: clamp(0.75rem, 1.5vw, 1.25rem) !important;
+}
+
+#view-songlist > .flex-1,
+#view-leaderboard > .flex-1 {
+    min-block-size: 0;
+    min-inline-size: 0;
+}
+
+#view-songlist > .flex-1.t-bg-panel,
+#view-leaderboard > .flex-1.t-bg-panel {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+#songlist-grid {
+    min-block-size: 0;
+    padding: 0.25rem 0 0.75rem !important;
+}
+
+#songlist-pagination,
+#lb-pagination {
+    flex: 0 0 3rem;
+    border-block-start: 1px solid color-mix(in srgb, var(--border-main) 78%, transparent);
+    background: transparent;
+}
+
+.playlist-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(10.75rem, 13.5rem));
+    justify-content: start;
+    gap: clamp(0.75rem, 1.25vw, 1rem);
+    padding-inline: 0 !important;
+}
+
+.playlist-card {
+    max-inline-size: 13.5rem;
+}
+
+.playlist-card > .relative {
+    border-radius: 0.875rem;
+    overflow: clip;
+}
+
+/* Leaderboard: the rail is a quiet divider, and the list owns the only
+   vertical scroll so the pagination never floats over song rows. */
+#lb-sidebar {
+    flex: 0 0 12rem;
+    inline-size: 12rem;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+#lb-sidebar > div:first-child {
+    padding-inline: 0.65rem;
+    border-block-end: 0 !important;
+}
+
+#lb-boards-list {
+    padding: 0.35rem !important;
+    gap: 0.25rem;
+}
+
+#lb-boards-list .lb-board-item {
+    min-block-size: 2.5rem;
+    padding: 0.6rem 0.55rem !important;
+    border-radius: 0.65rem !important;
+}
+
+#lb-songs-container,
+#lb-songs-list {
+    min-inline-size: 0;
+    min-block-size: 0;
+}
+
+#lb-songs-list {
+    padding: 0.5rem 0 0.75rem !important;
+    gap: 0.25rem;
+}
+
+#lb-songs-list .player-track-grid {
+    margin-inline: 0.35rem;
+    border: 1px solid transparent;
+    background: transparent;
+}
+
+#lb-songs-list .player-track-grid:hover,
+#lb-songs-list .player-track-grid:focus-visible {
+    background: var(--bg-item-hover);
+    border-color: color-mix(in srgb, var(--border-main) 82%, transparent);
+}
+
+/* The small list action capsule follows the same restrained pill language. */
+.player-floating-capsule {
+    border-radius: 9999px;
+}
+
+/* Actions below the turntable are deliberately icon-only and low contrast. */
+.lyric-cover-column {
+    gap: 0.75rem;
+}
+
+.lyric-detail-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border: 1px solid color-mix(in srgb, var(--border-main) 72%, transparent);
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--bg-panel) 42%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+
+.lyric-detail-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+    border: 0;
+    border-radius: 9999px;
+    color: var(--text-muted);
+    background: transparent;
+    transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.lyric-detail-action:hover,
+.lyric-detail-action:focus-visible {
+    color: var(--c-600, var(--c-500));
+    background: color-mix(in srgb, var(--c-500, #10b981) 12%, transparent);
+}
+
+.lyric-detail-action:active {
+    transform: scale(0.94);
+}
+
+/* Unified floating capsule for both the home view and lyric detail. */
+#player-footer,
+#player-footer.player-footer-immersive {
+    inset-inline: 0 !important;
+    inset-block-end: var(--player-shell-gap, 1rem) !important;
+    inline-size: min(82rem, calc(100% - 2rem)) !important;
+    width: min(82rem, calc(100% - 2rem)) !important;
+    max-inline-size: calc(100% - 2rem) !important;
+    margin-inline: auto !important;
+    min-block-size: 4.5rem;
+    padding-inline: clamp(0.75rem, 1.5vw, 1.5rem) !important;
+    padding-block: 0.5rem !important;
+    border: 1px solid color-mix(in srgb, var(--border-main) 86%, transparent) !important;
+    border-radius: 9999px !important;
+    background: color-mix(in srgb, var(--bg-panel) 76%, transparent) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(140%) !important;
+    backdrop-filter: blur(18px) saturate(140%) !important;
+    box-shadow: 0 16px 36px -20px rgb(15 23 42 / 0.5), 0 5px 14px -8px rgb(15 23 42 / 0.22) !important;
+    overflow: visible !important;
+}
+
+#player-footer.player-footer-immersive .player-footer-song-info {
+    opacity: 1;
+}
+
+#player-footer.player-footer-immersive #player-quality-control,
+#player-footer.player-footer-immersive #btn-player-download {
+    display: inline-flex !important;
+}
+
+#player-footer .player-footer-song-info {
+    flex: 1 1 18rem;
+    inline-size: auto !important;
+    width: auto !important;
+    max-inline-size: 24rem;
+    padding-inline-end: 0 !important;
+}
+
+#player-footer .player-footer-center {
+    flex: 1 1 30rem;
+    inline-size: auto !important;
+    width: auto !important;
+    max-inline-size: 34rem !important;
+    margin-inline: 1rem !important;
+}
+
+#player-footer .player-footer-right-tools {
+    flex: 0 0 auto;
+    inline-size: auto !important;
+    width: auto !important;
+    max-inline-size: none;
+    padding-inline-end: 0 !important;
+}
+
+@media (max-width: 1024px) {
+    #view-songlist,
+    #view-leaderboard {
+        padding-inline: 0.75rem !important;
+        padding-block-start: 0.75rem !important;
+    }
+
+    #player-main-content {
+        overflow: hidden !important;
+        overflow: clip !important;
+    }
+
+    #lb-sidebar {
+        flex-basis: min(78dvw, 12rem);
+        inline-size: min(78dvw, 12rem);
+    }
+
+    .playlist-card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .playlist-card {
+        max-inline-size: none;
+    }
+
+    #player-footer,
+    #player-footer.player-footer-immersive {
+        inset-inline: max(0.75rem, env(safe-area-inset-left, 0px)) !important;
+        inset-block-end: max(0.75rem, env(safe-area-inset-bottom, 0px)) !important;
+        inline-size: calc(100% - max(1.5rem, env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px))) !important;
+        width: calc(100% - max(1.5rem, env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px))) !important;
+        max-inline-size: none !important;
+        min-block-size: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+        padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px)) !important;
+        padding-block: 0.45rem max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+        border-radius: 9999px !important;
+    }
+
+    #player-footer .player-footer-song-info {
+        inline-size: 100% !important;
+        width: 100% !important;
+        max-inline-size: none;
+        padding-inline-end: 0 !important;
+    }
+
+    #player-footer .player-footer-center {
+        inline-size: 100% !important;
+        width: 100% !important;
+        max-inline-size: none !important;
+        margin-inline: 0 !important;
+    }
+
+    #player-footer .player-footer-right-tools {
+        display: none !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lyric-detail-action {
+        transition: none;
     }
 }

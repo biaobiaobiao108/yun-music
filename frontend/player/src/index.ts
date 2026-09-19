@@ -753,7 +753,6 @@ setTimeout(() => {
 window.batchMode = false;
 window.selectedItems = new Set();
 window.selectedSongObjects = new Map();
-let expandBtnTimeout = null; // 展开按钮淡化计时器
 let toggleLyricsBtnTimeout = null; // 歌词按钮淡化计时器
 
 // ===== 认证功能 =====
@@ -1380,7 +1379,6 @@ const switchTab = createTabSwitcher({
     loadAboutContent: () => loadAboutContent(),
     toggleBatchMode: () => toggleBatchMode(),
     clearPendingTimeouts: () => {
-        if (expandBtnTimeout) clearTimeout(expandBtnTimeout);
         if (toggleLyricsBtnTimeout) clearTimeout(toggleLyricsBtnTimeout);
     },
 });
@@ -1441,21 +1439,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cachedSearchSource) {
         const searchSourceEl = document.getElementById('search-source');
         if (searchSourceEl) searchSourceEl.value = cachedSearchSource;
-    }
-
-    // 为展开按钮添加悬放恢复逻辑
-    const expandBtn = document.getElementById('btn-expand-panel');
-    if (expandBtn) {
-        expandBtn.addEventListener('mouseenter', () => {
-            if (expandBtnTimeout) clearTimeout(expandBtnTimeout);
-            expandBtn.classList.remove('faint');
-        });
-        expandBtn.addEventListener('mouseleave', () => {
-            const footer = document.getElementById('player-footer');
-            if (footer && footer.classList.contains('translate-y-[110%]')) {
-                startExpandBtnTimer();
-            }
-        });
     }
 
     // 为歌词详情顶栏按钮添加悬停恢复逻辑
@@ -2823,7 +2806,6 @@ const SETTINGS_UI_MAP = {
     switchPlaylistOnSearchPlay: { id: 'setting-switch-playlist-search', type: 'checkbox' },
     switchPlaylistOnSongListPlay: { id: 'setting-switch-playlist-songlist', type: 'checkbox' },
     autoResume: { id: 'setting-auto-resume', type: 'checkbox' },
-    autoCompactPlaybar: { id: 'setting-auto-compact-playbar', type: 'checkbox' },
     enableAutoSwitchSource: { id: 'setting-auto-switch-source', type: 'checkbox' },
     enableAutoSwitchApiSource: { id: 'setting-auto-switch-api-source', type: 'checkbox' },
     enableAutoSkipOnError: { id: 'setting-auto-skip-on-error', type: 'checkbox' },
@@ -4821,60 +4803,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (userSessionActive && userName) await reloadUserFavorites();
     }, 100);
 
-    // [New] 全局精简播放栏控制函数
-    window.setCompactPlaybar = function (compact, showToastMsg = false) {
-        const infoEl = document.getElementById('player-song-info');
-        const collapseBtn = document.getElementById('btn-collapse-panel');
-        if (!infoEl) return;
-
-        if (compact) {
-            infoEl.style.display = 'none';
-            if (collapseBtn) collapseBtn.style.display = 'none';
-            if (showToastMsg) showToast('info', '已开启精简播放控制栏', 1500);
-        } else {
-            infoEl.style.display = '';
-            if (collapseBtn) collapseBtn.style.display = '';
-            if (showToastMsg) showToast('info', '已恢复完整播放栏控制', 1500);
-        }
-
-        // 重新计算并应用底栏自适应布局高度 (解决手机端 Footer 高度重叠)
-        if (window.musicVisualizer && window.musicVisualizer.applySettings) {
-            setTimeout(() => window.musicVisualizer.applySettings(), 50);
+    // 保留旧设置调用的兼容入口，但统一播放栏不再隐藏歌曲封面或控制项。
+    window.setCompactPlaybar = function (_compact, showToastMsg = false) {
+        if (showToastMsg) showToast('info', '播放栏已统一显示', 1500);
+        if (window.musicVisualizer?.applySettings) {
+            setTimeout(() => window.musicVisualizer?.applySettings(), 50);
         }
     };
-
-    // [New] 长按播放键隐藏播放栏内容 (精简模式)
-    const btnPlay = document.getElementById('btn-play');
-    if (btnPlay) {
-        let pressTimer;
-        const infoEl = document.getElementById('player-song-info');
-
-        const startPress = (e) => {
-            if (e.type === 'mousedown' && e.button !== 0) return; // 仅限左键
-            window.playBtnIsLongPress = false;
-            pressTimer = setTimeout(() => {
-                window.playBtnIsLongPress = true;
-                if (navigator.vibrate) navigator.vibrate(50);
-
-                if (infoEl) {
-                    const isHidden = infoEl.style.display === 'none';
-                    window.setCompactPlaybar(!isHidden, true);
-                }
-            }, 600); // 600ms = 长按
-        };
-
-        const cancelPress = () => {
-            if (pressTimer) clearTimeout(pressTimer);
-        };
-
-        // 事件绑定
-        btnPlay.addEventListener('mousedown', startPress);
-        btnPlay.addEventListener('touchstart', startPress, { passive: true });
-        btnPlay.addEventListener('mouseup', cancelPress);
-        btnPlay.addEventListener('touchend', cancelPress);
-        btnPlay.addEventListener('mouseleave', cancelPress);
-        btnPlay.addEventListener('touchcancel', cancelPress);
-    }
 });
 
 // ========================================
@@ -5087,23 +5022,6 @@ if (document.readyState === 'loading') {
     initMobileGestures();
 }
 
-// 启动展开按钮淡化计时器
-function startExpandBtnTimer() {
-    const expandBtn = document.getElementById('btn-expand-panel');
-    if (!expandBtn) return;
-
-    if (expandBtnTimeout) clearTimeout(expandBtnTimeout);
-    expandBtn.classList.remove('faint');
-
-    expandBtnTimeout = setTimeout(() => {
-        // 只有当播放栏仍处于隐藏状态时才淡化
-        const footer = document.getElementById('player-footer');
-        if (footer && footer.classList.contains('translate-y-[110%]')) {
-            expandBtn.classList.add('faint');
-        }
-    }, 3000);
-}
-
 // 启动歌词顶栏控制按钮淡化计时器
 function startToggleLyricsBtnTimer() {
     const toggleBtn = document.getElementById('btn-toggle-lyrics');
@@ -5145,114 +5063,6 @@ document.addEventListener('click', (event) => {
     button?.setAttribute('aria-expanded', 'false');
 });
 
-function togglePlayerPanel() {
-    const footer = document.getElementById('player-footer');
-    const expandBtn = document.getElementById('btn-expand-panel');
-    const container = document.getElementById('player-detail-container');
-
-    if (!footer || !expandBtn) return;
-
-    // 检查是否已经隐藏 (通过 transform 判断)
-    // 注意: Tailwind 的 translate-y-full 等同于 transform: translateY(100%)
-    const isHidden = footer.classList.contains('translate-y-[110%]');
-
-    const views = ['view-search', 'view-settings', 'view-favorites', 'view-about', 'main-sidebar', 'view-songlist', 'songlist-detail-view'];
-    const playerDetail = document.getElementById('view-player-detail');
-    const lyricsWrapper = document.getElementById('lyrics-wrapper');
-
-    if (isHidden) {
-        // 显示播放栏
-        footer.classList.remove('translate-y-[110%]');
-        footer.style.opacity = '1';
-        footer.style.pointerEvents = 'auto';
-        document.getElementById('btn-collapse-panel')?.setAttribute('aria-expanded', 'true');
-        expandBtn.setAttribute('aria-expanded', 'false');
-
-        // 隐藏展开按钮
-        expandBtn.classList.remove('translate-y-0', 'scale-100', 'opacity-100');
-        expandBtn.classList.add('translate-y-20', 'scale-75', 'opacity-0');
-
-        // 重置状态
-        if (expandBtnTimeout) clearTimeout(expandBtnTimeout);
-        expandBtn.classList.remove('faint');
-
-        // 保留各页面模板定义的底部 Padding，播放栏与主体卡片之间仅保留微距。
-        // 不再注入旧版的 pb-44/md:pb-32，避免播放栏展开后产生过大的空隙。
-        views.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('pb-32', 'pb-44', 'md:pb-32');
-        });
-
-        // 歌词页: 增加底部 Padding (避开播放栏)
-        if (playerDetail) {
-            playerDetail.classList.add('pb-24');
-            playerDetail.classList.remove('pb-0');
-        }
-
-        // 桌面端: 恢复 md:pt-0 (垂直居中, 无顶部Padding)
-        if (container) {
-            container.classList.remove('translate-y-12', 'opacity-80', 'scale-95');
-            container.classList.remove('md:pt-24', 'md:pt-12');
-            container.classList.add('md:pt-0');
-        }
-    } else {
-        // 隐藏播放栏 (向下移出屏幕) 
-        footer.classList.add('translate-y-[110%]');
-        footer.style.opacity = '0';
-        footer.style.pointerEvents = 'none';
-        document.getElementById('btn-collapse-panel')?.setAttribute('aria-expanded', 'false');
-        expandBtn.setAttribute('aria-expanded', 'true');
-
-        // 停止动画并清除可视化画布，防止在偏移后仍有残留渲染
-        if (window.musicVisualizer && window.musicVisualizer.clear) {
-            window.musicVisualizer.clear('footer');
-        }
-        setTimeout(() => {
-            expandBtn.classList.remove('translate-y-20', 'scale-75', 'opacity-0');
-            expandBtn.classList.add('translate-y-0', 'scale-100', 'opacity-100');
-        }, 300);
-
-        // 开启 3s 自动淡化计时器
-        startExpandBtnTimer();
-
-        // 移除内容底部 Padding (内容延伸到底部)
-        views.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('pb-32', 'pb-44', 'md:pb-32');
-        });
-
-        // 歌词页: 移除底部 Padding (利用底部空间)
-        if (playerDetail) {
-            playerDetail.classList.remove('pb-24');
-            playerDetail.classList.add('pb-0');
-        }
-
-        // 桌面端: 移除 md:pt-0, 添加 md:pt-24 (避免遮挡顶部 NOW PLAYING)
-        // 调整内容容器以填满全屏
-        if (container) {
-            container.classList.remove('md:pt-0');
-            container.classList.add('md:pt-24');
-            container.classList.add('translate-y-12', 'opacity-80', 'scale-95');
-            // 稍后移除微调，保持丝滑
-            setTimeout(() => {
-                container.classList.remove('translate-y-12', 'opacity-80', 'scale-95');
-            }, 600);
-        }
-    }
-
-    // [New] 触发可视化模块更新布局 (Padding 处理)
-    if (window.musicVisualizer) {
-        window.musicVisualizer.applySettings();
-    }
-
-    // 重新校准歌词位置 (动画结束后执行)
-    setTimeout(() => {
-        scrollToActiveLine(true);
-    }, 300);
-}
-
-// 导出函数
-window.togglePlayerPanel = togglePlayerPanel;
 window.updateSetting = updateSetting;
 
 // Initialize Sound Effects on first play/click

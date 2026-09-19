@@ -319,9 +319,9 @@ body {
 }
 
 .nav-item.active {
-    background: color-mix(in srgb, var(--accent-primary) 12%, var(--glass-bg));
-    color: var(--accent-primary);
-    box-shadow: none;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    color: white;
+    box-shadow: var(--shadow-md);
 }
 
 .sidebar-footer {
