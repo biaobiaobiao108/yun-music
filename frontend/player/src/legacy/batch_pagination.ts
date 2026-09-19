@@ -386,36 +386,6 @@ function jumpToPage() {
     input.value = '1';
 }
 
-// Settings: Items Per Page
-function changeItemsPerPage(value) {
-    const val = value === 'all' ? 'all' : parseInt(value);
-    if (typeof window.updateSetting === 'function') {
-        window.updateSetting('itemsPerPage', val);
-    } else {
-        globalState.settings.itemsPerPage = val;
-        localStorage.setItem('lx_settings', JSON.stringify(globalState.settings));
-    }
-    setCurrentPage(1); // Reset to first page
-    if (window.ListSearch) {
-        window.ListSearch.config.itemsPerPage = val === 'all' ? 999999 : val;
-    }
-
-    const activeView = (function () {
-        if (document.getElementById('songlist-detail-view') && !document.getElementById('songlist-detail-view').classList.contains('hidden')) return 'collection';
-        if (document.getElementById('view-leaderboard') && !document.getElementById('view-leaderboard').classList.contains('hidden')) return 'leaderboard';
-        return 'search';
-    })();
-
-    if (activeView === 'leaderboard' && window.LeaderboardManager) {
-        window.LeaderboardManager.resetLocalPage();
-        window.LeaderboardManager.renderSongs();
-    } else if (activeView === 'collection' && getSongListManager()) {
-        getSongListManager()?.renderDetail();
-    } else {
-        globalState.renderResults(window.viewingPlaylist || globalState.viewingPlaylist);
-    }
-}
-
 // Load globalState.settings from localStorage
 function loadSettings() {
     const saved = localStorage.getItem('lx_settings');
@@ -462,7 +432,6 @@ window.goToPage = goToPage;
 window.nextPage = nextPage;
 window.prevPage = prevPage;
 window.jumpToPage = jumpToPage;
-window.changeItemsPerPage = changeItemsPerPage;
 
 
 globalState.getCurrentActiveListId = getCurrentActiveListId;

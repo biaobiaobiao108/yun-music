@@ -9,7 +9,6 @@ export const FIXED_PLAYER_SETTINGS = {
 } as const;
 
 export const DEFAULT_SETTINGS = {
-    itemsPerPage: 20, // Default 20 items per page, can be 'all'
     defaultEntry: 'favorites', // 默认入口: 'search' | 'songlist' | 'leaderboard' | 'favorites' | 'localmusic'
     preferredQuality: 'flac', // 默认播放音质偏好
     defaultDownloadTarget: 'server', // 默认下载目标: server | browser
@@ -66,6 +65,7 @@ export function normalizeDownloadConcurrency(value) {
 
 export function normalizeStoredSettings(nextSettings) {
     if (!nextSettings || typeof nextSettings !== 'object') return nextSettings;
+    delete nextSettings.itemsPerPage;
     delete nextSettings.remasterRetryManifest;
     delete nextSettings.enableRemaster;
     // 播放音乐代理已改为固定的服务端中转，不再保留旧的可选设置。
@@ -88,6 +88,7 @@ export function normalizeStoredSettings(nextSettings) {
 
 export function serializeSettings(nextSettings) {
     const persisted = { ...nextSettings };
+    delete persisted.itemsPerPage;
     for (const key of Object.keys(FIXED_PLAYER_SETTINGS)) delete persisted[key];
     delete persisted.enableRemaster;
     delete persisted.remasterRetryManifest;

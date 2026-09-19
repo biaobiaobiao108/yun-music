@@ -3,7 +3,6 @@ type ListSearchConfig = {
     paginationCallback: ((page: number, index: number) => void) | null;
     getList: (() => any[]) | null;
     getCurrentPage?: (() => number) | null;
-    itemsPerPage: number;
 };
 
 const state = {
@@ -20,7 +19,6 @@ const config: ListSearchConfig = {
     paginationCallback: null,
     getList: null,
     getCurrentPage: null,
-    itemsPerPage: 20,
 };
 
 function prefix(): string {
@@ -128,7 +126,6 @@ const listSearch = {
             paginationCallback: null,
             getList: null,
             getCurrentPage: null,
-            itemsPerPage: 20,
         }, nextConfig);
         resetState();
     },

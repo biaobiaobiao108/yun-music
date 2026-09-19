@@ -542,7 +542,6 @@ function initGlobalListSearch() {
                 setTimeout(() => window.ListSearch.scrollToMatch(index), 300);
             },
             getList: () => window.viewingPlaylist,
-            itemsPerPage: settings.itemsPerPage === 'all' ? 999999 : parseInt(settings.itemsPerPage)
         });
     }
 }
@@ -2937,7 +2936,6 @@ const SETTINGS_UI_MAP = {
         type: 'value',
         action: () => document.getElementById('search-results-header')?.classList.contains('hidden') && showInitialSearchState()
     },
-    itemsPerPage: { id: 'items-per-page-select', type: 'value' },
 };
 
 //缓存设置项
@@ -4279,12 +4277,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pubToggle = document.getElementById('toggle-public-sources');
     if (pubToggle) {
         pubToggle.checked = settings.enablePublicSources !== false;
-    }
-
-    // Update UI to match settings
-    const selectEl = document.getElementById('items-per-page-select');
-    if (selectEl && settings.itemsPerPage) {
-        selectEl.value = settings.itemsPerPage.toString();
     }
 
     // [新增] 恢复音量设置

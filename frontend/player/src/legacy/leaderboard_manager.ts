@@ -385,14 +385,6 @@ window.LeaderboardManager = (function () {
         const nextBtn = document.getElementById('lb-btn-next');
         const info = document.getElementById('lb-page-info');
 
-        const displayList = window.ListSearch && window.ListSearch.state && window.ListSearch.state.active && window.ListSearch.state.id === 'leaderboard'
-            ? window.ListSearch.getDisplayList(state.songs)
-            : state.songs.map((item, idx) => ({ item, originalIndex: idx }));
-
-        const itemsPerPage = typeof settings !== 'undefined' ? (settings.itemsPerPage === 'all' ? displayList.length : parseInt(settings.itemsPerPage)) : 20;
-        const totalItems = displayList.length;
-        const totalPages = Math.ceil(totalItems / (itemsPerPage || 20)) || 1;
-
         if (prevBtn) prevBtn.disabled = true;
         if (nextBtn) nextBtn.disabled = true;
         if (info) info.innerText = `${state.songs.length} 首已加载`;

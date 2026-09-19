@@ -24,7 +24,6 @@ const controlLabels: Record<string, string> = {
     'lm-sort-by': '本地音乐排序字段',
     'lm-sort-order': '本地音乐排序方向',
     'quality-select': '播放音质',
-    'items-per-page-select': '每页数量',
     'setting-default-entry': '默认入口',
     'setting-download-concurrency': '下载并发数',
     'external-list-input': '歌单链接或歌单 ID',

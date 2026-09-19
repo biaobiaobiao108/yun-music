@@ -229,7 +229,8 @@ describe('Player Navigation and State Restoration Safety', () => {
         expect(searchContent).toContain('class="artist-tabs-group flex items-center');
         expect(searchContent).toContain('class="artist-albums-grid p-2 md:p-4');
         expect(artistSongsSection).toContain('getArtistSongsPageMetrics');
-        expect(artistSongsSection).toContain('const startIndex = (artistPage - 1) * itemsPerPage;');
+        expect(artistSongsSection).toContain('const startIndex = 0;');
+        expect(artistSongsSection).not.toContain('itemsPerPage');
         expect(artistSongsSection).toContain('player-pagination-bar');
         expect(searchContent).toContain('class="artist-detail-view');
         expect(artistSongsSection).not.toContain('pageState.value');

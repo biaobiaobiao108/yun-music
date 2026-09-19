@@ -1610,15 +1610,14 @@ function getArtistSongsPageMetrics(list) {
         ? window.ListSearch.getDisplayList(list)
         : list.map((item, index) => ({ item, originalIndex: index }));
     const serverPageIsFiltered = artistSongsUsesServerPagination && displayList.length !== list.length;
-    const totalItems = artistSongsUsesServerPagination && !serverPageIsFiltered
+    const usesServerPagination = artistSongsUsesServerPagination && !serverPageIsFiltered;
+    const totalItems = usesServerPagination
         ? artistSongsTotal
         : displayList.length;
-    let itemsPerPage = artistSongsUsesServerPagination && !serverPageIsFiltered
-        ? artistSongsPageSize
-        : ((settings && settings.itemsPerPage === 'all') ? totalItems : parseInt((settings && settings.itemsPerPage) || 20));
-    if (!itemsPerPage || itemsPerPage <= 0) itemsPerPage = 20;
-    const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-    return { displayList, itemsPerPage, totalItems, totalPages, usesServerPagination: artistSongsUsesServerPagination && !serverPageIsFiltered };
+    const totalPages = usesServerPagination
+        ? Math.max(1, Math.ceil(totalItems / Math.max(1, artistSongsPageSize)))
+        : 1;
+    return { displayList, totalItems, totalPages, usesServerPagination };
 }
 
 function renderArtistSongsUI(list, page) {
@@ -1641,12 +1640,9 @@ function renderArtistSongsUI(list, page) {
     if (!window.artistSongsPage || window.artistSongsPage < 1) window.artistSongsPage = 1;
     if (window.artistSongsPage > totalPages) window.artistSongsPage = totalPages;
 
-    const artistPage = window.artistSongsPage;
     const startIndex = 0;
     const endIndex = displayList.length;
     const indexedDisplayList = displayList;
-    // Legacy page expression kept here as a migration marker:
-    // const startIndex = (artistPage - 1) * itemsPerPage;
 
     let html = `
         <div class="space-y-1">
