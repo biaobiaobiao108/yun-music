@@ -612,7 +612,11 @@ export const createMusicRouter = (): Router => {
       if (!sourceApi?.getLyric) {
         throw new Error(`Source ${source} not supported`)
       }
-      const result = await sourceApi.getLyric(songInfo)
+      // musicSdk lyric methods return a CancelableRequest. Serializing that
+      // wrapper produces `{ promise: {} }` in JSON instead of the lyric body.
+      // The GET endpoint already unwraps it; keep the POST contract identical.
+      const requestObj = sourceApi.getLyric(songInfo)
+      const result = await requestObj.promise
       return ctx.json(result)
     } catch (err: any) {
       console.error(err)

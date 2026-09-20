@@ -99,20 +99,61 @@ export const playerApi = {
   download: (songInfo: Song, url: string, quality: string) => requestJson('/api/music/cache/download', { method: 'POST', body: JSON.stringify({ songInfo, url, quality, enableOnlyDownloadMode: true, cacheLyric: true, embedLyric: true }) }),
 }
 
+function lyricText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return String(value)
+  if (!value || typeof value !== 'object') return ''
+  const record = value as Record<string, unknown>
+  for (const key of ['lyric', 'lrc', 'text', 'content', 'value']) {
+    const text = lyricText(record[key])
+    if (text) return text
+  }
+  return ''
+}
+
+function lyricRoots(payload: unknown): Record<string, unknown>[] {
+  if (!payload || typeof payload !== 'object') return []
+  const root = payload as Record<string, unknown>
+  const roots: Record<string, unknown>[] = [root]
+  for (const value of [root.data, root.result, root.body]) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) roots.push(value as Record<string, unknown>)
+  }
+  return roots
+}
+
+function pickLyricText(roots: Record<string, unknown>[], keys: string[]): string {
+  for (const root of roots) {
+    for (const key of keys) {
+      const text = lyricText(root[key])
+      if (text) return text
+    }
+  }
+  return ''
+}
+
 export function parseLyric(payload: Record<string, unknown>): LyricLine[] {
-  const source = String(payload.lyric ?? payload.lrc ?? payload.content ?? '')
-  const translation = String(payload.tlyric ?? payload.translation ?? '')
-  const roma = String(payload.rlyric ?? payload.romalrc ?? payload.roma ?? '')
-  const wordLyric = String(payload.klyric ?? payload.lxlyric ?? '')
+  const roots = lyricRoots(payload)
+  const source = pickLyricText(roots, ['lyric', 'lrc', 'content', 'text'])
+  const translation = pickLyricText(roots, ['tlyric', 'translation', 'translatedLyric', 'tLrc'])
+  const roma = pickLyricText(roots, ['rlyric', 'romalrc', 'roma', 'romanizedLyric'])
+  const wordLyric = pickLyricText(roots, ['klyric', 'lxlyric', 'wordLyric', 'yrc'])
   const translated = new Map<number, string>()
   const romanized = new Map<number, string>()
   const wordLines = new Map<number, string>()
   const parse = (text: string, target = new Map<number, string>()) => {
     for (const line of text.split(/\r?\n/)) {
-      const match = line.match(/\[(\d+):(\d+(?:\.\d+)?)\](.*)/)
-      if (!match) continue
-      const time = Number(match[1]) * 60 + Number(match[2])
-      target.set(Math.round(time * 1000), match[3].trim())
+      const matches = [...line.matchAll(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)]
+      if (!matches.length) continue
+      const textContent = line
+        .replace(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g, '')
+        .trim()
+      if (!textContent || /^(作词|作曲|编曲|制作人|监制|出品|发行|混音|母带|录音|音频|电吉他|低音吉他|吉他|贝斯|鼓|和声|主人声|伴唱|键盘)\s*[:：]/i.test(textContent)) continue
+      for (const match of matches) {
+        const fractionText = match[3] || ''
+        const fraction = fractionText ? Number(fractionText) / 10 ** fractionText.length : 0
+        const time = Number(match[1]) * 60 + Number(match[2]) + fraction
+        target.set(Math.round(time * 1000), textContent)
+      }
     }
     return target
   }

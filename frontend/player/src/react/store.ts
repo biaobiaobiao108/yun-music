@@ -116,9 +116,9 @@ export function connectPlayerTabNavigation(navigate: (tab: PlayerTab) => void): 
   return connectPlayerNavigation(({ tab }) => navigate(tab))
 }
 
-type UiState = { tab: PlayerTab; detail: PlayerDetail | null; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'sleep' | 'lyrics' | 'comments' | null; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; notify: (notice: string) => void; clearNotice: () => void }
+type UiState = { tab: PlayerTab; detail: PlayerDetail | null; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'sleep' | 'lyrics' | 'comments' | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
 export const usePlayerUiStore = create<UiState>((set, get) => ({
-  tab: 'search', detail: null, sidebarOpen: false, drawer: null, dialog: null, notice: '',
+  tab: 'search', detail: null, sidebarOpen: false, drawer: null, dialog: null, immersiveLyrics: false, notice: '',
   setTab: (tab) => {
     if (get().tab === tab) return
     set({ tab, detail: null, sidebarOpen: false })
@@ -131,6 +131,7 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   closeSidebar: () => set({ sidebarOpen: false }),
   setDrawer: (drawer) => set({ drawer }),
   setDialog: (dialog) => set({ dialog }),
+  setImmersiveLyrics: (open) => set({ immersiveLyrics: open }),
   notify: (notice) => set({ notice }),
   clearNotice: () => set({ notice: '' }),
 }))
@@ -236,5 +237,5 @@ type LyricState = { lines: LyricLine[]; loading: boolean; error: string; activeI
 let lyricController: AbortController | null = null
 export const useLyricStore = create<LyricState>((set) => ({ lines: [], loading: false, error: '', activeIndex: -1, load: async (song) => { if (!song) { set({ lines: [], activeIndex: -1 }); return } lyricController?.abort(); const controller = new AbortController(); lyricController = controller; set({ loading: true, error: '' }); try { const payload = await playerApi.lyric(song, controller.signal); if (!controller.signal.aborted) set({ lines: parseLyric(payload), activeIndex: -1 }) } catch (error) { if (!controller.signal.aborted && (error as DOMException)?.name !== 'AbortError') set({ error: error instanceof Error ? error.message : '歌词加载失败' }) } finally { if (lyricController === controller) { lyricController = null; set({ loading: false }) } } } }))
 
-type CacheState = { tasks: import('./api').CacheTask[]; stats: import('./api').CacheStats | null; loading: boolean; load: () => Promise<void>; enqueue: (song: Song, quality?: string) => Promise<void>; remove: (id: string) => Promise<void> }
-export const useCacheStore = create<CacheState>((set, get) => ({ tasks: [], stats: null, loading: false, load: async () => { set({ loading: true }); try { const [queue, stats] = await Promise.all([playerApi.cacheQueue(), playerApi.cacheStats()]); set({ tasks: queue.data ?? [], stats: stats.data ?? null }) } catch { /* cache is optional in public mode */ } finally { set({ loading: false }) } }, enqueue: async (song, quality = 'flac') => { const key = songKey(song); await playerApi.queueTasks([{ id: key, songInfo: song, quality }]); await get().load() }, remove: async (id) => { await playerApi.removeQueue(id); await get().load() } }))
+type CacheState = { tasks: import('./api').CacheTask[]; stats: import('./api').CacheStats | null; loading: boolean; load: () => Promise<void>; enqueue: (song: Song, quality?: string, resolvedUrl?: string) => Promise<void>; remove: (id: string) => Promise<void> }
+export const useCacheStore = create<CacheState>((set, get) => ({ tasks: [], stats: null, loading: false, load: async () => { set({ loading: true }); try { const [queue, stats] = await Promise.all([playerApi.cacheQueue(), playerApi.cacheStats()]); set({ tasks: queue.data ?? [], stats: stats.data ?? null }) } catch { /* cache is optional in public mode */ } finally { set({ loading: false }) } }, enqueue: async (song, quality = 'flac', resolvedUrl) => { const key = songKey(song); await playerApi.queueTasks([{ id: key, songInfo: song, quality, ...(resolvedUrl ? { resolvedUrl } : {}) }]); await get().load() }, remove: async (id) => { await playerApi.removeQueue(id); await get().load() } }))

@@ -48,6 +48,12 @@ describe('React player module boundaries', () => {
       { time: 1.2, text: '第一句', translation: 'translation' },
       { time: 3.5, text: '第二句', translation: undefined },
     ])
+    expect(parseLyric({ data: { lrc: { lyric: '[00:00.50]嵌套歌词' }, tlyric: { lyric: '[00:00.50]nested translation' } } })).toEqual([
+      { time: 0.5, text: '嵌套歌词', translation: 'nested translation' },
+    ])
+    expect(parseLyric({ lyric: '[00:00.0]作词: Someone\n[00:01.0]真正的歌词' })).toEqual([
+      { time: 1, text: '真正的歌词', translation: undefined },
+    ])
   })
 
   it('keeps private cache links playable and relays third-party source URLs', () => {

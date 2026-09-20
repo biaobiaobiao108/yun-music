@@ -5475,3 +5475,289 @@ body > .flex.flex-1.overflow-hidden.relative {
         max-inline-size: 100% !important;
     }
 }
+
+/* React shell overrides. The legacy stylesheet still contains a few rules for
+   the retired string-rendered footer. Keep those rules isolated from the
+   React footer: it belongs to the player main column, not the viewport-wide
+   canvas. */
+.react-player-main {
+    position: relative;
+}
+
+.react-player-footer#player-footer {
+    position: absolute !important;
+    inset-inline: 0 !important;
+    inset-block-end: var(--player-shell-gap, 1rem) !important;
+    inline-size: auto !important;
+    width: auto !important;
+    max-inline-size: none !important;
+    margin-inline: 0 !important;
+    box-sizing: border-box;
+}
+
+.react-footer-visualizer {
+    position: absolute !important;
+    inset-inline-start: max(1rem, calc(50% - 18rem)) !important;
+    inset-inline-end: max(1rem, calc(50% - 18rem)) !important;
+    width: auto !important;
+}
+
+.react-immersive-lyrics-dialog {
+    inset: 0;
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+    background: var(--bg-main);
+    color: var(--text-main);
+}
+
+.react-immersive-lyrics-dialog::backdrop {
+    background: color-mix(in srgb, var(--bg-main) 92%, #000 8%);
+}
+
+.react-immersive-lyrics {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background:
+        radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--c-500) 14%, transparent), transparent 34rem),
+        radial-gradient(circle at 84% 84%, color-mix(in srgb, var(--c-500) 10%, transparent), transparent 32rem),
+        var(--bg-main);
+}
+
+.react-immersive-lyrics-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: max(1rem, env(safe-area-inset-top)) clamp(1rem, 4vw, 3.5rem) 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-main) 70%, transparent);
+    background: color-mix(in srgb, var(--bg-panel) 58%, transparent);
+    backdrop-filter: blur(18px);
+}
+
+.react-immersive-lyrics-header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: clamp(1.05rem, 2vw, 1.35rem);
+}
+
+.react-immersive-lyrics-header > div > p:last-child {
+    margin-top: .25rem;
+    color: var(--text-muted);
+    font-size: .8rem;
+}
+
+.react-immersive-lyrics-grid {
+    box-sizing: border-box;
+    width: min(1180px, 100%);
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(280px, .9fr) minmax(320px, 1.1fr);
+    align-items: center;
+    gap: clamp(2rem, 7vw, 7rem);
+    margin-inline: auto;
+    padding: clamp(1.2rem, 4vw, 3.5rem) clamp(1rem, 5vw, 4rem) max(1.2rem, env(safe-area-inset-bottom));
+}
+
+.react-vinyl-panel {
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    gap: 1.25rem;
+}
+
+.react-vinyl {
+    width: min(32vw, 25rem);
+    min-width: 15rem;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    filter: drop-shadow(0 1.4rem 2.4rem color-mix(in srgb, #000 28%, transparent));
+}
+
+.react-vinyl-record {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 50%;
+    background:
+        repeating-radial-gradient(circle, #262626 0 1px, #0b0b0b 2px 4px),
+        #0b0b0b;
+    box-shadow: inset 0 0 0 .25rem #171717, inset 0 0 0 .55rem #050505;
+}
+
+.react-vinyl-record::before,
+.react-vinyl-record::after {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.react-vinyl-record::before {
+    inset: 9%;
+    border: 1px solid rgb(255 255 255 / 12%);
+}
+
+.react-vinyl-record::after {
+    inset: 49%;
+    background: #090909;
+    box-shadow: 0 0 0 .35rem color-mix(in srgb, var(--c-500) 76%, #111);
+}
+
+.react-vinyl-record img {
+    width: 62%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 50%;
+    box-shadow: 0 0 0 .22rem #111, 0 0 0 .34rem color-mix(in srgb, var(--c-500) 56%, #111);
+}
+
+.react-vinyl-label {
+    position: absolute;
+    z-index: 2;
+    width: 2.8rem;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: rgb(255 255 255 / 82%);
+    background: color-mix(in srgb, var(--c-500) 82%, #111);
+    font-size: .62rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+.react-vinyl-hole {
+    position: absolute;
+    z-index: 3;
+    width: .48rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #0a0a0a;
+    box-shadow: 0 0 0 .16rem rgb(255 255 255 / 22%);
+}
+
+.react-vinyl.is-spinning .react-vinyl-record {
+    animation: react-vinyl-spin 14s linear infinite;
+}
+
+.react-vinyl-meta {
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    gap: .25rem;
+    text-align: center;
+}
+
+.react-vinyl-meta strong {
+    max-width: min(32vw, 25rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-vinyl-meta span {
+    color: var(--text-muted);
+    font-size: .82rem;
+}
+
+.react-immersive-lyrics-list {
+    box-sizing: border-box;
+    min-height: 0;
+    height: min(66dvh, 42rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    padding: 40% .75rem;
+    scrollbar-gutter: stable;
+    text-align: center;
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+}
+
+.react-immersive-lyrics-list > button {
+    width: 100%;
+    display: grid;
+    gap: .28rem;
+    margin: 0;
+    padding: .62rem .4rem;
+    border: 0;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--react-lyric-size, 1.25rem);
+    line-height: 1.42;
+    text-align: center;
+    transition: color .18s ease, transform .18s ease, opacity .18s ease;
+}
+
+.react-immersive-lyrics-list > button:hover,
+.react-immersive-lyrics-list > button:focus-visible {
+    color: var(--text-main);
+}
+
+.react-immersive-lyrics-list > button.is-active {
+    color: var(--c-600);
+    transform: scale(1.04);
+    font-weight: 800;
+}
+
+.react-immersive-lyrics-list > button small {
+    color: var(--text-muted);
+    font-size: .68em;
+}
+
+@media (max-width: 1024px) {
+    .react-player-footer#player-footer {
+        inset-inline: 0 !important;
+        inset-block-end: .75rem !important;
+    }
+}
+
+@media (max-width: 720px) {
+    .react-immersive-lyrics-grid {
+        grid-template-columns: 1fr;
+        align-content: start;
+        gap: .5rem;
+        padding-top: 1.2rem;
+    }
+
+    .react-vinyl {
+        width: min(58vw, 18rem);
+        min-width: 11rem;
+    }
+
+    .react-vinyl-meta {
+        display: none;
+    }
+
+    .react-immersive-lyrics-list {
+        height: 47dvh;
+        padding-block: 44%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-vinyl.is-spinning .react-vinyl-record {
+        animation-play-state: paused;
+    }
+
+    .react-immersive-lyrics-list {
+        scroll-behavior: auto;
+    }
+}

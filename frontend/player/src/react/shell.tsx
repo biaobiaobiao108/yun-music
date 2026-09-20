@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
 import { playerApi } from './api'
 import { Button, Drawer, Icon, Loading, Modal, SafeImage, SongMeta, Time, ToastRegion } from './components'
-import { AboutView, CommentsDialog, CreateListDialog, FavoritesView, LoginDialog, LyricsDialog, SearchView, SettingsView, UserLoginDialog } from './views'
+import { AboutView, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchView, SettingsView, UserLoginDialog } from './views'
 import { connectAudioCommands, connectPlayerNavigation, useAuthStore, useCacheStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore, useSleepTimerStore } from './store'
 import { songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
@@ -15,7 +15,25 @@ const LocalMusicView = lazy(() => import('./heavy_views').then(module => ({ defa
 
 const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
 const prefetchedUrls = new Map<string, { url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>()
-const prefetchControllers = new Map<string, AbortController>()
+const pendingSongUrlRequests = new Map<string, Promise<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>>()
+
+function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boolean): Promise<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }> {
+  const key = `${songKey(song)}:${quality}`
+  const cached = prefetchedUrls.get(key)
+  if (cached) return Promise.resolve(cached)
+  const pending = pendingSongUrlRequests.get(key)
+  if (pending) return pending
+  const request = playerApi.songUrl(song, quality, undefined, enableAutoSwitchSource)
+    .then(result => {
+      if (result.url) prefetchedUrls.set(key, result)
+      return result
+    })
+    .finally(() => {
+      pendingSongUrlRequests.delete(key)
+    })
+  pendingSongUrlRequests.set(key, request)
+  return request
+}
 
 const NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'search', label: '搜索音乐', icon: 'search' },
@@ -96,22 +114,25 @@ function AudioRuntime() {
   const recoveryAttempts = useRef(new Set<string>())
   const cacheQueued = useRef(new Set<string>())
   const resolvedSongKey = useRef('')
+  const resolvedPlayback = useRef<{ songKey: string; quality: string; url: string; fromCache: boolean } | null>(null)
+  const prefetchTriggeredKey = useRef('')
 
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
     const duration = state.duration
-    if (!settings.enablePreloader || !state.currentSong || state.currentSong.url || !Number.isFinite(duration) || duration <= 0 || state.currentTime / duration < .78) return
-    if (!state.queue.length) return
-    const nextIndex = state.mode === 'random' ? Math.floor(Math.random() * state.queue.length) : (state.currentIndex + 1) % state.queue.length
+    if (!settings.enablePreloader || !state.currentSong || state.currentSong.url || !Number.isFinite(duration) || duration <= 0 || state.currentTime / duration < .8) return
+    if (state.queue.length <= 1) return
+    const currentPlaybackKey = `${songKey(state.currentSong)}:${quality}`
+    if (prefetchTriggeredKey.current === currentPlaybackKey) return
+    const nextIndex = state.mode === 'random'
+      ? state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[Math.floor(Math.random() * (state.queue.length - 1))] ?? -1
+      : (state.currentIndex + 1) % state.queue.length
     const nextSong = state.queue[nextIndex]
-    if (!nextSong || nextSong.url) return
+    if (!nextSong || nextIndex === state.currentIndex || nextSong.url) return
     const key = `${songKey(nextSong)}:${quality}`
-    if (prefetchedUrls.has(key) || prefetchControllers.has(key)) return
-    const controller = new AbortController()
-    prefetchControllers.set(key, controller)
-    void playerApi.songUrl(nextSong, quality, controller.signal, settings.enableAutoSwitchSource !== false).then(result => {
-      if (!controller.signal.aborted && result.url) prefetchedUrls.set(key, result)
-    }).catch(() => undefined).finally(() => { prefetchControllers.delete(key) })
+    prefetchTriggeredKey.current = currentPlaybackKey
+    if (prefetchedUrls.has(key) || pendingSongUrlRequests.has(key)) return
+    void requestSongUrl(nextSong, quality, settings.enableAutoSwitchSource !== false).catch(() => undefined)
   }
 
   useEffect(() => {
@@ -147,9 +168,15 @@ function AudioRuntime() {
       configureAudioGraph({ enabled: Boolean(settings.enableSoundEffects), preset: String(settings.soundEffectsPreset || 'flat') as 'flat' | 'vocal' | 'bass' | 'focus', gain: Number(settings.soundEffectsGain || 1) })
       if (settings.enableServerCache && currentSong && !currentSong.url) {
         const cacheKey = `${songKey(currentSong)}:${quality}`
-        if (!cacheQueued.current.has(cacheKey)) {
+        const playback = resolvedPlayback.current
+        const cacheUrl = playback?.songKey === songKey(currentSong) && playback.quality === quality && playback.url && !playback.fromCache
+          ? playback.url
+          : undefined
+        if (!cacheQueued.current.has(cacheKey) && cacheUrl) {
           cacheQueued.current.add(cacheKey)
-          void useCacheStore.getState().enqueue(currentSong, quality).catch(() => cacheQueued.current.delete(cacheKey))
+          // Reuse the URL that started playback. Resolving the source again
+          // here would consume a second custom-source quota for the same song.
+          void useCacheStore.getState().enqueue(currentSong, quality, cacheUrl).catch(() => cacheQueued.current.delete(cacheKey))
         }
       }
     }
@@ -203,10 +230,16 @@ function AudioRuntime() {
       try {
         const prefetchKey = `${songKey(currentSong)}:${quality}`
         const result = typeof currentSong.url === 'string' && currentSong.url
-          ? { url: normalizeCachePlaybackUrl(currentSong.url, userName) }
-          : prefetchedUrls.get(prefetchKey) ?? await playerApi.songUrl(currentSong, quality, undefined, settings.enableAutoSwitchSource !== false)
+          ? { url: normalizeCachePlaybackUrl(currentSong.url, userName), fromCache: true }
+          : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false)
         if (cancelled) return
         prefetchedUrls.delete(prefetchKey)
+        resolvedPlayback.current = {
+          songKey: songId,
+          quality,
+          url: result.url,
+          fromCache: Boolean(result.fromCache) || /\/api\/music\/cache\/file\//.test(result.url),
+        }
         resolvedSongKey.current = songId
         audio.src = buildPlaybackUrl(result.url, currentSong, settings)
         audio.load()
@@ -218,7 +251,7 @@ function AudioRuntime() {
         notify(error instanceof Error ? error.message : '歌曲解析失败')
       }
     })()
-    return () => { cancelled = true; if (resolvedSongKey.current === songId) resolvedSongKey.current = ''; audio.pause(); audio.removeAttribute('src'); audio.load() }
+    return () => { cancelled = true; if (resolvedSongKey.current === songId) resolvedSongKey.current = ''; if (resolvedPlayback.current?.songKey === songId) resolvedPlayback.current = null; audio.pause(); audio.removeAttribute('src'); audio.load() }
   }, [currentSong, notify, quality, setPlaying, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
 
   useEffect(() => {
@@ -294,6 +327,7 @@ function LegacyPlayerFooter() {
   const toggleMute = usePlaybackStore(state => state.toggleMute)
   const setMode = usePlaybackStore(state => state.setMode)
   const setDialog = usePlayerUiStore(state => state.setDialog)
+  const setImmersiveLyrics = usePlayerUiStore(state => state.setImmersiveLyrics)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const notify = usePlayerUiStore(state => state.notify)
   const userName = useAuthStore(state => state.userName)
@@ -326,7 +360,7 @@ function LegacyPlayerFooter() {
       else { await addSong('love', currentSong); notify('已添加到喜欢') }
     } catch (error) { notify(error instanceof Error ? error.message : '喜欢操作失败') }
   }
-  return <footer id="player-footer" className="react-player-footer"><button type="button" className="react-footer-song" onClick={() => setDialog('lyrics')} aria-label="打开歌词"><SafeImage src={songImage(currentSong)} width="52" height="52" alt="" /><span><SongMeta song={currentSong} /></span></button><div className="react-footer-center"><div className="react-footer-controls"><button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button><button type="button" id="btn-play" className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button><button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button><button type="button" className={`player-secondary-action ${mode !== 'list' ? 'is-active' : ''}`} aria-label={`播放模式：${mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'}`} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : mode === 'single' ? 'repeat-1' : 'repeat'} /></button></div><div className="react-progress-row"><Time value={safeCurrentTime} /><input type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><Time value={safeDuration} /></div></div><div className="react-footer-actions"><button type="button" id="player-like-btn" className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name={isLiked ? 'heart' : 'heart'} /><span>喜欢</span></button><button type="button" className="player-secondary-action" aria-label={muted ? '取消静音' : '静音'} onClick={toggleMute}><Icon name={muted || volume === 0 ? 'volume-xmark' : volume < 0.5 ? 'volume-low' : 'volume-high'} /></button><input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" /><button type="button" className="player-secondary-action" aria-label="打开评论" onClick={() => setDialog('comments')}><Icon name="comments" /></button><button type="button" className="player-secondary-action" aria-label="下载歌曲" onClick={() => void download()}><Icon name="download" /></button><button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={() => setDialog('sleep')}><Icon name="moon" /></button><button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button></div></footer>
+  return <footer id="player-footer" className="react-player-footer"><button type="button" className="react-footer-song" onClick={() => setImmersiveLyrics(true)} aria-label="打开沉浸式歌词"><SafeImage src={songImage(currentSong)} width="52" height="52" alt="" /><span><SongMeta song={currentSong} /></span></button><div className="react-footer-center"><div className="react-footer-controls"><button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button><button type="button" id="btn-play" className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button><button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button><button type="button" className={`player-secondary-action ${mode !== 'list' ? 'is-active' : ''}`} aria-label={`播放模式：${mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'}`} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : mode === 'single' ? 'repeat-1' : 'repeat'} /></button></div><div className="react-progress-row"><Time value={safeCurrentTime} /><input type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><Time value={safeDuration} /></div></div><div className="react-footer-actions"><button type="button" id="player-like-btn" className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name={isLiked ? 'heart' : 'heart'} /><span>喜欢</span></button><button type="button" className="player-secondary-action" aria-label={muted ? '取消静音' : '静音'} onClick={toggleMute}><Icon name={muted || volume === 0 ? 'volume-xmark' : volume < 0.5 ? 'volume-low' : 'volume-high'} /></button><input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" /><button type="button" className="player-secondary-action" aria-label="打开评论" onClick={() => setDialog('comments')}><Icon name="comments" /></button><button type="button" className="player-secondary-action" aria-label="下载歌曲" onClick={() => void download()}><Icon name="download" /></button><button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={() => setDialog('sleep')}><Icon name="moon" /></button><button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button></div></footer>
 }
 
 function PlayerFooter() {
@@ -370,6 +404,8 @@ export function PlayerShell() {
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const dialog = usePlayerUiStore(state => state.dialog)
   const setDialog = usePlayerUiStore(state => state.setDialog)
+  const immersiveLyrics = usePlayerUiStore(state => state.immersiveLyrics)
+  const setImmersiveLyrics = usePlayerUiStore(state => state.setImmersiveLyrics)
   const currentSong = usePlaybackStore(state => state.currentSong)
   const hydratePlayback = usePlaybackStore(state => state.hydrate)
   const hydrateSettings = useSettingsStore(state => state.hydrate)
@@ -381,9 +417,9 @@ export function PlayerShell() {
       const target = event.target as HTMLElement | null
       const editing = target?.matches('input, textarea, select, [contenteditable="true"]')
       if (event.key === 'Escape') {
-        if (usePlayerUiStore.getState().dialog || usePlayerUiStore.getState().drawer || usePlayerUiStore.getState().sidebarOpen) {
+        if (usePlayerUiStore.getState().immersiveLyrics || usePlayerUiStore.getState().dialog || usePlayerUiStore.getState().drawer || usePlayerUiStore.getState().sidebarOpen) {
           event.preventDefault()
-          usePlayerUiStore.setState({ dialog: null, drawer: null, sidebarOpen: false })
+          usePlayerUiStore.setState({ immersiveLyrics: false, dialog: null, drawer: null, sidebarOpen: false })
         }
         return
       }
@@ -422,7 +458,7 @@ export function PlayerShell() {
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
   }, [])
   useEffect(() => { if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(usePlaybackStore.getState().duration)) { try { navigator.mediaSession.setPositionState({ duration: Math.max(0.1, usePlaybackStore.getState().duration), playbackRate: 1, position: Math.min(usePlaybackStore.getState().currentTime, usePlaybackStore.getState().duration) }) } catch { /* browser may reject transient media metadata */ } } }, [currentSong])
-  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><LyricsDialog open={dialog === 'lyrics'} onClose={() => setDialog(null)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><ImmersiveLyricsView open={immersiveLyrics} onClose={() => setImmersiveLyrics(false)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
 }
 
 export function PlayerAuthGate() {

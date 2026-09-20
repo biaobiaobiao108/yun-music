@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { playerApi, type CommentItem, type CustomSource, type SearchType } from './api'
 import { Button, Icon, Loading, Modal, SafeImage, SongList } from './components'
 import { useAuthStore, useCommentStore, useLibraryStore, useLyricStore, usePlaybackStore, usePlayerUiStore, useSearchStore, useSettingsStore } from './store'
@@ -206,17 +206,62 @@ export function AboutView() {
 
 export function ViewFrame({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) { return <section id={`view-${title}`} className="player-main-view react-view"><header className="react-view-header"><div><p className="react-eyebrow">云音播放器</p><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div></header>{children}</section> }
 
-export function LyricsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose: () => void }) {
   const song = usePlaybackStore(state => state.currentSong)
   const time = usePlaybackStore(state => state.currentTime)
+  const isPlaying = usePlaybackStore(state => state.isPlaying)
   const lines = useLyricStore(state => state.lines)
   const loading = useLyricStore(state => state.loading)
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
   const settings = useSettingsStore(state => state.settings)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const lastFocus = useRef<HTMLElement | null>(null)
+  const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
   useEffect(() => { if (open) void load(song) }, [load, open, song])
   const active = useMemo(() => lines.reduce((result, line, index) => line.time <= time ? index : result, -1), [lines, time])
-  return <Modal open={open} title={song ? `${songTitle(song)} · 歌词` : '歌词'} onClose={onClose}><div className="react-lyrics-dialog">{loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error">{error}</p> : lines.length ? lines.map((line, index) => <p key={`${line.time}-${index}`} className={index === active ? 'is-active' : ''}>{line.text}{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</p>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}</div></Modal>
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open && !dialog.open) {
+      lastFocus.current = document.activeElement as HTMLElement | null
+      dialog.showModal()
+      dialog.querySelector<HTMLButtonElement>('[data-immersive-close]')?.focus()
+    } else if (!open && dialog.open) {
+      dialog.close()
+      lastFocus.current?.focus?.()
+      lastFocus.current = null
+    }
+  }, [open])
+  useEffect(() => {
+    if (active < 0) return
+    const line = lineRefs.current[active]
+    if (!line) return
+    line.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  }, [active])
+  const lyricStyle = { '--react-lyric-size': `${Math.max(.9, Number(settings.lyricFontSize || 1.25))}rem` } as CSSProperties
+  const title = songTitle(song)
+  return <dialog ref={dialogRef} className="react-immersive-lyrics-dialog" aria-labelledby="immersive-lyrics-title" onCancel={event => { event.preventDefault(); onClose() }}>
+    <div className="react-immersive-lyrics" style={lyricStyle}>
+      <header className="react-immersive-lyrics-header">
+        <div><p className="react-eyebrow">正在播放</p><h2 id="immersive-lyrics-title">{song ? title : '歌词'}</h2>{song && <p>{songArtist(song)}</p>}</div>
+        <button type="button" className="react-icon-button" data-immersive-close aria-label="关闭沉浸式歌词" onClick={onClose}><Icon name="xmark" /></button>
+      </header>
+      <div className="react-immersive-lyrics-grid">
+        <section className="react-vinyl-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
+          <div className={`react-vinyl ${isPlaying ? 'is-spinning' : ''}`}><div className="react-vinyl-record"><SafeImage src={songImage(song)} width="360" height="360" alt={song ? `${title}封面` : ''} /><span className="react-vinyl-label">云音</span></div><span className="react-vinyl-hole" /></div>
+          <div className="react-vinyl-meta"><strong>{song ? title : '选择一首歌曲开始播放'}</strong><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div>
+        </section>
+        <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
+          {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={index === active ? 'is-active' : ''} aria-current={index === active ? 'true' : undefined} onClick={() => usePlaybackStore.getState().seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
+        </section>
+      </div>
+    </div>
+  </dialog>
+}
+
+export function LyricsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return <ImmersiveLyricsView open={open} onClose={onClose} />
 }
 
 function CommentItemView({ item, nested = false }: { item: CommentItem; nested?: boolean }) {
