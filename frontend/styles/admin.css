@@ -6047,3 +6047,269 @@ textarea:focus-visible {
     border-color: var(--app-border) !important;
     box-shadow: none !important;
 }
+
+/* Compact admin workspaces: keep controls in one calm, useful toolbar. */
+.admin-react-shell .admin-react-panel {
+    padding: 1rem 1.1rem;
+    border-radius: var(--app-radius-lg);
+}
+
+.admin-react-shell .admin-react-panel-header {
+    min-height: 2.5rem;
+    margin-bottom: .75rem;
+    padding-bottom: .65rem;
+}
+
+.admin-react-shell .admin-react-panel-header h2 {
+    font-size: .95rem;
+}
+
+.admin-react-shell .admin-react-panel-header > .admin-react-toolbar {
+    display: flex;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.admin-react-shell .admin-react-toolbar .admin-react-button,
+.admin-react-shell .admin-react-panel-header .admin-react-button {
+    flex: 0 0 auto;
+}
+
+.admin-react-search-field,
+.admin-react-shell .admin-data-search {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+    min-height: 2.45rem;
+    padding: 0 .7rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: var(--app-surface-solid);
+    color: var(--app-text-dim);
+}
+
+.admin-react-search-field {
+    flex: 1 1 14rem;
+}
+
+.admin-react-search-field input,
+.admin-react-shell .admin-data-search input {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.25rem;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--app-text);
+    font: inherit;
+}
+
+.admin-react-search-field input::placeholder,
+.admin-react-shell .admin-data-search input::placeholder {
+    color: var(--app-text-dim);
+}
+
+.admin-users-toolbar {
+    width: min(100%, 27rem);
+    gap: .45rem;
+}
+
+.admin-users-toolbar .admin-react-search-field {
+    max-width: 19rem;
+}
+
+.admin-users-panel .admin-react-batch-bar,
+.admin-storage-panel .admin-react-batch-bar,
+.admin-data-panel .admin-data-batchbar {
+    min-height: 2.35rem;
+    margin-bottom: .65rem;
+    padding: .45rem .6rem;
+    border: 1px solid var(--app-border);
+    border-radius: .65rem;
+    background: var(--app-surface-soft);
+    font-size: .74rem;
+}
+
+.admin-users-panel .admin-react-table {
+    min-width: 42rem;
+}
+
+.admin-users-panel .admin-react-table th,
+.admin-users-panel .admin-react-table td {
+    padding: .62rem .7rem;
+}
+
+.admin-users-panel .admin-react-table thead th {
+    height: 2.35rem;
+    padding-block: .45rem;
+    line-height: 1.2;
+}
+
+.admin-users-panel .admin-react-row-actions .admin-react-button {
+    min-height: 2rem;
+    padding: .35rem .6rem;
+    font-size: .76rem;
+}
+
+.admin-storage-panel .admin-react-panel-header .admin-react-inline-label,
+.admin-data-panel .admin-react-panel-header .admin-react-inline-label {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    color: var(--app-text-muted);
+    white-space: nowrap;
+}
+
+.admin-storage-panel .admin-react-panel-header .admin-react-select,
+.admin-data-panel .admin-react-panel-header .admin-react-select {
+    min-width: 10rem;
+}
+
+.admin-react-shell .admin-storage-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(9rem, 10rem);
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .65rem;
+    padding: .35rem;
+    border: 1px solid var(--app-border);
+    border-radius: .75rem;
+    background: var(--app-surface-soft);
+}
+
+.admin-react-shell .admin-storage-toolbar .admin-data-search {
+    min-height: 2.45rem;
+    border-color: transparent;
+    background: transparent;
+}
+
+.admin-react-shell .admin-storage-toolbar > .admin-react-select {
+    flex: none;
+    width: 100%;
+}
+
+.admin-react-shell .admin-storage-summary {
+    margin: .15rem .2rem .65rem;
+    padding: .15rem 0;
+}
+
+.admin-data-panel .admin-data-workspace {
+    gap: .85rem;
+}
+
+.admin-data-panel .admin-data-nav {
+    padding: .5rem;
+    border-radius: .85rem;
+    background: var(--app-surface-soft);
+}
+
+.admin-data-panel .admin-data-nav-heading {
+    padding: .3rem .5rem .55rem;
+}
+
+.admin-data-panel .admin-data-nav-item {
+    min-height: 2.8rem;
+    padding: .45rem .5rem;
+}
+
+.admin-data-panel .admin-data-detail {
+    min-width: 0;
+    padding-left: .85rem;
+    border-left: 1px solid var(--app-border);
+}
+
+.admin-data-panel .admin-data-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .5rem;
+    margin-bottom: .7rem;
+}
+
+.admin-data-panel .admin-data-summary-metric {
+    padding: .6rem .7rem;
+    border-radius: .65rem;
+    background: var(--app-surface-soft);
+}
+
+.admin-data-panel .admin-data-detail-header {
+    align-items: center;
+    margin: 0 0 .65rem;
+    padding-bottom: .65rem;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.admin-data-panel .admin-data-detail-header h3 {
+    font-size: 1.15rem;
+}
+
+.admin-data-panel .admin-data-toolbar {
+    margin-bottom: .55rem;
+    padding: .35rem;
+    border: 1px solid var(--app-border);
+    border-radius: .75rem;
+    background: var(--app-surface-soft);
+}
+
+.admin-data-panel .admin-data-toolbar .admin-data-search {
+    border-color: transparent;
+    background: transparent;
+}
+
+.admin-data-panel .admin-data-table-wrap {
+    max-height: min(58vh, 44rem);
+}
+
+.admin-react-storage-summary {
+    gap: .7rem;
+    margin: .8rem 0;
+}
+
+.admin-react-storage-stat {
+    padding: .8rem .9rem;
+    border-radius: .85rem;
+}
+
+@media (max-width: 720px) {
+    .admin-react-shell .admin-react-panel-header > .admin-react-toolbar {
+        justify-content: stretch;
+    }
+
+    .admin-users-toolbar {
+        width: 100%;
+    }
+
+    .admin-users-toolbar .admin-react-search-field {
+        max-width: none;
+    }
+}
+
+@media (max-width: 620px) {
+    .admin-react-shell .admin-react-panel {
+        padding: .85rem;
+    }
+
+    .admin-react-shell .admin-react-panel-header > .admin-react-toolbar {
+        width: 100%;
+    }
+
+    .admin-react-shell .admin-storage-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-data-panel .admin-data-detail {
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .admin-data-panel .admin-data-summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-react-shell .admin-react-button:hover:not(:disabled) {
+        transform: none;
+    }
+}

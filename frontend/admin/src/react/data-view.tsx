@@ -225,7 +225,7 @@ export function DataView() {
 
   if (busy && !data) return <ViewFrame title="数据查看" subtitle="浏览用户歌单与歌曲数据"><Loading label="正在读取歌单数据…" /></ViewFrame>
   return <ViewFrame title="数据查看" subtitle="按用户查看试听列表、收藏和自定义歌单"><ErrorPanel message={error} onRetry={() => void loadView('data')} />
-    <Panel title="用户数据" actions={<div className="admin-react-toolbar"><label className="admin-react-inline-label">用户<SelectMenu label="数据用户" value={selectedUser} options={[{ value: '', label: '请选择用户' }, ...users.map(user => ({ value: user.name, label: user.name === '_open' ? '公开用户' : user.name }))]} onChange={value => { setSelectedUser(value); setActiveId('all') }} /></label><Button onClick={() => void loadView('data')} disabled={busy}><Icon name="rotate" />刷新</Button></div>}>
+    <Panel className="admin-data-panel" title="用户数据" actions={<div className="admin-react-toolbar"><label className="admin-react-inline-label">用户<SelectMenu label="数据用户" value={selectedUser} options={[{ value: '', label: '请选择用户' }, ...users.map(user => ({ value: user.name, label: user.name === '_open' ? '公开用户' : user.name }))]} onChange={value => { setSelectedUser(value); setActiveId('all') }} /></label><Button onClick={() => void loadView('data')} disabled={busy}><Icon name="rotate" />刷新</Button></div>}>
       {!selectedUser ? <Empty label="请选择用户" /> : !lists.length ? <Empty label="该用户暂无歌单数据" /> : <div className="admin-data-workspace">
         <DataListNavigation lists={lists} activeId={activeList?.id ?? 'all'} onChange={id => { setActiveId(id); setQuery(''); setSelectedKeys([]) }} />
         <div className="admin-data-detail">

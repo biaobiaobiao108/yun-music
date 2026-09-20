@@ -45,8 +45,8 @@ export function StatCard({ label, value, icon }: { label: string; value: ReactNo
   return <article className="admin-react-stat glass"><div className="admin-react-stat-icon"><Icon name={icon} /></div><div><p>{label}</p><strong>{value}</strong></div></article>
 }
 
-export function Panel({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
-  return <section className="admin-react-panel glass"><div className="admin-react-panel-header"><h2>{title}</h2>{actions}</div>{children}</section>
+export function Panel({ title, children, actions, className = '' }: { title: string; children: ReactNode; actions?: ReactNode; className?: string }) {
+  return <section className={`admin-react-panel glass ${className}`.trim()}><div className="admin-react-panel-header"><h2>{title}</h2>{actions}</div>{children}</section>
 }
 
 export function ErrorPanel({ message, onRetry }: { message: string; onRetry?: () => void }) {

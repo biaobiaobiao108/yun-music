@@ -8583,3 +8583,110 @@ textarea:focus-visible {
     border-color: var(--app-border) !important;
     box-shadow: none !important;
 }
+
+/* Keep page-level search controls visually identical to the top-bar search. */
+.react-local-search.react-global-search,
+.react-search-input.react-global-search {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    height: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0 .45rem 0 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-surface-solid) 70%, transparent);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+    color: var(--app-text-muted);
+}
+
+.react-local-search.react-global-search {
+    width: min(28rem, 100%);
+    min-width: min(12rem, 100%);
+    flex: 1 1 16rem;
+}
+
+.react-search-input.react-global-search {
+    width: 100%;
+    min-width: 0;
+}
+
+.react-local-search.react-global-search input,
+.react-search-input.react-global-search input {
+    min-width: 0;
+    min-height: 2.2rem;
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--app-text);
+    font: inherit;
+}
+
+.react-local-search.react-global-search input::placeholder,
+.react-search-input.react-global-search input::placeholder {
+    color: var(--app-text-dim);
+}
+
+.react-search-input.react-global-search button {
+    display: grid;
+    flex: 0 0 2rem;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--app-surface-soft);
+    color: var(--app-text-muted);
+    cursor: pointer;
+}
+
+.react-search-input.react-global-search button:hover {
+    background: var(--app-accent);
+    color: var(--app-on-accent);
+}
+
+.react-search-form {
+    grid-template-columns: minmax(0, 1fr) minmax(8.75rem, 10rem) minmax(8.75rem, 10rem) auto;
+    gap: .65rem;
+    align-items: center;
+}
+
+.react-search-filter .react-select-menu-trigger,
+.react-search-form > .react-player-button {
+    min-height: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    box-sizing: border-box;
+}
+
+.react-search-filter .react-select-menu-trigger {
+    border-color: var(--app-border);
+    background: color-mix(in srgb, var(--app-surface-solid) 70%, transparent);
+}
+
+.react-search-form > .react-player-button {
+    padding-inline: 1rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .react-local-search.react-global-search {
+        flex-basis: 100%;
+        width: 100%;
+    }
+
+    .react-search-form {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .react-search-input.react-global-search,
+    .react-search-form > .react-player-button {
+        grid-column: 1 / -1;
+    }
+
+    .react-search-form > .react-player-button {
+        width: 100%;
+    }
+}

@@ -76,4 +76,23 @@ describe('React admin frontend', () => {
     expect(css).toContain('React UI focus policy: quiet mouse focus, compact keyboard focus.')
     expect(css).toContain('box-shadow: inset 0 0 0 1px var(--app-accent) !important')
   })
+
+  it('keeps the compact workspace toolbars and shared player search treatment', () => {
+    const adminViews = [
+      read('frontend/admin/src/react/views.tsx'),
+      read('frontend/admin/src/react/storage-view.tsx'),
+      read('frontend/admin/src/react/data-view.tsx'),
+    ].join('\n')
+    const playerViews = [
+      read('frontend/player/src/react/views.tsx'),
+      read('frontend/player/src/react/heavy_views.tsx'),
+    ].join('\n')
+    const css = read('frontend/styles/admin.css') + read('frontend/styles/player.css')
+    for (const panel of ['admin-users-panel', 'admin-storage-panel', 'admin-data-panel']) expect(adminViews).toContain(panel)
+    expect(adminViews).toContain('admin-react-search-field')
+    expect(playerViews).toContain('react-global-search react-search-input')
+    expect(playerViews).toContain('react-global-search react-local-search')
+    expect(css).toContain('Compact admin workspaces')
+    expect(css).toContain('Keep page-level search controls visually identical to the top-bar search.')
+  })
 })
