@@ -4,6 +4,7 @@ import type { PlayerDetail, Song } from './types'
 import { songArtist, songImage } from './types'
 
 export type SongEntityKind = 'artist' | 'album'
+export type SongEntityOptions = { allowGenericId?: boolean; allowGenericName?: boolean }
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {}
@@ -26,17 +27,17 @@ export function songSource(song: Song): string {
   return firstText(song.source, song.platform, recordOf(song).sourceName) || 'wy'
 }
 
-export function songEntityName(song: Song, kind: SongEntityKind): string {
+export function songEntityName(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): string {
   const record = recordOf(song)
   const meta = recordOf(record.meta)
   if (kind === 'artist') {
-    return firstText(song.singer, record.artist, record.artistName, record.singerName, meta.artistName, meta.singerName) || songArtist(song)
+    return firstText(song.singer, record.artist, record.artistName, record.singerName, meta.artistName, meta.singerName, options.allowGenericName ? record.name : '', options.allowGenericName ? record.title : '') || songArtist(song)
   }
   const album = record.album
-  return firstText(typeof album === 'string' ? album : '', record.albumName, record.albumname, meta.albumName, nestedId(album)) || '未知专辑'
+  return firstText(typeof album === 'string' ? album : '', record.albumName, record.albumname, meta.albumName, nestedId(album), options.allowGenericName ? record.name : '', options.allowGenericName ? record.title : '') || '未知专辑'
 }
 
-export function songEntityId(song: Song, kind: SongEntityKind): string {
+export function songEntityId(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): string {
   const record = recordOf(song)
   const meta = recordOf(record.meta)
   if (kind === 'artist') {
@@ -51,6 +52,9 @@ export function songEntityId(song: Song, kind: SongEntityKind): string {
       meta.singerid,
       nestedId(record.artist),
       nestedId(record.singer),
+      options.allowGenericId ? record.id : '',
+      options.allowGenericId ? record.mid : '',
+      options.allowGenericId ? record.uid : '',
     )
   }
   return firstText(
@@ -63,31 +67,33 @@ export function songEntityId(song: Song, kind: SongEntityKind): string {
     meta.albumMid,
     meta.albummid,
     nestedId(record.album),
+    options.allowGenericId ? record.id : '',
+    options.allowGenericId ? record.mid : '',
   )
 }
 
-export function songEntityDetail(song: Song, kind: SongEntityKind): PlayerDetail | null {
-  const id = songEntityId(song, kind)
+export function songEntityDetail(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): PlayerDetail | null {
+  const id = songEntityId(song, kind, options)
   if (!id) return null
   return {
     page: 'search-detail',
     kind,
     id,
     source: songSource(song),
-    name: songEntityName(song, kind),
+    name: songEntityName(song, kind, options),
     image: safeImageUrl(songImage(song)),
   }
 }
 
-export function navigateToSongEntity(song: Song, kind: SongEntityKind): void {
+export function navigateToSongEntity(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): void {
   const ui = usePlayerUiStore.getState()
-  const detail = songEntityDetail(song, kind)
+  const detail = songEntityDetail(song, kind, options)
   if (detail) {
     ui.openLibraryDetail(kind === 'artist' ? 'artists' : 'albums', detail)
     return
   }
 
-  const query = songEntityName(song, kind)
+  const query = songEntityName(song, kind, options)
   if (!query || query === '未知歌手' || query === '未知专辑') {
     ui.notify(`当前歌曲没有可用的${kind === 'artist' ? '歌手' : '专辑'}信息`)
     return

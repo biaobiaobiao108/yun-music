@@ -11,7 +11,14 @@ export type PlayerConfig = RuntimeConfig & {
 export type SearchType = 'song' | 'singer' | 'album' | 'playlist'
 export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: { id: string | number; name: string; list?: Song[] }[] }
 export type CacheTask = Record<string, unknown> & { id?: string; songKey?: string; status?: string; progress?: number; name?: string }
-export type CacheStats = Record<string, unknown> & { cacheSize?: number; musicSize?: number; cacheCount?: number; musicCount?: number }
+export type CacheStats = Record<string, unknown> & {
+  cache?: { totalSize?: number; fileCount?: number }
+  music?: { totalSize?: number; fileCount?: number }
+  cacheSize?: number
+  musicSize?: number
+  cacheCount?: number
+  musicCount?: number
+}
 export type CacheItem = Record<string, unknown> & {
   id: string
   songmid?: string | number

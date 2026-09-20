@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { playerApi, type CommentItem, type CustomSource, type SearchType } from './api'
 import { Button, Icon, Loading, Modal, SafeImage, SongList } from './components'
-import { PlayerFooterBar } from './player_footer'
+import { consumeImmersiveLyricsTrigger, PlayerFooterBar } from './player_footer'
+import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { useAuthStore, useCommentStore, useLibraryStore, useLyricStore, usePlaybackStore, usePlayerUiStore, useSearchStore, useSettingsStore } from './store'
 import type { PlayerDetail, PlayerTab, Song } from './types'
 import { songArtist, songImage, songKey, songTitle } from './types'
@@ -33,8 +34,12 @@ function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {}
 }
 
-function resultId(song: Song, index: number): string {
-  return String(song.id ?? song.artistId ?? song.albumId ?? song.listId ?? song.songmid ?? song.hash ?? index)
+function resultId(song: Song, index: number, kind: 'artist' | 'album' | 'playlist'): string {
+  if (kind === 'artist' || kind === 'album') {
+    const detail = songEntityDetail(song, kind, { allowGenericId: true, allowGenericName: true })
+    if (detail) return detail.id
+  }
+  return String(song.id ?? song.listId ?? song.songmid ?? song.hash ?? index)
 }
 
 function resultImage(song: Song): string {
@@ -44,11 +49,23 @@ function resultImage(song: Song): string {
 function SearchEntityGrid({ items, kind, onOpen }: { items: Song[]; kind: 'artist' | 'album' | 'playlist'; onOpen: (detail: PlayerDetail) => void }) {
   if (!items.length) return <div className="react-empty"><Icon name={kind === 'artist' ? 'user' : kind === 'album' ? 'compact-disc' : 'list'} /><p>没有找到匹配的结果</p></div>
   return <div className="react-entity-grid">{items.map((item, index) => {
-    const id = resultId(item, index)
-    const name = String(item.name ?? item.artistName ?? item.singer ?? item.title ?? '未命名')
-    const source = String(item.source || 'wy')
+    const entityDetail = kind === 'playlist' ? null : songEntityDetail(item, kind, { allowGenericId: true, allowGenericName: true })
+    const id = resultId(item, index, kind)
+    const name = String(entityDetail?.name ?? item.name ?? item.artistName ?? item.singer ?? item.title ?? '未命名')
+    const source = String(entityDetail?.source || item.source || 'wy')
     const subtitle = kind === 'artist' ? `${String(item.albumSize ?? 0)} 张专辑` : kind === 'album' ? String(item.artistName ?? item.singer ?? '未知歌手') : String(item.creator ?? item.artistName ?? '平台歌单')
-    return <article className="react-entity-card" key={`${source}:${id}`}><button type="button" onClick={() => onOpen({ page: 'search-detail', kind, id, source, name, image: resultImage(item) })}><SafeImage src={resultImage(item)} width="160" height="160" loading="lazy" alt={`${name}封面`} /><strong>{name}</strong><small>{subtitle}</small></button></article>
+    const open = () => {
+      if (entityDetail) {
+        onOpen(entityDetail)
+        return
+      }
+      if (kind === 'artist' || kind === 'album') {
+        navigateToSongEntity(item, kind, { allowGenericName: true })
+        return
+      }
+      onOpen({ page: 'search-detail', kind, id, source, name, image: resultImage(item) })
+    }
+    return <article className="react-entity-card" key={`${source}:${id}`}><button type="button" onClick={open}><SafeImage src={resultImage(item)} width="160" height="160" loading="lazy" alt={`${name}封面`} /><strong>{name}</strong><small>{subtitle}</small></button></article>
   })}</div>
 }
 
@@ -68,10 +85,17 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
   const [error, setError] = useState('')
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const songRequestId = useRef(0)
+  const loadMoreInFlight = useRef(false)
+  const loadMoreIntersectionActive = useRef(false)
+  const loadMoreController = useRef<AbortController | null>(null)
   useEffect(() => {
     const controller = new AbortController()
     const requestId = songRequestId.current + 1
     songRequestId.current = requestId
+    loadMoreController.current?.abort()
+    loadMoreController.current = null
+    loadMoreInFlight.current = false
+    loadMoreIntersectionActive.current = false
     setLoading(true); setError('')
     setLoadingMoreSongs(false); setLoadMoreError(''); setSongs([]); setSongPage(1); setSongTotal(0); setHasMoreSongs(false); setActiveTab('songs')
     const load = async () => {
@@ -86,20 +110,29 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
           if (controller.signal.aborted) return
           setInfo(recordOf(payload)); setSongs(extractSongs(payload))
         } else {
-          const payload = await playerApi.songListDetail(detail.source, detail.id)
+          const payload = await playerApi.songListDetail(detail.source, detail.id, controller.signal)
           if (controller.signal.aborted) return
           setInfo(recordOf(payload)); setSongs(extractSongs(payload))
         }
       } catch (cause) { if (!controller.signal.aborted && requestId === songRequestId.current) setError(cause instanceof Error ? cause.message : '详情加载失败') } finally { if (!controller.signal.aborted && requestId === songRequestId.current) setLoading(false) }
     }
     void load()
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      loadMoreController.current?.abort()
+      loadMoreController.current = null
+      loadMoreInFlight.current = false
+      loadMoreIntersectionActive.current = false
+    }
   }, [detail.id, detail.kind, detail.source, order])
   const loadMoreSongs = useCallback(async () => {
-    if (detail.kind !== 'artist' || loading || loadingMoreSongs || !hasMoreSongs) return
+    if (detail.kind !== 'artist' || loading || loadingMoreSongs || loadMoreInFlight.current || !hasMoreSongs) return
     const requestId = songRequestId.current
     const nextPage = songPage + 1
     const controller = new AbortController()
+    loadMoreController.current?.abort()
+    loadMoreController.current = controller
+    loadMoreInFlight.current = true
     setLoadingMoreSongs(true)
     setLoadMoreError('')
     try {
@@ -116,15 +149,25 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
     } catch (cause) {
       if (!controller.signal.aborted && requestId === songRequestId.current) setLoadMoreError(cause instanceof Error ? cause.message : '加载更多歌曲失败')
     } finally {
+      if (loadMoreController.current === controller) loadMoreController.current = null
+      loadMoreInFlight.current = false
       if (requestId === songRequestId.current) setLoadingMoreSongs(false)
     }
   }, [detail.id, detail.kind, detail.source, hasMoreSongs, loading, loadingMoreSongs, order, songPage])
   useEffect(() => {
+    loadMoreIntersectionActive.current = false
     const sentinel = loadMoreRef.current
     if (!sentinel || detail.kind !== 'artist' || activeTab !== 'songs' || !hasMoreSongs || loading || loadingMoreSongs || typeof IntersectionObserver === 'undefined') return
     const root = sentinel.closest('.react-player-content')
     const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) void loadMoreSongs()
+      const entry = entries[0]
+      if (!entry?.isIntersecting) {
+        loadMoreIntersectionActive.current = false
+        return
+      }
+      if (loadMoreIntersectionActive.current) return
+      loadMoreIntersectionActive.current = true
+      void loadMoreSongs()
     }, { root, rootMargin: '0px 0px 420px 0px', threshold: 0 })
     observer.observe(sentinel)
     return () => observer.disconnect()
@@ -293,12 +336,16 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
     const dialog = dialogRef.current
     if (!dialog) return
     if (open && !dialog.open) {
-      lastFocus.current = document.activeElement as HTMLElement | null
+      lastFocus.current = consumeImmersiveLyricsTrigger() ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
       dialog.showModal()
       dialog.querySelector<HTMLButtonElement>('[data-immersive-close]')?.focus()
     } else if (!open && dialog.open) {
       dialog.close()
-      lastFocus.current?.focus?.()
+      const focusTarget = lastFocus.current
+      const restoreFocus = () => document.querySelector<HTMLButtonElement>('#player-footer .react-footer-cover-button')?.focus()
+      if (focusTarget?.isConnected && focusTarget !== document.body && !dialog.contains(focusTarget) && !focusTarget.matches(':disabled')) focusTarget.focus()
+      else if (document.querySelector('#player-footer .react-footer-cover-button')) restoreFocus()
+      else window.requestAnimationFrame(restoreFocus)
       lastFocus.current = null
     }
   }, [open])

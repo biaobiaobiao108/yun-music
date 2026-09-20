@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { playerApi } from './api'
 import { Button, Icon, Loading, SafeImage, SongList } from './components'
+import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore } from './store'
-import type { PlayerDetail, Song } from './types'
+import type { Song } from './types'
 import { songImage, songKey, songTitle } from './types'
-import { safeImageUrl } from '../../../shared/src/runtime'
 import { ViewFrame } from './views'
 
 function listOf(payload: unknown, keys: string[] = ['list', 'data', 'result', 'songs']): Song[] {
@@ -15,20 +15,8 @@ function listOf(payload: unknown, keys: string[] = ['list', 'data', 'result', 's
   return []
 }
 
-function imageOf(song: Song): string {
-  return safeImageUrl(songImage(song))
-}
-
 function sourceOf(song: Song): string {
   return String(song.source || song.platform || 'wy')
-}
-
-function entityId(song: Song): string {
-  return String(song.albumId ?? song.albumid ?? song.artistId ?? song.artistid ?? song.id ?? song.songmid ?? songKey(song))
-}
-
-function detailFor(song: Song, kind: 'artist' | 'album'): PlayerDetail {
-  return { page: 'search-detail', kind, id: entityId(song), source: sourceOf(song), name: String(kind === 'artist' ? song.singer || song.artist || song.name : song.album || song.name || '专辑'), image: imageOf(song) }
 }
 
 function ArtworkCard({ song, kind, onOpen, onPlay }: { song: Song; kind?: 'artist' | 'album'; onOpen?: () => void; onPlay?: () => void }) {
@@ -84,11 +72,14 @@ export function RecentView() {
 }
 
 function MediaGrid({ kind }: { kind: 'album' | 'artist' }) {
-  const { albums, artists, loading, error } = useMediaLibraryStore(state => state)
+  const albums = useMediaLibraryStore(state => state.albums)
+  const artists = useMediaLibraryStore(state => state.artists)
+  const loading = useMediaLibraryStore(state => state.loading)
+  const error = useMediaLibraryStore(state => state.error)
   const openLibraryDetail = usePlayerUiStore(state => state.openLibraryDetail)
   const items = kind === 'album' ? albums : artists
   const title = kind === 'album' ? '专辑' : '歌手'
-  return <ViewFrame title={title} subtitle={`你的音乐库 · 共 ${items.length} 个${kind === 'album' ? '专辑' : '歌手'}`}><section className="react-library-view">{loading ? <Loading label={`正在加载${title}…`} /> : error ? <div className="react-empty"><Icon name="triangle-exclamation" /><p>{error}</p></div> : items.length ? <div className={`react-artwork-grid react-library-grid ${kind === 'artist' ? 'react-artist-grid' : ''}`}>{items.map((item, index) => <ArtworkCard key={`${songKey(item)}-${index}`} song={item} kind={kind} onOpen={() => openLibraryDetail(kind === 'artist' ? 'artists' : 'albums', detailFor(item, kind))} />)}</div> : <div className="react-empty"><Icon name={kind === 'album' ? 'compact-disc' : 'user'} /><p>媒体库还是空的</p><button type="button" className="react-text-button" onClick={() => usePlayerUiStore.getState().setTab('search')}>去搜索音乐</button></div>}</section></ViewFrame>
+  return <ViewFrame title={title} subtitle={`你的音乐库 · 共 ${items.length} 个${kind === 'album' ? '专辑' : '歌手'}`}><section className="react-library-view">{loading ? <Loading label={`正在加载${title}…`} /> : error ? <div className="react-empty"><Icon name="triangle-exclamation" /><p>{error}</p></div> : items.length ? <div className={`react-artwork-grid react-library-grid ${kind === 'artist' ? 'react-artist-grid' : ''}`}>{items.map((item, index) => <ArtworkCard key={`${songKey(item)}-${index}`} song={item} kind={kind} onOpen={() => { const detail = songEntityDetail(item, kind, { allowGenericId: true, allowGenericName: true }); if (detail) openLibraryDetail(kind === 'artist' ? 'artists' : 'albums', detail); else navigateToSongEntity(item, kind, { allowGenericName: true }) }} />)}</div> : <div className="react-empty"><Icon name={kind === 'album' ? 'compact-disc' : 'user'} /><p>媒体库还是空的</p><button type="button" className="react-text-button" onClick={() => usePlayerUiStore.getState().setTab('search')}>去搜索音乐</button></div>}</section></ViewFrame>
 }
 
 export function LibraryAlbumsView() { return <MediaGrid kind="album" /> }

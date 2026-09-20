@@ -30,22 +30,17 @@ export function Modal({ open, title, onClose, children, labelledBy }: { open: bo
     const dialog = ref.current
     if (!dialog) return
     if (open && !dialog.open) {
-      previousFocus.current = document.activeElement as HTMLElement | null
+      previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       dialog.showModal()
+      dialog.querySelector<HTMLElement>('[autofocus], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')?.focus()
     } else if (!open && dialog.open) {
       dialog.close()
+      const focusTarget = previousFocus.current
+      if (focusTarget?.isConnected && focusTarget !== document.body && !dialog.contains(focusTarget) && !focusTarget.matches(':disabled')) focusTarget.focus()
+      else window.requestAnimationFrame(() => document.getElementById('admin-main')?.focus())
+      previousFocus.current = null
     }
   }, [open])
-  useEffect(() => {
-    const dialog = ref.current
-    if (!dialog) return
-    const handleClose = () => {
-      previousFocus.current?.focus?.()
-      if (open) onClose()
-    }
-    dialog.addEventListener('close', handleClose)
-    return () => dialog.removeEventListener('close', handleClose)
-  }, [onClose, open])
   return <dialog ref={ref} className="admin-react-dialog" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose() }}>
     <div className="admin-react-dialog-content">
       <header><h2 id={titleId}>{title}</h2><button type="button" className="admin-react-icon-button" aria-label="关闭" onClick={onClose}><Icon name="xmark" /></button></header>

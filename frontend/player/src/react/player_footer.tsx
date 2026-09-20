@@ -1,10 +1,22 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type MouseEvent } from 'react'
 import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
 import { useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 import { songArtist, songImage, songKey, songTitle } from './types'
 import { normalizeCachePlaybackUrl } from './media_url'
+
+let immersiveLyricsTrigger: HTMLButtonElement | null = null
+
+export function rememberImmersiveLyricsTrigger(trigger: HTMLButtonElement | null): void {
+  immersiveLyricsTrigger = trigger
+}
+
+export function consumeImmersiveLyricsTrigger(): HTMLButtonElement | null {
+  const trigger = immersiveLyricsTrigger
+  immersiveLyricsTrigger = null
+  return trigger
+}
 
 export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
   const currentSong = usePlaybackStore(state => state.currentSong)
@@ -54,7 +66,10 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
         const link = document.createElement('a')
         link.href = normalizeCachePlaybackUrl(currentSong.url, userName)
         link.download = `${songTitle(currentSong)}.mp3`
+        link.style.display = 'none'
+        document.body.appendChild(link)
         link.click()
+        link.remove()
         notify('已开始下载')
         return
       }
@@ -98,6 +113,13 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
     setDrawer('queue')
   }
 
+  const openLyrics = (event: MouseEvent<HTMLButtonElement>) => {
+    if (currentSong && !embedded) {
+      rememberImmersiveLyricsTrigger(event.currentTarget)
+      setImmersiveLyrics(true)
+    }
+  }
+
   return <>
     <footer id={embedded ? undefined : 'player-footer'} className={`react-player-footer ${embedded ? 'react-immersive-footer' : ''}`}>
       <div className="react-footer-controls">
@@ -107,7 +129,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
       </div>
       <div className="react-footer-song-section">
         <div className="react-footer-song">
-          <button type="button" className="react-footer-cover-button" onClick={() => { if (currentSong && !embedded) setImmersiveLyrics(true) }} aria-label="打开沉浸式歌词" disabled={!currentSong || embedded}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
+          <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label="打开沉浸式歌词" disabled={!currentSong || embedded}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
           <div className="react-footer-song-meta">
             <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong>{!embedded && <button ref={songMenuButtonRef} type="button" className="react-footer-song-menu-trigger" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!currentSong}><Icon name="ellipsis" /></button>}</div>
             <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>

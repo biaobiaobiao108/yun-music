@@ -4,7 +4,7 @@ import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
 import { songKey } from '../frontend/player/src/react/types'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
-import { normalizePlayHistory } from '../frontend/player/src/react/store'
+import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
 import { songEntityDetail, songEntityId, songEntityName } from '../frontend/player/src/react/song_details'
 
 const root = path.join(import.meta.dir, '..')
@@ -70,6 +70,10 @@ describe('React player module boundaries', () => {
     expect(songEntityDetail(withoutIds, 'album')).toBeNull()
     expect(songEntityName(withoutIds, 'artist')).toBe('没有 ID 的歌手')
     expect(songEntityName(withoutIds, 'album')).toBe('没有 ID 的专辑')
+
+    const libraryArtist = { id: 321, name: '媒体库歌手', img: '/artist.jpg' }
+    expect(songEntityDetail(libraryArtist, 'artist', { allowGenericId: true, allowGenericName: true })).toMatchObject({ kind: 'artist', id: '321', name: '媒体库歌手' })
+    expect(songEntityDetail(libraryArtist, 'album')).toBeNull()
   })
 
   it('keeps private cache links playable and relays third-party source URLs', () => {
@@ -102,6 +106,19 @@ describe('React player module boundaries', () => {
     expect(normalized[0]?.songmid).toBe('54')
     expect(normalized.at(-1)?.songmid).toBe('5')
     expect(new Set(normalized.map(item => songKey(item))).size).toBe(50)
+  })
+
+  it('keeps queue state and audio transition synchronized when removing songs', () => {
+    let pauseCalls = 0
+    connectAudioCommands({ play: () => undefined, pause: () => { pauseCalls += 1 }, seek: () => undefined, volume: () => undefined })
+    const first = { source: 'wy', songmid: 'queue-1', name: '第一首' }
+    const second = { source: 'wy', songmid: 'queue-2', name: '第二首' }
+    usePlaybackStore.setState({ queue: [first, second], currentIndex: 0, currentSong: first, isPlaying: true, currentTime: 12, duration: 180 })
+    usePlaybackStore.getState().removeFromQueue(0)
+    expect(usePlaybackStore.getState()).toMatchObject({ queue: [second], currentIndex: 0, currentSong: second, isPlaying: true })
+    usePlaybackStore.getState().removeFromQueue(0)
+    expect(usePlaybackStore.getState()).toMatchObject({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0 })
+    expect(pauseCalls).toBe(1)
   })
 
   it('publishes the reference navigation and shared theme contracts', () => {

@@ -13,7 +13,11 @@ function downloadBlob(blob: Blob, filename: string): void {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = filename
+  anchor.rel = 'noopener'
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
   anchor.click()
+  anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
@@ -105,6 +109,8 @@ function UserDialog({ open, mode, user, onClose }: { open: boolean; mode: 'add' 
   const notify = useAdminStore(state => state.notify)
   const [name, setName] = useState(user?.name ?? '')
   const [password, setPassword] = useState('')
+  const nameId = `admin-user-name-${mode}`
+  const passwordId = `admin-user-password-${mode}`
   useEffect(() => { setName(user?.name ?? ''); setPassword('') }, [user, open])
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -114,7 +120,7 @@ function UserDialog({ open, mode, user, onClose }: { open: boolean; mode: 'add' 
       notify(mode === 'add' ? '用户已创建' : '用户已更新'); onClose(); await loadView('users')
     } catch (e) { notify(e instanceof Error ? e.message : '保存失败') }
   }
-  return <Modal open={open} title={mode === 'add' ? '新增用户' : '编辑用户'} onClose={onClose}><form className="admin-react-form" onSubmit={submit}><label htmlFor="admin-user-name">用户名</label><input id="admin-user-name" value={name} onChange={event => setName(event.target.value)} autoComplete="username" required disabled={user?.name === '_open'} /><label htmlFor="admin-user-password">{mode === 'add' ? '密码' : '新密码'}</label><input id="admin-user-password" type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === 'add' ? 'new-password' : 'new-password'} required={mode === 'add'} placeholder={mode === 'edit' ? '留空表示不修改' : ''} /><div className="admin-react-form-actions"><Button onClick={onClose}>取消</Button><Button variant="primary" type="submit">保存</Button></div></form></Modal>
+  return <Modal open={open} title={mode === 'add' ? '新增用户' : '编辑用户'} onClose={onClose}><form className="admin-react-form" onSubmit={submit}><label htmlFor={nameId}>用户名</label><input id={nameId} value={name} onChange={event => setName(event.target.value)} autoComplete="username" required disabled={user?.name === '_open'} /><label htmlFor={passwordId}>{mode === 'add' ? '密码' : '新密码'}</label><input id={passwordId} type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === 'add' ? 'new-password' : 'new-password'} required={mode === 'add'} placeholder={mode === 'edit' ? '留空表示不修改' : ''} /><div className="admin-react-form-actions"><Button onClick={onClose}>取消</Button><Button variant="primary" type="submit">保存</Button></div></form></Modal>
 }
 
 export function StorageView() {

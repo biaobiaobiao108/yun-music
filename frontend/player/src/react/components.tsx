@@ -7,7 +7,7 @@ import { useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 export function Icon({ name }: { name: string }) { return <i className={`fas fa-${name}`} aria-hidden="true" /> }
 
 export function Button({ children, variant = 'secondary', className = '', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' }) {
-  return <button className={`react-player-button react-player-button-${variant} ${className}`} {...props}>{children}</button>
+  return <button type="button" className={`react-player-button react-player-button-${variant} ${className}`} {...props}>{children}</button>
 }
 
 type SafeImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: unknown; fallback?: string }
@@ -82,8 +82,22 @@ export function Modal({ open, title, onClose, children }: { open: boolean; title
   const ref = useRef<HTMLDialogElement>(null)
   const lastFocus = useRef<HTMLElement | null>(null)
   const titleId = useId()
-  useEffect(() => { const dialog = ref.current; if (!dialog) return; if (open && !dialog.open) { lastFocus.current = document.activeElement as HTMLElement | null; dialog.showModal() } else if (!open && dialog.open) dialog.close() }, [open])
-  useEffect(() => { const dialog = ref.current; if (!dialog) return; const close = () => { lastFocus.current?.focus?.(); if (open) onClose() }; dialog.addEventListener('close', close); return () => dialog.removeEventListener('close', close) }, [onClose, open])
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) return
+    if (open && !dialog.open) {
+      lastFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      dialog.showModal()
+      dialog.querySelector<HTMLElement>('[autofocus], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')?.focus()
+    } else if (!open && dialog.open) {
+      dialog.close()
+      const focusTarget = lastFocus.current
+      const restoreFallback = () => document.getElementById('admin-main')?.focus() ?? document.getElementById('player-main-content')?.focus()
+      if (focusTarget?.isConnected && focusTarget !== document.body && !dialog.contains(focusTarget) && !focusTarget.matches(':disabled')) focusTarget.focus()
+      else window.requestAnimationFrame(restoreFallback)
+      lastFocus.current = null
+    }
+  }, [open])
   return <dialog ref={ref} className="react-dialog" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); onClose() }}><div className="react-dialog-content"><header><h2 id={titleId}>{title}</h2><button type="button" className="react-icon-button" aria-label="关闭" onClick={onClose}><Icon name="xmark" /></button></header><div className="react-dialog-body">{children}</div></div></dialog>
 }
 

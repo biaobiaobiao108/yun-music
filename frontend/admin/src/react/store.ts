@@ -33,6 +33,8 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : '操作失败，请稍后重试'
 }
 
+let loadSequence = 0
+
 export const useAdminStore = create<AdminState>((set, get) => ({
   authenticated: false,
   checking: true,
@@ -76,7 +78,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
   signOut: async () => {
     await logout()
-    set({ authenticated: false, users: [], data: null, config: null })
+    loadSequence += 1
+    set({ authenticated: false, checking: false, busy: false, users: [], selectedUser: '', status: null, config: null, data: null, storage: [], snapshots: [], logs: [], error: '', toast: '' })
   },
   setView: (view) => {
     set({ view, error: '' })
@@ -88,34 +91,51 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
   loadView: async (requestedView) => {
     const view = requestedView ?? get().view
+    const sequence = ++loadSequence
     set({ busy: true, error: '' })
     try {
       if (view === 'dashboard') {
         const [status, users] = await Promise.all([adminApi.status(), adminApi.users()])
+        if (sequence !== loadSequence) return
         set({ status, users })
       } else if (view === 'users') {
-        set({ users: await adminApi.users() })
+        const users = await adminApi.users()
+        if (sequence !== loadSequence) return
+        set({ users })
       } else if (view === 'data') {
         const user = get().selectedUser || get().users.find(item => item.name !== '_open')?.name || ''
-        if (user) set({ selectedUser: user, data: await adminApi.userData(user) })
+        if (user) {
+          const data = await adminApi.userData(user)
+          if (sequence !== loadSequence) return
+          set({ selectedUser: user, data })
+        }
       } else if (view === 'storage') {
         const user = get().selectedUser || 'all'
         const result = await adminApi.cacheList(user)
+        if (sequence !== loadSequence) return
         set({ storage: Array.isArray(result?.data) ? result.data : [] })
       } else if (view === 'config') {
-        set({ config: await adminApi.config() })
+        const config = await adminApi.config()
+        if (sequence !== loadSequence) return
+        set({ config })
       } else if (view === 'logs') {
         const result = await adminApi.logs('app')
+        if (sequence !== loadSequence) return
         set({ logs: result.logs ?? result.lines ?? [] })
       } else if (view === 'snapshots') {
         const user = get().selectedUser || get().users.find(item => item.name !== '_open')?.name || ''
-        if (user) set({ selectedUser: user, snapshots: await adminApi.snapshots(user) })
+        if (user) {
+          const snapshots = await adminApi.snapshots(user)
+          if (sequence !== loadSequence) return
+          set({ selectedUser: user, snapshots })
+        }
       }
     } catch (error) {
+      if (sequence !== loadSequence) return
       const message = messageOf(error)
       set({ error: message, ...(message.includes('登录') ? { authenticated: false } : {}) })
     } finally {
-      set({ busy: false })
+      if (sequence === loadSequence) set({ busy: false })
     }
   },
   notify: (toast) => set({ toast }),

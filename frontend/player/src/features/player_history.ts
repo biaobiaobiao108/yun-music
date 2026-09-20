@@ -17,6 +17,8 @@ export type PlayerHistoryPayload = {
     source?: string;
     order?: string;
     tab?: string;
+    name?: string;
+    image?: string;
 };
 
 export type PlayerHistoryDirection = 'forward' | 'backward';
@@ -38,6 +40,7 @@ export type PlayerHistoryPopState = {
 const HISTORY_KEY = '__yunMusicPlayerHistory';
 const HISTORY_FIELDS: Array<keyof PlayerHistoryPayload> = [
     'page', 'tabId', 'scope', 'listId', 'kind', 'id', 'source', 'order', 'tab',
+    'name', 'image',
 ];
 const PLAYER_HISTORY_PAGES = new Set<PlayerHistoryPage>([
     'player',

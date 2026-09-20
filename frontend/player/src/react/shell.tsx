@@ -352,8 +352,9 @@ function VisualizerCanvas({ enabled }: { enabled: boolean }) {
   return enabled ? <canvas ref={canvasRef} className="react-footer-visualizer" aria-label="音频可视化" role="img" /> : null
 }
 
-function PlayerFooter() {
+function PlayerFooter({ hidden = false }: { hidden?: boolean }) {
   const showVisualizer = useSettingsStore(state => Boolean(state.settings.showFooterVisualizer))
+  if (hidden) return null
   return <><VisualizerCanvas enabled={showVisualizer} /><PlayerFooterBar /></>
 }
 
@@ -371,7 +372,9 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const load = useCacheStore(state => state.load)
   const remove = useCacheStore(state => state.remove)
   useEffect(() => { if (open) void load() }, [load, open])
-  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(stats?.cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(stats?.musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load()}><Icon name="rotate" />刷新</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); return <li key={`${id}-${index}`}><span><strong>{String(task.name || task.songKey || '下载任务')}</strong><small>{String(task.status || '等待中')}</small></span><button type="button" onClick={() => void remove(id)} aria-label="移除任务"><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
+  const cacheSize = stats?.cacheSize ?? stats?.cache?.totalSize
+  const musicSize = stats?.musicSize ?? stats?.music?.totalSize
+  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load()}><Icon name="rotate" />刷新</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); return <li key={`${id}-${index}`}><span><strong>{String(task.name || task.songKey || '下载任务')}</strong><small>{String(task.status || '等待中')}</small></span><button type="button" onClick={() => void remove(id)} aria-label="移除任务"><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
 }
 
 function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -391,6 +394,7 @@ export function PlayerShell() {
   const detail = usePlayerUiStore(state => state.detail)
   const drawer = usePlayerUiStore(state => state.drawer)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
+  const closeOverlays = usePlayerUiStore(state => state.closeOverlays)
   const dialog = usePlayerUiStore(state => state.dialog)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const immersiveLyrics = usePlayerUiStore(state => state.immersiveLyrics)
@@ -410,7 +414,7 @@ export function PlayerShell() {
       if (event.key === 'Escape') {
         if (usePlayerUiStore.getState().immersiveLyrics || usePlayerUiStore.getState().dialog || usePlayerUiStore.getState().drawer || usePlayerUiStore.getState().sidebarOpen) {
           event.preventDefault()
-          usePlayerUiStore.setState({ immersiveLyrics: false, dialog: null, drawer: null, sidebarOpen: false })
+          closeOverlays()
         }
         return
       }
@@ -423,7 +427,7 @@ export function PlayerShell() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [keyboardShortcuts])
+  }, [closeOverlays, keyboardShortcuts])
   useEffect(() => {
     const validTabs: PlayerTab[] = ['home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library', 'search', 'songlist', 'leaderboard', 'localmusic', 'settings', 'about']
     const fromHash = window.location.hash.slice(1) as PlayerTab
@@ -433,14 +437,14 @@ export function PlayerShell() {
     usePlayerUiStore.getState().setTabFromHistory(initialTab, null, 'love')
     const disconnect = connectPlayerNavigation(navigation => {
       const detail = navigation.detail
-      historyController.push(detail ? { page: detail.page, tabId: navigation.tab, kind: detail.kind, id: detail.id, source: detail.source, listId: navigation.listId } : { page: 'tab', tabId: navigation.tab, listId: navigation.listId })
+      historyController.push(detail ? { page: detail.page, tabId: navigation.tab, kind: detail.kind, id: detail.id, source: detail.source, name: detail.name, image: detail.image, listId: navigation.listId } : { page: 'tab', tabId: navigation.tab, listId: navigation.listId })
     })
     const onPop = () => {
       const restored = historyController.handlePopState(window.history.state)
       const tabName = (restored?.state.tabId || window.location.hash.slice(1)) as PlayerTab
       if (validTabs.includes(tabName)) {
         const isDetail = restored?.state.page === 'search-detail' || restored?.state.page === 'songlist-detail'
-        const restoredDetail = isDetail && restored?.state.kind && restored.state.id ? { page: restored.state.page, kind: restored.state.kind, id: restored.state.id, source: restored.state.source || 'wy' } as PlayerDetail : null
+        const restoredDetail = isDetail && restored?.state.kind && restored.state.id ? { page: restored.state.page, kind: restored.state.kind, id: restored.state.id, source: restored.state.source || 'wy', name: restored.state.name, image: restored.state.image } as PlayerDetail : null
         usePlayerUiStore.getState().setTabFromHistory(tabName, restoredDetail, restored?.state.listId || 'love')
       }
     }
@@ -449,7 +453,7 @@ export function PlayerShell() {
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
   }, [])
   useEffect(() => { if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(usePlaybackStore.getState().duration)) { try { navigator.mediaSession.setPositionState({ duration: Math.max(0.1, usePlaybackStore.getState().duration), playbackRate: 1, position: Math.min(usePlaybackStore.getState().currentTime, usePlaybackStore.getState().duration) }) } catch { /* browser may reject transient media metadata */ } } }, [currentSong])
-  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><AddToListDialog open={dialog === 'addToList'} onClose={() => usePlayerUiStore.getState().closeAddToList()} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><ImmersiveLyricsView open={immersiveLyrics} onClose={() => setImmersiveLyrics(false)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveLyrics} /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><AddToListDialog open={dialog === 'addToList'} onClose={() => usePlayerUiStore.getState().closeAddToList()} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><ImmersiveLyricsView open={immersiveLyrics} onClose={() => setImmersiveLyrics(false)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
 }
 
 export function PlayerAuthGate() {

@@ -23,9 +23,11 @@
   - **服务组装入口 (`src/server/server.ts` & `src/server/routes/index.ts`)**：
     - 精简至 70 余行的纯组装器，职责单一，纯净解耦。
 - **前端工程 (`frontend/`)**：
-  - 源码与发布产物严格分离，采用 **原生 Bun Bundler (`scripts/build-frontend.ts`)** 构建：
-    - `frontend/admin/src/index.ts` ➡️ 输出至 `public/app.js`（管理后台）
-    - `frontend/player/src/index.ts` ➡️ 输出至 `public/music/app.js`（Web 网页播放器）
+  - 源码与发布产物严格分离，采用 **React + TypeScript + Zustand** 和 **原生 Bun Bundler (`scripts/build-frontend.ts`)** 构建：
+    - `frontend/admin/src/react/index.tsx` ➡️ 输出至 `public/app-<hash>.js`（管理后台）
+    - `frontend/player/src/react/index.tsx` ➡️ 输出至 `public/music/app-<hash>.js`（Web 网页播放器）
+    - `frontend/player/src/react/login.tsx` ➡️ 输出至 `public/music/login-<hash>.js`（播放器登录页）
+  - `frontend/styles/` 保存主题与播放器样式源文件；`public/` 只保存构建产物。旧版命令式业务模块不再作为页面入口，只保留被音频工作线程或兼容服务明确引用的底层模块。
   - 构建耗时仅数十毫秒，开箱即用代码混淆与压缩。
 - **Docker 容器化 (`Dockerfile`)**：
   - 基于 `oven/bun:1-alpine` 的多阶段极简构建（`builder` ➡️ `prod-deps` ➡️ `runner`）。

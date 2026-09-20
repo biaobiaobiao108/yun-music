@@ -122,12 +122,13 @@ export function connectPlayerTabNavigation(navigate: (tab: PlayerTab) => void): 
   return connectPlayerNavigation(({ tab }) => navigate(tab))
 }
 
-type UiState = { tab: PlayerTab; detail: PlayerDetail | null; favoriteListId: string; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'addToList' | 'sleep' | 'lyrics' | 'comments' | null; playlistSong: Song | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void; setFavoriteListId: (listId: string) => void; openFavoriteList: (listId: string) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null, listId?: string) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; openAddToList: (song: Song) => void; closeAddToList: () => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
+type UiState = { tab: PlayerTab; detail: PlayerDetail | null; favoriteListId: string; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'addToList' | 'sleep' | 'lyrics' | 'comments' | null; playlistSong: Song | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void; setFavoriteListId: (listId: string) => void; openFavoriteList: (listId: string) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null, listId?: string) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; openAddToList: (song: Song) => void; closeAddToList: () => void; closeOverlays: () => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
 export const usePlayerUiStore = create<UiState>((set, get) => ({
   tab: 'home', detail: null, favoriteListId: 'love', sidebarOpen: false, drawer: null, dialog: null, playlistSong: null, immersiveLyrics: false, notice: '',
   setTab: (tab) => {
-    if (get().tab === tab) return
-    const listId = tab === 'favorites' ? get().favoriteListId : undefined
+    const state = get()
+    if (state.tab === tab && !state.detail) return
+    const listId = tab === 'favorites' ? state.favoriteListId : undefined
     set({ tab, detail: null, sidebarOpen: false })
     if (playerNavigation) playerNavigation({ tab, detail: null, listId })
     else if (typeof window !== 'undefined') window.history.pushState({ tab }, '', `#${tab}`)
@@ -151,6 +152,7 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   setDialog: (dialog) => set(dialog === null ? { dialog, playlistSong: null } : { dialog }),
   openAddToList: playlistSong => set({ playlistSong, dialog: 'addToList' }),
   closeAddToList: () => set({ playlistSong: null, dialog: null }),
+  closeOverlays: () => set({ immersiveLyrics: false, dialog: null, drawer: null, sidebarOpen: false, playlistSong: null }),
   setImmersiveLyrics: (open) => set({ immersiveLyrics: open }),
   notify: (notice) => set({ notice }),
   clearNotice: () => set({ notice: '' }),
@@ -291,12 +293,17 @@ let volumeCommand: (volume: number) => void = () => undefined
 let lastPlaybackPersistAt = 0
 export function connectAudioCommands(commands: { play: () => void; pause: () => void; seek: (time: number) => void; volume: (volume: number) => void }) { playCommand = commands.play; pauseCommand = commands.pause; seekCommand = commands.seek; volumeCommand = commands.volume }
 
+const initialVolume = (() => {
+  const value = Number(readString(browserStorage(), 'lx_volume', '0.8'))
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8
+})()
+
 function persistPlayback(state: Pick<PlaybackState, 'currentSong' | 'currentIndex' | 'currentTime' | 'queue' | 'mode' | 'quality'>) {
   writeJson(browserStorage(), 'lx_playback_state', { song: state.currentSong, index: state.currentIndex, time: state.currentTime, playlist: state.queue.slice(0, 300), playMode: state.mode, quality: state.quality, timestamp: Date.now() })
 }
 
 export const usePlaybackStore = create<PlaybackState>((set, get) => ({
-  queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, volume: (() => { const value = Number(readString(browserStorage(), 'lx_volume', '0.8')); return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8 })(), muted: false, mode: (['list', 'single', 'random'] as PlayMode[]).includes(readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode) ? readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode : 'list', quality: 'flac', resolving: false, error: '',
+  queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, volume: initialVolume, muted: initialVolume === 0, mode: (['list', 'single', 'random'] as PlayMode[]).includes(readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode) ? readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode : 'list', quality: 'flac', resolving: false, error: '',
   // Loading a new song is asynchronous. Calling audio.play() here would run
   // against the previous source, and its rejected promise could later switch
   // the newly selected song back to the paused state. AudioRuntime owns the
@@ -306,14 +313,45 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   setPlaying: (isPlaying) => set({ isPlaying }),
   setProgress: (currentTime, duration) => { set({ currentTime, ...(duration !== undefined ? { duration } : {}) }); if (Date.now() - lastPlaybackPersistAt >= 3000) { lastPlaybackPersistAt = Date.now(); persistPlayback({ ...get(), currentTime }) } },
   setVolume: (volume) => { const next = Math.min(1, Math.max(0, volume)); writeString(browserStorage(), 'lx_volume', String(next)); volumeCommand(next); set({ volume: next, muted: next === 0 }) },
-  toggleMute: () => set(state => { const muted = !state.muted; volumeCommand(muted ? 0 : state.volume || 0.8); return { muted } }),
+  toggleMute: () => {
+    const state = get()
+    if (!state.muted) {
+      volumeCommand(0)
+      set({ muted: true })
+      return
+    }
+    const restored = state.volume > 0 ? state.volume : 0.8
+    writeString(browserStorage(), 'lx_volume', String(restored))
+    volumeCommand(restored)
+    set({ volume: restored, muted: false })
+  },
   setMode: (mode) => { writeString(browserStorage(), 'lx_play_mode', mode); set({ mode }); persistPlayback({ ...get(), mode }) },
   setQuality: (quality) => { const next = String(quality || 'flac'); set({ quality: next }); persistPlayback({ ...get(), quality: next }) },
   seek: (time) => { seekCommand(time); set({ currentTime: time }) },
   next: () => { const { queue, currentIndex, mode } = get(); if (!queue.length) return; const index = mode === 'random' ? Math.floor(Math.random() * queue.length) : (currentIndex + 1) % queue.length; const song = queue[index]; if (song) get().playSong(song, queue, index) },
   previous: () => { const { queue, currentIndex } = get(); if (!queue.length) return; const index = (currentIndex - 1 + queue.length) % queue.length; get().playSong(queue[index], queue, index) },
   enqueue: (songs) => { const next = { ...get(), queue: [...get().queue, ...songs.filter(song => !get().queue.some(item => songKey(item) === songKey(song)))] }; set({ queue: next.queue }); persistPlayback(next) },
-  removeFromQueue: (index) => { const state = get(); const queue = state.queue.filter((_, itemIndex) => itemIndex !== index); const currentIndex = state.currentIndex > index ? state.currentIndex - 1 : state.currentIndex === index ? Math.min(index, queue.length - 1) : state.currentIndex; const currentSong = currentIndex >= 0 ? queue[currentIndex] ?? null : null; set({ queue, currentIndex, currentSong }); persistPlayback({ ...state, queue, currentIndex, currentSong }) },
+  removeFromQueue: (index) => {
+    const state = get()
+    if (index < 0 || index >= state.queue.length) return
+    const removingCurrent = state.currentIndex === index
+    const queue = state.queue.filter((_, itemIndex) => itemIndex !== index)
+    if (!queue.length) {
+      pauseCommand()
+      set({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0 })
+      persistPlayback({ ...state, queue: [], currentIndex: -1, currentSong: null, currentTime: 0 })
+      return
+    }
+    if (removingCurrent) {
+      const nextIndex = Math.min(index, queue.length - 1)
+      get().playSong(queue[nextIndex], queue, nextIndex)
+      return
+    }
+    const currentIndex = state.currentIndex > index ? state.currentIndex - 1 : state.currentIndex
+    const currentSong = currentIndex >= 0 ? queue[currentIndex] ?? null : null
+    set({ queue, currentIndex, currentSong })
+    persistPlayback({ ...state, queue, currentIndex, currentSong })
+  },
   hydrate: () => { const saved = readJson<{ song?: Song; index?: number; time?: number; playlist?: Song[]; playMode?: PlayMode; quality?: string }>(browserStorage(), 'lx_playback_state', {}); if (saved.playlist?.length) set({ currentSong: saved.song ?? saved.playlist[saved.index ?? 0] ?? null, currentIndex: saved.index ?? 0, currentTime: saved.time ?? 0, queue: saved.playlist, mode: saved.playMode ?? get().mode, quality: saved.quality ?? 'flac' }) },
 }))
 

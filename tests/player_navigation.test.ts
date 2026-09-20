@@ -20,7 +20,7 @@ describe('React player navigation and state restoration', () => {
     const documentRef = { getElementById: () => null }
     const controller = createPlayerHistoryController({ history, documentRef })
     controller.initialize({ page: 'tab', tabId: 'search' })
-    controller.push({ page: 'search-detail', id: 'song-1' })
+    controller.push({ page: 'search-detail', id: 'song-1', name: '测试歌手', image: '/cover.jpg' })
     controller.push({ page: 'songlist-detail', id: 'list-1' })
     expect(controller.canGoBack()).toBe(true)
     expect(controller.back()).toBe(true)
@@ -28,6 +28,22 @@ describe('React player navigation and state restoration', () => {
     expect(controller.forward()).toBe(true)
     expect(controller.handlePopState(currentState)?.state.page).toBe('songlist-detail')
     expect(controller.forward()).toBe(false)
+  })
+
+  it('keeps detail presentation metadata across browser history restores', () => {
+    let currentState: unknown = null
+    const history = {
+      get state() { return currentState },
+      replaceState(state: unknown) { currentState = state },
+      pushState(state: unknown) { currentState = state },
+      go() {},
+    }
+    const controller = createPlayerHistoryController({ history, documentRef: { getElementById: () => null } })
+    controller.initialize({ page: 'tab', tabId: 'search' })
+    controller.push({ page: 'search-detail', tabId: 'search', kind: 'artist', id: 'artist-1', source: 'wy', name: 'Aimer', image: '/aimer.jpg' })
+    const restored = controller.handlePopState(currentState)
+    expect(restored?.state.name).toBe('Aimer')
+    expect(restored?.state.image).toBe('/aimer.jpg')
   })
 
   it('uses React-owned navigation, drawers and native dialog semantics', () => {
@@ -46,8 +62,12 @@ describe('React player navigation and state restoration', () => {
     expect(components).toContain('<dialog')
     expect(components).toContain('inert={!open ? true : undefined}')
     expect(components).toContain('dialog.showModal()')
-    expect(components).toContain('lastFocus.current?.focus')
+    expect(components).toContain('lastFocus.current')
+    expect(components).toContain('type="button"')
     expect(views).toContain('<PlayerFooterBar embedded />')
+    expect(shell).toContain('<PlayerFooter hidden={immersiveLyrics} />')
+    expect(views).toContain('consumeImmersiveLyricsTrigger')
+    expect(views).toContain("#player-footer .react-footer-cover-button")
   })
 
   it('keeps the normal footer order and exposes the portal song action flow', () => {
@@ -88,6 +108,8 @@ describe('React player navigation and state restoration', () => {
     expect(views).toContain('artistSongs(detail.source, detail.id, order, 1, 40')
     expect(views).toContain('artistSongs(detail.source, detail.id, order, nextPage, 40')
     expect(views).toContain('new IntersectionObserver')
+    expect(views).toContain('loadMoreIntersectionActive.current = false')
+    expect(views).toContain('loadMoreController.current?.abort()')
     expect(views).toContain('react-load-more')
     expect(views).toContain('setSongs(current =>')
   })

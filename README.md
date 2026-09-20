@@ -1,13 +1,13 @@
 # 云音
 
-云音是一个面向现代浏览器的 Web 音乐播放器与管理后台。项目使用 Bun、TypeScript、原生 DOM 和 SQLite，提供搜索、播放、歌词、歌单、收藏、缓存、本地音乐、自定义音源、用户管理、快照、配置、日志和服务状态。
+云音是一个面向现代浏览器的 Web 音乐播放器与管理后台。项目使用 Bun、TypeScript、React、Zustand 和 SQLite，提供搜索、播放、歌词、歌单、收藏、缓存、本地音乐、自定义音源、用户管理、快照、配置、日志和服务状态。
 
 项目已经收敛为 Web-only 产品，不再支持 LX 桌面/移动端同步协议、WebSocket 同步、Subsonic、WebDAV 或其他旧第三方接口。旧接口会返回明确的 `404` 或 `410`，旧数据库不会自动迁移。
 
 ## 特性
 
 - 原生 `Bun.serve`、Web 标准 `Request` / `Response` 和同源 HTTP API。
-- Web 播放器：音乐搜索、在线播放、歌词、队列、歌单、收藏、缓存、本地音乐和自定义音源。
+- React Web 播放器：音乐搜索、在线播放、歌词、队列、歌单、收藏、缓存、本地音乐和自定义音源。
 - 管理后台：用户、数据、快照、本地备份、配置、日志和运行状态。
 - SQLite WAL：用户、会话、设置、快照元数据和缓存索引使用结构化存储。
 - Cookie 会话：认证使用 HttpOnly、SameSite Cookie；密码以 scrypt 哈希保存，不写入浏览器存储或日志。
@@ -143,7 +143,13 @@ bun run check:frontend-assets
 bun run build
 ```
 
-前端源码位于 `frontend/`，`public/` 只保存服务发布产物；不要手工修改 JavaScript/CSS 编译文件。前端使用原生 DOM，不引入 React、Vue 或运行时 Web 框架。
+前端源码位于 `frontend/`，`public/` 只保存服务发布产物；不要手工修改 JavaScript/CSS 编译文件。播放器和管理后台使用 React + TypeScript + Zustand，音频、AudioWorklet 和 Canvas 等底层能力保留为独立的命令式桥接。
+
+前端迁移后的入口、状态边界、旧存储键兼容规则和调试约定见 [React 前端架构说明](./docs/frontend-react.md)。
+
+## React 前端架构
+
+播放器和管理后台的界面、路由状态、事件绑定与弹层均由 React 管理；音频元素、AudioWorklet、MediaSession、Canvas 可视化等浏览器底层能力仍封装在独立服务中。构建仍使用 Bun Bundler，不引入 Vite，也不改变后端 API、PWA 路径或既有浏览器存储契约。
 
 ## 部署建议
 

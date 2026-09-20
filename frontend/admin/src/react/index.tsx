@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState, type FormEvent } from 'react'
+import { StrictMode, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { runtimeConfig } from '../../../shared/src/runtime'
 import { applyThemePreferences, readThemePreferences, updateThemePreferences, type Appearance } from '../../../shared/src/theme'
@@ -47,6 +47,7 @@ function AdminShell() {
   const toast = useAdminStore(state => state.toast)
   const clearToast = useAdminStore(state => state.clearToast)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [appearance, setAppearance] = useState<Appearance>(() => (readThemePreferences().appearance || 'system') as Appearance)
   const config = runtimeConfig()
@@ -59,10 +60,21 @@ function AdminShell() {
     return () => window.clearTimeout(timer)
   }, [clearToast, title, toast])
   useEffect(() => { const handle = (event: Event) => { event.preventDefault(); setInstallPrompt(event as BeforeInstallPromptEvent) }; window.addEventListener('beforeinstallprompt', handle); return () => window.removeEventListener('beforeinstallprompt', handle) }, [])
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !mobileOpen) return
+      event.preventDefault()
+      setMobileOpen(false)
+      window.requestAnimationFrame(() => menuButtonRef.current?.focus())
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [mobileOpen])
   const install = async () => { if (!installPrompt) return; await installPrompt.prompt(); setInstallPrompt(null) }
-  const selectView = (next: AdminView) => { setView(next); setMobileOpen(false) }
+  const closeMobile = () => { setMobileOpen(false); window.requestAnimationFrame(() => menuButtonRef.current?.focus()) }
+  const selectView = (next: AdminView) => { setView(next); closeMobile() }
   const toggleTheme = () => { const next: Appearance = appearance === 'dark' ? 'light' : 'dark'; setAppearance(next); updateThemePreferences({ appearance: next }) }
-  return <div className="admin-react-shell"><div className={`mobile-sidebar-overlay ${mobileOpen ? 'active' : 'hidden'}`} onClick={() => setMobileOpen(false)} aria-hidden="true" /><aside className={`sidebar glass ${mobileOpen ? 'active' : ''}`} aria-label="管理导航"><div className="sidebar-header"><div className="sidebar-brand"><img src="/assets/yun-yin.png" className="logo-icon" width="42" height="42" alt="云音图标" /><h2>云音</h2></div><button className="admin-react-icon-button admin-react-mobile-close" aria-label="关闭导航菜单" onClick={() => setMobileOpen(false)}><Icon name="xmark" /></button></div><nav className="sidebar-nav"><p className="admin-react-nav-label">管理控制台</p>{NAV_ITEMS.map(item => <button key={item.id} type="button" className={`nav-item ${view === item.id ? 'active' : ''}`} aria-current={view === item.id ? 'page' : undefined} onClick={() => selectView(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<a className="nav-item" href={String(config['player.path'] || '/music')}><Icon name="music" /><span>打开播放器</span></a></nav><div className="sidebar-footer"><Button onClick={() => void signOut()} className="btn-logout"><Icon name="right-from-bracket" />退出登录</Button></div></aside><div className="admin-react-main"><header className="admin-react-topbar"><button type="button" className="admin-react-menu-button" aria-label="打开导航菜单" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Icon name="bars" /></button><div><p className="admin-react-eyebrow">云音管理后台</p><h1 id="page-title">{title}</h1></div><div className="admin-react-top-actions"><button type="button" className="admin-react-icon-button" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={appearance === 'dark' ? 'sun' : 'moon'} /></button>{installPrompt && <Button onClick={() => void install()}><Icon name="download" />安装应用</Button>}<Button variant="secondary" onClick={() => void signOut()}><Icon name="right-from-bracket" />退出</Button></div></header><main id="admin-main" className="admin-react-content" tabIndex={-1}>{viewFor(view)}</main></div>{toast && <div className="admin-react-toast" role="status">{toast}</div>}</div>
+  return <div className="admin-react-shell"><div className={`mobile-sidebar-overlay ${mobileOpen ? 'active' : 'hidden'}`} onClick={closeMobile} aria-hidden="true" /><aside className={`sidebar glass ${mobileOpen ? 'active' : ''}`} aria-label="管理导航"><div className="sidebar-header"><div className="sidebar-brand"><img src="/assets/yun-yin.png" className="logo-icon" width="42" height="42" alt="云音图标" /><h2>云音</h2></div><button type="button" className="admin-react-icon-button admin-react-mobile-close" aria-label="关闭导航菜单" onClick={closeMobile}><Icon name="xmark" /></button></div><nav className="sidebar-nav"><p className="admin-react-nav-label">管理控制台</p>{NAV_ITEMS.map(item => <button key={item.id} type="button" className={`nav-item ${view === item.id ? 'active' : ''}`} aria-current={view === item.id ? 'page' : undefined} onClick={() => selectView(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<a className="nav-item" href={String(config['player.path'] || '/music')}><Icon name="music" /><span>打开播放器</span></a></nav><div className="sidebar-footer"><Button onClick={() => void signOut()} className="btn-logout"><Icon name="right-from-bracket" />退出登录</Button></div></aside><div className="admin-react-main"><header className="admin-react-topbar"><button ref={menuButtonRef} type="button" className="admin-react-menu-button" aria-label="打开导航菜单" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Icon name="bars" /></button><div><p className="admin-react-eyebrow">云音管理后台</p><h1 id="page-title">{title}</h1></div><div className="admin-react-top-actions"><button type="button" className="admin-react-icon-button" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={appearance === 'dark' ? 'sun' : 'moon'} /></button>{installPrompt && <Button onClick={() => void install()}><Icon name="download" />安装应用</Button>}<Button variant="secondary" onClick={() => void signOut()}><Icon name="right-from-bracket" />退出</Button></div></header><main id="admin-main" className="admin-react-content" tabIndex={-1}>{viewFor(view)}</main></div>{toast && <div className="admin-react-toast" role="status">{toast}</div>}</div>
 }
 
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
