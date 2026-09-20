@@ -65,6 +65,29 @@ describe('React player navigation and state restoration', () => {
     expect(source).toContain('react-song-duration')
   })
 
+  it('loads artist songs in 40-song pages and keeps requesting on the scroll sentinel', () => {
+    const views = read('frontend/player/src/react/views.tsx')
+    const api = read('frontend/player/src/react/api.ts')
+    expect(api).toContain('artistSongs: (source: string, id: string, order = \'hot\', page = 1, limit = 40')
+    expect(views).toContain('artistSongs(detail.source, detail.id, order, 1, 40')
+    expect(views).toContain('artistSongs(detail.source, detail.id, order, nextPage, 40')
+    expect(views).toContain('new IntersectionObserver')
+    expect(views).toContain('react-load-more')
+    expect(views).toContain('setSongs(current =>')
+  })
+
+  it('uses the reference artwork lyrics layout without the retired vinyl markup', () => {
+    const views = read('frontend/player/src/react/views.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(views).toContain('react-immersive-cover-panel')
+    expect(views).toContain('react-immersive-cover')
+    expect(views).toContain('<PlayerFooterBar embedded />')
+    expect(views).not.toContain('react-vinyl-record')
+    expect(css).toContain('--react-immersive-art')
+    expect(css).toContain('.react-immersive-cover-panel')
+    expect(css).toContain('.react-immersive-lyrics .react-vinyl')
+  })
+
   it('does not retain legacy HTML event bridges in the React source or release shell', () => {
     const files = [
       'frontend/player/src/react/index.tsx',

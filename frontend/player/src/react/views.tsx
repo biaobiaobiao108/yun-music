@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { playerApi, type CommentItem, type CustomSource, type SearchType } from './api'
 import { Button, Icon, Loading, Modal, SafeImage, SongList } from './components'
 import { PlayerFooterBar } from './player_footer'
@@ -13,6 +13,20 @@ function extractSongs(payload: unknown): Song[] {
   const record = payload as Record<string, unknown>
   for (const key of ['list', 'songs', 'data', 'result']) if (Array.isArray(record[key])) return record[key] as Song[]
   return []
+}
+
+type SongPage = { songs: Song[]; page: number; limit: number; total: number; hasMore: boolean }
+
+function extractSongPage(payload: unknown, fallbackPage = 1, fallbackLimit = 40): SongPage {
+  const record = recordOf(payload)
+  const songs = extractSongs(payload)
+  const pageValue = Number(record.page)
+  const limitValue = Number(record.limit)
+  const totalValue = Number(record.total ?? record.totalCount ?? record.count)
+  const page = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : fallbackPage
+  const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : fallbackLimit
+  const total = Number.isFinite(totalValue) && totalValue > 0 ? totalValue : 0
+  return { songs, page, limit, total, hasMore: total > 0 ? page * limit < total : songs.length >= limit }
 }
 
 function recordOf(value: unknown): Record<string, unknown> {
@@ -42,20 +56,31 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
   const setDetail = usePlayerUiStore(state => state.setDetail)
   const [info, setInfo] = useState<Record<string, unknown>>({})
   const [songs, setSongs] = useState<Song[]>([])
+  const [songPage, setSongPage] = useState(1)
+  const [songTotal, setSongTotal] = useState(0)
+  const [hasMoreSongs, setHasMoreSongs] = useState(false)
+  const [loadingMoreSongs, setLoadingMoreSongs] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState('')
   const [albums, setAlbums] = useState<Song[]>([])
   const [activeTab, setActiveTab] = useState<'songs' | 'albums'>('songs')
   const [order, setOrder] = useState<'hot' | 'time'>('hot')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const songRequestId = useRef(0)
   useEffect(() => {
     const controller = new AbortController()
+    const requestId = songRequestId.current + 1
+    songRequestId.current = requestId
     setLoading(true); setError('')
+    setLoadingMoreSongs(false); setLoadMoreError(''); setSongs([]); setSongPage(1); setSongTotal(0); setHasMoreSongs(false); setActiveTab('songs')
     const load = async () => {
       try {
         if (detail.kind === 'artist') {
           const [artist, songPayload] = await Promise.all([playerApi.artistDetail(detail.source, detail.id, controller.signal), playerApi.artistSongs(detail.source, detail.id, order, 1, 40, controller.signal)])
           if (controller.signal.aborted) return
-          setInfo(recordOf(artist)); setSongs(extractSongs(songPayload))
+          const firstPage = extractSongPage(songPayload)
+          setInfo(recordOf(artist)); setSongs(firstPage.songs); setSongPage(firstPage.page); setSongTotal(firstPage.total); setHasMoreSongs(firstPage.hasMore)
         } else if (detail.kind === 'album') {
           const payload = await playerApi.albumSongs(detail.source, detail.id, controller.signal)
           if (controller.signal.aborted) return
@@ -65,11 +90,45 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
           if (controller.signal.aborted) return
           setInfo(recordOf(payload)); setSongs(extractSongs(payload))
         }
-      } catch (cause) { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '详情加载失败') } finally { if (!controller.signal.aborted) setLoading(false) }
+      } catch (cause) { if (!controller.signal.aborted && requestId === songRequestId.current) setError(cause instanceof Error ? cause.message : '详情加载失败') } finally { if (!controller.signal.aborted && requestId === songRequestId.current) setLoading(false) }
     }
     void load()
     return () => controller.abort()
   }, [detail.id, detail.kind, detail.source, order])
+  const loadMoreSongs = useCallback(async () => {
+    if (detail.kind !== 'artist' || loading || loadingMoreSongs || !hasMoreSongs) return
+    const requestId = songRequestId.current
+    const nextPage = songPage + 1
+    const controller = new AbortController()
+    setLoadingMoreSongs(true)
+    setLoadMoreError('')
+    try {
+      const payload = await playerApi.artistSongs(detail.source, detail.id, order, nextPage, 40, controller.signal)
+      if (controller.signal.aborted || requestId !== songRequestId.current) return
+      const next = extractSongPage(payload, nextPage)
+      setSongs(current => {
+        const known = new Set(current.map(songKey))
+        return [...current, ...next.songs.filter(song => !known.has(songKey(song)))]
+      })
+      setSongPage(next.page)
+      setSongTotal(current => Math.max(current, next.total))
+      setHasMoreSongs(next.hasMore)
+    } catch (cause) {
+      if (!controller.signal.aborted && requestId === songRequestId.current) setLoadMoreError(cause instanceof Error ? cause.message : '加载更多歌曲失败')
+    } finally {
+      if (requestId === songRequestId.current) setLoadingMoreSongs(false)
+    }
+  }, [detail.id, detail.kind, detail.source, hasMoreSongs, loading, loadingMoreSongs, order, songPage])
+  useEffect(() => {
+    const sentinel = loadMoreRef.current
+    if (!sentinel || detail.kind !== 'artist' || activeTab !== 'songs' || !hasMoreSongs || loading || loadingMoreSongs || typeof IntersectionObserver === 'undefined') return
+    const root = sentinel.closest('.react-player-content')
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) void loadMoreSongs()
+    }, { root, rootMargin: '0px 0px 420px 0px', threshold: 0 })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [activeTab, detail.kind, hasMoreSongs, loadMoreSongs, loading, loadingMoreSongs])
   useEffect(() => {
     if (detail.kind !== 'artist' || activeTab !== 'albums') return
     const controller = new AbortController()
@@ -79,7 +138,8 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
   const name = String(info.name ?? info.artistName ?? info.albumName ?? info.title ?? detail.name ?? '详情')
   const image = String(info.avatar ?? info.picUrl ?? info.img ?? info.pic ?? detail.image ?? '/music/assets/yun-yin.png')
   const description = String(info.desc ?? info.description ?? info.intro ?? '')
-  return <ViewFrame title={name} subtitle={detail.kind === 'artist' ? '歌手详情' : detail.kind === 'album' ? '专辑详情' : '歌单详情'}><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={() => window.history.back()}><Icon name="arrow-left" />返回搜索结果</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h2>{name}</h2>{description && <p>{description}</p>}<small>{detail.source.toUpperCase()} · {songs.length} 首歌曲</small></div></div></section>{detail.kind === 'artist' && <div className="react-detail-tabs" role="tablist"><button type="button" role="tab" aria-selected={activeTab === 'songs'} className={activeTab === 'songs' ? 'is-active' : ''} onClick={() => setActiveTab('songs')}>热门歌曲</button><button type="button" role="tab" aria-selected={activeTab === 'albums'} className={activeTab === 'albums' ? 'is-active' : ''} onClick={() => setActiveTab('albums')}>专辑</button>{activeTab === 'songs' && <span><button type="button" className={order === 'hot' ? 'is-active' : ''} onClick={() => setOrder('hot')}>最热</button><button type="button" className={order === 'time' ? 'is-active' : ''} onClick={() => setOrder('time')}>最新</button></span>}</div>}<section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载详情…" /> : error ? <p className="react-error" role="alert">{error}</p> : detail.kind === 'artist' && activeTab === 'albums' ? <SearchEntityGrid items={albums} kind="album" onOpen={next => setDetail(next)} /> : <SongList songs={songs} empty="暂无歌曲" />}</section></ViewFrame>
+  const loadedCountLabel = songTotal > 0 ? `${songs.length} / ${songTotal}` : `${songs.length}`
+  return <ViewFrame title={name} subtitle={detail.kind === 'artist' ? '歌手详情' : detail.kind === 'album' ? '专辑详情' : '歌单详情'}><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={() => window.history.back()}><Icon name="arrow-left" />返回搜索结果</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h2>{name}</h2>{description && <p>{description}</p>}<small>{detail.source.toUpperCase()} · {detail.kind === 'artist' ? loadedCountLabel : songs.length} 首歌曲</small></div></div></section>{detail.kind === 'artist' && <div className="react-detail-tabs" role="tablist"><button type="button" role="tab" aria-selected={activeTab === 'songs'} className={activeTab === 'songs' ? 'is-active' : ''} onClick={() => setActiveTab('songs')}>热门歌曲</button><button type="button" role="tab" aria-selected={activeTab === 'albums'} className={activeTab === 'albums' ? 'is-active' : ''} onClick={() => setActiveTab('albums')}>专辑</button>{activeTab === 'songs' && <span><button type="button" className={order === 'hot' ? 'is-active' : ''} onClick={() => setOrder('hot')}>最热</button><button type="button" className={order === 'time' ? 'is-active' : ''} onClick={() => setOrder('time')}>最新</button></span>}</div>}<section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载详情…" /> : error ? <p className="react-error" role="alert">{error}</p> : detail.kind === 'artist' && activeTab === 'albums' ? <SearchEntityGrid items={albums} kind="album" onOpen={next => setDetail(next)} /> : <><SongList songs={songs} empty="暂无歌曲" />{detail.kind === 'artist' && <div ref={loadMoreRef} className="react-load-more" role="status" aria-live="polite"><span role={loadMoreError ? 'alert' : undefined}>{loadMoreError || (loadingMoreSongs ? '正在加载更多歌曲…' : hasMoreSongs ? `继续下滑加载更多 · 已加载 ${loadedCountLabel} 首` : `已加载全部 ${songs.length} 首歌曲`)}</span>{hasMoreSongs && <Button type="button" onClick={() => void loadMoreSongs()} disabled={loadingMoreSongs}><Icon name={loadingMoreSongs ? 'spinner' : 'arrow-down'} />{loadingMoreSongs ? '加载中' : loadMoreError ? '重试' : '加载更多'}</Button>}</div>}</>}</section></ViewFrame>
 }
 
 export function SearchView({ detail = null }: { detail?: PlayerDetail | null } = {}) {
@@ -215,12 +275,15 @@ export function ViewFrame({ title, subtitle, children }: { title: string; subtit
 export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose: () => void }) {
   const song = usePlaybackStore(state => state.currentSong)
   const time = usePlaybackStore(state => state.currentTime)
-  const isPlaying = usePlaybackStore(state => state.isPlaying)
   const lines = useLyricStore(state => state.lines)
   const loading = useLyricStore(state => state.loading)
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
   const settings = useSettingsStore(state => state.settings)
+  const library = useLibraryStore(state => state.data)
+  const addSong = useLibraryStore(state => state.addSong)
+  const removeSong = useLibraryStore(state => state.removeSong)
+  const notify = usePlayerUiStore(state => state.notify)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const lastFocus = useRef<HTMLElement | null>(null)
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
@@ -247,22 +310,40 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
   }, [active])
   const lyricStyle = { '--react-lyric-size': `${Math.max(.9, Number(settings.lyricFontSize || 1.25))}rem` } as CSSProperties
   const title = songTitle(song)
+  const artwork = safeImageUrl(songImage(song))
+  const immersiveStyle = {
+    ...lyricStyle,
+    '--react-immersive-art': `url("${artwork.replaceAll('"', '\\"')}")`,
+  } as CSSProperties
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void document.documentElement.requestFullscreen?.()
+  }
+  const isLiked = Boolean(song && (library.loveList ?? []).some(item => songKey(item) === songKey(song)))
+  const toggleLike = async () => {
+    if (!song) return
+    try {
+      if (isLiked) { await removeSong('love', song); notify('已取消喜欢') }
+      else { await addSong('love', song); notify('已添加到喜欢') }
+    } catch (error) { notify(error instanceof Error ? error.message : '喜欢操作失败') }
+  }
   return <dialog ref={dialogRef} className="react-immersive-lyrics-dialog" aria-labelledby="immersive-lyrics-title" onCancel={event => { event.preventDefault(); onClose() }}>
-    <div className="react-immersive-lyrics" style={lyricStyle}>
+    <div className="react-immersive-lyrics" style={immersiveStyle}>
       <header className="react-immersive-lyrics-header">
-        <div><p className="react-eyebrow">正在播放</p><h2 id="immersive-lyrics-title">{song ? title : '歌词'}</h2>{song && <p>{songArtist(song)}</p>}</div>
-        <button type="button" className="react-icon-button" data-immersive-close aria-label="关闭沉浸式歌词" onClick={onClose}><Icon name="xmark" /></button>
+        <button type="button" className="react-immersive-nav-button" data-immersive-close aria-label="关闭沉浸式歌词" onClick={onClose}><Icon name="chevron-down" /></button>
+        <p className="react-immersive-header-label">正在播放</p>
+        <button type="button" className="react-immersive-nav-button" aria-label="切换全屏" onClick={toggleFullscreen}><Icon name="expand" /></button>
       </header>
       <div className="react-immersive-lyrics-grid">
-        <section className="react-vinyl-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
-          <div className={`react-vinyl ${isPlaying ? 'is-spinning' : ''}`}><div className="react-vinyl-record"><span className="react-vinyl-label">云音</span></div><SafeImage className="react-vinyl-cover" src={songImage(song)} width="360" height="360" alt={song ? `${title}封面` : ''} /><span className="react-vinyl-hole" /></div>
-          <div className="react-vinyl-meta"><strong>{song ? title : '选择一首歌曲开始播放'}</strong><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div>
+        <section className="react-immersive-cover-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
+          <div className="react-immersive-cover-wrap"><SafeImage className="react-immersive-cover" src={artwork} width="560" height="560" alt={song ? `${title}封面` : ''} /></div>
+          <div className="react-immersive-meta"><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button></div>
+          <PlayerFooterBar embedded />
         </section>
         <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={index === active ? 'is-active' : ''} aria-current={index === active ? 'true' : undefined} onClick={() => usePlaybackStore.getState().seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
         </section>
       </div>
-      <PlayerFooterBar embedded />
     </div>
   </dialog>
 }
