@@ -8690,3 +8690,89 @@ textarea:focus-visible {
         width: 100%;
     }
 }
+
+/* Final runtime fixes: keep the migrated surface translucent, compact and
+   independent from the legacy footer rules above. */
+.react-player-footer#player-footer {
+    background: color-mix(in srgb, var(--app-surface-solid) 58%, transparent) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.25);
+    backdrop-filter: blur(28px) saturate(1.25);
+    transform: translate3d(-50%, 0, 0) translateZ(0) !important;
+    will-change: transform;
+    isolation: isolate;
+}
+
+.react-user-chip {
+    min-height: 2.2rem !important;
+    max-width: 10rem !important;
+    padding: .35rem .55rem !important;
+    border: 0 !important;
+    border-radius: .7rem !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.react-dialog {
+    margin: auto;
+    overflow: hidden;
+}
+
+.react-dialog-body {
+    min-height: 0;
+}
+
+.react-comments-dialog {
+    min-height: 0;
+    overflow: hidden !important;
+}
+
+.react-comments-dialog .react-comment-list {
+    max-block-size: min(52vh, 28rem);
+    overflow: auto;
+    scrollbar-width: none;
+}
+
+.react-comments-dialog .react-comment-list::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.react-immersive-lyrics-dialog {
+    overflow: hidden !important;
+}
+
+.react-immersive-lyrics {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.react-immersive-lyrics-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding-block-end: max(.45rem, env(safe-area-inset-bottom)) !important;
+}
+
+.react-immersive-cover-panel {
+    min-height: 0;
+}
+
+.react-immersive-lyrics footer.react-player-footer.react-immersive-footer {
+    flex: 0 0 auto;
+    margin-block-end: 0 !important;
+}
+
+@media (max-width: 560px) {
+    .react-immersive-lyrics-grid {
+        padding-block-end: max(.35rem, env(safe-area-inset-bottom)) !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-player-footer#player-footer {
+        will-change: auto;
+        transform: translateX(-50%) !important;
+    }
+}

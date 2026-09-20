@@ -16,6 +16,8 @@ export type PlaybackState = {
   muted: boolean
   mode: PlayMode
   quality: string
+  /** The exact source URL that resolved the current track, kept in memory for download reuse. */
+  resolvedUrl: string | null
   resolving: boolean
   error: string
   playSong: (song: Song, queue?: Song[], index?: number) => void
@@ -26,6 +28,8 @@ export type PlaybackState = {
   toggleMute: () => void
   setMode: (mode: PlayMode) => void
   setQuality: (quality: string) => void
+  setResolvedUrl: (url: string | null) => void
+  setCurrentSongUrl: (url: string) => void
   seek: (time: number) => void
   next: () => void
   previous: () => void
@@ -81,6 +85,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     ? readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode
     : 'list',
   quality: 'flac',
+  resolvedUrl: null,
   resolving: false,
   error: '',
   // Loading a new song is asynchronous. AudioRuntime owns the actual play
@@ -88,7 +93,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   playSong: (song, queue = get().queue, index = Math.max(0, queue.findIndex(item => songKey(item) === songKey(song)))) => {
     const nextQueue = queue.length ? queue : [song]
     const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song))
-    const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, error: '' }
+    const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, resolvedUrl: null, error: '' }
     set(next)
     persistPlayback({ ...get(), ...next })
   },
@@ -137,6 +142,16 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     set({ quality: next })
     persistPlayback({ ...get(), quality: next })
   },
+  setResolvedUrl: resolvedUrl => set({ resolvedUrl }),
+  setCurrentSongUrl: url => {
+    const state = get()
+    if (!state.currentSong) return
+    const currentKey = songKey(state.currentSong)
+    const currentSong = { ...state.currentSong, url }
+    const queue = state.queue.map(song => songKey(song) === currentKey ? { ...song, url } : song)
+    set({ currentSong, queue })
+    persistPlayback({ ...state, currentSong, queue })
+  },
   seek: time => {
     seekCommand(time)
     set({ currentTime: time })
@@ -167,7 +182,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const queue = state.queue.filter((_, itemIndex) => itemIndex !== index)
     if (!queue.length) {
       pauseCommand()
-      set({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0 })
+      set({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, resolvedUrl: null })
       persistPlayback({ ...state, queue: [], currentIndex: -1, currentSong: null, currentTime: 0 })
       return
     }

@@ -63,6 +63,26 @@ export function formatBytes(value: unknown): string {
   return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`
 }
 
+/**
+ * Normalize byte counts coming from cache indexes and source-shaped metadata.
+ * The API historically returned both numbers and labels such as `52 MB`.
+ */
+export function parseByteSize(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value : undefined
+  if (typeof value !== 'string') return undefined
+  const text = value.trim().replaceAll(',', '')
+  if (!text) return undefined
+  const plain = Number(text)
+  if (Number.isFinite(plain) && plain > 0) return plain
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*(B|K|KB|KIB|M|MB|MIB|G|GB|GIB|T|TB|TIB)$/i)
+  if (!match) return undefined
+  const amount = Number(match[1])
+  if (!Number.isFinite(amount) || amount <= 0) return undefined
+  const unit = match[2].toUpperCase()
+  const exponent = unit.endsWith('IB') ? { B: 0, KIB: 1, MIB: 2, GIB: 3, TIB: 4 }[unit as 'B' | 'KIB' | 'MIB' | 'GIB' | 'TIB'] ?? 0 : { B: 0, K: 1, KB: 1, M: 2, MB: 2, G: 3, GB: 3, T: 4, TB: 4 }[unit as 'B' | 'K' | 'KB' | 'M' | 'MB' | 'G' | 'GB' | 'T' | 'TB'] ?? 0
+  return amount * 1024 ** exponent
+}
+
 export function formatDate(value: unknown): string {
   const date = new Date(typeof value === 'number' ? value : String(value ?? ''))
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { hour12: false })

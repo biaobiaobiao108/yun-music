@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
-import { sameSong, songAlbum, songArtist, songImage, songKey, songTitle } from './types'
+import { sameSong, songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songTitle } from './types'
 import { useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 
 export function Icon({ name }: { name: string }) { return <i className={`fas fa-${name}`} aria-hidden="true" /> }
@@ -105,18 +105,18 @@ export function SafeImage({ src, fallback = '/music/assets/yun-yin.png', onError
 }
 
 function songDuration(song: Song): string {
-  const value = song.interval ?? song.duration
+  const value = songDurationValue(song)
   if (typeof value === 'string' && value.includes(':')) return value
   return formatDuration(value)
 }
 
 function songSize(song: Song): string {
-  const value = song.size ?? song.fileSize ?? song.sizeBytes
-  return value === undefined || value === null || value === '' || Number(value) <= 0 ? '—' : formatBytes(value)
+  const bytes = songSizeBytes(song)
+  return bytes === undefined ? '—' : formatBytes(bytes)
 }
 
 function songFormat(song: Song): string {
-  return String(song.format || song.type || song.quality || 'FLAC').toUpperCase()
+  return String(songFormatValue(song) || 'FLAC').toUpperCase()
 }
 
 export function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void }) {

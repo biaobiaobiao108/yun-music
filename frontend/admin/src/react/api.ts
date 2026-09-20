@@ -1,4 +1,5 @@
 import { requestBlob, requestJson } from '../../../shared/src/http'
+import { parseByteSize } from '../../../shared/src/runtime'
 import type { RuntimeConfig } from '../../../shared/src/runtime'
 
 export type AdminUser = { name: string; hasPassword?: boolean }
@@ -15,6 +16,11 @@ export type AdminSong = Record<string, unknown> & {
   picUrl?: string
   source?: string
   interval?: string | number
+  duration?: string | number
+  size?: number | string
+  fileSize?: number | string
+  sizeBytes?: number | string
+  format?: string
   meta?: Record<string, unknown>
 }
 export type AdminPlaylist = Record<string, unknown> & { id: string; name: string; list: AdminSong[] }
@@ -47,6 +53,7 @@ function asRecord(value: unknown): UnknownRecord | null {
 function firstText(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (value === undefined || value === null) continue
+    if (typeof value === 'object') continue
     const text = typeof value === 'string' ? value.trim() : String(value)
     if (text) return text
   }
@@ -63,16 +70,79 @@ function arrayValue(value: unknown): unknown[] {
   return []
 }
 
+function qualitySize(record: UnknownRecord, preferredQuality: unknown): unknown {
+  const preferred = String(preferredQuality ?? '').trim()
+  for (const candidate of [record.qualitys, record._qualitys, record.qualities, record.quality]) {
+    if (Array.isArray(candidate)) {
+      const entries = candidate.filter(item => item && typeof item === 'object') as UnknownRecord[]
+      const entry = entries.find(item => String(item.type ?? item.quality ?? item.name ?? '').trim() === preferred) ?? entries[0]
+      const size = entry?.size ?? entry?.fileSize ?? entry?.sizeBytes ?? entry?.bytes
+      if (size !== undefined && size !== null && size !== '') return size
+    } else if (candidate && typeof candidate === 'object') {
+      const table = candidate as UnknownRecord
+      const preferredEntry = preferred && table[preferred] && typeof table[preferred] === 'object' ? table[preferred] as UnknownRecord : null
+      const directSize = preferredEntry?.size ?? preferredEntry?.fileSize ?? preferredEntry?.sizeBytes ?? preferredEntry?.bytes
+      if (directSize !== undefined && directSize !== null && directSize !== '') return directSize
+      for (const value of Object.values(table)) {
+        if (!value || typeof value !== 'object') continue
+        const entry = value as UnknownRecord
+        const size = entry.size ?? entry.fileSize ?? entry.sizeBytes ?? entry.bytes
+        if (size !== undefined && size !== null && size !== '') return size
+      }
+    }
+  }
+  return undefined
+}
+
 export function normalizeAdminSong(value: unknown): AdminSong {
   const record = asRecord(value) ?? {}
-  const { album: _legacyAlbum, ...canonicalRecord } = record
+  const { album: legacyAlbum, ...canonicalRecord } = record
   const meta = asRecord(record.meta) ?? {}
+  const albumRecord = asRecord(legacyAlbum)
+  const nestedMetaAlbum = asRecord(meta.album)
+  const songInfo = asRecord(record.songInfo) ?? {}
+  const info = asRecord(record.info) ?? {}
+  const data = asRecord(record.data) ?? {}
+  const metadata = asRecord(record.metadata) ?? {}
+  const songInfoMeta = asRecord(songInfo.meta) ?? {}
+  const infoMeta = asRecord(info.meta) ?? {}
+  const dataMeta = asRecord(data.meta) ?? {}
   const id = firstText(record.id, record.songmid, record.songId, record.hash, meta.songId, meta.songmid, meta.id)
-  const name = firstText(record.name, record.title, record.songName, meta.name, meta.title)
-  const singer = firstText(record.singer, record.artist, record.artists, meta.singer, meta.artist, meta.artists)
-  const albumName = firstText(record.albumName)
-  const img = firstText(record.img, record.picUrl, record.pic, record.cover, meta.picUrl, meta.img, meta.pic, meta.cover)
-  const interval = firstText(record.interval, record.duration, meta.interval, meta.duration)
+  const name = firstText(record.name, record.title, record.songName, meta.name, meta.title, songInfo.name, songInfo.title, info.name, info.title, data.name, data.title)
+  const artistValues = [record.artists, meta.artists, songInfo.artists, info.artists, data.artists].flatMap(value => Array.isArray(value) ? value.map(item => firstText(asRecord(item)?.name, asRecord(item)?.artist, asRecord(item)?.singer)) : []).filter(Boolean)
+  const singer = firstText(record.singer, record.artist, record.artistName, meta.singer, meta.singerName, meta.artist, songInfo.singer, songInfo.artist, info.singer, info.artist, data.singer, data.artist, artistValues.join(' / '))
+  const albumName = firstText(
+    record.albumName,
+    typeof legacyAlbum === 'string' ? legacyAlbum : undefined,
+    record.albumname,
+    record.albumTitle,
+    albumRecord?.name,
+    albumRecord?.title,
+    albumRecord?.albumName,
+    meta.albumName,
+    nestedMetaAlbum?.name,
+    nestedMetaAlbum?.title,
+    songInfo.albumName,
+    songInfo.albumTitle,
+    asRecord(songInfo.album)?.name,
+    asRecord(songInfo.album)?.title,
+    info.albumName,
+    asRecord(info.album)?.name,
+    asRecord(info.album)?.title,
+    data.albumName,
+    asRecord(data.album)?.name,
+    asRecord(data.album)?.title,
+    metadata.albumName,
+    asRecord(metadata.album)?.name,
+    asRecord(metadata.album)?.title,
+    songInfoMeta.albumName,
+    infoMeta.albumName,
+    dataMeta.albumName,
+  )
+  const img = firstText(record.img, record.picUrl, record.pic, record.cover, meta.picUrl, meta.img, meta.pic, meta.cover, songInfo.img, songInfo.picUrl, info.img, info.picUrl, data.img, data.picUrl, metadata.img, metadata.picUrl)
+  const interval = firstText(record.interval, record.duration, record.durationMs, meta.interval, meta.duration, meta.durationMs, songInfo.interval, songInfo.duration, info.interval, info.duration, data.interval, data.duration)
+  const size = record.size ?? record.fileSize ?? record.sizeBytes ?? record.bytes ?? meta.size ?? meta.fileSize ?? meta.sizeBytes ?? meta.bytes ?? songInfo.size ?? songInfo.fileSize ?? songInfo.sizeBytes ?? songInfo.bytes ?? info.size ?? info.fileSize ?? info.sizeBytes ?? info.bytes ?? data.size ?? data.fileSize ?? data.sizeBytes ?? data.bytes ?? metadata.size ?? metadata.fileSize ?? metadata.sizeBytes ?? metadata.bytes ?? qualitySize(record, record.quality ?? meta.quality ?? songInfo.quality ?? info.quality ?? data.quality) ?? qualitySize(meta, record.quality ?? meta.quality)
+  const format = firstText(record.format, record.type, record.ext, record.quality, meta.format, meta.type, meta.ext, meta.quality, songInfo.format, songInfo.type, songInfo.ext, songInfo.quality, info.format, info.type, info.ext, info.quality, data.format, data.type, data.ext, data.quality)
   return {
     ...canonicalRecord,
     ...(id ? { id } : {}),
@@ -81,6 +151,8 @@ export function normalizeAdminSong(value: unknown): AdminSong {
     ...(albumName ? { albumName } : {}),
     ...(img ? { img } : {}),
     ...(interval ? { interval } : {}),
+    ...(size !== undefined && size !== null && size !== '' ? { size } : {}),
+    ...(format ? { format } : {}),
     meta,
   } as AdminSong
 }

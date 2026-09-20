@@ -4,7 +4,7 @@ import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
 import { useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 import { sameSong, songArtist, songImage, songTitle } from './types'
-import { normalizeCachePlaybackUrl } from './media_url'
+import { buildCachePlaybackUrl, extractRemotePlaybackUrl, parseCachePlaybackUrl } from './media_url'
 
 let immersiveLyricsTrigger: HTMLButtonElement | null = null
 
@@ -26,6 +26,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
   const volume = usePlaybackStore(state => state.volume)
   const muted = usePlaybackStore(state => state.muted)
   const mode = usePlaybackStore(state => state.mode)
+  const resolvedUrl = usePlaybackStore(state => state.resolvedUrl)
   const toggle = usePlaybackStore(state => state.toggle)
   const next = usePlaybackStore(state => state.next)
   const previous = usePlaybackStore(state => state.previous)
@@ -33,6 +34,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
   const setVolume = usePlaybackStore(state => state.setVolume)
   const toggleMute = usePlaybackStore(state => state.toggleMute)
   const setMode = usePlaybackStore(state => state.setMode)
+  const setCurrentSongUrl = usePlaybackStore(state => state.setCurrentSongUrl)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const setImmersiveLyrics = usePlayerUiStore(state => state.setImmersiveLyrics)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
@@ -62,23 +64,54 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
     if (!currentSong) return
     if (embedded) setImmersiveLyrics(false)
     try {
-      if (typeof currentSong.url === 'string' && currentSong.url.startsWith('/api/music/cache/file/')) {
-        const link = document.createElement('a')
-        link.href = normalizeCachePlaybackUrl(currentSong.url, userName)
-        link.download = `${songTitle(currentSong)}.mp3`
-        link.style.display = 'none'
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-        notify('已开始下载')
+      const currentReference = parseCachePlaybackUrl(currentSong.url)
+      let cachedItem = currentReference ? {
+        filename: currentReference.filename,
+        folder: currentReference.folder,
+        username: currentReference.username,
+      } : null
+
+      // A normally-playing online song has no URL on its Song object. Look up
+      // the cache index before asking the server to download anything so a
+      // completed background cache can be moved to /music without resolving
+      // the source again.
+      if (!cachedItem) {
+        try {
+          const listed = await playerApi.cacheList(userName || undefined)
+          const items = listed.data ?? []
+          const match = items.find(item => {
+            if (String(item.folder) !== 'cache') return false
+            if (item.songInfo && sameSong(item.songInfo, currentSong)) return true
+            return String(item.songmid ?? '') !== '' && String(item.songmid ?? '') === String(currentSong.songmid ?? currentSong.id ?? '') && String(item.source || '') === String(currentSong.source || '')
+          })
+          if (match) cachedItem = { filename: String(match.filename), folder: 'cache', username: String(match.rawUsername || match.username || userName || '').trim() || undefined }
+        } catch {
+          // A cache index read is an optimization. The already-resolved source
+          // below is still safe to submit to the server download queue.
+        }
+      }
+
+      if (cachedItem) {
+        if (cachedItem.folder === 'music') {
+          notify('歌曲已经在下载目录中')
+          return
+        }
+        const result = await playerApi.cacheMove([{ filename: cachedItem.filename, folder: cachedItem.folder, user: cachedItem.username, rawUsername: cachedItem.username }], 'music')
+        if (Number(result.successCount || 0) < 1) throw new Error('缓存文件尚未准备好，请稍后再试')
+        const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username })
+        setCurrentSongUrl(nextUrl)
+        notify('已移入下载目录，后续播放不会重复消耗音源次数')
+        setDrawer('download')
         return
       }
-      const result = typeof currentSong.url === 'string' ? { url: currentSong.url } : await playerApi.songUrl(currentSong, 'flac', undefined, true)
+
+      const remoteUrl = extractRemotePlaybackUrl(resolvedUrl) ?? extractRemotePlaybackUrl(currentSong.url)
+      const result = remoteUrl ? { url: remoteUrl } : await playerApi.songUrl(currentSong, 'flac', undefined, true)
       await playerApi.download(currentSong, result.url, 'flac')
-      notify('已加入下载队列')
+      notify('已加入下载队列，继续复用当前播放链接')
       setDrawer('download')
     } catch (error) { notify(error instanceof Error ? error.message : '下载失败') }
-  }, [currentSong, embedded, notify, setDrawer, setImmersiveLyrics, userName])
+  }, [currentSong, embedded, notify, resolvedUrl, setCurrentSongUrl, setDrawer, setImmersiveLyrics, userName])
 
   const toggleLike = useCallback(async () => {
     if (!currentSong) { notify('请选择歌曲后再收藏'); return }

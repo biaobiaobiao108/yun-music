@@ -6313,3 +6313,43 @@ textarea:focus-visible {
         transform: none;
     }
 }
+
+/* Native dialogs start at the UA static position unless their layout is
+   constrained explicitly. Keep admin forms centered and make only the body
+   scroll, so the title and actions never drift out of the viewport. */
+.admin-react-dialog {
+    margin: auto;
+    max-height: min(90dvh, 42rem);
+    overflow: hidden;
+}
+
+.admin-react-dialog-content {
+    display: flex;
+    min-height: 0;
+    max-height: inherit;
+    flex-direction: column;
+}
+
+.admin-react-dialog-content > header {
+    flex: 0 0 auto;
+}
+
+.admin-react-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: none;
+}
+
+.admin-react-dialog-body::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+@media (max-width: 620px) {
+    .admin-react-dialog {
+        width: min(100% - 1rem, 32rem);
+        max-height: calc(100dvh - 1rem);
+    }
+}

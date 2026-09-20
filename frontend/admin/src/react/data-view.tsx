@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { adminApi, adminSongId, type AdminData, type AdminPlaylist, type AdminSong } from './api'
 import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Modal, Panel, SelectMenu } from './components'
 import { useAdminStore } from './store'
-import { formatBytes, formatDuration, safeImageUrl } from '../../../shared/src/runtime'
+import { formatBytes, formatDuration, parseByteSize, safeImageUrl } from '../../../shared/src/runtime'
 
 type ListKind = 'all' | 'default' | 'love' | 'user'
 
@@ -30,24 +30,93 @@ function textOf(value: unknown, fallback = '—'): string {
   return text || fallback
 }
 
+function songTitle(song: AdminSong): string {
+  const meta = song.meta
+  const nested = (value: unknown) => value && typeof value === 'object' ? value as Record<string, unknown> : undefined
+  const songInfo = nested(song.songInfo)
+  const info = nested(song.info)
+  const data = nested(song.data)
+  return textOf(song.name ?? song.title ?? song.songName ?? meta?.name ?? meta?.title ?? songInfo?.name ?? songInfo?.title ?? info?.name ?? info?.title ?? data?.name ?? data?.title, '未知歌曲')
+}
+
+function songSinger(song: AdminSong): string {
+  const meta = song.meta
+  const nested = (value: unknown) => value && typeof value === 'object' ? value as Record<string, unknown> : undefined
+  const songInfo = nested(song.songInfo)
+  const info = nested(song.info)
+  const data = nested(song.data)
+  return textOf(song.singer ?? song.artist ?? song.artistName ?? meta?.singer ?? meta?.singerName ?? meta?.artist ?? songInfo?.singer ?? songInfo?.artist ?? info?.singer ?? info?.artist ?? data?.singer ?? data?.artist, '未知歌手')
+}
+
 function songAlbum(song: AdminSong): string {
-  return textOf(song.albumName)
+  const album = song.album
+  const albumRecord = album && typeof album === 'object' ? album as Record<string, unknown> : undefined
+  const metaAlbum = song.meta?.album && typeof song.meta.album === 'object' ? song.meta.album as Record<string, unknown> : undefined
+  const songInfo = song.songInfo && typeof song.songInfo === 'object' ? song.songInfo as Record<string, unknown> : undefined
+  const info = song.info && typeof song.info === 'object' ? song.info as Record<string, unknown> : undefined
+  const data = song.data && typeof song.data === 'object' ? song.data as Record<string, unknown> : undefined
+  const songInfoAlbum = songInfo?.album && typeof songInfo.album === 'object' ? songInfo.album as Record<string, unknown> : undefined
+  const infoAlbum = info?.album && typeof info.album === 'object' ? info.album as Record<string, unknown> : undefined
+  const dataAlbum = data?.album && typeof data.album === 'object' ? data.album as Record<string, unknown> : undefined
+  const metadata = song.metadata && typeof song.metadata === 'object' ? song.metadata as Record<string, unknown> : undefined
+  const songInfoMeta = songInfo?.meta && typeof songInfo.meta === 'object' ? songInfo.meta as Record<string, unknown> : undefined
+  const infoMeta = info?.meta && typeof info.meta === 'object' ? info.meta as Record<string, unknown> : undefined
+  const dataMeta = data?.meta && typeof data.meta === 'object' ? data.meta as Record<string, unknown> : undefined
+  return textOf(song.albumName ?? (typeof album === 'string' ? album : undefined) ?? song.albumname ?? song.albumTitle ?? albumRecord?.name ?? albumRecord?.title ?? albumRecord?.albumName ?? song.meta?.albumName ?? metaAlbum?.name ?? metaAlbum?.title ?? songInfo?.albumName ?? songInfo?.albumTitle ?? songInfoAlbum?.name ?? songInfoAlbum?.title ?? info?.albumName ?? infoAlbum?.name ?? infoAlbum?.title ?? data?.albumName ?? dataAlbum?.name ?? dataAlbum?.title ?? metadata?.albumName ?? (metadata?.album as Record<string, unknown> | undefined)?.name ?? (metadata?.album as Record<string, unknown> | undefined)?.title ?? songInfoMeta?.albumName ?? infoMeta?.albumName ?? dataMeta?.albumName)
 }
 
 function songCover(song: AdminSong): string {
-  return safeImageUrl(song.img ?? song.picUrl ?? song.meta?.picUrl ?? song.meta?.img)
+  const nested = (...values: unknown[]) => values.map(value => value && typeof value === 'object' ? value as Record<string, unknown> : undefined).flatMap(value => value ? [value.img, value.picUrl, value.pic, value.cover, value.coverUrl, value.image] : [])
+  return safeImageUrl(song.img ?? song.picUrl ?? song.meta?.picUrl ?? song.meta?.img ?? song.meta?.pic ?? song.meta?.cover ?? nested(song.songInfo, song.info, song.data, song.metadata)[0])
 }
 
 function songSize(song: AdminSong): string {
-  return formatBytes(song.size ?? song.fileSize ?? song.meta?.size)
+  const songInfo = song.songInfo && typeof song.songInfo === 'object' ? song.songInfo as Record<string, unknown> : undefined
+  const info = song.info && typeof song.info === 'object' ? song.info as Record<string, unknown> : undefined
+  const data = song.data && typeof song.data === 'object' ? song.data as Record<string, unknown> : undefined
+  const value = song.size ?? song.fileSize ?? song.sizeBytes ?? song.meta?.size ?? song.meta?.fileSize ?? song.meta?.sizeBytes ?? songInfo?.size ?? songInfo?.fileSize ?? songInfo?.sizeBytes ?? info?.size ?? info?.fileSize ?? info?.sizeBytes ?? data?.size ?? data?.fileSize ?? data?.sizeBytes ?? qualitySize(song, song.quality ?? song.meta?.quality)
+  const bytes = parseByteSize(value)
+  return bytes === undefined ? '—' : formatBytes(bytes)
+}
+
+function qualitySize(song: AdminSong, preferredQuality: unknown): unknown {
+  const record = song as Record<string, unknown>
+  const preferred = String(preferredQuality ?? '').trim()
+  for (const candidate of [record.qualitys, record._qualitys, record.qualities, record.quality, song.meta?.qualitys, song.meta?._qualitys]) {
+    if (Array.isArray(candidate)) {
+      const entries = candidate.filter(item => item && typeof item === 'object') as Record<string, unknown>[]
+      const entry = entries.find(item => String(item.type ?? item.quality ?? item.name ?? '').trim() === preferred) ?? entries[0]
+      const size = entry?.size ?? entry?.fileSize ?? entry?.sizeBytes ?? entry?.bytes
+      if (size !== undefined && size !== null && size !== '') return size
+    } else if (candidate && typeof candidate === 'object') {
+      const table = candidate as Record<string, unknown>
+      const preferredEntry = preferred && table[preferred] && typeof table[preferred] === 'object' ? table[preferred] as Record<string, unknown> : null
+      const directSize = preferredEntry?.size ?? preferredEntry?.fileSize ?? preferredEntry?.sizeBytes ?? preferredEntry?.bytes
+      if (directSize !== undefined && directSize !== null && directSize !== '') return directSize
+      for (const item of Object.values(table)) {
+        if (!item || typeof item !== 'object') continue
+        const entry = item as Record<string, unknown>
+        const size = entry.size ?? entry.fileSize ?? entry.sizeBytes ?? entry.bytes
+        if (size !== undefined && size !== null && size !== '') return size
+      }
+    }
+  }
+  return undefined
 }
 
 function songFormat(song: AdminSong): string {
-  return textOf(song.format ?? song.type ?? song.ext ?? song.meta?.format, '—').toUpperCase()
+  const nested = (value: unknown) => value && typeof value === 'object' ? value as Record<string, unknown> : undefined
+  const songInfo = nested(song.songInfo)
+  const info = nested(song.info)
+  const data = nested(song.data)
+  return textOf(song.format ?? song.type ?? song.ext ?? song.quality ?? song.meta?.format ?? song.meta?.type ?? song.meta?.ext ?? song.meta?.quality ?? songInfo?.format ?? songInfo?.type ?? songInfo?.ext ?? songInfo?.quality ?? info?.format ?? info?.type ?? info?.ext ?? info?.quality ?? data?.format ?? data?.type ?? data?.ext ?? data?.quality, '—').toUpperCase()
 }
 
 function songDuration(song: AdminSong): string {
-  const value = song.interval ?? song.duration ?? song.meta?.interval ?? song.meta?.duration
+  const songInfo = song.songInfo && typeof song.songInfo === 'object' ? song.songInfo as Record<string, unknown> : undefined
+  const info = song.info && typeof song.info === 'object' ? song.info as Record<string, unknown> : undefined
+  const data = song.data && typeof song.data === 'object' ? song.data as Record<string, unknown> : undefined
+  const value = song.interval ?? song.duration ?? song.durationMs ?? song.meta?.interval ?? song.meta?.duration ?? song.meta?.durationMs ?? songInfo?.interval ?? songInfo?.duration ?? info?.interval ?? info?.duration ?? data?.interval ?? data?.duration
   if (typeof value === 'string' && /^\d{1,3}:\d{2}(?::\d{2})?$/.test(value.trim())) return value.trim()
   return formatDuration(value)
 }
@@ -105,8 +174,8 @@ function allRows(data: AdminData | null): SongRow[] {
 
 function DataSongRow({ row, position, selected, canDelete, onSelect, onDelete }: { row: SongRow; position: number; selected: boolean; canDelete: boolean; onSelect: (checked: boolean) => void; onDelete: () => void }) {
   const song = row.song
-  const title = textOf(song.name, '未知歌曲')
-  const singer = textOf(song.singer ?? song.artist, '未知歌手')
+  const title = songTitle(song)
+  const singer = songSinger(song)
   return <tr className="admin-data-song-row">
     <td className="admin-data-check-cell">{canDelete && <input type="checkbox" aria-label={`选择 ${title}`} checked={selected} onChange={event => onSelect(event.target.checked)} />}</td>
     <td className="admin-data-index-cell">{String(position + 1).padStart(2, '0')}</td>
@@ -176,7 +245,7 @@ export function DataView() {
     const needle = query.trim().toLocaleLowerCase()
     const filtered = sourceRows.filter(row => {
       if (!needle) return true
-      const searchable = [row.song.name, row.song.singer, row.song.artist, row.song.albumName, row.sourceName].map(value => String(value ?? '')).join(' ').toLocaleLowerCase()
+      const searchable = [songTitle(row.song), songSinger(row.song), songAlbum(row.song), row.sourceName].join(' ').toLocaleLowerCase()
       return searchable.includes(needle)
     })
     if (sort === 'default') return filtered
@@ -184,8 +253,8 @@ export function DataView() {
     const direction = sort.endsWith('-desc') ? -1 : 1
     const field = sort.replace(/-(?:asc|desc)$/, '')
     sorted.sort((left, right) => {
-      const a = field === 'artist' ? textOf(left.song.singer ?? left.song.artist, '') : field === 'album' ? songAlbum(left.song) : field === 'source' ? left.sourceName : textOf(left.song.name, '')
-      const b = field === 'artist' ? textOf(right.song.singer ?? right.song.artist, '') : field === 'album' ? songAlbum(right.song) : field === 'source' ? right.sourceName : textOf(right.song.name, '')
+      const a = field === 'artist' ? songSinger(left.song) : field === 'album' ? songAlbum(left.song) : field === 'source' ? left.sourceName : songTitle(left.song)
+      const b = field === 'artist' ? songSinger(right.song) : field === 'album' ? songAlbum(right.song) : field === 'source' ? right.sourceName : songTitle(right.song)
       return a.localeCompare(b, 'zh-CN') * direction
     })
     return sorted

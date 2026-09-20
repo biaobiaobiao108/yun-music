@@ -22,6 +22,11 @@ describe('React admin frontend', () => {
     expect(adminSongId(data.userList?.[0]?.list[0] ?? {}, '0')).toBe('88')
   })
 
+  it('normalizes legacy nested duration, format and quality size fields', () => {
+    const data = normalizeAdminData({ loveList: [{ title: '旧歌曲', artist: '旧歌手', meta: { album: { name: '旧专辑' }, interval: '03:21', ext: 'flac', qualitys: [{ type: 'flac', size: '5 MB' }] } }] })
+    expect(data.loveList?.[0]).toMatchObject({ name: '旧歌曲', singer: '旧歌手', albumName: '旧专辑', interval: '03:21', format: 'flac', size: '5 MB' })
+  })
+
   it('publishes a minimal shell with a hashed React module entry', () => {
     const html = read('public/index.html')
     expect(html).toContain('<div id="root"></div>')

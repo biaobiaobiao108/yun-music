@@ -4,12 +4,11 @@ import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
 import { AboutView, AddToListDialog, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchDetailView, SearchView, SettingsView, UserLoginDialog } from './views'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSearchStore, useSettingsStore, useSleepTimerStore } from './store'
-import { songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
+import { songAlbum, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from '../features/player_history'
 import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
 import { emitPlaybackService } from './playback_service'
-import { configureAudioGraph, ensureAudioGraph, releaseAudioGraph } from './audio_graph'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from './media_url'
 import { PlayerFooterBar } from './player_footer'
 
@@ -139,6 +138,7 @@ function AudioRuntime() {
   const quality = usePlaybackStore(state => state.quality)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
   const setPlaying = usePlaybackStore(state => state.setPlaying)
+  const setResolvedUrl = usePlaybackStore(state => state.setResolvedUrl)
   const volume = usePlaybackStore(state => state.volume)
   const setQuality = usePlaybackStore(state => state.setQuality)
   const togglePlayback = usePlaybackStore(state => state.toggle)
@@ -214,8 +214,6 @@ function AudioRuntime() {
         historyRecordedKey.current = historyKey
         recordRecent(currentSong, quality)
       }
-      ensureAudioGraph(audio)
-      configureAudioGraph({ enabled: Boolean(settings.enableSoundEffects), preset: String(settings.soundEffectsPreset || 'flat') as 'flat' | 'vocal' | 'bass' | 'focus', gain: Number(settings.soundEffectsGain || 1) })
       if (settings.enableServerCache && currentSong && !currentSong.url) {
         const cacheKey = `${songKey(currentSong)}:${quality}`
         const playback = resolvedPlayback.current
@@ -271,9 +269,6 @@ function AudioRuntime() {
     return () => { audio.removeEventListener('play', onPlay); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
   }, [currentSong, enqueueCache, notify, quality, recordRecent, settings, setPlaying, setQuality, songId, volume])
 
-  useEffect(() => () => releaseAudioGraph(), [])
-  useEffect(() => { configureAudioGraph({ enabled: Boolean(settings.enableSoundEffects), preset: String(settings.soundEffectsPreset || 'flat') as 'flat' | 'vocal' | 'bass' | 'focus', gain: Number(settings.soundEffectsGain || 1) }) }, [settings.enableSoundEffects, settings.soundEffectsGain, settings.soundEffectsPreset])
-
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !currentSong || !songId) return
@@ -293,19 +288,28 @@ function AudioRuntime() {
           url: result.url,
           fromCache: Boolean(result.fromCache) || /\/api\/music\/cache\/file\//.test(result.url),
         }
+        setResolvedUrl(result.url)
         resolvedSongKey.current = songId
         audio.src = buildPlaybackUrl(result.url, currentSong, settings)
         audio.load()
         if (usePlaybackStore.getState().isPlaying) await audio.play()
       } catch (error) {
         if (cancelled) return
+        setResolvedUrl(null)
         setPlaying(false)
         setResolvedError(error instanceof Error ? error.message : '歌曲解析失败')
         notify(error instanceof Error ? error.message : '歌曲解析失败')
       }
     })()
-    return () => { cancelled = true; if (resolvedSongKey.current === songId) resolvedSongKey.current = ''; if (resolvedPlayback.current?.songKey === songId) resolvedPlayback.current = null; audio.pause(); audio.removeAttribute('src'); audio.load() }
-  }, [currentSong, notify, quality, setPlaying, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
+    return () => {
+      cancelled = true
+      const playbackUrl = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current.url : null
+      if (resolvedSongKey.current === songId) resolvedSongKey.current = ''
+      if (resolvedPlayback.current?.songKey === songId) resolvedPlayback.current = null
+      if (playbackUrl && usePlaybackStore.getState().resolvedUrl === playbackUrl) setResolvedUrl(null)
+      audio.pause(); audio.removeAttribute('src'); audio.load()
+    }
+  }, [currentSong, notify, quality, setPlaying, setResolvedUrl, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -320,7 +324,7 @@ function AudioRuntime() {
       if (error instanceof DOMException && error.name === 'NotAllowedError') notify('浏览器阻止了自动播放，请点击播放按钮')
     })
   }, [isPlaying, notify, setPlaying])
-  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.albumName || '云音'), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', togglePlayback); navigator.mediaSession.setActionHandler?.('pause', togglePlayback); navigator.mediaSession.setActionHandler?.('previoustrack', previousPlayback); navigator.mediaSession.setActionHandler?.('nexttrack', nextPlayback) }, [currentSong, nextPlayback, previousPlayback, togglePlayback])
+  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: songAlbum(currentSong), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', togglePlayback); navigator.mediaSession.setActionHandler?.('pause', togglePlayback); navigator.mediaSession.setActionHandler?.('previoustrack', previousPlayback); navigator.mediaSession.setActionHandler?.('nexttrack', nextPlayback) }, [currentSong, nextPlayback, previousPlayback, togglePlayback])
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
 

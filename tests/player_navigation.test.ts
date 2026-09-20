@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createPlayerHistoryController } from '../frontend/player/src/features/player_history'
-import { songAlbum } from '../frontend/player/src/react/types'
+import { songAlbum, songArtist, songDurationValue, songFormatValue, songSizeBytes, songSizeValue, songTitle } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
@@ -129,8 +129,16 @@ describe('React player navigation and state restoration', () => {
 
   it('reads album names from the canonical React song field', () => {
     expect(songAlbum({ albumName: '顶层专辑' })).toBe('顶层专辑')
-    expect(songAlbum({ meta: { albumName: '旧快照专辑' } })).toBe('—')
-    expect(songAlbum({ album: { name: '对象专辑' } })).toBe('—')
+    expect(songAlbum({ meta: { albumName: '旧快照专辑' } })).toBe('旧快照专辑')
+    expect(songAlbum({ album: { name: '对象专辑' } })).toBe('对象专辑')
+    expect(songSizeValue({ meta: { sizeBytes: 5242880 } })).toBe(5242880)
+    expect(songSizeValue({ meta: { qualitys: [{ type: 'flac', size: '5 MB' }] }, quality: 'flac' })).toBe('5 MB')
+    expect(songSizeBytes({ meta: { qualitys: [{ type: 'flac', size: '5 MB' }] }, quality: 'flac' })).toBe(5 * 1024 * 1024)
+    expect(songSizeBytes({ meta: { qualitys: [{ type: 'flac', size: '3.56M' }] }, quality: 'flac' })).toBeCloseTo(3.56 * 1024 * 1024)
+    expect(songTitle({ meta: { title: '旧标题' } })).toBe('旧标题')
+    expect(songArtist({ meta: { singerName: '旧歌手' } })).toBe('旧歌手')
+    expect(songDurationValue({ meta: { interval: '03:21' } })).toBe('03:21')
+    expect(songFormatValue({ meta: { ext: 'flac' } })).toBe('flac')
     expect(songAlbum({ name: '没有专辑' })).toBe('—')
   })
 

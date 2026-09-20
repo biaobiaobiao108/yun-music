@@ -3484,10 +3484,11 @@ export const checkAndCleanupCache = async (username?: string) => {
 /**
  * Switch files between 'cache' and 'music' folders
  */
-export const switchFolder = async (filenames: string[], username: string | undefined) => {
+export const switchFolder = async (filenames: string[], username: string | undefined, requestedTargetFolder?: CacheFolder) => {
     const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
     let successCount = 0
     let failCount = 0
+    const moved: Array<{ filename: string; from: CacheFolder; to: CacheFolder }> = []
 
     const cacheIndex = indexManager.load(normalizedUsername, 'cache')
     const musicIndex = indexManager.load(normalizedUsername, 'music')
@@ -3498,28 +3499,29 @@ export const switchFolder = async (filenames: string[], username: string | undef
     for (const filename of filenames) {
         let sourceFolder: 'cache' | 'music' | null = null
         let item: CacheItem | null = null
-        let inMusic: CacheItem | undefined = undefined
-
-        // Find which folder it belongs to
-        const inCache = Array.from(cacheIndex.values()).find(i => i.filename === filename)
-        if (inCache) {
-            sourceFolder = 'cache'
-            item = inCache
-        } else {
-            inMusic = Array.from(musicIndex.values()).find(i => i.filename === filename)
-            if (inMusic) {
-                sourceFolder = 'music'
-                item = inMusic
+        // An explicit destination makes this operation idempotent from the
+        // player's perspective: downloads always move cache -> music instead
+        // of accidentally toggling an already-downloaded file back to cache.
+        const sourceCandidates: CacheFolder[] = requestedTargetFolder
+            ? [requestedTargetFolder === 'music' ? 'cache' : 'music']
+            : ['cache', 'music']
+        for (const candidate of sourceCandidates) {
+            const index = candidate === 'cache' ? cacheIndex : musicIndex
+            const found = Array.from(index.values()).find(entry => entry.filename === filename)
+            if (found) {
+                sourceFolder = candidate
+                item = found
+                break
             }
         }
 
         if (!sourceFolder || !item) {
-            console.log(`[FileCache][DEBUG] switchFolder: not found in indexes`, { filename, inCache: !!inCache, inMusic: !!inMusic })
+            console.log(`[FileCache][DEBUG] switchFolder: not found in indexes`, { filename, requestedTargetFolder })
             failCount++
             continue
         }
 
-        const targetFolder: 'cache' | 'music' = sourceFolder === 'cache' ? 'music' : 'cache'
+        const targetFolder: CacheFolder = requestedTargetFolder || (sourceFolder === 'cache' ? 'music' : 'cache')
 
         // [Constraint] Cannot move from music subfolder to cache
         if (sourceFolder === 'music' && item.subPath && item.subPath !== '') {
@@ -3593,6 +3595,7 @@ export const switchFolder = async (filenames: string[], username: string | undef
                 item.folder = targetFolder
                 indexManager.update(normalizedUsername, item, targetFolder)
                 successCount++
+                moved.push({ filename, from: sourceFolder, to: targetFolder })
             } else {
                 console.log(`[FileCache][DEBUG] source missing`, { filename, sourcePath })
                 failCount++
@@ -3604,8 +3607,11 @@ export const switchFolder = async (filenames: string[], username: string | undef
         }
     }
 
-    if (successCount > 0) invalidateGlobalCacheStats()
-    return { successCount, failCount }
+    if (successCount > 0) {
+        invalidateCacheListSync(normalizedUsername)
+        invalidateGlobalCacheStats()
+    }
+    return { successCount, failCount, moved }
 }
 
 export const switchBaseLocation = async (filenames: string[], username: string | undefined) => {

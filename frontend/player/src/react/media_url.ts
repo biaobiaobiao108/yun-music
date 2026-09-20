@@ -2,6 +2,66 @@ import type { Song } from './types'
 
 type PlaybackSettings = Record<string, unknown>
 
+export type CacheFolder = 'cache' | 'music'
+
+export type CachePlaybackReference = {
+  filename: string
+  folder: CacheFolder
+  username?: string
+}
+
+const CACHE_FILE_PREFIX = '/api/music/cache/file/'
+
+function browserOrigin(): string {
+  return typeof window === 'undefined' ? 'http://localhost' : window.location.origin
+}
+
+/** Parse both public and private server-cache playback links. */
+export function parseCachePlaybackUrl(rawUrl: unknown): CachePlaybackReference | null {
+  const raw = String(rawUrl ?? '').trim()
+  if (!raw) return null
+  try {
+    const parsed = new URL(raw, browserOrigin())
+    if (!parsed.pathname.startsWith(CACHE_FILE_PREFIX)) return null
+    const target = parsed.pathname.slice(CACHE_FILE_PREFIX.length)
+    if (!target) return null
+    const segments = target.split('/').filter(Boolean)
+    if (!segments.length || segments.length > 2) return null
+    const username = segments.length === 2 ? decodeURIComponent(segments[0]) : undefined
+    const encodedFilename = segments.length === 2 ? segments[1] : segments[0]
+    const filename = decodeURIComponent(encodedFilename)
+    if (!filename) return null
+    const folder = parsed.searchParams.get('folder')
+    return { filename, folder: folder === 'music' ? 'music' : 'cache', ...(username ? { username } : {}) }
+  } catch {
+    return null
+  }
+}
+
+/** Build the same-origin cache route used by the player and download views. */
+export function buildCachePlaybackUrl(reference: CachePlaybackReference): string {
+  const username = String(reference.username ?? '').trim()
+  const encodedFilename = encodeURIComponent(reference.filename)
+  const target = username && username !== '_open' && username !== 'open' && username !== 'default'
+    ? `${encodeURIComponent(username)}/${encodedFilename}`
+    : encodedFilename
+  return `${CACHE_FILE_PREFIX}${target}?folder=${encodeURIComponent(reference.folder)}`
+}
+
+/** Extract a remote source URL from a direct URL or the same-origin relay URL. */
+export function extractRemotePlaybackUrl(rawUrl: unknown): string | undefined {
+  const raw = String(rawUrl ?? '').trim()
+  if (/^https?:\/\//i.test(raw)) return raw
+  try {
+    const parsed = new URL(raw, browserOrigin())
+    if (parsed.pathname !== '/api/music/download') return undefined
+    const value = parsed.searchParams.get('url')?.trim()
+    return value && /^https?:\/\//i.test(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Migrate cache links written by the pre-React player to the private route. */
 export function normalizeCachePlaybackUrl(rawUrl: unknown, username?: string | null): string {
   const url = String(rawUrl ?? '').trim()
@@ -9,7 +69,7 @@ export function normalizeCachePlaybackUrl(rawUrl: unknown, username?: string | n
   if (!url || !targetUser || targetUser === '_open' || targetUser === 'open' || targetUser === 'default') return url
   try {
     const parsed = new URL(url, typeof window === 'undefined' ? 'http://localhost' : window.location.origin)
-    const prefix = '/api/music/cache/file/'
+    const prefix = CACHE_FILE_PREFIX
     if (!parsed.pathname.startsWith(prefix)) return url
     const encodedTarget = parsed.pathname.slice(prefix.length)
     // New links already contain /<username>/<filename>. Old links contain

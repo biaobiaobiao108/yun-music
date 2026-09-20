@@ -413,7 +413,19 @@ export const createCacheRouter = (): Router => {
       } = await ctx.bodyJson<any>()
 
       if (!songInfo || !url) return ctx.fail(400, '缺少必要参数')
-      const safeDownloadUrl = await assertSafeRemoteHttpUrl(String(url))
+      let requestedUrl = String(url).trim()
+      try {
+        const requestOrigin = new URL(ctx.request.url).origin
+        const parsed = new URL(requestedUrl, requestOrigin)
+        if (parsed.origin === requestOrigin && parsed.pathname === '/api/music/download') {
+          requestedUrl = parsed.searchParams.get('url')?.trim() || requestedUrl
+        } else if (parsed.origin === requestOrigin && parsed.pathname.startsWith('/api/music/cache/file/')) {
+          return ctx.fail(409, '该歌曲已经位于服务器缓存中，请使用移动到下载目录操作')
+        }
+      } catch {
+        return ctx.fail(400, '下载地址不合法')
+      }
+      const safeDownloadUrl = await assertSafeRemoteHttpUrl(requestedUrl)
 
       const username = target.username
 
@@ -878,6 +890,10 @@ export const createCacheRouter = (): Router => {
 
     try {
       const payload = await ctx.bodyJson<any>()
+      const requestedTargetFolder = payload.targetFolder === undefined || payload.targetFolder === null || payload.targetFolder === ''
+        ? undefined
+        : (payload.targetFolder === 'cache' || payload.targetFolder === 'music' ? payload.targetFolder as fileCache.CacheFolder : null)
+      if (payload.targetFolder !== undefined && requestedTargetFolder === null) return ctx.fail(400, '目标目录不合法')
       const rawItems = Array.isArray(payload.items)
         ? payload.items
         : (payload.filenames ? (Array.isArray(payload.filenames) ? payload.filenames.map((f: string) => ({ filename: f, user: payload.user })) : [{ filename: payload.filenames, user: payload.user }]) : [])
@@ -896,12 +912,14 @@ export const createCacheRouter = (): Router => {
 
       let totalSuccess = 0
       let totalFail = 0
+      const moved: Array<{ filename: string; from: fileCache.CacheFolder; to: fileCache.CacheFolder; user: string }> = []
       for (const [user, filenames] of userGroup.entries()) {
-        const result = await fileCache.switchFolder(filenames, user)
+        const result = await fileCache.switchFolder(filenames, user, requestedTargetFolder ?? undefined)
         totalSuccess += result.successCount
         totalFail += result.failCount
+        moved.push(...result.moved.map(item => ({ ...item, user })))
       }
-      return ctx.json({ success: true, successCount: totalSuccess, failCount: totalFail })
+      return ctx.json({ success: true, successCount: totalSuccess, failCount: totalFail, moved })
     } catch (e: any) {
       return ctx.fail(400, toUserMessage(e, '移动文件失败，请稍后重试'))
     }
