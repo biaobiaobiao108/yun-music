@@ -49,12 +49,12 @@ function VolumeControl({ volume, muted, onVolumeChange, onToggleMute }: {
 
   const displayedVolume = muted ? 0 : volume
   const icon = muted || displayedVolume === 0 ? 'volume-xmark' : displayedVolume < .5 ? 'volume-low' : 'volume-high'
+  const volumeStyle = { '--volume': `${Math.round(displayedVolume * 100)}%` } as CSSProperties
   return <div ref={rootRef} className={`react-volume-control ${open ? 'is-open' : ''}`}>
     <button ref={triggerRef} type="button" className="player-secondary-action react-volume-trigger" aria-label={open ? '收起音量控制' : '展开音量控制'} aria-expanded={open} aria-controls="player-volume-popover" onClick={() => setOpen(value => !value)}><Icon name={icon} /></button>
     {open && <div id="player-volume-popover" className="react-volume-popover" role="dialog" aria-label="音量控制">
       <button type="button" className="react-volume-mute" aria-label={muted ? '取消静音' : '静音'} aria-pressed={muted} onClick={onToggleMute}><Icon name={muted ? 'volume-xmark' : 'volume-high'} /><span>{muted ? '已静音' : '音量'}</span></button>
-      <input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={displayedVolume} onChange={event => onVolumeChange(Number(event.target.value))} aria-label="音量大小" />
-      <output>{Math.round(displayedVolume * 100)}%</output>
+      <input className="react-volume-range" style={volumeStyle} type="range" min="0" max="1" step="0.01" value={displayedVolume} onChange={event => onVolumeChange(Number(event.target.value))} aria-label="音量大小" />
     </div>}
   </div>
 }
@@ -92,6 +92,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
   const safeCurrentTime = Number.isFinite(currentTime) && currentTime > 0 ? Math.min(currentTime, safeDuration) : 0
   const progressPercent = safeDuration > 0 ? Math.min(100, Math.max(0, safeCurrentTime / safeDuration * 100)) : 0
   const progressStyle = { '--progress': `${progressPercent}%` } as CSSProperties
+  const modeLabel = mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'
 
   const closeSongMenu = useCallback(() => {
     setSongMenuOpen(false)
@@ -210,14 +211,15 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
         <div className="react-footer-song">
           <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label="打开沉浸式歌词" disabled={!currentSong || embedded}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
           <div className="react-footer-song-meta">
-            <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong>{!embedded && <button ref={songMenuButtonRef} type="button" className="react-footer-song-menu-trigger" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!currentSong}><Icon name="ellipsis" /></button>}</div>
+            <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
             <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
           </div>
         </div>
         <div className="react-progress-row"><span className="react-progress-time"><Time value={safeCurrentTime} /></span><input style={progressStyle} type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><span className="react-progress-time"><Time value={safeDuration} /></span></div>
       </div>
       <div className="react-footer-actions">
-        <button type="button" className={`player-secondary-action ${mode !== 'list' ? 'is-active' : ''}`} aria-label={`播放模式：${mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'}`} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : mode === 'single' ? 'repeat-1' : 'repeat'} /></button>
+        {!embedded && <button ref={songMenuButtonRef} type="button" className="player-secondary-action react-song-menu-button" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!currentSong}><Icon name="ellipsis" /></button>}
+        <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
         <button type="button" id={embedded ? undefined : 'player-like-btn'} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
         {embedded && <>
           <button type="button" className="player-secondary-action" aria-label="打开评论" onClick={openComments}><Icon name="comments" /></button>

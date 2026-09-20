@@ -6877,7 +6877,7 @@ textarea:focus-visible {
     grid-template-columns: minmax(11rem, 1fr) minmax(18rem, 1.4fr) minmax(10rem, 1fr);
     align-items: center;
     gap: 1rem;
-    width: min(62rem, calc(100% - 2rem)) !important;
+    width: min(56rem, calc(100% - 2rem)) !important;
     min-height: 4.65rem;
     padding: .65rem .8rem;
     transform: translateX(-50%);
@@ -9032,5 +9032,136 @@ textarea:focus-visible {
     .react-volume-popover {
         transition: none;
         animation: none;
+    }
+}
+
+/* Final footer control pass: keep state readable through color and a small
+   focus underline, without painting circular pressed backgrounds around the
+   transport buttons. */
+.react-player-footer#player-footer .react-footer-actions {
+    gap: .12rem;
+}
+
+.react-player-footer#player-footer .react-song-menu-button,
+.react-player-footer#player-footer .react-mode-button {
+    position: relative;
+}
+
+.react-player-footer#player-footer .react-mode-button.is-active,
+.react-player-footer#player-footer .react-mode-button[aria-pressed="true"] {
+    color: var(--app-accent);
+}
+
+.react-mode-one {
+    position: absolute;
+    right: .34rem;
+    bottom: .25rem;
+    color: currentColor;
+    font-size: .42rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.react-player-footer#player-footer :is(.player-secondary-action, .react-song-menu-button, .react-volume-trigger):is(:hover, :active, :focus-visible, [aria-expanded="true"], .is-active),
+.react-player-footer#player-footer .react-volume-popover .react-volume-mute:is(:hover, :active, :focus-visible, [aria-pressed="true"]) {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.react-player-footer#player-footer :is(.player-secondary-action, .react-song-menu-button, .react-volume-trigger):focus-visible,
+.react-player-footer#player-footer .react-volume-popover .react-volume-mute:focus-visible {
+    outline: none !important;
+    box-shadow: inset 0 -2px 0 var(--app-accent) !important;
+}
+
+.react-player-footer#player-footer .react-play-button:focus-visible {
+    outline: none;
+    box-shadow: inset 0 -2px 0 var(--app-accent);
+}
+
+.react-volume-popover {
+    grid-template-columns: auto minmax(7rem, 1fr);
+    width: min(11.5rem, calc(100vw - 1.25rem));
+}
+
+.react-volume-popover .react-volume-range {
+    width: 100%;
+    height: .22rem;
+    min-width: 0;
+    padding: 0;
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);
+    cursor: pointer;
+}
+
+.react-volume-popover .react-volume-range::-webkit-slider-runnable-track {
+    height: .22rem;
+    border-radius: 999px;
+    background: transparent;
+}
+
+.react-volume-popover .react-volume-range::-webkit-slider-thumb {
+    width: .5rem;
+    height: .5rem;
+    margin-top: -.14rem;
+    appearance: none;
+    border: 0;
+    border-radius: 50%;
+    background: var(--app-accent);
+    opacity: 0;
+    transition: opacity var(--app-motion-fast, 140ms) ease;
+}
+
+.react-volume-popover .react-volume-range:hover::-webkit-slider-thumb,
+.react-volume-popover .react-volume-range:focus-visible::-webkit-slider-thumb {
+    opacity: 1;
+}
+
+.react-volume-popover .react-volume-range::-moz-range-track {
+    height: .22rem;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-text) 20%, transparent);
+}
+
+.react-volume-popover .react-volume-range::-moz-range-progress {
+    height: .22rem;
+    border-radius: 999px;
+    background: var(--app-accent);
+}
+
+.react-volume-popover .react-volume-range::-moz-range-thumb {
+    width: .5rem;
+    height: .5rem;
+    border: 0;
+    border-radius: 50%;
+    background: var(--app-accent);
+    opacity: 0;
+}
+
+.react-volume-popover .react-volume-range:hover::-moz-range-thumb,
+.react-volume-popover .react-volume-range:focus-visible::-moz-range-thumb {
+    opacity: 1;
+}
+
+@media (max-width: 560px) {
+    .react-player-footer#player-footer .react-footer-actions .player-secondary-action,
+    .react-player-footer#player-footer .react-footer-actions .react-volume-trigger {
+        width: 1.75rem;
+        min-width: 1.75rem;
+        height: 1.75rem;
+        min-height: 1.75rem;
+    }
+
+    .react-volume-popover {
+        width: min(11rem, calc(100vw - .9rem));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-volume-popover .react-volume-range::-webkit-slider-thumb {
+        transition: none;
     }
 }
