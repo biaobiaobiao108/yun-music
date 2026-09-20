@@ -1,72 +1,48 @@
-import { describe, expect, it } from 'bun:test';
-import fs from 'node:fs';
-import path from 'node:path';
+import { describe, expect, it } from 'bun:test'
+import fs from 'node:fs'
+import path from 'node:path'
 
-const projectRoot = path.join(import.meta.dir, '..');
-const adminSourceRoot = path.join(projectRoot, 'frontend/admin/src');
-const adminEntryPath = path.join(adminSourceRoot, 'index.ts');
-const adminHtmlPath = path.join(projectRoot, 'public/index.html');
+const root = path.join(import.meta.dir, '..')
+const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
 
-function readAdminSources(): string {
-    const files = fs.readdirSync(adminSourceRoot, { withFileTypes: true });
-    return files
-        .filter(file => file.isFile() && file.name.endsWith('.ts'))
-        .map(file => fs.readFileSync(path.join(adminSourceRoot, file.name), 'utf8'))
-        .concat(
-            fs.readdirSync(path.join(adminSourceRoot, 'features'), { withFileTypes: true })
-                .filter(file => file.isFile() && file.name.endsWith('.ts'))
-                .map(file => fs.readFileSync(path.join(adminSourceRoot, 'features', file.name), 'utf8'))
-        )
-        .join('\n');
-}
+describe('React admin frontend', () => {
+  it('publishes a minimal shell with a hashed React module entry', () => {
+    const html = read('public/index.html')
+    expect(html).toContain('<div id="root"></div>')
+    expect(html).toContain('<script type="module" src="app-')
+    expect(html).not.toContain('data-admin-action')
+    expect(html).not.toContain('id="login-overlay"')
+    expect(html).not.toContain('id="view-dashboard"')
+  })
 
-describe('Admin frontend modular entrypoint', () => {
-    it('keeps the entrypoint as a small composition root', () => {
-        const entry = fs.readFileSync(adminEntryPath, 'utf8');
-        expect(entry.split(/\r?\n/).length).toBeLessThan(250);
-        expect(entry).toContain('initDashboardFeature');
-        expect(entry).toContain('initSnapshotsFeature');
-        expect(entry).not.toContain('(window as any).app = app;');
-        expect(entry).toContain('initAdminAccessibility');
-    });
+  it('uses React composition and Zustand state without a window app bridge', () => {
+    const entry = read('frontend/admin/src/react/index.tsx')
+    const store = read('frontend/admin/src/react/store.ts')
+    const sources = [entry, store, read('frontend/admin/src/react/views.tsx'), read('frontend/admin/src/react/components.tsx')].join('\n')
+    expect(entry).toContain('createRoot')
+    expect(entry).toContain('LoginGate')
+    for (const view of ['DashboardView', 'UsersView', 'StorageView', 'DataView', 'ConfigView', 'LogsView', 'SnapshotsView', 'AboutView']) expect(sources).toContain(view)
+    expect(store).toContain("from 'zustand'")
+    expect(sources).toContain('<dialog')
+    expect(sources).toContain('role="alert"')
+    expect(sources).not.toMatch(/window\.app\s*=/)
+    expect(sources).not.toMatch(/data-admin-action/)
+    expect(sources).not.toMatch(/\bon(click|change|submit)\s*=/)
+  })
 
-    it('uses delegated admin actions without inline handlers or a window app bridge', () => {
-        const html = fs.readFileSync(adminHtmlPath, 'utf8');
-        const source = readAdminSources();
-        expect(html).toContain('data-admin-action=');
-        expect(html).not.toMatch(/\bon[a-z]+\s*=\s*["']/i);
-        expect(source).not.toMatch(/\bonclick\s*=/i);
-        expect(source).not.toContain('window.app');
-    });
-
-    it('ensures all views are siblings and balanced in html structure', () => {
-        const html = fs.readFileSync(adminHtmlPath, 'utf8');
-        const lines = html.split(/\r?\n/);
-        let divDepth = 0;
-        const viewDepths: Record<string, number> = {};
-        for (const line of lines) {
-            const opens = (line.match(/<div\b/g) || []).length;
-            const closes = (line.match(/<\/div>/g) || []).length;
-            divDepth += opens - closes;
-            const viewMatch = line.match(/id="(view-[a-z0-9-]+)"/);
-            if (viewMatch) {
-                viewDepths[viewMatch[1]] = divDepth;
-            }
-        }
-        expect(divDepth).toBe(0);
-        const expectedViews = [
-            'view-dashboard',
-            'view-users',
-            'view-storage',
-            'view-data',
-            'view-config',
-            'view-logs',
-            'view-snapshots',
-            'view-about',
-        ];
-        for (const viewId of expectedViews) {
-            expect(viewDepths[viewId]).toBe(3);
-        }
-    });
-});
-
+  it('keeps semantic tables, labelled forms and focus-safe dialogs in the stylesheet', () => {
+    const source = [
+      read('frontend/admin/src/react/index.tsx'),
+      read('frontend/admin/src/react/views.tsx'),
+      read('frontend/admin/src/react/components.tsx'),
+    ].join('\n')
+    const css = read('frontend/styles/admin.css')
+    expect(source).toContain('caption className="sr-only"')
+    expect(source).toContain('scope="col"')
+    expect(source).toContain('current-password')
+    expect(source).toContain('showModal()')
+    expect(source).toContain('previousFocus')
+    expect(css).toContain(':focus-visible')
+    expect(css).toContain('@media (max-width: 620px)')
+  })
+})

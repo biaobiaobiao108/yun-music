@@ -1,19 +1,17 @@
-const CACHE_NAME = 'yun-yin-web-v1';
+const CACHE_NAME = 'yun-yin-web-react-v2';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './login.html',
     // CSS
     './css/theme_variables.css',
-    './css/app.css',
     './assets/fontawesome/css/all.min.css',
-    // 核心 JS
+    // React 入口为哈希文件名，采用 Network First 动态加入缓存，
+    // 避免把过期的入口固定写入安装清单。
     './css/tailwind.generated.css',
-    // 第三方库
+    // 保留底层音频能力的静态资源
     './js/vendor-bridge.js',
-    // 音频效果
     './js/wave.js',
-    // 变调器
     './js/pitch-shifter/phase-vocoder.js',
     // 静态资源
     './assets/yun-yin.png',

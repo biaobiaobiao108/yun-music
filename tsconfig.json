@@ -3,6 +3,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "types": [
       "bun-types"
     ],
@@ -24,7 +25,11 @@
     }
   },
   "include": [
-    "src"
+    "src",
+    "frontend/**/*.tsx",
+    "frontend/shared/**/*.ts",
+    "frontend/admin/src/react/**/*.ts",
+    "frontend/player/src/react/**/*.ts"
   ],
   "exclude": [
     "node_modules"

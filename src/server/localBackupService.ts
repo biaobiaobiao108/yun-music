@@ -13,6 +13,23 @@ const MAX_LOCAL_BACKUP_EXTRACTED_BYTES = 512 * 1024 * 1024
 const MAX_UNZIP_OUTPUT_BYTES = 32 * 1024 * 1024
 const MAX_LOCAL_BACKUP_CONFIG_BYTES = 1 * 1024 * 1024
 
+type ArchiveTool = 'unzip' | 'tar'
+
+const detectArchiveTool = (): ArchiveTool => {
+  for (const [tool, args] of [
+    ['unzip', ['-v']],
+    ['tar', ['--version']],
+  ] as const) {
+    try {
+      const result = Bun.spawnSync([tool, ...args])
+      if (result.exitCode === 0) return tool
+    } catch {
+      // Try the next platform-provided archive utility.
+    }
+  }
+  throw new Error('服务器缺少 unzip 或 tar，无法读取备份压缩包')
+}
+
 const readLimitedStream = async (stream: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<Uint8Array> => {
   if (!stream) return new Uint8Array()
   const reader = stream.getReader()
@@ -39,7 +56,7 @@ const readLimitedStream = async (stream: ReadableStream<Uint8Array> | null, maxB
   return result
 }
 
-const runUnzip = async (args: string[], maxOutputBytes = MAX_UNZIP_OUTPUT_BYTES): Promise<string> => {
+const runArchiveCommand = async (args: string[], maxOutputBytes = MAX_UNZIP_OUTPUT_BYTES): Promise<string> => {
   const child = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe' })
   const stdoutPromise = readLimitedStream(child.stdout, maxOutputBytes)
   const stderrPromise = readLimitedStream(child.stderr, Math.min(maxOutputBytes, 512 * 1024))
@@ -136,12 +153,16 @@ const finishWrite = (output: fs.WriteStream): Promise<void> => new Promise((reso
 })
 
 const extractBackupEntry = async (
+  archiveTool: ArchiveTool,
   archivePath: string,
   entry: string,
   destination: string,
   maxBytes: number,
 ): Promise<number> => {
-  const child = Bun.spawn(['unzip', '-p', archivePath, entry], { stdout: 'pipe', stderr: 'pipe' })
+  const command = archiveTool === 'unzip'
+    ? ['unzip', '-p', archivePath, entry]
+    : ['tar', '-xOf', archivePath, entry]
+  const child = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' })
   const stderrPromise = readLimitedStream(child.stderr, 512 * 1024)
   const output = fs.createWriteStream(destination, { flags: 'wx', mode: 0o600 })
   let outputError: Error | null = null
@@ -187,7 +208,12 @@ const extractBackupEntry = async (
   }
 }
 
-const extractBackupEntries = async (archivePath: string, extractDir: string, entries: string[]): Promise<void> => {
+const extractBackupEntries = async (
+  archiveTool: ArchiveTool,
+  archivePath: string,
+  extractDir: string,
+  entries: string[],
+): Promise<void> => {
   let extractedBytes = 0
   const root = path.resolve(extractDir)
   for (const entry of entries) {
@@ -203,6 +229,7 @@ const extractBackupEntries = async (archivePath: string, extractDir: string, ent
     }
     fs.mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 })
     extractedBytes += await extractBackupEntry(
+      archiveTool,
       archivePath,
       entry,
       destination,
@@ -361,10 +388,17 @@ export const restoreLocalBackup = async (
     previousDbPath = path.join(tempDir, 'previous.db')
     previousUsersPath = path.join(tempDir, 'previous-users')
     fs.writeFileSync(archivePath, archiveData, { mode: 0o600 })
-    const entries = validateBackupEntries(await runUnzip(['unzip', '-Z1', archivePath]))
-    validateBackupEntryTypes(await runUnzip(['unzip', '-Z', '-l', archivePath]))
+    const archiveTool = detectArchiveTool()
+    const entriesListing = archiveTool === 'unzip'
+      ? await runArchiveCommand(['unzip', '-Z1', archivePath])
+      : await runArchiveCommand(['tar', '-tf', archivePath])
+    const detailedListing = archiveTool === 'unzip'
+      ? await runArchiveCommand(['unzip', '-Z', '-l', archivePath])
+      : await runArchiveCommand(['tar', '-tvf', archivePath])
+    const entries = validateBackupEntries(entriesListing)
+    validateBackupEntryTypes(detailedListing)
     fs.mkdirSync(extractDir, { recursive: true, mode: 0o700 })
-    await extractBackupEntries(archivePath, extractDir, entries)
+    await extractBackupEntries(archiveTool, archivePath, extractDir, entries)
     scanExtractedTree(extractDir)
 
     const databasePath = path.join(extractDir, 'database', 'yun-yin.db')

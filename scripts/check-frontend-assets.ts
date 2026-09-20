@@ -39,6 +39,12 @@ const deletedResourceNames = [
   'download_manager.js',
 ];
 
+const forbiddenDomMigrationPatterns = [
+  /data-event-click-action/i,
+  /data-admin-action/i,
+  /<script[^>]+>[^<]*(?:onclick|onchange|onsubmit)\s*=/is,
+];
+
 function readText(path: string): string {
   return readFileSync(join(repoRoot, path), 'utf8');
 }
@@ -128,6 +134,10 @@ const deletedReferences: string[] = [];
 const checkedReferences = new Set<string>();
 
 for (const file of [...htmlFiles, ...serviceWorkerFiles]) {
+  const content = readText(file);
+  if (file.endsWith('.html') && forbiddenDomMigrationPatterns.some((pattern) => pattern.test(content))) {
+    deletedReferences.push(`${file} -> legacy inline DOM handler`);
+  }
   const references = file.endsWith('.html')
     ? collectHtmlReferences(file)
     : collectServiceWorkerReferences(file);
@@ -170,13 +180,15 @@ const generatedFiles = [
   'public/music/js/songlist_manager.js',
   'public/music/js/download_manager.js',
   'public/music/js/pitch-shifter/phase-vocoder.js',
+  'public/music/login.js',
   'public/music/css/tailwind.generated.css',
 ];
 const trackedGeneratedFiles = generatedFiles.filter((file) => trackedFiles.has(file));
 const trackedChunkFiles = [...trackedFiles].filter((file) => file.startsWith('public/music/js/chunks/'));
 const trackedHashedEntryFiles = [...trackedFiles].filter((file) => /^public\/(?:music\/)?app-[a-z0-9]+\.js$/i.test(file));
+const trackedHashedLoginFiles = [...trackedFiles].filter((file) => /^public\/music\/login-[a-z0-9]+\.js$/i.test(file));
 
-if (missing.length || deletedReferences.length || trackedGeneratedFiles.length || trackedChunkFiles.length || trackedHashedEntryFiles.length) {
+if (missing.length || deletedReferences.length || trackedGeneratedFiles.length || trackedChunkFiles.length || trackedHashedEntryFiles.length || trackedHashedLoginFiles.length) {
   if (missing.length) {
     console.error('Missing frontend resources:');
     for (const item of missing) console.error(`  ${item}`);
@@ -185,9 +197,9 @@ if (missing.length || deletedReferences.length || trackedGeneratedFiles.length |
     console.error('Deleted frontend resources are still referenced:');
     for (const item of deletedReferences) console.error(`  ${item}`);
   }
-  if (trackedGeneratedFiles.length || trackedChunkFiles.length || trackedHashedEntryFiles.length) {
+  if (trackedGeneratedFiles.length || trackedChunkFiles.length || trackedHashedEntryFiles.length || trackedHashedLoginFiles.length) {
     console.error('Generated frontend files must not be tracked by Git:');
-    for (const item of [...trackedGeneratedFiles, ...trackedChunkFiles, ...trackedHashedEntryFiles]) console.error(`  ${item}`);
+    for (const item of [...trackedGeneratedFiles, ...trackedChunkFiles, ...trackedHashedEntryFiles, ...trackedHashedLoginFiles]) console.error(`  ${item}`);
   }
   process.exit(1);
 }

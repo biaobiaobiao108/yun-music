@@ -12,7 +12,7 @@ export type PlayerHistoryPayload = {
     tabId?: string;
     scope?: string;
     listId?: string;
-    kind?: 'artist' | 'album';
+    kind?: 'artist' | 'album' | 'playlist';
     id?: string;
     source?: string;
     order?: string;
@@ -83,6 +83,10 @@ function payloadFromState(state: unknown): PlayerHistoryPayload | null {
 function samePayload(left: PlayerHistoryPayload | null, right: PlayerHistoryPayload): boolean {
     if (!left) return false;
     return JSON.stringify(normalizePayload(left)) === JSON.stringify(normalizePayload(right));
+}
+
+function payloadUrl(payload: PlayerHistoryPayload): string | undefined {
+    return payload.tabId ? `#${encodeURIComponent(payload.tabId)}` : undefined;
 }
 
 function isPlayerHistoryState(state: unknown): state is PlayerHistoryState {
@@ -171,7 +175,7 @@ export function createPlayerHistoryController(options: {
         for (const field of HISTORY_FIELDS) delete existingState[field];
 
         const state = buildState(initialPayload, 0);
-        historyAdapter.replaceState({ ...existingState, ...state }, '');
+        historyAdapter.replaceState({ ...existingState, ...state }, '', payloadUrl(initialPayload));
         currentState = state;
         currentIndex = 0;
         maxIndex = 0;
@@ -192,11 +196,11 @@ export function createPlayerHistoryController(options: {
         const nextIndex = mode === 'push' ? currentIndex + 1 : currentIndex;
         const state = buildState(normalized, nextIndex);
         if (mode === 'push') {
-            historyAdapter.pushState(state, '');
+            historyAdapter.pushState(state, '', payloadUrl(normalized));
             currentIndex = nextIndex;
             maxIndex = nextIndex;
         } else {
-            historyAdapter.replaceState(state, '');
+            historyAdapter.replaceState(state, '', payloadUrl(normalized));
         }
         currentState = state;
         pendingDirection = null;

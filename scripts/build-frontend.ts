@@ -14,8 +14,9 @@ function copyHtml(source: string, target: string, entryName?: string): void {
 
 async function build() {
   const startTime = performance.now()
-  const adminEntry = path.join(import.meta.dir, '../frontend/admin/src/index.ts')
-  const playerEntry = path.join(import.meta.dir, '../frontend/player/src/index.ts')
+  const adminEntry = path.join(import.meta.dir, '../frontend/admin/src/react/index.tsx')
+  const playerEntry = path.join(import.meta.dir, '../frontend/player/src/react/index.tsx')
+  const playerLoginEntry = path.join(import.meta.dir, '../frontend/player/src/react/login.tsx')
   const adminHtmlSource = path.join(import.meta.dir, '../frontend/admin/index.html')
   const playerHtmlSource = path.join(import.meta.dir, '../frontend/player/index.html')
   const playerLoginSource = path.join(import.meta.dir, '../frontend/player/login.html')
@@ -72,10 +73,17 @@ async function build() {
   }
 
   // 1. Build Admin Panel
+  const adminChunkDir = path.join(publicRoot, 'js/chunks')
+  if (fs.existsSync(adminChunkDir)) fs.rmSync(adminChunkDir, { recursive: true, force: true })
   const adminResult = await Bun.build({
     entrypoints: [adminEntry],
     outdir: publicRoot,
-    naming: 'app-[hash].[ext]',
+    format: 'esm',
+    splitting: true,
+    naming: {
+      entry: 'app-[hash].[ext]',
+      chunk: 'js/chunks/[name]-[hash].[ext]',
+    },
     minify: shouldMinify,
     target: 'browser',
     sourcemap: isWatch ? 'inline' : 'none',
@@ -86,7 +94,7 @@ async function build() {
     return
   }
 
-  const adminOutput = adminResult.outputs.find(output => output.path.endsWith('.js'))
+  const adminOutput = adminResult.outputs.find(output => output.path.endsWith('.js') && !output.path.includes(`${path.sep}chunks${path.sep}`))
   if (!adminOutput) throw new Error('Admin entry output was not generated')
 
   // 2. Build Music Player
@@ -125,16 +133,40 @@ async function build() {
   const playerOutput = playerResult.outputs.find(output => output.path.endsWith('.js') && !output.path.includes(`${path.sep}chunks${path.sep}`))
   if (!playerOutput) throw new Error('Player entry output was not generated')
 
+  // 3. Build the dedicated React authentication entry. It intentionally has
+  // its own hash so login can be cached independently from the main player.
+  for (const filename of fs.readdirSync(publicMusicRoot)) {
+    if (/^login(?:-[a-z0-9]+)?\.js$/i.test(filename)) fs.rmSync(path.join(publicMusicRoot, filename), { force: true })
+  }
+  const loginResult = await Bun.build({
+    entrypoints: [playerLoginEntry],
+    outdir: publicMusicRoot,
+    naming: 'login-[hash].[ext]',
+    format: 'esm',
+    minify: shouldMinify,
+    target: 'browser',
+    sourcemap: isWatch ? 'inline' : 'none',
+  })
+  if (!loginResult.success) {
+    console.error('[Bun Bundler] Player login build failed:', loginResult.logs)
+    if (!isWatch) process.exit(1)
+    return
+  }
+  const loginOutput = loginResult.outputs.find(output => output.path.endsWith('.js'))
+  if (!loginOutput) throw new Error('Player login output was not generated')
+
   const adminFileName = path.basename(adminOutput.path)
   const playerFileName = path.basename(playerOutput.path)
+  const loginFileName = path.basename(loginOutput.path)
   copyHtml(adminHtmlSource, path.join(publicRoot, 'index.html'), adminFileName)
   copyHtml(playerHtmlSource, path.join(publicMusicRoot, 'index.html'), playerFileName)
-  copyHtml(playerLoginSource, path.join(publicMusicRoot, 'login.html'))
+  copyHtml(playerLoginSource, path.join(publicMusicRoot, 'login.html'), loginFileName)
 
   const duration = (performance.now() - startTime).toFixed(1)
   const adminSize = (fs.statSync(adminOutput.path).size / 1024).toFixed(1)
   const playerSize = (fs.statSync(playerOutput.path).size / 1024).toFixed(1)
-  console.log(`[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminFileName} ${adminSize}KB, player: ${playerFileName} ${playerSize}KB, minified: ${shouldMinify})`)
+  const loginSize = (fs.statSync(loginOutput.path).size / 1024).toFixed(1)
+  console.log(`[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminFileName} ${adminSize}KB, player: ${playerFileName} ${playerSize}KB, login: ${loginFileName} ${loginSize}KB, minified: ${shouldMinify})`)
 }
 
 async function main() {
@@ -142,8 +174,12 @@ async function main() {
   await build()
 
   if (isWatch) {
-    const adminSrc = path.join(import.meta.dir, '../frontend/admin/src')
-    const playerSrc = path.join(import.meta.dir, '../frontend/player/src')
+    const watchRoots = [
+      path.join(import.meta.dir, '../frontend/admin/src'),
+      path.join(import.meta.dir, '../frontend/player/src'),
+      path.join(import.meta.dir, '../frontend/shared'),
+      path.join(import.meta.dir, '../frontend/styles'),
+    ]
     let debounceTimer: Timer | null = null
 
     const onChange = (filename: string | null) => {
@@ -154,8 +190,9 @@ async function main() {
       }, 100)
     }
 
-    if (fs.existsSync(adminSrc)) fs.watch(adminSrc, { recursive: true }, (_, f) => onChange(f))
-    if (fs.existsSync(playerSrc)) fs.watch(playerSrc, { recursive: true }, (_, f) => onChange(f))
+    for (const watchRoot of watchRoots) {
+      if (fs.existsSync(watchRoot)) fs.watch(watchRoot, { recursive: true }, (_, f) => onChange(f))
+    }
     console.log('[Bun Bundler] Watching for changes in frontend/ ...')
   }
 }

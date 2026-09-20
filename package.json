@@ -29,13 +29,18 @@
     "archiver": "^8.0.0",
     "log4js": "^6.9.1",
     "music-tag-native": "^0.2.5",
-    "socks-proxy-agent": "^10.1.0"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "socks-proxy-agent": "^10.1.0",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",
     "@types/bun": "latest",
     "@types/crypto-js": "4.2.2",
     "@types/pako": "2.0.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "bun-plugin-tailwind": "0.1.2",
     "crypto-js": "4.2.0",
     "marked": "15.0.12",

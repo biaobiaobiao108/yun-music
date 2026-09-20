@@ -1,0 +1,354 @@
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { playerApi } from './api'
+import { Button, Drawer, Icon, Loading, Modal, SongMeta, Time, ToastRegion } from './components'
+import { AboutView, CommentsDialog, CreateListDialog, FavoritesView, LoginDialog, LyricsDialog, SearchView, SettingsView, UserLoginDialog } from './views'
+import { connectAudioCommands, connectPlayerNavigation, useAuthStore, useCacheStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore, useSleepTimerStore } from './store'
+import { songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
+import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
+import { createPlayerHistoryController } from '../features/player_history'
+import { configureAudioGraph, ensureAudioGraph, getAudioAnalyser, releaseAudioGraph, subscribeAudioGraph } from './audio_graph'
+
+const SongListView = lazy(() => import('./heavy_views').then(module => ({ default: module.SongListView })))
+const LeaderboardView = lazy(() => import('./heavy_views').then(module => ({ default: module.LeaderboardView })))
+const LocalMusicView = lazy(() => import('./heavy_views').then(module => ({ default: module.LocalMusicView })))
+
+const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
+const prefetchedUrls = new Map<string, { url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>()
+const prefetchControllers = new Map<string, AbortController>()
+
+const NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
+  { id: 'search', label: '搜索音乐', icon: 'search' },
+  { id: 'songlist', label: '歌单广场', icon: 'th-large' },
+  { id: 'leaderboard', label: '排行榜', icon: 'chart-line' },
+  { id: 'favorites', label: '我的音乐', icon: 'heart' },
+  { id: 'localmusic', label: '本地音乐', icon: 'folder-open' },
+  { id: 'settings', label: '设置', icon: 'gear' },
+  { id: 'about', label: '关于', icon: 'circle-info' },
+]
+
+function PlayerView({ tab, detail }: { tab: PlayerTab; detail: PlayerDetail | null }) {
+  const view = (() => {
+    switch (tab) {
+      case 'songlist': return <SongListView detail={detail?.page === 'songlist-detail' ? detail : null} />
+      case 'leaderboard': return <LeaderboardView />
+      case 'favorites': return <FavoritesView />
+      case 'localmusic': return <LocalMusicView />
+      case 'settings': return <SettingsView />
+      case 'about': return <AboutView />
+      default: return <SearchView detail={detail?.page === 'search-detail' ? detail : null} />
+    }
+  })()
+  return <Suspense fallback={<Loading label="正在加载页面…" />}>{view}</Suspense>
+}
+
+function Sidebar() {
+  const tab = usePlayerUiStore(state => state.tab)
+  const setTab = usePlayerUiStore(state => state.setTab)
+  const sidebarOpen = usePlayerUiStore(state => state.sidebarOpen)
+  const closeSidebar = usePlayerUiStore(state => state.closeSidebar)
+  const userName = useAuthStore(state => state.userName)
+  return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><div className="react-sidebar-brand"><img src="/music/assets/yun-yin.png" width="36" height="36" alt="云音图标" /><strong>云音</strong><button type="button" className="react-icon-button react-sidebar-close" onClick={closeSidebar} aria-label="关闭导航菜单"><Icon name="xmark" /></button></div><nav className="react-sidebar-nav"><p>发现音乐</p>{NAV_ITEMS.slice(0, 3).map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<p>我的音乐</p>{NAV_ITEMS.slice(3).map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav><div className="react-sidebar-user">{userName ? <><Icon name="circle-user" /><span>{userName}</span></> : <button type="button" onClick={() => usePlayerUiStore.getState().setDialog('userLogin')}><Icon name="circle-user" /><span>登录用户账户</span></button>}</div></aside></>
+}
+
+function TopBar() {
+  const tab = usePlayerUiStore(state => state.tab)
+  const toggleSidebar = usePlayerUiStore(state => state.toggleSidebar)
+  const setDialog = usePlayerUiStore(state => state.setDialog)
+  const setDrawer = usePlayerUiStore(state => state.setDrawer)
+  const userName = useAuthStore(state => state.userName)
+  const title = NAV_ITEMS.find(item => item.id === tab)?.label ?? '云音'
+  useEffect(() => { document.title = `${title} - 云音` }, [title])
+  return <header className="react-player-topbar"><button type="button" className="react-icon-button react-menu-button" aria-label="打开导航菜单" onClick={toggleSidebar}><Icon name="bars" /></button><div className="react-history-controls"><button type="button" className="react-icon-button" aria-label="后退" onClick={() => window.history.back()}><Icon name="arrow-left" /></button><button type="button" className="react-icon-button" aria-label="前进" onClick={() => window.history.forward()}><Icon name="arrow-right" /></button></div><div className="react-topbar-title"><p>云音播放器</p><h1>{title}</h1></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
+}
+
+function AudioRuntime() {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const currentSong = usePlaybackStore(state => state.currentSong)
+  const quality = usePlaybackStore(state => state.quality)
+  const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const setPlaying = usePlaybackStore(state => state.setPlaying)
+  const setProgress = usePlaybackStore(state => state.setProgress)
+  const volume = usePlaybackStore(state => state.volume)
+  const setQuality = usePlaybackStore(state => state.setQuality)
+  const settings = useSettingsStore(state => state.settings)
+  const [resolvedError, setResolvedError] = useState('')
+  const notify = usePlayerUiStore(state => state.notify)
+  const songId = currentSong ? songKey(currentSong) : ''
+  const recoveryAttempts = useRef(new Set<string>())
+  const cacheQueued = useRef(new Set<string>())
+
+  const prefetchNext = () => {
+    const state = usePlaybackStore.getState()
+    const duration = state.duration
+    if (!settings.enablePreloader || !state.currentSong || state.currentSong.url || !Number.isFinite(duration) || duration <= 0 || state.currentTime / duration < .78) return
+    if (!state.queue.length) return
+    const nextIndex = state.mode === 'random' ? Math.floor(Math.random() * state.queue.length) : (state.currentIndex + 1) % state.queue.length
+    const nextSong = state.queue[nextIndex]
+    if (!nextSong || nextSong.url) return
+    const key = `${songKey(nextSong)}:${quality}`
+    if (prefetchedUrls.has(key) || prefetchControllers.has(key)) return
+    const controller = new AbortController()
+    prefetchControllers.set(key, controller)
+    void playerApi.songUrl(nextSong, quality, controller.signal).then(result => {
+      if (!controller.signal.aborted && result.url) prefetchedUrls.set(key, result)
+    }).catch(() => undefined).finally(() => { prefetchControllers.delete(key) })
+  }
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    connectAudioCommands({ play: () => { void audio.play().catch(() => setPlaying(false)) }, pause: () => audio.pause(), seek: time => { audio.currentTime = time }, volume: next => { audio.volume = next } })
+    audio.volume = volume
+    const onPlay = () => {
+      setPlaying(true)
+      ensureAudioGraph(audio)
+      configureAudioGraph({ enabled: Boolean(settings.enableSoundEffects), preset: String(settings.soundEffectsPreset || 'flat') as 'flat' | 'vocal' | 'bass' | 'focus', gain: Number(settings.soundEffectsGain || 1) })
+      if (settings.enableServerCache && currentSong && !currentSong.url) {
+        const cacheKey = `${songKey(currentSong)}:${quality}`
+        if (!cacheQueued.current.has(cacheKey)) {
+          cacheQueued.current.add(cacheKey)
+          void useCacheStore.getState().enqueue(currentSong, quality).catch(() => cacheQueued.current.delete(cacheKey))
+        }
+      }
+    }
+    const onPause = () => setPlaying(false)
+    const onTime = () => { setProgress(audio.currentTime, audio.duration); prefetchNext() }
+    const onLoaded = () => {
+      const state = usePlaybackStore.getState()
+      const resumeTime = state.currentTime
+      setProgress(audio.currentTime, audio.duration)
+      if (settings.autoResume && resumeTime > 0 && resumeTime < audio.duration && recoveryAttempts.current.has(`resume:${songId}`) === false) {
+        audio.currentTime = resumeTime
+        setProgress(resumeTime, audio.duration)
+        recoveryAttempts.current.add(`resume:${songId}`)
+      }
+    }
+    const onEnded = () => { const state = usePlaybackStore.getState(); if (state.mode === 'single') { audio.currentTime = 0; void audio.play() } else state.next() }
+    const onError = () => {
+      if (settings.enableAutoDegradeQuality && currentSong && !currentSong.url) {
+        const currentQualityIndex = QUALITY_FALLBACKS.indexOf(quality)
+        const nextQuality = currentQualityIndex >= 0 ? QUALITY_FALLBACKS[currentQualityIndex + 1] : undefined
+        const attemptKey = `${songId}:${quality}`
+        if (nextQuality && !recoveryAttempts.current.has(attemptKey)) {
+          recoveryAttempts.current.add(attemptKey)
+          setQuality(nextQuality)
+          notify(`当前音质播放失败，已自动切换到 ${nextQuality}`)
+          return
+        }
+      }
+      setPlaying(false); setResolvedError('播放失败，请尝试切换音质或音源'); notify('播放失败，请尝试切换音质或音源')
+    }
+    audio.addEventListener('play', onPlay); audio.addEventListener('pause', onPause); audio.addEventListener('timeupdate', onTime); audio.addEventListener('loadedmetadata', onLoaded); audio.addEventListener('ended', onEnded); audio.addEventListener('error', onError)
+    return () => { audio.removeEventListener('play', onPlay); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
+  }, [currentSong, notify, quality, settings, setPlaying, setProgress, setQuality, songId, volume])
+
+  useEffect(() => () => releaseAudioGraph(), [])
+  useEffect(() => { configureAudioGraph({ enabled: Boolean(settings.enableSoundEffects), preset: String(settings.soundEffectsPreset || 'flat') as 'flat' | 'vocal' | 'bass' | 'focus', gain: Number(settings.soundEffectsGain || 1) }) }, [settings.enableSoundEffects, settings.soundEffectsGain, settings.soundEffectsPreset])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !currentSong || !songId) return
+    let cancelled = false
+    setResolvedError('')
+    void (async () => {
+      try {
+        const prefetchKey = `${songKey(currentSong)}:${quality}`
+        const result = typeof currentSong.url === 'string' && currentSong.url ? { url: currentSong.url } : prefetchedUrls.get(prefetchKey) ?? await playerApi.songUrl(currentSong, quality)
+        if (cancelled) return
+        prefetchedUrls.delete(prefetchKey)
+        audio.src = result.url
+        audio.load()
+        if (usePlaybackStore.getState().isPlaying) await audio.play()
+      } catch (error) {
+        if (cancelled) return
+        setPlaying(false)
+        setResolvedError(error instanceof Error ? error.message : '歌曲解析失败')
+        notify(error instanceof Error ? error.message : '歌曲解析失败')
+      }
+    })()
+    return () => { cancelled = true; audio.pause(); audio.removeAttribute('src'); audio.load() }
+  }, [currentSong, notify, quality, setPlaying, songId])
+
+  useEffect(() => { const audio = audioRef.current; if (!audio || !currentSong) return; if (isPlaying && audio.src) void audio.play().catch(() => setPlaying(false)); else if (!isPlaying) audio.pause() }, [currentSong, isPlaying, setPlaying])
+  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.album || '云音'), artwork: [{ src: safeImageUrl(currentSong.img ?? currentSong.pic) }] }); navigator.mediaSession.setActionHandler?.('play', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('pause', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('previoustrack', () => usePlaybackStore.getState().previous()); navigator.mediaSession.setActionHandler?.('nexttrack', () => usePlaybackStore.getState().next()) }, [currentSong])
+  return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
+}
+
+function VisualizerCanvas({ enabled }: { enabled: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [analyser, setAnalyser] = useState(getAudioAnalyser())
+  useEffect(() => subscribeAudioGraph(() => setAnalyser(getAudioAnalyser())), [])
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !enabled || !analyser) return
+    const context = canvas.getContext('2d')
+    if (!context) return
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    const draw = () => {
+      const width = canvas.clientWidth || 480
+      const height = canvas.clientHeight || 30
+      const ratio = Math.min(window.devicePixelRatio || 1, 2)
+      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); context.setTransform(ratio, 0, 0, ratio, 0, 0) }
+      analyser.getByteFrequencyData(data)
+      context.clearRect(0, 0, width, height)
+      const bars = Math.min(48, data.length)
+      const gap = 2
+      const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars)
+      for (let index = 0; index < bars; index += 1) {
+        const value = data[index] / 255
+        const barHeight = Math.max(2, value * height)
+        const x = index * (barWidth + gap)
+        const gradient = context.createLinearGradient(0, height, 0, height - barHeight)
+        gradient.addColorStop(0, 'rgba(16,185,129,.22)')
+        gradient.addColorStop(1, 'rgba(16,185,129,.9)')
+        context.fillStyle = gradient
+        context.fillRect(x, height - barHeight, barWidth, barHeight)
+      }
+    }
+    let frame = 0
+    const loop = () => { draw(); if (!reducedMotion) frame = requestAnimationFrame(loop) }
+    loop()
+    return () => cancelAnimationFrame(frame)
+  }, [analyser, enabled])
+  return enabled ? <canvas ref={canvasRef} className="react-footer-visualizer" aria-label="音频可视化" role="img" /> : null
+}
+
+function LegacyPlayerFooter() {
+  const currentSong = usePlaybackStore(state => state.currentSong)
+  const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const currentTime = usePlaybackStore(state => state.currentTime)
+  const duration = usePlaybackStore(state => state.duration)
+  const volume = usePlaybackStore(state => state.volume)
+  const muted = usePlaybackStore(state => state.muted)
+  const mode = usePlaybackStore(state => state.mode)
+  const toggle = usePlaybackStore(state => state.toggle)
+  const next = usePlaybackStore(state => state.next)
+  const previous = usePlaybackStore(state => state.previous)
+  const seek = usePlaybackStore(state => state.seek)
+  const setVolume = usePlaybackStore(state => state.setVolume)
+  const toggleMute = usePlaybackStore(state => state.toggleMute)
+  const setMode = usePlaybackStore(state => state.setMode)
+  const setDialog = usePlayerUiStore(state => state.setDialog)
+  const setDrawer = usePlayerUiStore(state => state.setDrawer)
+  const notify = usePlayerUiStore(state => state.notify)
+  const download = async () => { if (!currentSong) return; try { const result = typeof currentSong.url === 'string' ? { url: currentSong.url } : await playerApi.songUrl(currentSong, 'flac'); await playerApi.download(currentSong, result.url, 'flac'); notify('已加入下载队列'); setDrawer('download') } catch (error) { notify(error instanceof Error ? error.message : '下载失败') } }
+  return <footer id="player-footer" className="react-player-footer"><button type="button" className="react-footer-song" onClick={() => setDialog('lyrics')} aria-label="打开歌词"><img src={safeImageUrl(currentSong?.img ?? currentSong?.pic)} width="52" height="52" alt="" /><span><SongMeta song={currentSong} /></span></button><div className="react-footer-center"><div className="react-footer-controls"><button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button><button type="button" id="btn-play" className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button><button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button><button type="button" className={`player-secondary-action ${mode !== 'list' ? 'is-active' : ''}`} aria-label={`播放模式：${mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'}`} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : mode === 'single' ? 'repeat-1' : 'repeat'} /></button></div><div className="react-progress-row"><Time value={currentTime} /><input type="range" min="0" max={Math.max(duration, 0)} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><Time value={duration} /></div></div><div className="react-footer-actions"><button type="button" className="player-secondary-action" aria-label={muted ? '取消静音' : '静音'} onClick={toggleMute}><Icon name={muted || volume === 0 ? 'volume-xmark' : volume < 0.5 ? 'volume-low' : 'volume-high'} /></button><input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" /><button type="button" className="player-secondary-action" aria-label="打开评论" onClick={() => setDialog('comments')}><Icon name="comments" /></button><button type="button" className="player-secondary-action" aria-label="下载歌曲" onClick={() => void download()}><Icon name="download" /></button><button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={() => setDialog('sleep')}><Icon name="moon" /></button><button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button></div></footer>
+}
+
+function PlayerFooter() {
+  const showVisualizer = useSettingsStore(state => Boolean(state.settings.showFooterVisualizer))
+  return <><VisualizerCanvas enabled={showVisualizer} /><LegacyPlayerFooter /></>
+}
+
+function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const queue = usePlaybackStore(state => state.queue)
+  const currentIndex = usePlaybackStore(state => state.currentIndex)
+  const playSong = usePlaybackStore(state => state.playSong)
+  const remove = usePlaybackStore(state => state.removeFromQueue)
+  return <Drawer open={open} title={`播放队列（${queue.length}）`} onClose={onClose} labelledBy="queue-title"><ol className="react-queue-list">{queue.map((song, index) => <li key={`${songKey(song)}-${index}`} className={index === currentIndex ? 'is-current' : ''}><button type="button" onClick={() => playSong(song, queue, index)}><span>{index + 1}</span><span><strong>{songTitle(song)}</strong><small>{String(song.singer || '')}</small></span></button><button type="button" aria-label={`移除 ${songTitle(song)}`} onClick={() => remove(index)}><Icon name="xmark" /></button></li>)}</ol>{!queue.length && <p className="react-empty-text">队列为空</p>}</Drawer>
+}
+
+function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const tasks = useCacheStore(state => state.tasks)
+  const stats = useCacheStore(state => state.stats)
+  const load = useCacheStore(state => state.load)
+  const remove = useCacheStore(state => state.remove)
+  useEffect(() => { if (open) void load() }, [load, open])
+  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(stats?.cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(stats?.musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load()}><Icon name="rotate" />刷新</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); return <li key={id}><span><strong>{String(task.name || task.songKey || '下载任务')}</strong><small>{String(task.status || '等待中')}</small></span><button type="button" onClick={() => void remove(id)} aria-label="移除任务"><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
+}
+
+function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const remaining = useSleepTimerStore(state => state.remaining)
+  const deadline = useSleepTimerStore(state => state.deadline)
+  const setTimer = useSleepTimerStore(state => state.setTimer)
+  const cancelTimer = useSleepTimerStore(state => state.cancelTimer)
+  const tick = useSleepTimerStore(state => state.tick)
+  const [minutes, setMinutes] = useState('30')
+  useEffect(() => { if (!deadline) return; const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer) }, [deadline, tick])
+  const label = remaining > 0 ? `${Math.floor(remaining / 60)}分 ${remaining % 60}秒后停止` : '未设置定时器'
+  return <Modal open={open} title="睡眠定时器" onClose={onClose}><div className="react-sleep-timer"><p role="status">{label}</p><div className="react-dialog-actions">{[15, 30, 60, 90].map(value => <Button key={value} onClick={() => { setTimer(value); onClose() }}>{value} 分钟</Button>)}</div><form className="react-dialog-form" onSubmit={event => { event.preventDefault(); setTimer(Number(minutes)); onClose() }}><label htmlFor="sleep-minutes">自定义分钟数</label><input id="sleep-minutes" type="number" min="1" max="1440" value={minutes} onChange={event => setMinutes(event.target.value)} /><Button variant="primary" type="submit">开始计时</Button></form>{deadline && <Button onClick={() => { cancelTimer(); onClose() }}>取消定时器</Button>}</div></Modal>
+}
+
+export function PlayerShell() {
+  const tab = usePlayerUiStore(state => state.tab)
+  const detail = usePlayerUiStore(state => state.detail)
+  const drawer = usePlayerUiStore(state => state.drawer)
+  const setDrawer = usePlayerUiStore(state => state.setDrawer)
+  const dialog = usePlayerUiStore(state => state.dialog)
+  const setDialog = usePlayerUiStore(state => state.setDialog)
+  const currentSong = usePlaybackStore(state => state.currentSong)
+  const hydratePlayback = usePlaybackStore(state => state.hydrate)
+  const hydrateSettings = useSettingsStore(state => state.hydrate)
+  const hydrateLibrary = useLibraryStore(state => state.hydrate)
+  const keyboardShortcuts = useSettingsStore(state => Boolean(state.settings.enableKeyboardShortcuts))
+  useEffect(() => { hydratePlayback(); void hydrateSettings(); void hydrateLibrary() }, [hydrateLibrary, hydratePlayback, hydrateSettings])
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const editing = target?.matches('input, textarea, select, [contenteditable="true"]')
+      if (event.key === 'Escape') {
+        if (usePlayerUiStore.getState().dialog || usePlayerUiStore.getState().drawer || usePlayerUiStore.getState().sidebarOpen) {
+          event.preventDefault()
+          usePlayerUiStore.setState({ dialog: null, drawer: null, sidebarOpen: false })
+        }
+        return
+      }
+      if (!keyboardShortcuts || editing || event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.key === ' ' || event.key === 'Spacebar') { event.preventDefault(); usePlaybackStore.getState().toggle() }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); const state = usePlaybackStore.getState(); state.seek(Math.max(0, state.currentTime - 5)) }
+      else if (event.key === 'ArrowRight') { event.preventDefault(); const state = usePlaybackStore.getState(); state.seek(Math.min(state.duration || Infinity, state.currentTime + 5)) }
+      else if (event.key.toLowerCase() === 'm') { event.preventDefault(); usePlaybackStore.getState().toggleMute() }
+      else if (event.key.toLowerCase() === 'n') { event.preventDefault(); usePlaybackStore.getState().next() }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [keyboardShortcuts])
+  useEffect(() => {
+    const validTabs: PlayerTab[] = ['search', 'songlist', 'leaderboard', 'favorites', 'localmusic', 'settings', 'about']
+    const fromHash = window.location.hash.slice(1) as PlayerTab
+    const initialTab = validTabs.includes(fromHash) ? fromHash : 'search'
+    const historyController = createPlayerHistoryController()
+    historyController.initialize({ page: 'tab', tabId: initialTab })
+    usePlayerUiStore.getState().setTabFromHistory(initialTab)
+    const disconnect = connectPlayerNavigation(navigation => {
+      const detail = navigation.detail
+      historyController.push(detail ? { page: detail.page, tabId: navigation.tab, kind: detail.kind, id: detail.id, source: detail.source } : { page: 'tab', tabId: navigation.tab })
+    })
+    const onPop = () => {
+      const restored = historyController.handlePopState(window.history.state)
+      const tabName = (restored?.state.tabId || window.location.hash.slice(1)) as PlayerTab
+      if (validTabs.includes(tabName)) {
+        const isDetail = restored?.state.page === 'search-detail' || restored?.state.page === 'songlist-detail'
+        const restoredDetail = isDetail && restored?.state.kind && restored.state.id ? { page: restored.state.page, kind: restored.state.kind, id: restored.state.id, source: restored.state.source || 'wy' } as PlayerDetail : null
+        usePlayerUiStore.getState().setTabFromHistory(tabName, restoredDetail)
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    window.addEventListener('hashchange', onPop)
+    return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
+  }, [])
+  useEffect(() => { if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(usePlaybackStore.getState().duration)) { try { navigator.mediaSession.setPositionState({ duration: Math.max(0.1, usePlaybackStore.getState().duration), playbackRate: 1, position: Math.min(usePlaybackStore.getState().currentTime, usePlaybackStore.getState().duration) }) } catch { /* browser may reject transient media metadata */ } } }, [currentSong])
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerView tab={tab} detail={detail} /></main><PlayerFooter /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><LyricsDialog open={dialog === 'lyrics'} onClose={() => setDialog(null)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
+}
+
+export function PlayerAuthGate() {
+  const auth = useAuthStore()
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const submit = async (event: FormEvent) => { event.preventDefault(); try { await auth.login(password) } catch (e) { setError(e instanceof Error ? e.message : '登录失败') } }
+  return <main className="react-player-auth-page"><section className="react-player-auth-card"><img src="/music/assets/yun-yin.png" width="80" height="80" alt="云音图标" /><h1>云音</h1><p>输入密码以访问播放器</p><form onSubmit={submit}><label htmlFor="auth-password">访问密码</label><input id="auth-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required placeholder="请输入访问密码" />{error && <p className="react-error" role="alert">{error}</p>}<Button variant="primary" type="submit">进入播放器</Button></form></section></main>
+}
+
+export function PlayerApp() {
+  const checking = useAuthStore(state => state.checking)
+  const required = useAuthStore(state => state.playerAuthRequired)
+  const authenticated = useAuthStore(state => state.playerAuthenticated)
+  const hydrate = useAuthStore(state => state.hydrate)
+  useEffect(() => { void hydrate() }, [hydrate])
+  if (checking) return <main className="react-player-loading"><Loading label="正在准备播放器…" /></main>
+  if (required && !authenticated) return <PlayerAuthGate />
+  return <PlayerShell />
+}
+
+function formatBytes(value: unknown): string { const bytes = Number(value); if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'; const units = ['B', 'KB', 'MB', 'GB']; const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1); return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}` }
