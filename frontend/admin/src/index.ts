@@ -52,6 +52,8 @@ class App {
     processCpuHistory: number[] = [];
     systemMemHistory: number[] = [];
     processMemHistory: number[] = [];
+    cacheSizeHistory: number[] = [];
+    musicSizeHistory: number[] = [];
     request: AdminRequest;
 
     constructor() {

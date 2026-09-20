@@ -116,6 +116,10 @@ export function initDashboardFeature(context: AdminFeatureContext) {
         if (sysCpuText) sysCpuText.textContent = sysCpuVal.toFixed(2) + '%';
         if (procCpuText) procCpuText.textContent = procCpuVal.toFixed(2) + '%';
 
+        if (app.systemCpuHistory.length === 0) {
+            app.systemCpuHistory.push(sysCpuVal);
+            app.processCpuHistory.push(procCpuVal);
+        }
         app.systemCpuHistory.push(sysCpuVal);
         app.processCpuHistory.push(procCpuVal);
         if (app.systemCpuHistory.length > 20) {
@@ -147,6 +151,10 @@ export function initDashboardFeature(context: AdminFeatureContext) {
         if (sysMemText) sysMemText.textContent = sysMemVal.toFixed(2) + '%';
         if (procMemText) procMemText.textContent = procMemVal.toFixed(2) + '%';
 
+        if (app.systemMemHistory.length === 0) {
+            app.systemMemHistory.push(sysMemVal);
+            app.processMemHistory.push(procMemVal);
+        }
         app.systemMemHistory.push(sysMemVal);
         app.processMemHistory.push(procMemVal);
         if (app.systemMemHistory.length > 20) {
@@ -173,7 +181,7 @@ export function initDashboardFeature(context: AdminFeatureContext) {
             statCpuInfo.textContent = `${status.cpus} Cores @ ${speedGhz}GHz`;
         }
 
-        // 保持缓存与下载音乐数据同步
+        // --- 缓存与下载音乐监控卡片更新 ---
         if (status.cacheStats) {
             const cacheInfo = status.cacheStats.cache || { fileCount: 0, totalSize: 0 };
             const musicInfo = status.cacheStats.music || { fileCount: 0, totalSize: 0 };
@@ -186,6 +194,51 @@ export function initDashboardFeature(context: AdminFeatureContext) {
             const statMusicSize = document.getElementById('stat-music-size');
             if (statMusicCount) statMusicCount.textContent = `${musicInfo.fileCount || 0} 首`;
             if (statMusicSize) statMusicSize.textContent = app.formatFileSize(musicInfo.totalSize || 0);
+
+            // 进度条与占比计算 (以配额限制为基准，默认2000MB)
+            const cacheLimitMb = Number(status.cacheLimit) || 2000;
+            const cacheLimitBytes = cacheLimitMb * 1024 * 1024;
+            const cachePercent = Math.min(100, Math.max(0, ((cacheInfo.totalSize || 0) / cacheLimitBytes) * 100));
+            const musicPercent = Math.min(100, Math.max(0, ((musicInfo.totalSize || 0) / cacheLimitBytes) * 100));
+
+            const cacheProgress = document.getElementById('monitor-cache-progress');
+            if (cacheProgress) {
+                const widthVal = (cacheInfo.fileCount || 0) > 0 ? Math.max(cachePercent, 2) : 0;
+                cacheProgress.style.width = widthVal.toFixed(1) + '%';
+                cacheProgress.title = `配额占用: ${cachePercent.toFixed(1)}% (配额上限: ${cacheLimitMb} MB)`;
+            }
+
+            const musicProgress = document.getElementById('monitor-music-progress');
+            if (musicProgress) {
+                const widthVal = (musicInfo.fileCount || 0) > 0 ? Math.max(musicPercent, 2) : 0;
+                musicProgress.style.width = widthVal.toFixed(1) + '%';
+                musicProgress.title = `下载存储占用: ${app.formatFileSize(musicInfo.totalSize || 0)} (${musicInfo.fileCount || 0} 首)`;
+            }
+
+            // 缓存与下载音乐历史趋势图表
+            if (app.cacheSizeHistory.length === 0) {
+                app.cacheSizeHistory.push(cachePercent);
+            }
+            app.cacheSizeHistory.push(cachePercent);
+            if (app.cacheSizeHistory.length > 20) {
+                app.cacheSizeHistory.shift();
+            }
+
+            if (app.musicSizeHistory.length === 0) {
+                app.musicSizeHistory.push(musicPercent);
+            }
+            app.musicSizeHistory.push(musicPercent);
+            if (app.musicSizeHistory.length > 20) {
+                app.musicSizeHistory.shift();
+            }
+
+            app.renderMultiLineChart('cache-chart', [
+                { data: app.cacheSizeHistory, color: 'rgba(16, 185, 129, 0.4)', fill: true, label: 'Cache' }
+            ]);
+
+            app.renderMultiLineChart('music-chart', [
+                { data: app.musicSizeHistory, color: 'rgba(139, 92, 246, 0.4)', fill: true, label: 'Music' }
+            ]);
         }
     }
 

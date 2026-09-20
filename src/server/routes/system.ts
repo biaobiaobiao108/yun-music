@@ -207,6 +207,7 @@ export const createSystemRouter = (): Router => {
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
       cacheStats: fileCache.getGlobalCacheStats(),
+      cacheLimit: global.lx.config['user.cacheSizeLimit'] || 2000,
     }
     return ctx.json(stats)
   })
@@ -286,6 +287,7 @@ export const createSystemRouter = (): Router => {
       cpuModel: os.cpus()[0]?.model || 'Unknown',
       cpuSpeed: os.cpus()[0]?.speed || 0,
       cacheStats: fileCache.getGlobalCacheStats(),
+      cacheLimit: global.lx.config['user.cacheSizeLimit'] || 2000,
     }
 
     return ctx.json(status)

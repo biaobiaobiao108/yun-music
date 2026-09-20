@@ -315,43 +315,6 @@
                                 <p id="stat-uptime" class="stat-value">0h</p>
                             </div>
                         </div>
-
-                        <!-- 缓存音乐监控卡片 -->
-                        <div class="stat-card glass stat-clickable" role="button" tabindex="0" aria-label="查看缓存音乐" data-admin-action="switch-storage-cache">
-                            <div class="stat-icon cache-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <polyline points="12 6 12 12 16 14" />
-                                </svg>
-                            </div>
-                            <div class="stat-content">
-                                <h3>缓存音乐</h3>
-                                <div class="stat-value-pair">
-                                    <span id="stat-cache-count" class="stat-value">0 首</span>
-                                </div>
-                                <p id="stat-cache-size" class="stat-value-small"
-                                    style="margin-top: 4px; opacity: 0.6; font-size: 0.75rem;">0 B</p>
-                            </div>
-                        </div>
-
-                        <!-- 下载音乐监控卡片 -->
-                        <div class="stat-card glass stat-clickable" role="button" tabindex="0" aria-label="查看下载音乐" data-admin-action="switch-storage-music">
-                            <div class="stat-icon download-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                    <polyline points="7 10 12 15 17 10" />
-                                    <line x1="12" y1="15" x2="12" y2="3" />
-                                </svg>
-                            </div>
-                            <div class="stat-content">
-                                <h3>下载音乐</h3>
-                                <div class="stat-value-pair">
-                                    <span id="stat-music-count" class="stat-value">0 首</span>
-                                </div>
-                                <p id="stat-music-size" class="stat-value-small"
-                                    style="margin-top: 4px; opacity: 0.6; font-size: 0.75rem;">0 B</p>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- 实时监控面板 -->
@@ -404,6 +367,66 @@
                             </div>
                             <div class="chart-container">
                                 <svg id="mem-chart" width="100%" height="100%" viewBox="0 0 200 60"
+                                    preserveAspectRatio="none" style="overflow: visible;"></svg>
+                            </div>
+                        </div>
+
+                        <!-- 缓存音乐监控大卡片 -->
+                        <div class="monitor-card glass stat-clickable" role="button" tabindex="0" aria-label="查看并管理缓存音乐" data-admin-action="switch-storage-cache">
+                            <div class="monitor-card-header">
+                                <div class="monitor-card-title">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        style="width: 16px; height: 16px; color: #10b981;">
+                                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                                    </svg>
+                                    <span>缓存音乐</span>
+                                    <span class="monitor-link-badge">管理 ↗</span>
+                                </div>
+                                <div class="monitor-card-value">
+                                    <span id="stat-cache-count" title="缓存歌曲总数">0 首</span>
+                                    <span style="font-size: 0.8rem; opacity: 0.6; margin: 0 0.5rem;">/</span>
+                                    <span id="stat-cache-size" title="缓存占用大小"
+                                        style="color: var(--accent-primary);">0 B</span>
+                                </div>
+                            </div>
+                            <div class="progress-container">
+                                <div id="monitor-cache-progress" class="progress-bar-fill"
+                                    style="width: 0%; background: linear-gradient(90deg, #10b981, #06b6d4);"></div>
+                            </div>
+                            <div class="chart-container">
+                                <svg id="cache-chart" width="100%" height="100%" viewBox="0 0 200 60"
+                                    preserveAspectRatio="none" style="overflow: visible;"></svg>
+                            </div>
+                        </div>
+
+                        <!-- 下载音乐监控大卡片 -->
+                        <div class="monitor-card glass stat-clickable" role="button" tabindex="0" aria-label="查看并管理下载音乐" data-admin-action="switch-storage-music">
+                            <div class="monitor-card-header">
+                                <div class="monitor-card-title">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        style="width: 16px; height: 16px; color: #8b5cf6;">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                    <span>下载音乐</span>
+                                    <span class="monitor-link-badge" style="color: #8b5cf6; background: rgba(139, 92, 246, 0.1);">管理 ↗</span>
+                                </div>
+                                <div class="monitor-card-value">
+                                    <span id="stat-music-count" title="下载歌曲总数">0 首</span>
+                                    <span style="font-size: 0.8rem; opacity: 0.6; margin: 0 0.5rem;">/</span>
+                                    <span id="stat-music-size" title="下载占用大小"
+                                        style="color: var(--accent-secondary);">0 B</span>
+                                </div>
+                            </div>
+                            <div class="progress-container">
+                                <div id="monitor-music-progress" class="progress-bar-fill"
+                                    style="width: 0%; background: linear-gradient(90deg, #8b5cf6, #ec4899);"></div>
+                            </div>
+                            <div class="chart-container">
+                                <svg id="music-chart" width="100%" height="100%" viewBox="0 0 200 60"
                                     preserveAspectRatio="none" style="overflow: visible;"></svg>
                             </div>
                         </div>

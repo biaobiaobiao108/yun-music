@@ -51,6 +51,8 @@ export interface AdminApp {
     processCpuHistory: number[];
     systemMemHistory: number[];
     processMemHistory: number[];
+    cacheSizeHistory: number[];
+    musicSizeHistory: number[];
     request: AdminRequest;
     escapeHtml: (value: unknown) => string;
     formatFileSize: (value: number) => string;
