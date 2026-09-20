@@ -17,6 +17,7 @@ type AdminState = {
   storageFolder: 'cache' | 'music'
   snapshots: Snapshot[]
   logs: string[]
+  logType: 'app' | 'access' | 'login' | 'error'
   error: string
   toast: string
   hydrate: () => Promise<void>
@@ -24,6 +25,8 @@ type AdminState = {
   signOut: () => Promise<void>
   setView: (view: AdminView) => void
   setSelectedUser: (user: string) => void
+  setLogType: (type: 'app' | 'access' | 'login' | 'error') => void
+  setStorageFolder: (folder: 'cache' | 'music') => void
   loadView: (view?: AdminView) => Promise<void>
   notify: (message: string) => void
   clearToast: () => void
@@ -49,6 +52,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   storageFolder: 'cache',
   snapshots: [],
   logs: [],
+  logType: 'app',
   error: '',
   toast: '',
   hydrate: async () => {
@@ -86,9 +90,20 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     void get().loadView(view)
   },
   setSelectedUser: (selectedUser) => {
-    set({ selectedUser })
+    const view = get().view
+    set({
+      selectedUser,
+      ...(view === 'data' ? { data: null } : {}),
+      ...(view === 'snapshots' ? { snapshots: [] } : {}),
+      ...(view === 'storage' ? { storage: [] } : {}),
+    })
     if (get().view === 'data' || get().view === 'storage' || get().view === 'snapshots') void get().loadView()
   },
+  setLogType: (logType) => {
+    set({ logType })
+    if (get().view === 'logs') void get().loadView('logs')
+  },
+  setStorageFolder: (storageFolder) => set({ storageFolder }),
   loadView: async (requestedView) => {
     const view = requestedView ?? get().view
     const sequence = ++loadSequence
@@ -108,7 +123,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           const data = await adminApi.userData(user)
           if (sequence !== loadSequence) return
           set({ selectedUser: user, data })
-        }
+        } else if (sequence === loadSequence) set({ data: null })
       } else if (view === 'storage') {
         const user = get().selectedUser || 'all'
         const result = await adminApi.cacheList(user)
@@ -119,7 +134,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         if (sequence !== loadSequence) return
         set({ config })
       } else if (view === 'logs') {
-        const result = await adminApi.logs('app')
+        const result = await adminApi.logs(get().logType)
         if (sequence !== loadSequence) return
         set({ logs: result.logs ?? result.lines ?? [] })
       } else if (view === 'snapshots') {
@@ -128,7 +143,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           const snapshots = await adminApi.snapshots(user)
           if (sequence !== loadSequence) return
           set({ selectedUser: user, snapshots })
-        }
+        } else if (sequence === loadSequence) set({ snapshots: [] })
       }
     } catch (error) {
       if (sequence !== loadSequence) return
