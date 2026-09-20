@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { playerApi, type CacheItem } from './api'
 import { Button, Icon, Loading, Modal, SafeImage, SongList } from './components'
 import { useAuthStore, usePlaybackStore, usePlayerUiStore } from './store'
@@ -6,6 +6,8 @@ import type { PlayerDetail, Song } from './types'
 import { songImage, songKey, songTitle } from './types'
 import { formatBytes, formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { ViewFrame } from './views'
+import { useRequestResource } from './data/use_request'
+import { goBack } from './route_state'
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -32,24 +34,18 @@ function listItemImage(item: Song): string {
 }
 
 function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
-  const [payload, setPayload] = useState<Record<string, unknown>>({})
-  const [songs, setSongs] = useState<Song[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true); setError('')
-    void playerApi.songListDetail(detail.source, detail.id, controller.signal).then(result => {
-      if (controller.signal.aborted) return
-      const record = result && typeof result === 'object' ? result as Record<string, unknown> : {}
-      setPayload(record); setSongs(extractSongs(result))
-    }).catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '歌单加载失败') }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
-    return () => controller.abort()
+  const loadDetail = useCallback(async (signal: AbortSignal, options: { force: boolean }) => {
+    const result = await playerApi.songListDetail(detail.source, detail.id, signal, { cacheKey: `songlist:detail:${detail.source}:${detail.id}`, cacheTtlMs: 60_000, force: options.force })
+    const payload = result && typeof result === 'object' ? result as Record<string, unknown> : {}
+    return { payload, songs: extractSongs(result) }
   }, [detail.id, detail.source])
+  const resource = useRequestResource(loadDetail, [detail.id, detail.source], { initialData: { payload: {}, songs: [] as Song[] } })
+  const { payload, songs } = resource.data
+  const { loading, error } = resource
   const name = String(payload.name ?? payload.title ?? payload.dissname ?? detail.name ?? '歌单详情')
   const image = listItemImage(payload as Song)
   const description = String(payload.desc ?? payload.description ?? payload.intro ?? '')
-  return <ViewFrame title={name} subtitle="歌单详情"><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={() => window.history.back()}><Icon name="arrow-left" />返回歌单广场</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h2>{name}</h2>{description && <p>{description}</p>}<small>{detail.source.toUpperCase()} · {songs.length} 首歌曲</small></div></div></section><section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="歌单暂无歌曲" />}</section></ViewFrame>
+  return <ViewFrame title={name} subtitle="歌单详情"><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={goBack}><Icon name="arrow-left" />返回歌单广场</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h2>{name}</h2>{description && <p>{description}</p>}<small>{detail.source.toUpperCase()} · {songs.length} 首歌曲</small></div></div></section><section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="歌单暂无歌曲" />}</section></ViewFrame>
 }
 
 function SongListGrid() {
@@ -63,8 +59,9 @@ function SongListGrid() {
   const [page, setPage] = useState(1)
 
   useEffect(() => {
+    const controller = new AbortController()
     let active = true
-    void playerApi.songListTags(source).then(payload => {
+    void playerApi.songListTags(source, controller.signal, { cacheKey: `songlist:tags:${source}`, cacheTtlMs: 300_000 }).then(payload => {
       if (!active) return
       const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
       const values = Array.isArray(record.tags) ? record.tags : Array.isArray(record.categories) ? record.categories : []
@@ -75,14 +72,14 @@ function SongListGrid() {
         return { id, name: String(value.name ?? value.title ?? id) }
       }))
     }).catch(() => { if (active) setCategories([]) })
-    return () => { active = false }
+    return () => { active = false; controller.abort() }
   }, [source])
 
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true)
     setError('')
-    void playerApi.songList(source, category, 'hot', page, controller.signal).then(payload => {
+    void playerApi.songList(source, category, 'hot', page, controller.signal, { cacheKey: `songlist:${source}:${category}:hot:${page}`, cacheTtlMs: 60_000 }).then(payload => {
       if (!controller.signal.aborted) setSongs(extractListItems(payload))
     }).catch(error => {
       if (!controller.signal.aborted) setError(error instanceof Error ? error.message : '歌单加载失败')
@@ -105,22 +102,23 @@ export function LeaderboardView() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => {
+    const controller = new AbortController()
     let active = true
     setBoards([]); setSongs([]); setSelected(''); setError('')
-    void playerApi.leaderboardBoards(source).then(result => {
+    void playerApi.leaderboardBoards(source, controller.signal, { cacheKey: `leaderboard:boards:${source}`, cacheTtlMs: 60_000 }).then(result => {
       if (!active) return
       setBoards(result)
       const first = result[0]
       setSelected(String(typeof first === 'object' && first ? (first as Record<string, unknown>).bangid ?? (first as Record<string, unknown>).id ?? (first as Record<string, unknown>).value ?? '' : first ?? ''))
     }).catch(cause => { if (active) { setBoards([]); setError(cause instanceof Error ? cause.message : '排行榜加载失败') } })
-    return () => { active = false }
+    return () => { active = false; controller.abort() }
   }, [source])
   useEffect(() => {
     if (!selected) { setLoading(false); return }
     const controller = new AbortController()
     setLoading(true)
     setError('')
-    void playerApi.leaderboard(source, selected, 1, controller.signal).then(payload => { if (!controller.signal.aborted) setSongs(extractSongs(payload)) }).catch(cause => { if (!controller.signal.aborted) { setSongs([]); setError(cause instanceof Error ? cause.message : '排行榜歌曲加载失败') } }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    void playerApi.leaderboard(source, selected, 1, controller.signal, { cacheKey: `leaderboard:${source}:${selected}:1`, cacheTtlMs: 30_000 }).then(payload => { if (!controller.signal.aborted) setSongs(extractSongs(payload)) }).catch(cause => { if (!controller.signal.aborted) { setSongs([]); setError(cause instanceof Error ? cause.message : '排行榜歌曲加载失败') } }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [selected, source])
   return <ViewFrame title="排行榜" subtitle="查看热门音乐榜单"><section className="react-toolbar-card t-bg-panel"><label>音源<select value={source} onChange={event => setSource(event.target.value)}><option value="wy">网易云</option><option value="tx">QQ音乐</option></select></label><label>榜单<select value={selected} disabled={!boards.length} onChange={event => setSelected(event.target.value)}>{!boards.length && <option value="">暂无榜单</option>}{boards.map((board, index) => { const value = typeof board === 'object' && board ? String((board as Record<string, unknown>).bangid ?? (board as Record<string, unknown>).id ?? (board as Record<string, unknown>).value ?? index) : String(board); const label = typeof board === 'object' && board ? String((board as Record<string, unknown>).name ?? (board as Record<string, unknown>).title ?? value) : value; return <option key={`${value}-${index}`} value={value}>{label}</option> })}</select></label></section><section className="react-content-card t-bg-panel">{error && <p className="react-error" role="alert">{error}</p>}{loading ? <Loading /> : <SongList songs={songs} empty="暂无排行榜歌曲" />}</section></ViewFrame>
@@ -135,23 +133,31 @@ export function LocalMusicView() {
   const [keyword, setKeyword] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const cacheController = useRef<AbortController | null>(null)
   const playSong = usePlaybackStore(state => state.playSong)
   const notify = usePlayerUiStore(state => state.notify)
   const loadCache = async () => {
+    cacheController.current?.abort()
+    const controller = new AbortController()
+    cacheController.current = controller
     setCacheLoading(true)
     setCacheError('')
     try {
-      await playerApi.cacheSync(userName || undefined).catch(() => undefined)
-      const result = await playerApi.cacheList(userName || undefined)
+      await playerApi.cacheSync(userName || undefined, controller.signal).catch(() => undefined)
+      const result = await playerApi.cacheList(userName || undefined, controller.signal)
+      if (controller.signal.aborted) return
       setCacheItems(result.data ?? [])
       setSelected(new Set())
     } catch (error) {
-      setCacheError(error instanceof Error ? error.message : '本地音乐加载失败')
+      if (!controller.signal.aborted) setCacheError(error instanceof Error ? error.message : '本地音乐加载失败')
     } finally {
-      setCacheLoading(false)
+      if (cacheController.current === controller) {
+        cacheController.current = null
+        setCacheLoading(false)
+      }
     }
   }
-  useEffect(() => { void loadCache() }, [userName])
+  useEffect(() => { void loadCache(); return () => cacheController.current?.abort() }, [userName])
   const cacheKey = (item: CacheItem) => `${String(item.rawUsername || userName || '_open')}:${String(item.folder)}:${String(item.filename)}`
   const cacheFileUrl = (item: CacheItem) => {
     const params = new URLSearchParams({ folder: String(item.folder || 'cache') })

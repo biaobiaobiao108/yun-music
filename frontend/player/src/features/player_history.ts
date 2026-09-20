@@ -1,3 +1,5 @@
+import { serializePlayerHash } from '../react/route_state';
+
 export type PlayerHistoryMode = 'push' | 'replace' | 'restore' | 'none';
 
 export type PlayerHistoryPage =
@@ -90,10 +92,7 @@ function samePayload(left: PlayerHistoryPayload | null, right: PlayerHistoryPayl
 
 function payloadUrl(payload: PlayerHistoryPayload): string | undefined {
     if (!payload.tabId) return undefined;
-    if (payload.tabId === 'favorites' && payload.listId && payload.listId !== 'love') {
-        return `#favorites?listId=${encodeURIComponent(payload.listId)}`;
-    }
-    return `#${encodeURIComponent(payload.tabId)}`;
+    return serializePlayerHash({ tab: payload.tabId as import('../react/types').PlayerTab, listId: payload.listId });
 }
 
 function isPlayerHistoryState(state: unknown): state is PlayerHistoryState {

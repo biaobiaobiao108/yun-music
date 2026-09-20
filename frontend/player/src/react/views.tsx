@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { playerApi, type CommentItem, type CustomSource, type SearchType } from './api'
+import { playerApi, type CommentItem, type CustomSource, type SearchType, type UserPlaylist } from './api'
 import { Button, Icon, Loading, Modal, SafeImage, SongList } from './components'
 import { consumeImmersiveLyricsTrigger, PlayerFooterBar } from './player_footer'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
-import { useAuthStore, useCommentStore, useLibraryStore, useLyricStore, usePlaybackStore, usePlayerUiStore, useSearchStore, useSettingsStore } from './store'
+import { selectLoveList, selectUserLists, useAuthStore, useCommentStore, useLibraryStore, useLyricStore, usePlaybackStore, usePlayerUiStore, useSearchStore, useSettingsStore } from './store'
 import type { PlayerDetail, PlayerTab, Song } from './types'
 import { songArtist, songImage, songKey, songTitle } from './types'
 import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runtime'
+import { goBack } from './route_state'
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -101,16 +102,19 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
     const load = async () => {
       try {
         if (detail.kind === 'artist') {
-          const [artist, songPayload] = await Promise.all([playerApi.artistDetail(detail.source, detail.id, controller.signal), playerApi.artistSongs(detail.source, detail.id, order, 1, 40, controller.signal)])
+          const [artist, songPayload] = await Promise.all([
+            playerApi.artistDetail(detail.source, detail.id, controller.signal, { cacheKey: `artist:detail:${detail.source}:${detail.id}`, cacheTtlMs: 60_000 }),
+            playerApi.artistSongs(detail.source, detail.id, order, 1, 40, controller.signal, { cacheKey: `artist:songs:${detail.source}:${detail.id}:${order}:1`, cacheTtlMs: 60_000 }),
+          ])
           if (controller.signal.aborted) return
           const firstPage = extractSongPage(songPayload)
           setInfo(recordOf(artist)); setSongs(firstPage.songs); setSongPage(firstPage.page); setSongTotal(firstPage.total); setHasMoreSongs(firstPage.hasMore)
         } else if (detail.kind === 'album') {
-          const payload = await playerApi.albumSongs(detail.source, detail.id, controller.signal)
+          const payload = await playerApi.albumSongs(detail.source, detail.id, controller.signal, { cacheKey: `album:songs:${detail.source}:${detail.id}`, cacheTtlMs: 60_000 })
           if (controller.signal.aborted) return
           setInfo(recordOf(payload)); setSongs(extractSongs(payload))
         } else {
-          const payload = await playerApi.songListDetail(detail.source, detail.id, controller.signal)
+          const payload = await playerApi.songListDetail(detail.source, detail.id, controller.signal, { cacheKey: `songlist:detail:${detail.source}:${detail.id}`, cacheTtlMs: 60_000 })
           if (controller.signal.aborted) return
           setInfo(recordOf(payload)); setSongs(extractSongs(payload))
         }
@@ -136,7 +140,7 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
     setLoadingMoreSongs(true)
     setLoadMoreError('')
     try {
-      const payload = await playerApi.artistSongs(detail.source, detail.id, order, nextPage, 40, controller.signal)
+      const payload = await playerApi.artistSongs(detail.source, detail.id, order, nextPage, 40, controller.signal, { cacheKey: `artist:songs:${detail.source}:${detail.id}:${order}:${nextPage}`, cacheTtlMs: 60_000 })
       if (controller.signal.aborted || requestId !== songRequestId.current) return
       const next = extractSongPage(payload, nextPage)
       setSongs(current => {
@@ -175,14 +179,14 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
   useEffect(() => {
     if (detail.kind !== 'artist' || activeTab !== 'albums') return
     const controller = new AbortController()
-    void playerApi.artistAlbums(detail.source, detail.id, 1, 40, controller.signal).then(payload => { if (!controller.signal.aborted) setAlbums(extractSongs(payload)) }).catch(() => { if (!controller.signal.aborted) setAlbums([]) })
+    void playerApi.artistAlbums(detail.source, detail.id, 1, 40, controller.signal, { cacheKey: `artist:albums:${detail.source}:${detail.id}:1`, cacheTtlMs: 60_000 }).then(payload => { if (!controller.signal.aborted) setAlbums(extractSongs(payload)) }).catch(() => { if (!controller.signal.aborted) setAlbums([]) })
     return () => controller.abort()
   }, [activeTab, detail.id, detail.kind, detail.source])
   const name = String(info.name ?? info.artistName ?? info.albumName ?? info.title ?? detail.name ?? '详情')
   const image = String(info.avatar ?? info.picUrl ?? info.img ?? info.pic ?? detail.image ?? '/music/assets/yun-yin.png')
   const description = String(info.desc ?? info.description ?? info.intro ?? '')
   const loadedCountLabel = songTotal > 0 ? `${songs.length} / ${songTotal}` : `${songs.length}`
-  return <ViewFrame title={name} subtitle={detail.kind === 'artist' ? '歌手详情' : detail.kind === 'album' ? '专辑详情' : '歌单详情'}><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={() => window.history.back()}><Icon name="arrow-left" />返回搜索结果</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h2>{name}</h2>{description && <p>{description}</p>}<small>{detail.source.toUpperCase()} · {detail.kind === 'artist' ? loadedCountLabel : songs.length} 首歌曲</small></div></div></section>{detail.kind === 'artist' && <div className="react-detail-tabs" role="tablist"><button type="button" role="tab" aria-selected={activeTab === 'songs'} className={activeTab === 'songs' ? 'is-active' : ''} onClick={() => setActiveTab('songs')}>热门歌曲</button><button type="button" role="tab" aria-selected={activeTab === 'albums'} className={activeTab === 'albums' ? 'is-active' : ''} onClick={() => setActiveTab('albums')}>专辑</button>{activeTab === 'songs' && <span><button type="button" className={order === 'hot' ? 'is-active' : ''} onClick={() => setOrder('hot')}>最热</button><button type="button" className={order === 'time' ? 'is-active' : ''} onClick={() => setOrder('time')}>最新</button></span>}</div>}<section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载详情…" /> : error ? <p className="react-error" role="alert">{error}</p> : detail.kind === 'artist' && activeTab === 'albums' ? <SearchEntityGrid items={albums} kind="album" onOpen={next => setDetail(next)} /> : <><SongList songs={songs} empty="暂无歌曲" />{detail.kind === 'artist' && <div ref={loadMoreRef} className="react-load-more" role="status" aria-live="polite"><span role={loadMoreError ? 'alert' : undefined}>{loadMoreError || (loadingMoreSongs ? '正在加载更多歌曲…' : hasMoreSongs ? `继续下滑加载更多 · 已加载 ${loadedCountLabel} 首` : `已加载全部 ${songs.length} 首歌曲`)}</span>{hasMoreSongs && <Button type="button" onClick={() => void loadMoreSongs()} disabled={loadingMoreSongs}><Icon name={loadingMoreSongs ? 'spinner' : 'arrow-down'} />{loadingMoreSongs ? '加载中' : loadMoreError ? '重试' : '加载更多'}</Button>}</div>}</>}</section></ViewFrame>
+  return <ViewFrame title={name} subtitle={detail.kind === 'artist' ? '歌手详情' : detail.kind === 'album' ? '专辑详情' : '歌单详情'}><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={goBack}><Icon name="arrow-left" />返回搜索结果</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h2>{name}</h2>{description && <p>{description}</p>}<small>{detail.source.toUpperCase()} · {detail.kind === 'artist' ? loadedCountLabel : songs.length} 首歌曲</small></div></div></section>{detail.kind === 'artist' && <div className="react-detail-tabs" role="tablist"><button type="button" role="tab" aria-selected={activeTab === 'songs'} className={activeTab === 'songs' ? 'is-active' : ''} onClick={() => setActiveTab('songs')}>热门歌曲</button><button type="button" role="tab" aria-selected={activeTab === 'albums'} className={activeTab === 'albums' ? 'is-active' : ''} onClick={() => setActiveTab('albums')}>专辑</button>{activeTab === 'songs' && <span><button type="button" className={order === 'hot' ? 'is-active' : ''} onClick={() => setOrder('hot')}>最热</button><button type="button" className={order === 'time' ? 'is-active' : ''} onClick={() => setOrder('time')}>最新</button></span>}</div>}<section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载详情…" /> : error ? <p className="react-error" role="alert">{error}</p> : detail.kind === 'artist' && activeTab === 'albums' ? <SearchEntityGrid items={albums} kind="album" onOpen={next => setDetail(next)} /> : <><SongList songs={songs} empty="暂无歌曲" />{detail.kind === 'artist' && <div ref={loadMoreRef} className="react-load-more" role="status" aria-live="polite"><span role={loadMoreError ? 'alert' : undefined}>{loadMoreError || (loadingMoreSongs ? '正在加载更多歌曲…' : hasMoreSongs ? `继续下滑加载更多 · 已加载 ${loadedCountLabel} 首` : `已加载全部 ${songs.length} 首歌曲`)}</span>{hasMoreSongs && <Button type="button" onClick={() => void loadMoreSongs()} disabled={loadingMoreSongs}><Icon name={loadingMoreSongs ? 'spinner' : 'arrow-down'} />{loadingMoreSongs ? '加载中' : loadMoreError ? '重试' : '加载更多'}</Button>}</div>}</>}</section></ViewFrame>
 }
 
 export function SearchView({ detail = null }: { detail?: PlayerDetail | null } = {}) {
@@ -196,17 +200,18 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
   const hot = useSearchStore(state => state.hot)
   const search = useSearchStore(state => state.search)
   const setQuery = useSearchStore(state => state.setQuery)
+  const setSource = useSearchStore(state => state.setSource)
   const setType = useSearchStore(state => state.setType)
   const loadHot = useSearchStore(state => state.loadHot)
   const setDetail = usePlayerUiStore(state => state.setDetail)
   const [input, setInput] = useState(query)
-  useEffect(() => { void loadHot() }, [loadHot])
+  useEffect(() => { void loadHot() }, [loadHot, source])
   useEffect(() => setInput(query), [query])
   const submit = (event: FormEvent) => { event.preventDefault(); void search(input, 1) }
   const label = type === 'song' ? '歌曲' : type === 'singer' ? '歌手' : type === 'album' ? '专辑' : '歌单'
   if (detail) return <SearchDetailView detail={detail} />
   const resultView = type === 'singer' ? <SearchEntityGrid items={results} kind="artist" onOpen={setDetail} /> : type === 'album' ? <SearchEntityGrid items={results} kind="album" onOpen={setDetail} /> : type === 'playlist' ? <SearchEntityGrid items={results} kind="playlist" onOpen={setDetail} /> : <SongList songs={results} empty={query ? '没有找到匹配的歌曲' : '输入关键词开始搜索'} />
-  return <ViewFrame title="搜索音乐" subtitle="搜索歌曲、歌手、专辑与歌单"><section className="react-search-card t-bg-panel"><form className="react-search-form" onSubmit={submit}><label htmlFor="player-search" className="sr-only">搜索音乐</label><div className="react-search-input"><Icon name="search" /><input id="player-search" value={input} onChange={event => { setInput(event.target.value); setQuery(event.target.value) }} placeholder="搜索音乐、歌手、专辑或歌单" autoComplete="off" /><button type="button" aria-label="清空搜索" onClick={() => { setInput(''); setQuery('') }}><Icon name="xmark" /></button></div><select aria-label="音源" value={source} onChange={event => useSearchStore.setState({ source: event.target.value })}><option value="wy">网易云</option><option value="tx">QQ音乐</option></select><select aria-label="搜索类型" value={type} onChange={event => setType(event.target.value as SearchType)}><option value="song">歌曲</option><option value="singer">歌手</option><option value="album">专辑</option><option value="playlist">歌单</option></select><Button variant="primary" type="submit" disabled={loading}><Icon name="search" />搜索</Button></form>{!results.length && !query && <div className="react-hot-search"><h2>热门搜索</h2><div>{hot.slice(0, 20).map((item, index) => { const text = typeof item === 'string' ? item : String((item as Record<string, unknown>)?.name ?? (item as Record<string, unknown>)?.keyword ?? item); return <button type="button" key={`${text}-${index}`} onClick={() => { setInput(text); void search(text, 1) }}>{text}</button> })}</div></div>}</section><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>{query ? `“${query}”的${label}结果` : '搜索结果'}</h2>{results.length > 0 && <p>共显示 {results.length} 条</p>}</div><div className="react-pagination"><button type="button" aria-label="上一页" disabled={page <= 1 || loading} onClick={() => void search(query, page - 1)}><Icon name="chevron-left" /></button><span>第 {page} 页</span><button type="button" aria-label="下一页" disabled={!query || loading || results.length < 40} onClick={() => void search(query, page + 1)}><Icon name="chevron-right" /></button></div></div>{loading ? <Loading label="正在搜索…" /> : error ? <p className="react-error" role="alert">{error}</p> : resultView}</section></ViewFrame>
+  return <ViewFrame title="搜索音乐" subtitle="搜索歌曲、歌手、专辑与歌单"><section className="react-search-card t-bg-panel"><form className="react-search-form" onSubmit={submit}><label htmlFor="player-search" className="sr-only">搜索音乐</label><div className="react-search-input"><Icon name="search" /><input id="player-search" value={input} onChange={event => { setInput(event.target.value); setQuery(event.target.value) }} placeholder="搜索音乐、歌手、专辑或歌单" autoComplete="off" /><button type="button" aria-label="清空搜索" onClick={() => { setInput(''); setQuery('') }}><Icon name="xmark" /></button></div><select aria-label="音源" value={source} onChange={event => setSource(event.target.value)}><option value="wy">网易云</option><option value="tx">QQ音乐</option></select><select aria-label="搜索类型" value={type} onChange={event => setType(event.target.value as SearchType)}><option value="song">歌曲</option><option value="singer">歌手</option><option value="album">专辑</option><option value="playlist">歌单</option></select><Button variant="primary" type="submit" disabled={loading}><Icon name="search" />搜索</Button></form>{!results.length && !query && <div className="react-hot-search"><h2>热门搜索</h2><div>{hot.slice(0, 20).map((item, index) => { const text = typeof item === 'string' ? item : String((item as Record<string, unknown>)?.name ?? (item as Record<string, unknown>)?.keyword ?? item); return <button type="button" key={`${text}-${index}`} onClick={() => { setInput(text); void search(text, 1) }}>{text}</button> })}</div></div>}</section><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>{query ? `“${query}”的${label}结果` : '搜索结果'}</h2>{results.length > 0 && <p>共显示 {results.length} 条</p>}</div><div className="react-pagination"><button type="button" aria-label="上一页" disabled={page <= 1 || loading} onClick={() => void search(query, page - 1)}><Icon name="chevron-left" /></button><span>第 {page} 页</span><button type="button" aria-label="下一页" disabled={!query || loading || results.length < 40} onClick={() => void search(query, page + 1)}><Icon name="chevron-right" /></button></div></div>{loading ? <Loading label="正在搜索…" /> : error ? <p className="react-error" role="alert">{error}</p> : resultView}</section></ViewFrame>
 }
 
 type SongCollectionViewProps = {
@@ -290,16 +295,15 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
   return <ViewFrame title={name} subtitle={`${songs.length} 首歌曲`} actions={headerActions}><section className="react-content-card t-bg-panel react-playlist-page"><div className="react-section-heading"><div><h2>歌曲</h2><p>{batchMode && selectedSongs.size ? `已选择 ${selectedSongs.size} 首` : listId === 'love' ? '我喜欢的音乐' : '歌单歌曲'}</p></div><div className="react-dialog-actions">{batchMode && <><Button onClick={selectAll} disabled={!songs.length}>全选</Button><Button onClick={() => setSelectedSongs(new Set())} disabled={!selectedSongs.size}>取消选择</Button><Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selectedSongs.size}>批量移除</Button></>}<Button onClick={() => { setBatchMode(value => !value); setSelectedSongs(new Set()) }}>{batchMode ? '退出多选' : '多选操作'}</Button></div></div>{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} listId={listId} selected={batchMode ? selectedSongs : undefined} onSelect={batchMode ? toggleSong : undefined} empty={listId === 'love' ? '还没有喜欢的歌曲，去搜索音乐吧' : '歌单还是空的，去搜索音乐吧'} />}<Modal open={confirmOpen} title="批量移除歌曲" onClose={() => setConfirmOpen(false)}><p>确定从“{name}”移除选中的 {selectedSongs.size} 首歌曲吗？</p><div className="react-dialog-actions"><Button onClick={() => setConfirmOpen(false)}>取消</Button><Button variant="danger" onClick={() => void removeBatch()}>确认移除</Button></div></Modal><Modal open={renameOpen} title="重命名歌单" onClose={() => setRenameOpen(false)}><form className="react-dialog-form" onSubmit={submitRename}><label htmlFor="rename-list-name">新的歌单名称</label><input id="rename-list-name" value={renameValue} onChange={event => setRenameValue(event.target.value)} maxLength={80} required /><div className="react-dialog-actions"><Button type="button" onClick={() => setRenameOpen(false)}>取消</Button><Button variant="primary" type="submit">保存</Button></div></form></Modal><Modal open={deleteOpen} title="删除歌单" onClose={() => setDeleteOpen(false)}><p>确定删除歌单“{name}”吗？其中的歌曲也会从该歌单移除。</p><div className="react-dialog-actions"><Button type="button" onClick={() => setDeleteOpen(false)}>取消</Button><Button variant="danger" type="button" onClick={() => void confirmDelete()}>确认删除</Button></div></Modal></section></ViewFrame>
 }
 
-function LoveListView({ data, loading, error }: { data: ReturnType<typeof useLibraryStore.getState>['data']; loading: boolean; error: string }) {
-  return <SongCollectionView listId="love" name="我喜欢的音乐" songs={data.loveList ?? []} loading={loading} error={error} />
+function LoveListView({ songs, loading, error }: { songs: Song[]; loading: boolean; error: string }) {
+  return <SongCollectionView listId="love" name="我喜欢的音乐" songs={songs} loading={loading} error={error} />
 }
 
-function UserPlaylistView({ listId, data, loading, error }: { listId: string; data: ReturnType<typeof useLibraryStore.getState>['data']; loading: boolean; error: string }) {
+function UserPlaylistView({ listId, list, loading, error }: { listId: string; list?: UserPlaylist; loading: boolean; error: string }) {
   const notify = usePlayerUiStore(state => state.notify)
   const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
   const renameList = useLibraryStore(state => state.renameList)
   const deleteList = useLibraryStore(state => state.deleteList)
-  const list = useMemo(() => (data.userList ?? []).find(item => String(item.id) === listId), [data.userList, listId])
   useEffect(() => {
     if (!loading && !list) {
       notify('歌单不存在，已返回我喜欢的音乐')
@@ -312,11 +316,12 @@ function UserPlaylistView({ listId, data, loading, error }: { listId: string; da
 }
 
 export function FavoritesView() {
-  const data = useLibraryStore(state => state.data)
+  const loveSongs = useLibraryStore(selectLoveList)
   const loading = useLibraryStore(state => state.loading)
   const error = useLibraryStore(state => state.error)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
-  return favoriteListId === 'love' ? <LoveListView data={data} loading={loading} error={error} /> : <UserPlaylistView listId={favoriteListId} data={data} loading={loading} error={error} />
+  const list = useLibraryStore(state => selectUserLists(state).find(item => String(item.id) === favoriteListId))
+  return favoriteListId === 'love' ? <LoveListView songs={loveSongs} loading={loading} error={error} /> : <UserPlaylistView listId={favoriteListId} list={list} loading={loading} error={error} />
 }
 
 function CustomSourcesContent() {
@@ -353,14 +358,19 @@ function CustomSourcesPanel() {
 export function SettingsView() {
   const settings = useSettingsStore(state => state.settings)
   const setSetting = useSettingsStore(state => state.setSetting)
-  const auth = useAuthStore()
+  const userAuthenticated = useAuthStore(state => state.userAuthenticated)
+  const userName = useAuthStore(state => state.userName)
+  const userLogin = useAuthStore(state => state.userLogin)
+  const userLogout = useAuthStore(state => state.userLogout)
+  const hydrateLibrary = useLibraryStore(state => state.hydrate)
+  const resetLibrary = useLibraryStore(state => state.reset)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [accountError, setAccountError] = useState('')
-  const login = async (event: FormEvent) => { event.preventDefault(); try { await auth.userLogin(username, password); setAccountError(''); useLibraryStore.getState().hydrate() } catch (e) { setAccountError(e instanceof Error ? e.message : '登录失败') } }
-  const logout = async () => { await auth.userLogout(); useLibraryStore.setState({ data: { defaultList: [], loveList: [], userList: [] }, loading: false, error: '' }) }
+  const login = async (event: FormEvent) => { event.preventDefault(); try { await userLogin(username, password); setAccountError(''); await hydrateLibrary({ force: true }) } catch (e) { setAccountError(e instanceof Error ? e.message : '登录失败') } }
+  const logout = async () => { await userLogout(); resetLibrary() }
   const toggle = (key: string) => (event: React.ChangeEvent<HTMLInputElement>) => setSetting(key, event.target.checked)
-  return <ViewFrame title="设置" subtitle="调整播放器偏好、主题、缓存与账户"><section className="react-settings-grid"><section className="react-content-card t-bg-panel"><h2>外观与播放</h2><div className="react-settings-form"><label>主题<select value={String(settings.appearance ?? 'system')} onChange={event => setSetting('appearance', event.target.value)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><label>强调色<select value={String(settings.themeColor ?? 'netease')} onChange={event => setSetting('themeColor', event.target.value)}><option value="netease">网易红</option><option value="emerald">翡翠绿</option><option value="blue">海洋蓝</option><option value="violet">紫罗兰</option></select></label><label>默认音质<select value={String(settings.preferredQuality)} onChange={event => setSetting('preferredQuality', event.target.value)}><option value="128k">128K</option><option value="320k">320K</option><option value="flac">无损 FLAC</option><option value="hires">Hi-Res</option></select></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.autoResume)} onChange={toggle('autoResume')} /><span>自动恢复上次播放进度</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableKeyboardShortcuts)} onChange={toggle('enableKeyboardShortcuts')} /><span>启用键盘快捷键</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showLyricTranslation)} onChange={toggle('showLyricTranslation')} /><span>显示歌词翻译</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showLyricRoma)} onChange={toggle('showLyricRoma')} /><span>显示罗马音 / 逐字歌词</span></label></div></section><section className="react-content-card t-bg-panel"><h2>缓存与播放策略</h2><div className="react-settings-form"><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enablePreloader)} onChange={toggle('enablePreloader')} /><span>预取下一首歌曲</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableAutoDegradeQuality)} onChange={toggle('enableAutoDegradeQuality')} /><span>播放失败时自动降级音质</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableAutoSwitchSource)} onChange={toggle('enableAutoSwitchSource')} /><span>解析失败时自动换源</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableServerCache)} onChange={toggle('enableServerCache')} /><span>播放后加入服务器缓存</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableCrossfade)} onChange={toggle('enableCrossfade')} /><span>切歌淡入淡出</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.keepScreenAwake)} onChange={toggle('keepScreenAwake')} /><span>播放时保持屏幕唤醒</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showFooterVisualizer)} onChange={toggle('showFooterVisualizer')} /><span>显示底部可视化</span></label></div></section><section className="react-content-card t-bg-panel"><h2>用户账户</h2>{auth.userAuthenticated ? <div className="react-account-state"><Icon name="circle-check" /><p>已登录为 <strong>{auth.userName}</strong></p><Button onClick={() => void logout()}>退出账户</Button></div> : <form className="react-settings-form" onSubmit={login}><label>用户名<input value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" required /></label><label>密码<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" required /></label>{accountError && <p className="react-error" role="alert">{accountError}</p>}<Button variant="primary" type="submit">登录账户</Button></form>}</section><CustomSourcesPanel /></section></ViewFrame>
+  return <ViewFrame title="设置" subtitle="调整播放器偏好、主题、缓存与账户"><section className="react-settings-grid"><section className="react-content-card t-bg-panel"><h2>外观与播放</h2><div className="react-settings-form"><label>主题<select value={String(settings.appearance ?? 'system')} onChange={event => setSetting('appearance', event.target.value)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><label>强调色<select value={String(settings.themeColor ?? 'netease')} onChange={event => setSetting('themeColor', event.target.value)}><option value="netease">网易红</option><option value="emerald">翡翠绿</option><option value="blue">海洋蓝</option><option value="violet">紫罗兰</option></select></label><label>默认音质<select value={String(settings.preferredQuality)} onChange={event => setSetting('preferredQuality', event.target.value)}><option value="128k">128K</option><option value="320k">320K</option><option value="flac">无损 FLAC</option><option value="hires">Hi-Res</option></select></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.autoResume)} onChange={toggle('autoResume')} /><span>自动恢复上次播放进度</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableKeyboardShortcuts)} onChange={toggle('enableKeyboardShortcuts')} /><span>启用键盘快捷键</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showLyricTranslation)} onChange={toggle('showLyricTranslation')} /><span>显示歌词翻译</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showLyricRoma)} onChange={toggle('showLyricRoma')} /><span>显示罗马音 / 逐字歌词</span></label></div></section><section className="react-content-card t-bg-panel"><h2>缓存与播放策略</h2><div className="react-settings-form"><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enablePreloader)} onChange={toggle('enablePreloader')} /><span>预取下一首歌曲</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableAutoDegradeQuality)} onChange={toggle('enableAutoDegradeQuality')} /><span>播放失败时自动降级音质</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableAutoSwitchSource)} onChange={toggle('enableAutoSwitchSource')} /><span>解析失败时自动换源</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableServerCache)} onChange={toggle('enableServerCache')} /><span>播放后加入服务器缓存</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableCrossfade)} onChange={toggle('enableCrossfade')} /><span>切歌淡入淡出</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.keepScreenAwake)} onChange={toggle('keepScreenAwake')} /><span>播放时保持屏幕唤醒</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showFooterVisualizer)} onChange={toggle('showFooterVisualizer')} /><span>显示底部可视化</span></label></div></section><section className="react-content-card t-bg-panel"><h2>用户账户</h2>{userAuthenticated ? <div className="react-account-state"><Icon name="circle-check" /><p>已登录为 <strong>{userName}</strong></p><Button onClick={() => void logout()}>退出账户</Button></div> : <form className="react-settings-form" onSubmit={login}><label>用户名<input value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" required /></label><label>密码<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" required /></label>{accountError && <p className="react-error" role="alert">{accountError}</p>}<Button variant="primary" type="submit">登录账户</Button></form>}</section><CustomSourcesPanel /></section></ViewFrame>
 }
 
 export function AboutView() {
@@ -382,12 +392,13 @@ export function ViewFrame({ title, subtitle, actions, children }: { title: strin
 export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose: () => void }) {
   const song = usePlaybackStore(state => state.currentSong)
   const time = usePlaybackStore(state => state.currentTime)
+  const seek = usePlaybackStore(state => state.seek)
   const lines = useLyricStore(state => state.lines)
   const loading = useLyricStore(state => state.loading)
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
   const settings = useSettingsStore(state => state.settings)
-  const library = useLibraryStore(state => state.data)
+  const loveSongs = useLibraryStore(selectLoveList)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const notify = usePlayerUiStore(state => state.notify)
@@ -430,7 +441,7 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
     if (document.fullscreenElement) void document.exitFullscreen()
     else void document.documentElement.requestFullscreen?.()
   }
-  const isLiked = Boolean(song && (library.loveList ?? []).some(item => songKey(item) === songKey(song)))
+  const isLiked = Boolean(song && loveSongs.some(item => songKey(item) === songKey(song)))
   const toggleLike = async () => {
     if (!song) return
     try {
@@ -452,7 +463,7 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
           <PlayerFooterBar embedded />
         </section>
         <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
-          {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={index === active ? 'is-active' : ''} aria-current={index === active ? 'true' : undefined} onClick={() => usePlaybackStore.getState().seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
+          {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={index === active ? 'is-active' : ''} aria-current={index === active ? 'true' : undefined} onClick={() => seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
         </section>
       </div>
     </div>
@@ -496,12 +507,13 @@ export function LoginDialog({ open, onClose }: { open: boolean; onClose: () => v
 
 export function UserLoginDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const userLogin = useAuthStore(state => state.userLogin)
+  const hydrateLibrary = useLibraryStore(state => state.hydrate)
   const pendingSong = usePlayerUiStore(state => state.playlistSong)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); try { await userLogin(username, password); await useLibraryStore.getState().hydrate(); if (pendingSong) setDialog('addToList'); else onClose() } catch (e) { setError(e instanceof Error ? e.message : '登录失败') } }
+  const submit = async (event: FormEvent) => { event.preventDefault(); try { await userLogin(username, password); await hydrateLibrary({ force: true }); if (pendingSong) setDialog('addToList'); else onClose() } catch (e) { setError(e instanceof Error ? e.message : '登录失败') } }
   return <Modal open={open} title="登录用户账户" onClose={onClose}><form className="react-dialog-form" onSubmit={submit}><label htmlFor="user-name">用户名</label><input id="user-name" autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} required /><label htmlFor="user-password">密码</label><input id="user-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required />{error && <p className="react-error" role="alert">{error}</p>}<Button variant="primary" type="submit">登录</Button></form></Modal>
 }
 
@@ -520,13 +532,14 @@ export function AddToListDialog({ open, onClose }: { open: boolean; onClose: () 
   const song = usePlayerUiStore(state => state.playlistSong)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const notify = usePlayerUiStore(state => state.notify)
-  const data = useLibraryStore(state => state.data)
+  const loveSongs = useLibraryStore(selectLoveList)
+  const userLists = useLibraryStore(selectUserLists)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const lists = useMemo(() => [
-    { id: 'love', name: '我的收藏', songs: data.loveList ?? [] },
-    ...(data.userList ?? []).map(list => ({ id: String(list.id), name: list.name, songs: list.list ?? [] })),
-  ], [data.loveList, data.userList])
+    { id: 'love', name: '我的收藏', songs: loveSongs },
+    ...userLists.map(list => ({ id: String(list.id), name: list.name, songs: list.list ?? [] })),
+  ], [loveSongs, userLists])
   const toggleList = async (list: { id: string; name: string; songs: Song[] }) => {
     if (!song) return
     const included = list.songs.some(item => songKey(item) === songKey(song))

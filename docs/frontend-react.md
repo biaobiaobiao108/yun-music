@@ -23,13 +23,34 @@ bun run check:frontend-assets
 
 ## 状态边界
 
-播放器状态按领域拆分在 `frontend/player/src/react/store.ts`：
+播放器状态按领域拆分在 `frontend/player/src/react/store/`，`store.ts` 只作为兼容导出层：
 
-- 认证、设置、歌单和媒体库：负责登录状态、`lx_settings` 兼容、歌单及专辑/歌手库。
-- 播放与队列：负责当前歌曲、进度、音量、静音、播放模式、质量和 `lx_playback_state`。
-- 最近播放：只在音频真正触发 `play` 后写入 `play_history`，最多保留 50 首。
-- 歌词、评论、缓存和睡眠定时器：各自负责请求取消、任务状态和生命周期。
-- UI：负责 hash 路由、详情、抽屉、对话框、沉浸式歌词和通知；业务动作不再挂到 `window`。
+- `auth.ts`：播放器/用户认证、会话失效时的请求缓存清理。
+- `settings.ts`：`lx_settings` 迁移、主题应用和播放质量同步。
+- `ui.ts`：当前页面、详情、抽屉、对话框、沉浸式歌词和通知；不直接写浏览器 URL。
+- `search.ts`：搜索分页、热门搜索、请求取消、短期结果缓存和失效。
+- `library.ts`：`loveList`、`userList` 和兼容保留的 `defaultList`；歌单变更会失效并强制刷新。
+- `media_library.ts`：专辑/歌手媒体库的并发请求、取消、60 秒读取缓存和失效。
+- `playback.ts`：当前歌曲、队列、进度、音量、静音、播放模式、质量和 `lx_playback_state`。
+- `recent.ts`：只在音频真正触发 `play` 后写入 `play_history`，最多保留 50 首。
+- `lyric.ts`、`comments.ts`、`cache.ts`、`sleep.ts`：各自负责领域请求或计时器生命周期。
+
+组件通过领域 selector 读取状态；事件回调只读取稳定 action，音频运行时的高频快照读取属于命令式服务边界。组件不应直接调用 `useLibraryStore.getState()` 或订阅整个 store；列表、收藏和歌单优先复用 `selectLoveList`、`selectUserLists` 等稳定 selector。
+
+## API 请求边界
+
+`frontend/player/src/react/data/request.ts` 是播放器 API 的统一入口，`api.ts` 只负责类型化接口和响应形状转换。请求层统一处理：
+
+- 同源 Cookie、JSON 请求头、204/空响应和安全错误消息。
+- `ApiRequestError`（HTTP 状态、端点和响应体）及 `isAbortError`。
+- `AbortSignal` 取消；同一 `cacheKey` 的并发读取去重。
+- 内存短 TTL 缓存、按 key/前缀失效和强制刷新；失效时同步取消对应的在途请求，避免旧用户响应重新回填缓存；不把会话数据写入持久化存储。
+
+搜索、歌单和媒体库使用明确策略：搜索结果 30 秒、歌单 30 秒、媒体库 60 秒；添加/移除/新建/重命名/删除歌单会失效歌单缓存，登录/退出会清空全部请求缓存。缓存/下载任务使用更短的 5 秒读取窗口，并在写操作后强制刷新。页面级请求可通过 `useRequestResource` 复用相同的 loading、refreshing、error 和取消语义。
+
+## 播放服务事件
+
+`playback_service.ts` 提供类型化的 `play`、`pause`、`progress`、`loaded` 和 `error` 事件总线。`AudioRuntime` 只负责 HTMLAudioElement、预载、音效和 MediaSession 等命令式能力；它发出事件，不直接驱动各个 React 组件。`connectPlaybackServiceStore()` 将事件集中同步到播放 Store，因此音频状态只有一条同步路径，组件仍通过细粒度 selector 订阅。
 
 组件读取 Zustand 时应优先使用 selector，例如 `usePlaybackStore(state => state.currentSong)`，不要在高频播放进度变化时订阅整个 store。长列表使用稳定的行结构、图片懒加载和滚动容器的 `content-visibility` 防止整页重排。
 
@@ -54,7 +75,7 @@ React 继续兼容以下 hash 地址：
 
 收藏与自定义歌单使用同一组兼容路由：`#favorites` 固定表示“我喜欢的音乐”；自定义歌单使用 `#favorites?listId=<id>`，历史状态中的 `listId` 也会被恢复。侧栏只展示 `userList`，旧 `defaultList` 仍随歌单数据和快照保存，但不作为用户可见导航项。首页可以提供歌单快捷入口，但不会把自定义歌单嵌入收藏页。
 
-`frontend/player/src/features/player_history.ts` 只管理浏览器 History API 的序列化状态；详情状态包含页面、实体类型、来源、ID，并保留名称和封面作为返回时的即时展示数据。组件通过 `setTabFromHistory` 恢复界面，不直接拼接 HTML。
+`frontend/player/src/react/route_state.ts` 只负责 hash 解析、路由序列化和 UI 路由意图；`frontend/player/src/features/player_history.ts` 只管理浏览器 History API 的序列号、方向和 payload。`PlayerShell` 把两者连接起来：UI store 发出 route intent，Shell 写入 History；popstate/hashchange 再把 payload 恢复到 UI store。详情状态包含页面、实体类型、来源、ID，并保留名称和封面作为返回时的即时展示数据。组件通过 `setTabFromHistory` 恢复界面，不直接拼接 URL。
 
 ## 存储与 API 兼容
 

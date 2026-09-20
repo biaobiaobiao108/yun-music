@@ -1,4 +1,4 @@
-import { requestJson } from '../../../shared/src/http'
+import { requestJson, type RequestPolicy } from './data/request'
 import { readJson, writeJson } from '../../../shared/src/storage'
 import type { RuntimeConfig } from '../../../shared/src/runtime'
 import type { LyricLine, Song } from './types'
@@ -53,14 +53,14 @@ export const playerApi = {
   userVerify: () => requestJson<{ valid: boolean; username?: string }>('/api/user/auth/verify'),
   userLogin: (username: string, password: string) => requestJson<{ success: boolean; username: string }>('/api/user/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   userLogout: () => requestJson('/api/user/logout', { method: 'POST' }),
-  search: (query: string, source: string, type: SearchType, page: number, signal?: AbortSignal) => requestJson<Song[]>(`/api/music/search?name=${encodeURIComponent(query)}&source=${encodeURIComponent(source)}&type=${type}&page=${page}&limit=40`, { signal }),
+  search: (query: string, source: string, type: SearchType, page: number, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<Song[]>(`/api/music/search?name=${encodeURIComponent(query)}&source=${encodeURIComponent(source)}&type=${type}&page=${page}&limit=40`, { signal, ...policy }),
   tips: (query: string, source: string, signal?: AbortSignal) => requestJson<string[]>(`/api/music/tipSearch?name=${encodeURIComponent(query)}&source=${encodeURIComponent(source)}`, { signal }),
-  artistDetail: (source: string, id: string, signal?: AbortSignal) => requestJson<unknown>(`/api/music/artistDetail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`, { signal }),
-  artistSongs: (source: string, id: string, order = 'hot', page = 1, limit = 40, signal?: AbortSignal) => requestJson<unknown>(`/api/music/artistSongs?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&order=${encodeURIComponent(order)}&page=${page}&limit=${limit}`, { signal }),
-  artistAlbums: (source: string, id: string, page = 1, limit = 40, signal?: AbortSignal) => requestJson<unknown>(`/api/music/artistAlbums?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&page=${page}&limit=${limit}`, { signal }),
-  albumSongs: (source: string, id: string, signal?: AbortSignal) => requestJson<unknown>(`/api/music/albumSongs?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`, { signal }),
-  hotSearch: async (source: string) => {
-    const payload = await requestJson<unknown>(`/api/music/hotSearch?source=${encodeURIComponent(source)}`)
+  artistDetail: (source: string, id: string, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/artistDetail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`, { signal, ...policy }),
+  artistSongs: (source: string, id: string, order = 'hot', page = 1, limit = 40, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/artistSongs?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&order=${encodeURIComponent(order)}&page=${page}&limit=${limit}`, { signal, ...policy }),
+  artistAlbums: (source: string, id: string, page = 1, limit = 40, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/artistAlbums?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&page=${page}&limit=${limit}`, { signal, ...policy }),
+  albumSongs: (source: string, id: string, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/albumSongs?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`, { signal, ...policy }),
+  hotSearch: async (source: string, signal?: AbortSignal, policy?: RequestPolicy) => {
+    const payload = await requestJson<unknown>(`/api/music/hotSearch?source=${encodeURIComponent(source)}`, { signal, ...policy })
     if (Array.isArray(payload)) return payload
     if (payload && typeof payload === 'object') {
       const record = payload as Record<string, unknown>
@@ -70,21 +70,21 @@ export const playerApi = {
   },
   songUrl: (songInfo: Song, quality: string, signal?: AbortSignal, enableAutoSwitchApiSource = true) => requestJson<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>('/api/music/url', { method: 'POST', body: JSON.stringify({ songInfo, quality, enableAutoSwitchApiSource }), signal }),
   lyric: (songInfo: Song, signal?: AbortSignal) => requestJson<Record<string, unknown>>('/api/music/lyric', { method: 'POST', body: JSON.stringify({ songInfo }), signal }),
-  listData: (user?: string) => requestJson<UserListData>(user ? `/api/user/list?user=${encodeURIComponent(user)}` : '/api/user/list'),
+  listData: (user?: string, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<UserListData>(user ? `/api/user/list?user=${encodeURIComponent(user)}` : '/api/user/list', { signal, ...policy }),
   saveListData: (data: UserListData) => requestJson('/api/user/list', { method: 'POST', body: JSON.stringify(data) }),
   addToList: (listId: string, musicInfos: Song[], location = 'bottom') => requestJson('/api/music/user/list/add', { method: 'POST', body: JSON.stringify({ listId, musicInfos, location }) }),
   removeFromList: (listId: string, songIds: string[]) => requestJson('/api/music/user/list/remove', { method: 'POST', body: JSON.stringify({ listId, songIds }) }),
   settings: () => requestJson<Record<string, unknown>>('/api/user/settings'),
   saveSettings: (settings: Record<string, unknown>) => requestJson('/api/user/settings', { method: 'POST', body: JSON.stringify(settings) }),
-  libraryArtists: () => requestJson<Song[]>('/api/user/library/artists'),
-  libraryAlbums: () => requestJson<Song[]>('/api/user/library/albums'),
+  libraryArtists: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<Song[]>('/api/user/library/artists', { signal, ...policy }),
+  libraryAlbums: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<Song[]>('/api/user/library/albums', { signal, ...policy }),
   saveLibraryArtists: (items: Song[]) => requestJson('/api/user/library/artists', { method: 'POST', body: JSON.stringify(items) }),
   saveLibraryAlbums: (items: Song[]) => requestJson('/api/user/library/albums', { method: 'POST', body: JSON.stringify(items) }),
-  songListTags: (source: string) => requestJson<unknown>(`/api/music/songList/tags?source=${encodeURIComponent(source)}`),
-  songList: (source: string, tagId = '', sortId = 'hot', page = 1, signal?: AbortSignal) => requestJson<unknown>(`/api/music/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${page}`, { signal }),
-  songListDetail: (source: string, id: string, signal?: AbortSignal) => requestJson<unknown>(`/api/music/songList/detail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`, { signal }),
-  leaderboardBoards: async (source: string) => {
-    const payload = await requestJson<unknown>(`/api/music/leaderboard/boards?source=${encodeURIComponent(source)}`)
+  songListTags: (source: string, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/songList/tags?source=${encodeURIComponent(source)}`, { signal, ...policy }),
+  songList: (source: string, tagId = '', sortId = 'hot', page = 1, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${page}`, { signal, ...policy }),
+  songListDetail: (source: string, id: string, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/songList/detail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`, { signal, ...policy }),
+  leaderboardBoards: async (source: string, signal?: AbortSignal, policy?: RequestPolicy) => {
+    const payload = await requestJson<unknown>(`/api/music/leaderboard/boards?source=${encodeURIComponent(source)}`, { signal, ...policy })
     if (Array.isArray(payload)) return payload
     if (payload && typeof payload === 'object') {
       const record = payload as Record<string, unknown>
@@ -92,17 +92,17 @@ export const playerApi = {
     }
     return []
   },
-  leaderboard: (source: string, boardId: string, page = 1, signal?: AbortSignal) => requestJson<unknown>(`/api/music/leaderboard/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(boardId)}&page=${page}`, { signal }),
+  leaderboard: (source: string, boardId: string, page = 1, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/leaderboard/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(boardId)}&page=${page}`, { signal, ...policy }),
   comments: (songInfo: Song, type: 'hot' | 'new', page = 1, limit = 20, signal?: AbortSignal) => requestJson<unknown>('/api/music/comment', { method: 'POST', body: JSON.stringify({ songInfo, type, page, limit }), signal }),
   customSources: (username?: string) => requestJson<CustomSource[]>(`/api/custom-source/list${username ? `?username=${encodeURIComponent(username)}` : ''}`),
   toggleCustomSource: (id: string, enabled: boolean, username?: string) => requestJson('/api/custom-source/toggle', { method: 'POST', body: JSON.stringify({ id, enabled, username }) }),
   deleteCustomSource: (id: string, owner?: string) => requestJson('/api/custom-source/delete', { method: 'POST', body: JSON.stringify({ id, sourceOwner: owner }) }),
   importCustomSource: (url: string, filename?: string, username?: string) => requestJson('/api/custom-source/import', { method: 'POST', body: JSON.stringify({ url, filename, username }) }),
   uploadCustomSource: (filename: string, content: string, type: string, username?: string) => requestJson('/api/custom-source/upload', { method: 'POST', body: JSON.stringify({ filename, content, type, username }) }),
-  cacheQueue: () => requestJson<{ success?: boolean; data?: CacheTask[] }>('/api/music/cache/queue'),
-  cacheStats: () => requestJson<{ success?: boolean; data?: CacheStats }>('/api/music/cache/stats'),
+  cacheQueue: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<{ success?: boolean; data?: CacheTask[] }>('/api/music/cache/queue', { signal, ...policy }),
+  cacheStats: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<{ success?: boolean; data?: CacheStats }>('/api/music/cache/stats', { signal, ...policy }),
   cacheList: (user?: string, signal?: AbortSignal) => requestJson<{ success?: boolean; data?: CacheItem[] }>(`/api/music/cache/list${user ? `?user=${encodeURIComponent(user)}` : ''}`, { signal }),
-  cacheSync: (user?: string) => requestJson(`/api/music/cache/sync${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST' }),
+  cacheSync: (user?: string, signal?: AbortSignal) => requestJson(`/api/music/cache/sync${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST', signal }),
   cacheRemove: (items: Array<{ filename: string; folder?: string; user?: string }>, user?: string) => requestJson(`/api/music/cache/remove${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST', body: JSON.stringify({ items }) }),
   cacheClear: (user?: string) => requestJson(`/api/music/cache/clear${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST' }),
   cachePlayback: (item: { filename: string; folder?: string; location?: string; user?: string }) => requestJson('/api/music/cache/playback', { method: 'POST', body: JSON.stringify(item) }),

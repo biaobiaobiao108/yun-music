@@ -1,5 +1,6 @@
 import { safeImageUrl } from '../../../shared/src/runtime'
-import { usePlayerUiStore, useSearchStore } from './store'
+import { getPlayerUiActions } from './store/ui'
+import { getSearchActions, prepareSearch } from './store/search'
 import type { PlayerDetail, Song } from './types'
 import { songArtist, songImage } from './types'
 
@@ -86,7 +87,7 @@ export function songEntityDetail(song: Song, kind: SongEntityKind, options: Song
 }
 
 export function navigateToSongEntity(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): void {
-  const ui = usePlayerUiStore.getState()
+  const ui = getPlayerUiActions()
   const detail = songEntityDetail(song, kind, options)
   if (detail) {
     ui.openLibraryDetail(kind === 'artist' ? 'artists' : 'albums', detail)
@@ -98,9 +99,9 @@ export function navigateToSongEntity(song: Song, kind: SongEntityKind, options: 
     ui.notify(`当前歌曲没有可用的${kind === 'artist' ? '歌手' : '专辑'}信息`)
     return
   }
-  const search = useSearchStore.getState()
+  const search = getSearchActions()
   const type = kind === 'artist' ? 'singer' : 'album'
-  useSearchStore.setState({ source: songSource(song), type, query, page: 1, results: [], error: '' })
+  prepareSearch(songSource(song), type, query)
   void search.search(query, 1)
   ui.setTab('search')
 }

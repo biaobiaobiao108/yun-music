@@ -3,10 +3,12 @@ import { playerApi } from './api'
 import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
 import { AboutView, AddToListDialog, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchDetailView, SearchView, SettingsView, UserLoginDialog } from './views'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
-import { connectAudioCommands, connectPlayerNavigation, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSearchStore, useSettingsStore, useSleepTimerStore } from './store'
+import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSearchStore, useSettingsStore, useSleepTimerStore } from './store'
 import { songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from '../features/player_history'
+import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
+import { emitPlaybackService } from './playback_service'
 import { configureAudioGraph, ensureAudioGraph, getAudioAnalyser, releaseAudioGraph, subscribeAudioGraph } from './audio_graph'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from './media_url'
 import { PlayerFooterBar } from './player_footer'
@@ -104,7 +106,7 @@ function Sidebar() {
   const sidebarOpen = usePlayerUiStore(state => state.sidebarOpen)
   const closeSidebar = usePlayerUiStore(state => state.closeSidebar)
   const userName = useAuthStore(state => state.userName)
-  const userLists = useLibraryStore(state => state.data.userList ?? [])
+  const userLists = useLibraryStore(selectUserLists)
   return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><div className="react-sidebar-brand"><img src="/music/assets/yun-yin.png" width="36" height="36" alt="云音图标" /><strong>云音</strong><button type="button" className="react-icon-button react-sidebar-close" onClick={closeSidebar} aria-label="关闭导航菜单"><Icon name="xmark" /></button></div><nav className="react-sidebar-nav"><p className="react-sidebar-label">我的空间</p>{NAV_ITEMS.map(item => { const isActive = item.id === 'favorites' ? tab === 'favorites' && favoriteListId === 'love' : tab === item.id; return <button type="button" key={item.id} className={`netease-nav-item ${isActive ? 'active-tab' : ''}`} aria-current={isActive ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button> })}<div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">歌单</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map(list => { const id = String(list.id); const isActive = tab === 'favorites' && favoriteListId === id; return <button type="button" className={`react-sidebar-playlist ${isActive ? 'is-active' : ''}`} aria-current={isActive ? 'page' : undefined} key={id} onClick={() => openFavoriteList(id)}><Icon name="music" /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button> })}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">更多功能</p>{MORE_NAV_ITEMS.map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav><div className="react-sidebar-user">{userName ? <><Icon name="circle-user" /><span>{userName}</span></> : <button type="button" onClick={() => setDialog('userLogin')}><Icon name="circle-user" /><span>登录用户账户</span></button>}</div></aside></>
 }
 
@@ -121,7 +123,7 @@ function TopBar() {
   const query = useSearchStore(state => state.query)
   const setQuery = useSearchStore(state => state.setQuery)
   const search = useSearchStore(state => state.search)
-  const userLists = useLibraryStore(state => state.data.userList ?? [])
+  const userLists = useLibraryStore(selectUserLists)
   const [searchInput, setSearchInput] = useState(query)
   const currentPlaylist = favoriteListId === 'love' ? null : userLists.find(list => String(list.id) === favoriteListId)
   const title = tab === 'favorites' && currentPlaylist ? currentPlaylist.name : ALL_NAV_ITEMS.find(item => item.id === tab)?.label ?? (tab === 'favorites' ? '收藏' : '云音')
@@ -129,7 +131,7 @@ function TopBar() {
   useEffect(() => { document.title = `${title} - 云音` }, [title])
   const submit = (event: FormEvent) => { event.preventDefault(); const value = searchInput.trim(); setQuery(value); if (!value) return; setTab('search'); void search(value, 1) }
   const toggleTheme = () => { const next = settings.appearance === 'dark' ? 'light' : 'dark'; setSetting('appearance', next) }
-  return <header className="react-player-topbar"><button type="button" className="react-icon-button react-menu-button" aria-label="打开导航菜单" onClick={toggleSidebar}><Icon name="bars" /></button><div className="react-history-controls"><button type="button" className="react-icon-button" aria-label="后退" onClick={() => window.history.back()}><Icon name="arrow-left" /></button><button type="button" className="react-icon-button" aria-label="前进" onClick={() => window.history.forward()}><Icon name="arrow-right" /></button></div><form className="react-global-search" onSubmit={submit}><Icon name="search" /><input value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="搜索歌曲/歌手/专辑/歌单" aria-label="全局搜索" /><button type="submit" aria-label="开始搜索"><Icon name="arrow-right" /></button></form><div className="react-topbar-title"><p>云音播放器</p><h1>{title}</h1></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
+  return <header className="react-player-topbar"><button type="button" className="react-icon-button react-menu-button" aria-label="打开导航菜单" onClick={toggleSidebar}><Icon name="bars" /></button><div className="react-history-controls"><button type="button" className="react-icon-button" aria-label="后退" onClick={goBack}><Icon name="arrow-left" /></button><button type="button" className="react-icon-button" aria-label="前进" onClick={goForward}><Icon name="arrow-right" /></button></div><form className="react-global-search" onSubmit={submit}><Icon name="search" /><input value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="搜索歌曲/歌手/专辑/歌单" aria-label="全局搜索" /><button type="submit" aria-label="开始搜索"><Icon name="arrow-right" /></button></form><div className="react-topbar-title"><p>云音播放器</p><h1>{title}</h1></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
 }
 
 function AudioRuntime() {
@@ -138,9 +140,13 @@ function AudioRuntime() {
   const quality = usePlaybackStore(state => state.quality)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
   const setPlaying = usePlaybackStore(state => state.setPlaying)
-  const setProgress = usePlaybackStore(state => state.setProgress)
   const volume = usePlaybackStore(state => state.volume)
   const setQuality = usePlaybackStore(state => state.setQuality)
+  const togglePlayback = usePlaybackStore(state => state.toggle)
+  const previousPlayback = usePlaybackStore(state => state.previous)
+  const nextPlayback = usePlaybackStore(state => state.next)
+  const recordRecent = useRecentStore(state => state.record)
+  const enqueueCache = useCacheStore(state => state.enqueue)
   const settings = useSettingsStore(state => state.settings)
   const userName = useAuthStore(state => state.userName)
   const [resolvedError, setResolvedError] = useState('')
@@ -203,11 +209,11 @@ function AudioRuntime() {
     })
     audio.volume = volume
     const onPlay = () => {
-      setPlaying(true)
+      emitPlaybackService({ type: 'play' })
       const historyKey = `${songId}:${quality}`
       if (currentSong && historyRecordedKey.current !== historyKey) {
         historyRecordedKey.current = historyKey
-        useRecentStore.getState().record(currentSong, quality)
+        recordRecent(currentSong, quality)
       }
       ensureAudioGraph(audio)
       configureAudioGraph({ enabled: Boolean(settings.enableSoundEffects), preset: String(settings.soundEffectsPreset || 'flat') as 'flat' | 'vocal' | 'bass' | 'focus', gain: Number(settings.soundEffectsGain || 1) })
@@ -221,15 +227,15 @@ function AudioRuntime() {
           cacheQueued.current.add(cacheKey)
           // Reuse the URL that started playback. Resolving the source again
           // here would consume a second custom-source quota for the same song.
-          void useCacheStore.getState().enqueue(currentSong, quality, cacheUrl).catch(() => cacheQueued.current.delete(cacheKey))
+          void enqueueCache(currentSong, quality, cacheUrl).catch(() => cacheQueued.current.delete(cacheKey))
         }
       }
     }
-    const onPause = () => setPlaying(false)
+    const onPause = () => emitPlaybackService({ type: 'pause' })
     const onTime = () => {
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
-      setProgress(currentTime, duration)
+      emitPlaybackService({ type: 'progress', currentTime, duration })
       prefetchNext()
     }
     const onLoaded = () => {
@@ -237,10 +243,11 @@ function AudioRuntime() {
       const resumeTime = state.currentTime
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
-      setProgress(currentTime, duration)
+      emitPlaybackService({ type: 'loaded', duration })
+      emitPlaybackService({ type: 'progress', currentTime, duration })
       if (settings.autoResume && duration > 0 && resumeTime > 0 && resumeTime < duration && recoveryAttempts.current.has(`resume:${songId}`) === false) {
         audio.currentTime = resumeTime
-        setProgress(resumeTime, duration)
+        emitPlaybackService({ type: 'progress', currentTime: resumeTime, duration })
         recoveryAttempts.current.add(`resume:${songId}`)
       }
     }
@@ -257,11 +264,13 @@ function AudioRuntime() {
           return
         }
       }
-      setPlaying(false); setResolvedError('播放失败，请尝试切换音质或音源'); notify('播放失败，请尝试切换音质或音源')
+      const message = '播放失败，请尝试切换音质或音源'
+      emitPlaybackService({ type: 'error', message })
+      setResolvedError(message); notify(message)
     }
     audio.addEventListener('play', onPlay); audio.addEventListener('pause', onPause); audio.addEventListener('timeupdate', onTime); audio.addEventListener('loadedmetadata', onLoaded); audio.addEventListener('ended', onEnded); audio.addEventListener('error', onError)
     return () => { audio.removeEventListener('play', onPlay); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
-  }, [currentSong, notify, quality, settings, setPlaying, setProgress, setQuality, songId, volume])
+  }, [currentSong, enqueueCache, notify, quality, recordRecent, settings, setPlaying, setQuality, songId, volume])
 
   useEffect(() => () => releaseAudioGraph(), [])
   useEffect(() => { configureAudioGraph({ enabled: Boolean(settings.enableSoundEffects), preset: String(settings.soundEffectsPreset || 'flat') as 'flat' | 'vocal' | 'bass' | 'focus', gain: Number(settings.soundEffectsGain || 1) }) }, [settings.enableSoundEffects, settings.soundEffectsGain, settings.soundEffectsPreset])
@@ -312,7 +321,7 @@ function AudioRuntime() {
       if (error instanceof DOMException && error.name === 'NotAllowedError') notify('浏览器阻止了自动播放，请点击播放按钮')
     })
   }, [isPlaying, notify, setPlaying])
-  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.album || '云音'), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('pause', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('previoustrack', () => usePlaybackStore.getState().previous()); navigator.mediaSession.setActionHandler?.('nexttrack', () => usePlaybackStore.getState().next()) }, [currentSong])
+  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.album || '云音'), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', togglePlayback); navigator.mediaSession.setActionHandler?.('pause', togglePlayback); navigator.mediaSession.setActionHandler?.('previoustrack', previousPlayback); navigator.mediaSession.setActionHandler?.('nexttrack', nextPlayback) }, [currentSong, nextPlayback, previousPlayback, togglePlayback])
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
 
@@ -399,11 +408,21 @@ export function PlayerShell() {
   const drawer = usePlayerUiStore(state => state.drawer)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const closeOverlays = usePlayerUiStore(state => state.closeOverlays)
+  const sidebarOpen = usePlayerUiStore(state => state.sidebarOpen)
+  const setTabFromHistory = usePlayerUiStore(state => state.setTabFromHistory)
   const dialog = usePlayerUiStore(state => state.dialog)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const immersiveLyrics = usePlayerUiStore(state => state.immersiveLyrics)
   const setImmersiveLyrics = usePlayerUiStore(state => state.setImmersiveLyrics)
+  const closeAddToList = usePlayerUiStore(state => state.closeAddToList)
   const currentSong = usePlaybackStore(state => state.currentSong)
+  const currentTime = usePlaybackStore(state => state.currentTime)
+  const duration = usePlaybackStore(state => state.duration)
+  const togglePlayback = usePlaybackStore(state => state.toggle)
+  const seekPlayback = usePlaybackStore(state => state.seek)
+  const toggleMute = usePlaybackStore(state => state.toggleMute)
+  const nextPlayback = usePlaybackStore(state => state.next)
+  const previousPlayback = usePlaybackStore(state => state.previous)
   const hydratePlayback = usePlaybackStore(state => state.hydrate)
   const hydrateSettings = useSettingsStore(state => state.hydrate)
   const hydrateLibrary = useLibraryStore(state => state.hydrate)
@@ -411,69 +430,61 @@ export function PlayerShell() {
   const hydrateMediaLibrary = useMediaLibraryStore(state => state.hydrate)
   const keyboardShortcuts = useSettingsStore(state => Boolean(state.settings.enableKeyboardShortcuts))
   useEffect(() => { hydratePlayback(); hydrateRecent(); void hydrateSettings(); void hydrateLibrary(); void hydrateMediaLibrary() }, [hydrateLibrary, hydrateMediaLibrary, hydratePlayback, hydrateRecent, hydrateSettings])
+  useEffect(() => connectPlaybackServiceStore(), [])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       const editing = target?.matches('input, textarea, select, [contenteditable="true"]')
       if (event.key === 'Escape') {
-        if (usePlayerUiStore.getState().immersiveLyrics || usePlayerUiStore.getState().dialog || usePlayerUiStore.getState().drawer || usePlayerUiStore.getState().sidebarOpen) {
+        if (immersiveLyrics || dialog || drawer || sidebarOpen) {
           event.preventDefault()
           closeOverlays()
         }
         return
       }
       if (!keyboardShortcuts || editing || event.altKey || event.ctrlKey || event.metaKey) return
-      if (event.key === ' ' || event.key === 'Spacebar') { event.preventDefault(); usePlaybackStore.getState().toggle() }
-      else if (event.key === 'ArrowLeft') { event.preventDefault(); const state = usePlaybackStore.getState(); state.seek(Math.max(0, state.currentTime - 5)) }
-      else if (event.key === 'ArrowRight') { event.preventDefault(); const state = usePlaybackStore.getState(); state.seek(Math.min(state.duration || Infinity, state.currentTime + 5)) }
-      else if (event.key.toLowerCase() === 'm') { event.preventDefault(); usePlaybackStore.getState().toggleMute() }
-      else if (event.key.toLowerCase() === 'n') { event.preventDefault(); usePlaybackStore.getState().next() }
+      if (event.key === ' ' || event.key === 'Spacebar') { event.preventDefault(); togglePlayback() }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); seekPlayback(Math.max(0, currentTime - 5)) }
+      else if (event.key === 'ArrowRight') { event.preventDefault(); seekPlayback(Math.min(duration || Infinity, currentTime + 5)) }
+      else if (event.key.toLowerCase() === 'm') { event.preventDefault(); toggleMute() }
+      else if (event.key.toLowerCase() === 'n') { event.preventDefault(); nextPlayback() }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [closeOverlays, keyboardShortcuts])
+  }, [closeOverlays, currentTime, dialog, drawer, duration, immersiveLyrics, keyboardShortcuts, nextPlayback, seekPlayback, sidebarOpen, toggleMute, togglePlayback])
   useEffect(() => {
-    const validTabs: PlayerTab[] = ['home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library', 'search', 'songlist', 'leaderboard', 'localmusic', 'settings', 'about']
-    const parseHash = () => {
-      const raw = window.location.hash.slice(1)
-      const [tabPart, queryPart = ''] = raw.split('?')
-      let decodedTab = tabPart || ''
-      try { decodedTab = decodeURIComponent(decodedTab) } catch { /* malformed hand-edited hash falls back to home */ }
-      const query = new URLSearchParams(queryPart)
-      return { tab: validTabs.includes(decodedTab as PlayerTab) ? decodedTab as PlayerTab : 'home', listId: query.get('listId') || 'love' }
-    }
-    const initialRoute = parseHash()
+    const initialRoute = parsePlayerHash(window.location.hash)
     const initialTab = initialRoute.tab
     const historyController = createPlayerHistoryController()
     historyController.initialize({ page: 'tab', tabId: initialTab, ...(initialTab === 'favorites' ? { listId: initialRoute.listId } : {}) })
-    usePlayerUiStore.getState().setTabFromHistory(initialTab, null, initialRoute.listId)
+    setTabFromHistory(initialTab, null, initialRoute.listId)
     const disconnect = connectPlayerNavigation(navigation => {
       const detail = navigation.detail
       historyController.push(detail ? { page: detail.page, tabId: navigation.tab, kind: detail.kind, id: detail.id, source: detail.source, name: detail.name, image: detail.image, listId: navigation.listId } : { page: 'tab', tabId: navigation.tab, listId: navigation.listId })
     })
     const onPop = () => {
       const restored = historyController.handlePopState(window.history.state)
-      const parsed = parseHash()
+      const parsed = parsePlayerHash(window.location.hash)
       const tabName = (restored?.state.tabId || parsed.tab) as PlayerTab
-      if (validTabs.includes(tabName)) {
+      if (VALID_PLAYER_TABS.includes(tabName)) {
         const isDetail = restored?.state.page === 'search-detail' || restored?.state.page === 'songlist-detail'
         const restoredDetail = isDetail && restored?.state.kind && restored.state.id ? { page: restored.state.page, kind: restored.state.kind, id: restored.state.id, source: restored.state.source || 'wy', name: restored.state.name, image: restored.state.image } as PlayerDetail : null
-        usePlayerUiStore.getState().setTabFromHistory(tabName, restoredDetail, restored?.state.listId || parsed.listId || 'love')
+        setTabFromHistory(tabName, restoredDetail, restored?.state.listId || parsed.listId || 'love')
       }
     }
     window.addEventListener('popstate', onPop)
     window.addEventListener('hashchange', onPop)
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
-  }, [])
-  useEffect(() => { if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(usePlaybackStore.getState().duration)) { try { navigator.mediaSession.setPositionState({ duration: Math.max(0.1, usePlaybackStore.getState().duration), playbackRate: 1, position: Math.min(usePlaybackStore.getState().currentTime, usePlaybackStore.getState().duration) }) } catch { /* browser may reject transient media metadata */ } } }, [currentSong])
-  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveLyrics} /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><AddToListDialog open={dialog === 'addToList'} onClose={() => usePlayerUiStore.getState().closeAddToList()} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><ImmersiveLyricsView open={immersiveLyrics} onClose={() => setImmersiveLyrics(false)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
+  }, [setTabFromHistory])
+  useEffect(() => { if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(duration)) { try { navigator.mediaSession.setPositionState({ duration: Math.max(0.1, duration), playbackRate: 1, position: Math.min(currentTime, duration) }) } catch { /* browser may reject transient media metadata */ } } }, [currentSong, currentTime, duration])
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveLyrics} /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><AddToListDialog open={dialog === 'addToList'} onClose={closeAddToList} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><ImmersiveLyricsView open={immersiveLyrics} onClose={() => setImmersiveLyrics(false)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
 }
 
 export function PlayerAuthGate() {
-  const auth = useAuthStore()
+  const login = useAuthStore(state => state.login)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); try { await auth.login(password) } catch (e) { setError(e instanceof Error ? e.message : '登录失败') } }
+  const submit = async (event: FormEvent) => { event.preventDefault(); try { await login(password) } catch (e) { setError(e instanceof Error ? e.message : '登录失败') } }
   return <main className="react-player-auth-page"><section className="react-player-auth-card"><img src="/music/assets/yun-yin.png" width="80" height="80" alt="云音图标" /><h1>云音</h1><p>输入密码以访问播放器</p><form onSubmit={submit}><label htmlFor="auth-password">访问密码</label><input id="auth-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required placeholder="请输入访问密码" />{error && <p className="react-error" role="alert">{error}</p>}<Button variant="primary" type="submit">进入播放器</Button></form></section></main>
 }
 

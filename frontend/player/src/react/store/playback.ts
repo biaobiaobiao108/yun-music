@@ -1,0 +1,206 @@
+import { create } from 'zustand'
+import { readJson, readString, writeJson, writeString } from '../../../../shared/src/storage'
+import { subscribePlaybackService, type PlaybackServiceEvent } from '../playback_service'
+import type { PlayMode, Song } from '../types'
+import { songKey } from '../types'
+import { browserStorage } from './shared'
+
+export type PlaybackState = {
+  queue: Song[]
+  currentIndex: number
+  currentSong: Song | null
+  isPlaying: boolean
+  currentTime: number
+  duration: number
+  volume: number
+  muted: boolean
+  mode: PlayMode
+  quality: string
+  resolving: boolean
+  error: string
+  playSong: (song: Song, queue?: Song[], index?: number) => void
+  toggle: () => void
+  setPlaying: (isPlaying: boolean) => void
+  setProgress: (time: number, duration?: number) => void
+  setVolume: (volume: number) => void
+  toggleMute: () => void
+  setMode: (mode: PlayMode) => void
+  setQuality: (quality: string) => void
+  seek: (time: number) => void
+  next: () => void
+  previous: () => void
+  enqueue: (songs: Song[]) => void
+  removeFromQueue: (index: number) => void
+  hydrate: () => void
+}
+
+let playCommand: () => void = () => undefined
+let pauseCommand: () => void = () => undefined
+let seekCommand: (time: number) => void = () => undefined
+let volumeCommand: (volume: number) => void = () => undefined
+let lastPlaybackPersistAt = 0
+
+export function connectAudioCommands(commands: { play: () => void; pause: () => void; seek: (time: number) => void; volume: (volume: number) => void }): void {
+  playCommand = commands.play
+  pauseCommand = commands.pause
+  seekCommand = commands.seek
+  volumeCommand = commands.volume
+}
+
+export function pausePlaybackCommand(): void {
+  pauseCommand()
+}
+
+const initialVolume = (() => {
+  const value = Number(readString(browserStorage(), 'lx_volume', '0.8'))
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8
+})()
+
+function persistPlayback(state: Pick<PlaybackState, 'currentSong' | 'currentIndex' | 'currentTime' | 'queue' | 'mode' | 'quality'>): void {
+  writeJson(browserStorage(), 'lx_playback_state', {
+    song: state.currentSong,
+    index: state.currentIndex,
+    time: state.currentTime,
+    playlist: state.queue.slice(0, 300),
+    playMode: state.mode,
+    quality: state.quality,
+    timestamp: Date.now(),
+  })
+}
+
+export const usePlaybackStore = create<PlaybackState>((set, get) => ({
+  queue: [],
+  currentIndex: -1,
+  currentSong: null,
+  isPlaying: false,
+  currentTime: 0,
+  duration: 0,
+  volume: initialVolume,
+  muted: initialVolume === 0,
+  mode: (['list', 'single', 'random'] as PlayMode[]).includes(readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode)
+    ? readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode
+    : 'list',
+  quality: 'flac',
+  resolving: false,
+  error: '',
+  // Loading a new song is asynchronous. AudioRuntime owns the actual play
+  // call after the new source is ready.
+  playSong: (song, queue = get().queue, index = Math.max(0, queue.findIndex(item => songKey(item) === songKey(song)))) => {
+    const nextQueue = queue.length ? queue : [song]
+    const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song))
+    const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, error: '' }
+    set(next)
+    persistPlayback({ ...get(), ...next })
+  },
+  toggle: () => {
+    if (get().isPlaying) {
+      pauseCommand()
+      set({ isPlaying: false })
+    } else {
+      playCommand()
+      set({ isPlaying: true })
+    }
+  },
+  setPlaying: isPlaying => set({ isPlaying }),
+  setProgress: (currentTime, duration) => {
+    set({ currentTime, ...(duration !== undefined ? { duration } : {}) })
+    if (Date.now() - lastPlaybackPersistAt >= 3000) {
+      lastPlaybackPersistAt = Date.now()
+      persistPlayback({ ...get(), currentTime })
+    }
+  },
+  setVolume: volume => {
+    const next = Math.min(1, Math.max(0, volume))
+    writeString(browserStorage(), 'lx_volume', String(next))
+    volumeCommand(next)
+    set({ volume: next, muted: next === 0 })
+  },
+  toggleMute: () => {
+    const state = get()
+    if (!state.muted) {
+      volumeCommand(0)
+      set({ muted: true })
+      return
+    }
+    const restored = state.volume > 0 ? state.volume : 0.8
+    writeString(browserStorage(), 'lx_volume', String(restored))
+    volumeCommand(restored)
+    set({ volume: restored, muted: false })
+  },
+  setMode: mode => {
+    writeString(browserStorage(), 'lx_play_mode', mode)
+    set({ mode })
+    persistPlayback({ ...get(), mode })
+  },
+  setQuality: quality => {
+    const next = String(quality || 'flac')
+    set({ quality: next })
+    persistPlayback({ ...get(), quality: next })
+  },
+  seek: time => {
+    seekCommand(time)
+    set({ currentTime: time })
+  },
+  next: () => {
+    const { queue, currentIndex, mode } = get()
+    if (!queue.length) return
+    const index = mode === 'random' ? Math.floor(Math.random() * queue.length) : (currentIndex + 1) % queue.length
+    const song = queue[index]
+    if (song) get().playSong(song, queue, index)
+  },
+  previous: () => {
+    const { queue, currentIndex } = get()
+    if (!queue.length) return
+    const index = (currentIndex - 1 + queue.length) % queue.length
+    get().playSong(queue[index], queue, index)
+  },
+  enqueue: songs => {
+    const current = get().queue
+    const queue = [...current, ...songs.filter(song => !current.some(item => songKey(item) === songKey(song)))]
+    set({ queue })
+    persistPlayback({ ...get(), queue })
+  },
+  removeFromQueue: index => {
+    const state = get()
+    if (index < 0 || index >= state.queue.length) return
+    const removingCurrent = state.currentIndex === index
+    const queue = state.queue.filter((_, itemIndex) => itemIndex !== index)
+    if (!queue.length) {
+      pauseCommand()
+      set({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0 })
+      persistPlayback({ ...state, queue: [], currentIndex: -1, currentSong: null, currentTime: 0 })
+      return
+    }
+    if (removingCurrent) {
+      const nextIndex = Math.min(index, queue.length - 1)
+      get().playSong(queue[nextIndex], queue, nextIndex)
+      return
+    }
+    const currentIndex = state.currentIndex > index ? state.currentIndex - 1 : state.currentIndex
+    const currentSong = currentIndex >= 0 ? queue[currentIndex] ?? null : null
+    set({ queue, currentIndex, currentSong })
+    persistPlayback({ ...state, queue, currentIndex, currentSong })
+  },
+  hydrate: () => {
+    const saved = readJson<{ song?: Song; index?: number; time?: number; playlist?: Song[]; playMode?: PlayMode; quality?: string }>(browserStorage(), 'lx_playback_state', {})
+    if (saved.playlist?.length) set({
+      currentSong: saved.song ?? saved.playlist[saved.index ?? 0] ?? null,
+      currentIndex: saved.index ?? 0,
+      currentTime: saved.time ?? 0,
+      queue: saved.playlist,
+      mode: saved.playMode ?? get().mode,
+      quality: saved.quality ?? 'flac',
+    })
+  },
+}))
+
+export function connectPlaybackServiceStore(): () => void {
+  return subscribePlaybackService((event: PlaybackServiceEvent) => {
+    const state = usePlaybackStore.getState()
+    if (event.type === 'play') state.setPlaying(true)
+    else if (event.type === 'pause') state.setPlaying(false)
+    else if (event.type === 'progress') state.setProgress(event.currentTime, event.duration)
+    else if (event.type === 'loaded') usePlaybackStore.setState({ duration: event.duration })
+    else if (event.type === 'error') usePlaybackStore.setState({ isPlaying: false, error: event.message })
+  })
+}

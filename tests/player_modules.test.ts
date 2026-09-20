@@ -30,6 +30,9 @@ describe('React player module boundaries', () => {
       'frontend/player/src/react/shell.tsx',
       'frontend/player/src/react/views.tsx',
       'frontend/player/src/react/store.ts',
+      'frontend/player/src/react/store/playback.ts',
+      'frontend/player/src/react/store/library.ts',
+      'frontend/player/src/react/store/ui.ts',
       'frontend/player/src/react/api.ts',
     ]
     const source = files.map(read).join('\n')
@@ -127,6 +130,7 @@ describe('React player module boundaries', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
     const library = read('frontend/player/src/react/library_views.tsx')
     const store = read('frontend/player/src/react/store.ts')
+    const mediaLibrary = read('frontend/player/src/react/store/media_library.ts')
     const admin = read('frontend/admin/src/react/index.tsx')
     const tokens = read('frontend/styles/design-tokens.css')
     for (const label of ['home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library', 'search', 'songlist', 'leaderboard']) expect(shell).toContain(`id: '${label}'`)
@@ -134,8 +138,8 @@ describe('React player module boundaries', () => {
     expect(shell).toContain('react-global-search')
     expect(library).toContain('LibraryAlbumsView')
     expect(library).toContain('LibraryArtistsView')
-    expect(store).toContain('libraryAlbums')
-    expect(store).toContain('libraryArtists')
+    expect(mediaLibrary).toContain('libraryAlbums')
+    expect(mediaLibrary).toContain('libraryArtists')
     expect(admin).toContain('updateThemePreferences')
     expect(tokens).toContain('--app-sidebar-width')
     expect(tokens).toContain('[data-theme="violet"]')
