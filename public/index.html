@@ -17,7 +17,7 @@
         })();
     </script>
     <script src="/js/config.js"></script>
-    <link rel="preload" href="app-n35tj5d8.js" as="script">
+    <link rel="preload" href="app-mv9dqefm.js" as="script">
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="assets/yun-yin.png">
@@ -517,28 +517,51 @@
 
                 <!-- 数据管理视图 -->
                 <div id="view-storage" class="view">
-                    <div class="view-header storage-view-header">
-                        <div class="storage-header-left">
-                            <div class="storage-tabs">
-                                <button type="button" class="storage-tab active" data-storage-tab="cache">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <polyline points="12 6 12 12 16 14" />
-                                    </svg>
-                                    <span>缓存音乐</span>
-                                    <span class="storage-tab-badge" id="storage-cache-badge">0</span>
-                                </button>
-                                <button type="button" class="storage-tab" data-storage-tab="music">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                        <polyline points="7 10 12 15 17 10" />
-                                        <line x1="12" y1="15" x2="12" y2="3" />
-                                    </svg>
-                                    <span>下载音乐</span>
-                                    <span class="storage-tab-badge" id="storage-music-badge">0</span>
-                                </button>
+                    <!-- 顶部双分类统计卡片 (点击切换分类) -->
+                    <div class="storage-stats-grid">
+                        <div class="storage-stat-card glass active" role="button" tabindex="0" data-storage-tab="cache">
+                            <div class="stat-icon cache-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                </svg>
                             </div>
+                            <div class="stat-content">
+                                <div class="stat-header-row">
+                                    <h3>缓存音乐</h3>
+                                    <span class="storage-active-badge">当前视图</span>
+                                </div>
+                                <div class="stat-value-pair">
+                                    <span id="storage-cache-count" class="stat-value">0 首</span>
+                                </div>
+                                <p id="storage-cache-size" class="stat-value-small">0 B</p>
+                            </div>
+                        </div>
 
+                        <div class="storage-stat-card glass" role="button" tabindex="0" data-storage-tab="music">
+                            <div class="stat-icon download-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-header-row">
+                                    <h3>下载音乐</h3>
+                                    <span class="storage-active-badge">当前视图</span>
+                                </div>
+                                <div class="stat-value-pair">
+                                    <span id="storage-music-count" class="stat-value">0 首</span>
+                                </div>
+                                <p id="storage-music-size" class="stat-value-small">0 B</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 操作与筛选工具栏 -->
+                    <div class="view-header storage-toolbar">
+                        <div class="header-main-actions">
                             <div class="custom-user-selector" id="storage-user-selector">
                                 <button type="button" class="selector-trigger" aria-haspopup="listbox" aria-expanded="false" data-admin-action="toggle-user-dropdown" data-admin-dropdown="storage">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="selector-icon">
@@ -555,9 +578,7 @@
                                 </div>
                             </div>
                             <input type="hidden" id="storage-user-select" value="all">
-                        </div>
 
-                        <div class="storage-header-right">
                             <div class="search-box">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="11" cy="11" r="8" />
@@ -575,7 +596,9 @@
                                 <option value="name-asc">歌曲名 (A-Z)</option>
                                 <option value="name-desc">歌曲名 (Z-A)</option>
                             </select>
+                        </div>
 
+                        <div class="header-side-actions">
                             <button id="refresh-storage-btn" class="btn-secondary" title="刷新列表">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
                                     <polyline points="23 4 23 10 17 10" />
@@ -594,6 +617,7 @@
                         </div>
                     </div>
 
+                    <!-- 批量操作栏 (白色玻璃卡片) -->
                     <div class="storage-batch-bar glass" id="storage-batch-bar">
                         <div class="batch-select-btns">
                             <button data-admin-action="storage-select-all" class="btn-batch">全选</button>
@@ -1186,7 +1210,7 @@
             </div>
         </div>
     </div>
-    <script src="app-n35tj5d8.js"></script>
+    <script src="app-mv9dqefm.js"></script>
 </body>
 
 </html>

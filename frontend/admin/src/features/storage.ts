@@ -44,7 +44,7 @@ export function initStorageFeature(context: AdminFeatureContext) {
                 btn.classList.toggle('active', !!isPlaying);
                 btn.innerHTML = isPlaying
                     ? `<div class="equalizer-icon"><span></span><span></span><span></span></div>`
-                    : `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+                    : `<svg viewBox="0 0 24 24" fill="currentColor" style="width:13px;height:13px;margin-left:1px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
             }
         });
     }
@@ -85,12 +85,22 @@ export function initStorageFeature(context: AdminFeatureContext) {
     }
 
     function bindStorageEvents() {
-        // 子标签切换
+        // 分类切换卡片
         document.querySelectorAll('[data-storage-tab]').forEach(tabBtn => {
             tabBtn.addEventListener('click', (e) => {
                 const target = (e.currentTarget as HTMLElement).dataset.storageTab;
                 if (target === 'cache' || target === 'music') {
                     switchStorageTab(target);
+                }
+            });
+            tabBtn.addEventListener('keydown', (e) => {
+                const evt = e as KeyboardEvent;
+                if (evt.key === 'Enter' || evt.key === ' ') {
+                    evt.preventDefault();
+                    const target = (evt.currentTarget as HTMLElement).dataset.storageTab;
+                    if (target === 'cache' || target === 'music') {
+                        switchStorageTab(target);
+                    }
                 }
             });
         });
@@ -181,14 +191,21 @@ export function initStorageFeature(context: AdminFeatureContext) {
                 allLoadedItems = res.data;
                 app.storageItems = allLoadedItems;
 
-                // 统计数量并更新徽章
+                // 统计数量与大小并更新顶部卡片
                 const cacheItems = allLoadedItems.filter(i => i.folder === 'cache');
                 const musicItems = allLoadedItems.filter(i => i.folder === 'music');
+                const cacheSize = cacheItems.reduce((acc, cur) => acc + (cur.size || 0), 0);
+                const musicSize = musicItems.reduce((acc, cur) => acc + (cur.size || 0), 0);
 
-                const cacheBadge = document.getElementById('storage-cache-badge');
-                const musicBadge = document.getElementById('storage-music-badge');
-                if (cacheBadge) cacheBadge.textContent = String(cacheItems.length);
-                if (musicBadge) musicBadge.textContent = String(musicItems.length);
+                const cacheCountEl = document.getElementById('storage-cache-count');
+                const cacheSizeEl = document.getElementById('storage-cache-size');
+                if (cacheCountEl) cacheCountEl.textContent = `${cacheItems.length} 首`;
+                if (cacheSizeEl) cacheSizeEl.textContent = app.formatFileSize(cacheSize);
+
+                const musicCountEl = document.getElementById('storage-music-count');
+                const musicSizeEl = document.getElementById('storage-music-size');
+                if (musicCountEl) musicCountEl.textContent = `${musicItems.length} 首`;
+                if (musicSizeEl) musicSizeEl.textContent = app.formatFileSize(musicSize);
 
                 switchStorageTab(currentTab);
             } else {
@@ -271,7 +288,7 @@ export function initStorageFeature(context: AdminFeatureContext) {
         const showUserCol = (userSelectEl?.value || 'all') === 'all';
 
         let html = `
-            <div class="storage-table">
+            <div class="storage-table glass">
                 <div class="storage-table-header">
                     <div class="col-storage-select">
                         <input type="checkbox" id="select-all-storage-checkbox" title="全选/反选">
@@ -310,7 +327,7 @@ export function initStorageFeature(context: AdminFeatureContext) {
                     <div class="col-storage-time" title="${app.escapeHtml(timeStr)}">${app.escapeHtml(timeStr)}</div>
                     <div class="col-storage-actions">
                         <button type="button" class="btn-play-preview ${isPlaying ? 'active' : ''}" data-storage-action="play" data-storage-index="${index}" title="${isPlaying ? '暂停试听' : '试听预览'}">
-                            ${isPlaying ? '<div class="equalizer-icon"><span></span><span></span><span></span></div>' : '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}
+                            ${isPlaying ? '<div class="equalizer-icon"><span></span><span></span><span></span></div>' : '<svg viewBox="0 0 24 24" fill="currentColor" style="width:13px;height:13px;margin-left:1px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}
                         </button>
                         <button type="button" class="btn-icon" data-storage-action="move" data-storage-index="${index}" title="${moveActionTitle}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
@@ -320,7 +337,7 @@ export function initStorageFeature(context: AdminFeatureContext) {
                                 <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
                             </svg>
                         </button>
-                        <button type="button" class="btn-icon" data-storage-action="delete" data-storage-index="${index}" title="删除文件" style="color: var(--accent-error);">
+                        <button type="button" class="btn-icon btn-danger-icon" data-storage-action="delete" data-storage-index="${index}" title="删除文件">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
                                 <polyline points="3 6 5 6 21 6"/>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
