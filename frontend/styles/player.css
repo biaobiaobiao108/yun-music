@@ -9165,3 +9165,95 @@ textarea:focus-visible {
         transition: none;
     }
 }
+
+/* Keep the volume popover close to the actual control instead of reserving
+   an oversized empty card around a short range track. */
+.react-volume-popover {
+    grid-template-columns: auto 7rem;
+    inline-size: max-content;
+    width: auto;
+    min-inline-size: 0;
+    padding: .34rem .42rem;
+    gap: .4rem;
+}
+
+.react-volume-popover .react-volume-mute {
+    min-inline-size: 1.7rem;
+    min-block-size: 1.7rem;
+    padding: .18rem;
+}
+
+.react-volume-popover .react-volume-range {
+    inline-size: 7rem;
+}
+
+/* Comments use a wider but bounded dialog. The inner list may scroll
+   vertically, but neither the dialog nor long comment text may create a
+   horizontal scroll container. */
+.react-dialog.react-comments-modal {
+    inline-size: min(42rem, calc(100% - 2rem));
+    min-inline-size: 0;
+    max-inline-size: calc(100% - 2rem);
+    max-block-size: min(82dvh, 44rem);
+}
+
+.react-comments-modal .react-dialog-content,
+.react-comments-modal .react-dialog-body,
+.react-comments-modal .react-comments-dialog {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    box-sizing: border-box;
+}
+
+.react-comments-modal .react-dialog-body {
+    overflow-x: clip;
+}
+
+.react-comments-modal .react-dialog-content > header h2,
+.react-comments-modal .react-comment-tabs,
+.react-comments-modal .react-comment-item > div {
+    min-inline-size: 0;
+}
+
+.react-comments-modal .react-dialog-content > header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-comments-modal .react-comments-dialog {
+    inline-size: 100%;
+    overflow-x: clip;
+    overflow-y: auto;
+}
+
+.react-comments-modal .react-comment-list {
+    inline-size: 100%;
+    max-inline-size: 100%;
+}
+
+@media (max-width: 620px) {
+    .react-dialog.react-comments-modal {
+        inline-size: calc(100% - 1rem);
+        max-inline-size: calc(100% - 1rem);
+        max-block-size: calc(100dvh - 1rem);
+    }
+
+    .react-comments-modal .react-dialog-content > header {
+        padding-inline: .9rem;
+    }
+
+    .react-comments-modal .react-dialog-body {
+        padding: .9rem;
+    }
+
+    .react-volume-popover {
+        grid-template-columns: auto minmax(0, 1fr);
+        inline-size: min(10.5rem, calc(100vw - 1rem));
+        max-inline-size: calc(100vw - 1rem);
+    }
+
+    .react-volume-popover .react-volume-range {
+        inline-size: auto;
+    }
+}
