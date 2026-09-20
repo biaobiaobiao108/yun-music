@@ -385,17 +385,43 @@ export function LoginDialog({ open, onClose }: { open: boolean; onClose: () => v
 
 export function UserLoginDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const userLogin = useAuthStore(state => state.userLogin)
+  const pendingSong = usePlayerUiStore(state => state.playlistSong)
+  const setDialog = usePlayerUiStore(state => state.setDialog)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); try { await userLogin(username, password); await useLibraryStore.getState().hydrate(); onClose() } catch (e) { setError(e instanceof Error ? e.message : '登录失败') } }
+  const submit = async (event: FormEvent) => { event.preventDefault(); try { await userLogin(username, password); await useLibraryStore.getState().hydrate(); if (pendingSong) setDialog('addToList'); else onClose() } catch (e) { setError(e instanceof Error ? e.message : '登录失败') } }
   return <Modal open={open} title="登录用户账户" onClose={onClose}><form className="react-dialog-form" onSubmit={submit}><label htmlFor="user-name">用户名</label><input id="user-name" autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} required /><label htmlFor="user-password">密码</label><input id="user-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required />{error && <p className="react-error" role="alert">{error}</p>}<Button variant="primary" type="submit">登录</Button></form></Modal>
 }
 
 export function CreateListDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const createList = useLibraryStore(state => state.createList)
   const notify = usePlayerUiStore(state => state.notify)
+  const pendingSong = usePlayerUiStore(state => state.playlistSong)
+  const setDialog = usePlayerUiStore(state => state.setDialog)
   const [name, setName] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); if (!name.trim()) return; try { await createList(name.trim()); setName(''); onClose(); notify('歌单已创建') } catch (error) { notify(error instanceof Error ? error.message : '创建歌单失败') } }
+  const submit = async (event: FormEvent) => { event.preventDefault(); if (!name.trim()) return; try { await createList(name.trim()); setName(''); if (pendingSong) setDialog('addToList'); else onClose(); notify('歌单已创建') } catch (error) { notify(error instanceof Error ? error.message : '创建歌单失败') } }
   return <Modal open={open} title="新建歌单" onClose={onClose}><form className="react-dialog-form" onSubmit={submit}><label htmlFor="new-list-name">歌单名称</label><input id="new-list-name" value={name} onChange={event => setName(event.target.value)} required maxLength={80} /><Button variant="primary" type="submit">创建</Button></form></Modal>
+}
+
+export function AddToListDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const song = usePlayerUiStore(state => state.playlistSong)
+  const setDialog = usePlayerUiStore(state => state.setDialog)
+  const notify = usePlayerUiStore(state => state.notify)
+  const data = useLibraryStore(state => state.data)
+  const addSong = useLibraryStore(state => state.addSong)
+  const removeSong = useLibraryStore(state => state.removeSong)
+  const lists = useMemo(() => [
+    { id: 'love', name: '我的收藏', songs: data.loveList ?? [] },
+    ...(data.userList ?? []).map(list => ({ id: String(list.id), name: list.name, songs: list.list ?? [] })),
+  ], [data.loveList, data.userList])
+  const toggleList = async (list: { id: string; name: string; songs: Song[] }) => {
+    if (!song) return
+    const included = list.songs.some(item => songKey(item) === songKey(song))
+    try {
+      if (included) { await removeSong(list.id, song); notify(`已从“${list.name}”移除`) }
+      else { await addSong(list.id, song); notify(`已添加到“${list.name}”`) }
+    } catch (error) { notify(error instanceof Error ? error.message : '歌单操作失败') }
+  }
+  return <Modal open={open} title="添加到歌单" onClose={onClose}><div className="react-add-to-list-dialog">{song && <p className="react-add-to-list-song"><SafeImage src={songImage(song)} width="44" height="44" alt="" /><span><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></p>}<div className="react-add-to-list-options">{lists.map(list => { const included = Boolean(song && list.songs.some(item => songKey(item) === songKey(song))); return <button type="button" key={list.id} className={`react-add-to-list-option ${included ? 'is-included' : ''}`} aria-pressed={included} onClick={() => void toggleList(list)}><span><Icon name={list.id === 'love' ? 'heart' : 'music'} /><strong>{list.name}</strong><small>{list.songs.length} 首歌曲</small></span><Icon name={included ? 'check' : 'plus'} /></button> })}<Button type="button" className="react-add-to-list-create" onClick={() => setDialog('createList')}><Icon name="plus" />新建歌单</Button></div>{!song && <p className="react-empty-text">当前没有正在播放的歌曲</p>}</div></Modal>
 }

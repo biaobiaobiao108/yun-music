@@ -7720,3 +7720,463 @@ textarea:focus-visible {
         transition: none;
     }
 }
+
+/* Final React footer and song action surface. Keep this layer last so the
+   migrated player does not inherit the legacy footer geometry. */
+.react-player-footer#player-footer {
+    position: absolute !important;
+    z-index: 40;
+    inset: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: 1rem !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(16rem, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    width: min(60rem, calc(100% - 2rem)) !important;
+    min-height: 4.7rem;
+    padding: .62rem .95rem;
+    transform: translateX(-50%);
+    overflow: visible !important;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 78%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--app-surface-solid) 82%, transparent) !important;
+    box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 24%);
+    backdrop-filter: blur(24px) saturate(1.25);
+}
+
+.react-player-footer#player-footer .react-footer-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: .18rem;
+    min-width: max-content;
+}
+
+.react-footer-song-section {
+    display: grid;
+    min-width: 0;
+    gap: .35rem;
+}
+
+.react-footer-song {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .68rem;
+    min-width: 0;
+    padding: 0;
+    color: var(--app-text);
+}
+
+.react-footer-cover-button {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    flex: 0 0 auto;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: .68rem;
+    background: var(--app-surface-soft);
+    color: inherit;
+    cursor: pointer;
+}
+
+.react-footer-cover-button:disabled {
+    cursor: default;
+    opacity: .72;
+}
+
+.react-footer-cover-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.react-footer-song-meta {
+    display: grid;
+    min-width: 0;
+    gap: .12rem;
+}
+
+.react-footer-title-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: .18rem;
+}
+
+.react-footer-title-row strong,
+.react-footer-song-meta small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-footer-title-row strong {
+    color: var(--app-text);
+    font-size: .86rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.react-footer-song-meta small {
+    color: var(--app-text-muted);
+    font-size: .72rem;
+    line-height: 1.25;
+}
+
+.react-footer-song-menu-trigger {
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+}
+
+.react-footer-song-menu-trigger:hover,
+.react-footer-song-menu-trigger:focus-visible {
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+}
+
+.react-footer-song-menu-trigger:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.react-footer-song-menu-trigger i {
+    font-size: .84rem;
+}
+
+.react-footer-song-section .react-progress-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .4rem;
+    min-width: 0;
+    color: var(--app-text-dim);
+    font-size: .64rem;
+}
+
+.react-footer-song-section .react-progress-row input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    accent-color: var(--app-accent);
+}
+
+.react-player-footer#player-footer .react-footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .08rem;
+    min-width: max-content;
+}
+
+.react-player-footer#player-footer .react-footer-actions .react-like-button span {
+    display: none;
+}
+
+.react-player-footer#player-footer .react-volume-range {
+    width: 4rem;
+    accent-color: var(--app-accent);
+}
+
+.react-song-actions-popover {
+    position: fixed;
+    z-index: 240;
+    display: block;
+    max-width: calc(100vw - 1.25rem);
+    padding: .42rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 84%, transparent);
+    border-radius: 1.05rem;
+    background: color-mix(in srgb, var(--app-surface-solid) 96%, transparent);
+    color: var(--app-text);
+    box-shadow: 0 1rem 2.8rem rgb(0 0 0 / 30%);
+    backdrop-filter: blur(22px) saturate(1.25);
+}
+
+.react-song-actions-popover-heading {
+    padding: .5rem .62rem .36rem;
+    color: var(--app-text-muted);
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+
+.react-song-actions-popover-list {
+    display: grid;
+    gap: .12rem;
+}
+
+.react-song-actions-popover-list > button {
+    display: flex;
+    align-items: center;
+    gap: .62rem;
+    width: 100%;
+    min-height: 2.35rem;
+    padding: .46rem .62rem;
+    border: 0;
+    border-radius: .72rem;
+    background: transparent;
+    color: var(--app-text);
+    font: inherit;
+    font-size: .82rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.react-song-actions-popover-list > button:hover,
+.react-song-actions-popover-list > button:focus-visible {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+    outline: none;
+}
+
+.react-song-actions-popover-list > button i {
+    width: 1rem;
+    color: var(--app-text-muted);
+    text-align: center;
+}
+
+.react-song-actions-popover-list > button:hover i,
+.react-song-actions-popover-list > button:focus-visible i {
+    color: currentColor;
+}
+
+.react-add-to-list-dialog {
+    display: grid;
+    gap: 1rem;
+}
+
+.react-add-to-list-song {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+    align-items: center;
+    gap: .7rem;
+    margin: 0;
+    padding: .65rem;
+    border: 1px solid var(--app-border);
+    border-radius: .95rem;
+    background: var(--app-surface-soft);
+}
+
+.react-add-to-list-song img {
+    width: 2.75rem;
+    height: 2.75rem;
+    object-fit: cover;
+    border-radius: .62rem;
+}
+
+.react-add-to-list-song span {
+    display: grid;
+    min-width: 0;
+    gap: .15rem;
+}
+
+.react-add-to-list-song strong,
+.react-add-to-list-song small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-add-to-list-song strong { font-size: .88rem; }
+.react-add-to-list-song small { color: var(--app-text-muted); font-size: .76rem; }
+
+.react-add-to-list-options {
+    display: grid;
+    gap: .42rem;
+}
+
+.react-add-to-list-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    width: 100%;
+    min-height: 3.1rem;
+    padding: .6rem .72rem;
+    border: 1px solid var(--app-border);
+    border-radius: .9rem;
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.react-add-to-list-option:hover,
+.react-add-to-list-option:focus-visible,
+.react-add-to-list-option.is-included {
+    border-color: color-mix(in srgb, var(--app-accent) 62%, var(--app-border));
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+    outline: none;
+}
+
+.react-add-to-list-option > span {
+    display: grid;
+    grid-template-columns: 1.15rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: .48rem;
+    min-width: 0;
+}
+
+.react-add-to-list-option > span > i { grid-row: span 2; text-align: center; }
+.react-add-to-list-option strong,
+.react-add-to-list-option small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.react-add-to-list-option strong { font-size: .82rem; }
+.react-add-to-list-option small { color: var(--app-text-muted); font-size: .7rem; }
+.react-add-to-list-option > i { flex: 0 0 auto; }
+
+.react-add-to-list-create {
+    justify-content: center;
+    width: 100%;
+    min-height: 2.7rem;
+    border-style: dashed !important;
+}
+
+@media (max-width: 900px) {
+    .react-player-footer#player-footer {
+        bottom: .6rem !important;
+        width: calc(100% - 1rem) !important;
+        min-height: 4.4rem;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: .55rem;
+        padding: .55rem .7rem;
+        border-radius: 1.35rem !important;
+    }
+
+    .react-player-footer#player-footer .react-footer-controls {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .react-player-footer#player-footer .react-footer-song-section {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .react-player-footer#player-footer .react-footer-actions {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    .react-player-footer#player-footer .react-footer-controls { gap: .04rem; }
+    .react-player-footer#player-footer .react-footer-controls .player-secondary-action,
+    .react-player-footer#player-footer .react-footer-actions .player-secondary-action { width: 2.15rem; height: 2.15rem; }
+    .react-player-footer#player-footer .react-play-button { width: 2.55rem; height: 2.55rem; }
+    .react-player-footer#player-footer .react-footer-actions { gap: 0; }
+    .react-player-footer#player-footer .react-volume-range { display: none; }
+}
+
+@media (max-width: 560px) {
+    .react-player-footer#player-footer {
+        width: calc(100% - .7rem) !important;
+        gap: .28rem;
+        padding-inline: .48rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-cover-button { width: 2.65rem; height: 2.65rem; border-radius: .58rem; }
+    .react-player-footer#player-footer .react-footer-song { gap: .42rem; }
+    .react-player-footer#player-footer .react-footer-title-row strong { font-size: .78rem; }
+    .react-player-footer#player-footer .react-footer-song-meta small { font-size: .66rem; }
+    .react-player-footer#player-footer .react-footer-song-menu-trigger { width: 1.55rem; height: 1.55rem; }
+    .react-player-footer#player-footer .react-footer-controls .player-secondary-action,
+    .react-player-footer#player-footer .react-footer-actions .player-secondary-action { width: 1.9rem; height: 1.9rem; }
+    .react-player-footer#player-footer .react-play-button { width: 2.25rem; height: 2.25rem; }
+}
+
+/* The immersive lyrics footer is a separate control row, not the floating
+   desktop pill. The cover and song menu stay in the cover panel above it. */
+.react-immersive-lyrics footer.react-player-footer.react-immersive-footer {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    z-index: 2;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    min-height: 0;
+    margin: .35rem auto 0;
+    padding: 0;
+    gap: .68rem;
+    transform: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none;
+}
+
+.react-immersive-footer .react-footer-controls {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .4rem;
+}
+
+.react-immersive-footer .react-footer-song-section {
+    grid-column: 1;
+    grid-row: 2;
+    gap: .55rem;
+}
+
+.react-immersive-footer .react-footer-song { display: none; }
+.react-immersive-footer .react-footer-song-menu-trigger { display: none; }
+.react-immersive-footer .react-footer-actions {
+    grid-column: 1;
+    grid-row: 3;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: .2rem;
+    padding-top: .45rem;
+    border-top: 1px solid color-mix(in srgb, var(--app-border) 78%, transparent);
+}
+
+.react-immersive-footer .react-footer-controls .player-secondary-action,
+.react-immersive-footer .react-footer-actions .player-secondary-action {
+    width: 2.3rem;
+    height: 2.3rem;
+    border-radius: 50%;
+}
+
+.react-immersive-footer .react-play-button {
+    width: 3.35rem;
+    height: 3.35rem;
+    background: var(--app-text);
+    color: var(--app-bg);
+    box-shadow: 0 .7rem 1.6rem rgb(0 0 0 / 24%);
+}
+
+.react-immersive-footer .react-footer-actions > * { display: grid !important; }
+.react-immersive-footer .react-footer-actions .react-volume-range { width: 4rem; }
+
+@media (max-width: 560px) {
+    .react-immersive-footer .react-footer-actions > *:not(.react-like-button):not(:last-child) { display: none !important; }
+    .react-immersive-footer .react-footer-actions { justify-content: space-between; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-song-actions-popover-list > button,
+    .react-footer-song-menu-trigger,
+    .react-add-to-list-option { transition: none; }
+}

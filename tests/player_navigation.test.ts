@@ -50,6 +50,22 @@ describe('React player navigation and state restoration', () => {
     expect(views).toContain('<PlayerFooterBar embedded />')
   })
 
+  it('keeps the normal footer order and exposes the portal song action flow', () => {
+    const footer = read('frontend/player/src/react/player_footer.tsx')
+    const actions = read('frontend/player/src/react/song_actions.tsx')
+    const views = read('frontend/player/src/react/views.tsx')
+    expect(footer.indexOf('react-footer-controls')).toBeLessThan(footer.indexOf('react-footer-song-section'))
+    expect(footer.indexOf('react-footer-song-section')).toBeLessThan(footer.indexOf('react-footer-actions'))
+    expect(footer.indexOf('react-like-button')).toBeLessThan(footer.indexOf('打开播放队列'))
+    expect(footer.indexOf('打开播放队列')).toBeLessThan(footer.indexOf('react-volume-range'))
+    expect(actions).toContain('createPortal')
+    expect(actions).toContain('role="dialog"')
+    for (const label of ['歌手详情', '专辑', '添加到歌单', '评论', '下载歌曲', '睡眠定时器']) expect(actions).toContain(label)
+    expect(views).toContain('export function AddToListDialog')
+    expect(views).toContain("name: '我的收藏'")
+    expect(views).toContain('userList')
+  })
+
   it('preserves responsive, reduced-motion and long-list performance guards', () => {
     const html = read('public/music/index.html')
     const css = read('frontend/styles/player.css')

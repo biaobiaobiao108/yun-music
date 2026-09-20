@@ -122,9 +122,9 @@ export function connectPlayerTabNavigation(navigate: (tab: PlayerTab) => void): 
   return connectPlayerNavigation(({ tab }) => navigate(tab))
 }
 
-type UiState = { tab: PlayerTab; detail: PlayerDetail | null; favoriteListId: string; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'sleep' | 'lyrics' | 'comments' | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void; setFavoriteListId: (listId: string) => void; openFavoriteList: (listId: string) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null, listId?: string) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
+type UiState = { tab: PlayerTab; detail: PlayerDetail | null; favoriteListId: string; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'addToList' | 'sleep' | 'lyrics' | 'comments' | null; playlistSong: Song | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void; setFavoriteListId: (listId: string) => void; openFavoriteList: (listId: string) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null, listId?: string) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; openAddToList: (song: Song) => void; closeAddToList: () => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
 export const usePlayerUiStore = create<UiState>((set, get) => ({
-  tab: 'home', detail: null, favoriteListId: 'love', sidebarOpen: false, drawer: null, dialog: null, immersiveLyrics: false, notice: '',
+  tab: 'home', detail: null, favoriteListId: 'love', sidebarOpen: false, drawer: null, dialog: null, playlistSong: null, immersiveLyrics: false, notice: '',
   setTab: (tab) => {
     if (get().tab === tab) return
     const listId = tab === 'favorites' ? get().favoriteListId : undefined
@@ -148,7 +148,9 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
   closeSidebar: () => set({ sidebarOpen: false }),
   setDrawer: (drawer) => set({ drawer }),
-  setDialog: (dialog) => set({ dialog }),
+  setDialog: (dialog) => set(dialog === null ? { dialog, playlistSong: null } : { dialog }),
+  openAddToList: playlistSong => set({ playlistSong, dialog: 'addToList' }),
+  closeAddToList: () => set({ playlistSong: null, dialog: null }),
   setImmersiveLyrics: (open) => set({ immersiveLyrics: open }),
   notify: (notice) => set({ notice }),
   clearNotice: () => set({ notice: '' }),
