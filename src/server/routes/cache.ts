@@ -420,7 +420,30 @@ export const createCacheRouter = (): Router => {
         if (parsed.origin === requestOrigin && parsed.pathname === '/api/music/download') {
           requestedUrl = parsed.searchParams.get('url')?.trim() || requestedUrl
         } else if (parsed.origin === requestOrigin && parsed.pathname.startsWith('/api/music/cache/file/')) {
-          return ctx.fail(409, '该歌曲已经位于服务器缓存中，请使用移动到下载目录操作')
+          const rawPath = parsed.pathname.slice('/api/music/cache/file/'.length).split('/').filter(Boolean)
+          if (!rawPath.length) return ctx.fail(400, '缓存文件路径不合法')
+          const requestedCacheUsername = rawPath.length > 1 ? decodeURIComponent(rawPath.shift() || '') : '_open'
+          const cacheUsername = ['open', 'default', '_open'].includes(requestedCacheUsername) ? '_open' : requestedCacheUsername
+          const cacheFilename = rawPath.map(part => decodeURIComponent(part)).join('/')
+          const cacheFolder = parsed.searchParams.get('folder') === 'music' ? 'music' : 'cache'
+          if (!cacheFilename) return ctx.fail(400, '缓存文件名不合法')
+          if (cacheFolder === 'music') {
+            return ctx.json({ success: true, successCount: 1, failCount: 0, moved: [], message: '歌曲已经在下载目录中' })
+          }
+          if (cacheUsername === '_open' && target.username !== '_open') {
+            if (!canReadPublicLocalMusic(ctx, verifyUserAuth(ctx), verifyAdminAuth(ctx.request))) {
+              return ctx.fail(403, '您没有权限下载公共本地音乐')
+            }
+            const promoted = await fileCache.promoteCacheFile(cacheFilename, cacheUsername, target.username)
+            if (promoted.successCount < 1) return ctx.fail(409, '缓存文件尚未准备好，请稍后再试')
+            return ctx.json({ success: true, ...promoted, message: '已移入下载目录' })
+          }
+          if (cacheUsername !== target.username && !verifyAdminAuth(ctx.request)) {
+            return ctx.fail(403, '无权移动其他用户的缓存文件')
+          }
+          const moved = await fileCache.switchFolder([cacheFilename], cacheUsername, 'music')
+          if (moved.successCount < 1) return ctx.fail(409, '缓存文件尚未准备好，请稍后再试')
+          return ctx.json({ success: true, ...moved, message: '已移入下载目录' })
         }
       } catch {
         return ctx.fail(400, '下载地址不合法')
@@ -901,9 +924,16 @@ export const createCacheRouter = (): Router => {
       if (rawItems.length > 500) return ctx.fail(400, '单次最多移动 500 个文件')
 
       const userGroup = new Map<string, string[]>()
+      const publicPromotions: Array<{ filename: string; sourceUser: string }> = []
       for (const item of rawItems) {
-        const itemUser = (isAdmin && (item.user || item.rawUsername))
-          ? assertSafePathSegment(item.user || item.rawUsername, 'user name')
+        const requestedSourceUser = String(item.sourceUser || item.user || item.rawUsername || '').trim()
+        const sourceUser = ['open', 'default', '_open'].includes(requestedSourceUser) ? '_open' : requestedSourceUser
+        if (!isAdmin && sourceUser === '_open' && target.username !== '_open' && requestedTargetFolder === 'music') {
+          publicPromotions.push({ filename: item.filename, sourceUser })
+          continue
+        }
+        const itemUser = (isAdmin && sourceUser)
+          ? assertSafePathSegment(sourceUser, 'user name')
           : target.username
         const list = userGroup.get(itemUser) || []
         list.push(item.filename)
@@ -913,6 +943,12 @@ export const createCacheRouter = (): Router => {
       let totalSuccess = 0
       let totalFail = 0
       const moved: Array<{ filename: string; from: fileCache.CacheFolder; to: fileCache.CacheFolder; user: string }> = []
+      for (const item of publicPromotions) {
+        const result = await fileCache.promoteCacheFile(item.filename, item.sourceUser, target.username)
+        totalSuccess += result.successCount
+        totalFail += result.failCount
+        moved.push(...result.moved.map(entry => ({ ...entry, user: target.username })))
+      }
       for (const [user, filenames] of userGroup.entries()) {
         const result = await fileCache.switchFolder(filenames, user, requestedTargetFolder ?? undefined)
         totalSuccess += result.successCount

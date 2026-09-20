@@ -750,6 +750,53 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('should promote a public cache into a user download without removing the shared file', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-promote-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const sourceDir = fileCache.getCacheDir('_open', false)
+      const sourceFile = path.join(sourceDir, 'public-song.mp3')
+      const sourceLyric = path.join(sourceDir, 'public-song.lrc')
+      fs.writeFileSync(sourceFile, Buffer.from('public-audio'))
+      fs.writeFileSync(sourceLyric, '[00:00.00]public lyric')
+      const stats = fs.statSync(sourceFile)
+      fileCache.indexManager.update('_open', {
+        id: 'wy_public-song',
+        songmid: 'public-song',
+        name: 'Public Song',
+        singer: 'Public Singer',
+        albumName: 'Public Album',
+        source: 'wy',
+        quality: '128k',
+        filename: 'public-song.mp3',
+        lyricFilename: 'public-song.lrc',
+        folder: 'cache',
+        mtime: stats.mtimeMs,
+        size: stats.size,
+        ext: 'mp3',
+      }, 'cache')
+
+      const result = await fileCache.promoteCacheFile('public-song.mp3', '_open', 'promote-user')
+      expect(result.successCount).toBe(1)
+      expect(fs.existsSync(sourceFile)).toBe(true)
+      expect(fs.existsSync(path.join(fileCache.getCacheDir('promote-user', true), 'public-song.mp3'))).toBe(true)
+      expect(fs.existsSync(path.join(fileCache.getCacheDir('promote-user', true), 'public-song.lrc'))).toBe(true)
+      expect(fileCache.indexManager.get('promote-user', 'wy_public-song', 'music', '128k', false, fileCache.CACHE_ROOTS.DATA)?.folder).toBe('music')
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should clean up only cache directory and preserve music directory when limit exceeded', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-cleanup-'))
     const previousLx = (global as any).lx

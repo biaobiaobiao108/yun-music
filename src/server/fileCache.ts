@@ -3490,15 +3490,12 @@ export const switchFolder = async (filenames: string[], username: string | undef
     let failCount = 0
     const moved: Array<{ filename: string; from: CacheFolder; to: CacheFolder }> = []
 
-    const cacheIndex = indexManager.load(normalizedUsername, 'cache')
-    const musicIndex = indexManager.load(normalizedUsername, 'music')
-
-    const cacheDir = getCacheDir(normalizedUsername, false)
-    const musicDir = getCacheDir(normalizedUsername, true)
+    const locations = getCacheLocations()
 
     for (const filename of filenames) {
         let sourceFolder: 'cache' | 'music' | null = null
         let item: CacheItem | null = null
+        let sourceLocation = currentCacheLocation
         // An explicit destination makes this operation idempotent from the
         // player's perspective: downloads always move cache -> music instead
         // of accidentally toggling an already-downloaded file back to cache.
@@ -3506,13 +3503,17 @@ export const switchFolder = async (filenames: string[], username: string | undef
             ? [requestedTargetFolder === 'music' ? 'cache' : 'music']
             : ['cache', 'music']
         for (const candidate of sourceCandidates) {
-            const index = candidate === 'cache' ? cacheIndex : musicIndex
-            const found = Array.from(index.values()).find(entry => entry.filename === filename)
-            if (found) {
-                sourceFolder = candidate
-                item = found
-                break
+            for (const location of locations) {
+                const index = indexManager.load(normalizedUsername, candidate, location)
+                const found = Array.from(index.values()).find(entry => entry.filename === filename)
+                if (found) {
+                    sourceFolder = candidate
+                    sourceLocation = location
+                    item = found
+                    break
+                }
             }
+            if (sourceFolder) break
         }
 
         if (!sourceFolder || !item) {
@@ -3530,8 +3531,8 @@ export const switchFolder = async (filenames: string[], username: string | undef
             continue
         }
 
-        const sourceDir = sourceFolder === 'music' ? musicDir : cacheDir
-        const targetDir = targetFolder === 'music' ? musicDir : cacheDir
+        const sourceDir = getCacheDir(normalizedUsername, sourceFolder === 'music', sourceLocation)
+        const targetDir = getCacheDir(normalizedUsername, targetFolder === 'music', sourceLocation)
 
         const sourcePath = resolveCacheRelativePath(sourceDir, filename)
         const targetPath = resolveCacheRelativePath(targetDir, filename)
@@ -3590,10 +3591,10 @@ export const switchFolder = async (filenames: string[], username: string | undef
                 }
 
                 // Update Index
-                const removed = indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality)
+                const removed = indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLocation)
                 console.log(`[FileCache][DEBUG] index remove result`, { filename, removed })
                 item.folder = targetFolder
-                indexManager.update(normalizedUsername, item, targetFolder)
+                indexManager.update(normalizedUsername, item, targetFolder, sourceLocation)
                 successCount++
                 moved.push({ filename, from: sourceFolder, to: targetFolder })
             } else {
@@ -3612,6 +3613,61 @@ export const switchFolder = async (filenames: string[], username: string | undef
         invalidateGlobalCacheStats()
     }
     return { successCount, failCount, moved }
+}
+
+/**
+ * Promote a shared public cache file into a user's download directory.
+ * Public cache files are shared by all users, so this intentionally copies
+ * them instead of removing the shared copy. Private cache -> music moves
+ * continue to use switchFolder and remain a zero-copy rename.
+ */
+export const promoteCacheFile = async (filename: string, sourceUsername: string | undefined, targetUsername: string | undefined) => {
+    const normalizedSource = sourceUsername && !['open', 'default', '_open'].includes(sourceUsername) ? sourceUsername : '_open'
+    const normalizedTarget = targetUsername && !['open', 'default', '_open'].includes(targetUsername) ? targetUsername : '_open'
+    if (normalizedSource === normalizedTarget) return switchFolder([filename], normalizedTarget, 'music')
+
+    for (const location of getCacheLocations()) {
+        const item = indexManager.getAll(normalizedSource, 'cache', location).find(entry => entry.filename === filename)
+        if (!item) continue
+
+        const sourceDir = getCacheDir(normalizedSource, false, location)
+        const targetDir = getCacheDir(normalizedTarget, true, location)
+        const sourcePath = resolveCacheRelativePath(sourceDir, filename)
+        const targetPath = resolveCacheRelativePath(targetDir, filename)
+        if (!sourcePath || !targetPath || !fs.existsSync(sourcePath)) continue
+
+        if (fs.existsSync(targetPath)) {
+            const targetItem = indexManager.getAll(normalizedTarget, 'music', location).find(entry => entry.filename === filename)
+            if (targetItem) return { successCount: 1, failCount: 0, moved: [{ filename, from: 'cache' as CacheFolder, to: 'music' as CacheFolder }] }
+            return { successCount: 0, failCount: 1, moved: [] }
+        }
+
+        try {
+            fs.mkdirSync(path.dirname(targetPath), { recursive: true, mode: 0o700 })
+            fs.copyFileSync(sourcePath, targetPath)
+
+            if (item.lyricFilename) {
+                const sourceLrcPath = resolveCacheRelativePath(sourceDir, item.lyricFilename)
+                const targetLrcPath = resolveCacheRelativePath(targetDir, item.lyricFilename)
+                if (sourceLrcPath && targetLrcPath && fs.existsSync(sourceLrcPath)) {
+                    fs.mkdirSync(path.dirname(targetLrcPath), { recursive: true, mode: 0o700 })
+                    fs.copyFileSync(sourceLrcPath, targetLrcPath)
+                }
+            }
+
+            indexManager.update(normalizedTarget, { ...item, folder: 'music' }, 'music', location)
+            invalidateCacheListSync(normalizedSource)
+            invalidateCacheListSync(normalizedTarget)
+            invalidateGlobalCacheStats()
+            return { successCount: 1, failCount: 0, moved: [{ filename, from: 'cache' as CacheFolder, to: 'music' as CacheFolder }] }
+        } catch (error) {
+            try { if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath) } catch { }
+            console.error(`[FileCache] Failed to promote public cache file ${filename}:`, error)
+            return { successCount: 0, failCount: 1, moved: [] }
+        }
+    }
+
+    return { successCount: 0, failCount: 1, moved: [] }
 }
 
 export const switchBaseLocation = async (filenames: string[], username: string | undefined) => {

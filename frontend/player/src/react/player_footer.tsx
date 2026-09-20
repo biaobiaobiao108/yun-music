@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
@@ -16,6 +16,47 @@ export function consumeImmersiveLyricsTrigger(): HTMLButtonElement | null {
   const trigger = immersiveLyricsTrigger
   immersiveLyricsTrigger = null
   return trigger
+}
+
+function VolumeControl({ volume, muted, onVolumeChange, onToggleMute }: {
+  volume: number
+  muted: boolean
+  onVolumeChange: (value: number) => void
+  onToggleMute: () => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setOpen(false)
+      window.requestAnimationFrame(() => triggerRef.current?.focus())
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const displayedVolume = muted ? 0 : volume
+  const icon = muted || displayedVolume === 0 ? 'volume-xmark' : displayedVolume < .5 ? 'volume-low' : 'volume-high'
+  return <div ref={rootRef} className={`react-volume-control ${open ? 'is-open' : ''}`}>
+    <button ref={triggerRef} type="button" className="player-secondary-action react-volume-trigger" aria-label={open ? '收起音量控制' : '展开音量控制'} aria-expanded={open} aria-controls="player-volume-popover" onClick={() => setOpen(value => !value)}><Icon name={icon} /></button>
+    {open && <div id="player-volume-popover" className="react-volume-popover" role="dialog" aria-label="音量控制">
+      <button type="button" className="react-volume-mute" aria-label={muted ? '取消静音' : '静音'} aria-pressed={muted} onClick={onToggleMute}><Icon name={muted ? 'volume-xmark' : 'volume-high'} /><span>{muted ? '已静音' : '音量'}</span></button>
+      <input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={displayedVolume} onChange={event => onVolumeChange(Number(event.target.value))} aria-label="音量大小" />
+      <output>{Math.round(displayedVolume * 100)}%</output>
+    </div>}
+  </div>
 }
 
 export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
@@ -49,6 +90,8 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
   const songMenuButtonRef = useRef<HTMLButtonElement>(null)
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0
   const safeCurrentTime = Number.isFinite(currentTime) && currentTime > 0 ? Math.min(currentTime, safeDuration) : 0
+  const progressPercent = safeDuration > 0 ? Math.min(100, Math.max(0, safeCurrentTime / safeDuration * 100)) : 0
+  const progressStyle = { '--progress': `${progressPercent}%` } as CSSProperties
 
   const closeSongMenu = useCallback(() => {
     setSongMenuOpen(false)
@@ -64,11 +107,11 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
     if (!currentSong) return
     if (embedded) setImmersiveLyrics(false)
     try {
-      const currentReference = parseCachePlaybackUrl(currentSong.url)
+      const currentReference = parseCachePlaybackUrl(currentSong.url) ?? parseCachePlaybackUrl(resolvedUrl)
       let cachedItem = currentReference ? {
         filename: currentReference.filename,
         folder: currentReference.folder,
-        username: currentReference.username,
+        username: currentReference.username || '_open',
       } : null
 
       // A normally-playing online song has no URL on its Song object. Look up
@@ -79,12 +122,12 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
         try {
           const listed = await playerApi.cacheList(userName || undefined)
           const items = listed.data ?? []
-          const match = items.find(item => {
-            if (String(item.folder) !== 'cache') return false
+          const matches = items.filter(item => {
             if (item.songInfo && sameSong(item.songInfo, currentSong)) return true
             return String(item.songmid ?? '') !== '' && String(item.songmid ?? '') === String(currentSong.songmid ?? currentSong.id ?? '') && String(item.source || '') === String(currentSong.source || '')
           })
-          if (match) cachedItem = { filename: String(match.filename), folder: 'cache', username: String(match.rawUsername || match.username || userName || '').trim() || undefined }
+          const match = matches.find(item => String(item.folder) === 'music') ?? matches.find(item => String(item.folder) === 'cache')
+          if (match) cachedItem = { filename: String(match.filename), folder: String(match.folder || 'cache') as 'cache' | 'music', username: String(match.rawUsername || match.username || userName || '_open').trim() || '_open' }
         } catch {
           // A cache index read is an optimization. The already-resolved source
           // below is still safe to submit to the server download queue.
@@ -93,12 +136,15 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
 
       if (cachedItem) {
         if (cachedItem.folder === 'music') {
-          notify('歌曲已经在下载目录中')
+          const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username })
+          setCurrentSongUrl(nextUrl)
+          notify('歌曲已经在下载目录中，已切换到下载路径')
+          setDrawer('download')
           return
         }
-        const result = await playerApi.cacheMove([{ filename: cachedItem.filename, folder: cachedItem.folder, user: cachedItem.username, rawUsername: cachedItem.username }], 'music')
+        const result = await playerApi.cacheMove([{ filename: cachedItem.filename, folder: cachedItem.folder, user: cachedItem.username, rawUsername: cachedItem.username, sourceUser: cachedItem.username }], 'music')
         if (Number(result.successCount || 0) < 1) throw new Error('缓存文件尚未准备好，请稍后再试')
-        const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username })
+        const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username })
         setCurrentSongUrl(nextUrl)
         notify('已移入下载目录，后续播放不会重复消耗音源次数')
         setDrawer('download')
@@ -168,7 +214,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
             <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
           </div>
         </div>
-        <div className="react-progress-row"><Time value={safeCurrentTime} /><input type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><Time value={safeDuration} /></div>
+        <div className="react-progress-row"><span className="react-progress-time"><Time value={safeCurrentTime} /></span><input style={progressStyle} type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><span className="react-progress-time"><Time value={safeDuration} /></span></div>
       </div>
       <div className="react-footer-actions">
         <button type="button" className={`player-secondary-action ${mode !== 'list' ? 'is-active' : ''}`} aria-label={`播放模式：${mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'}`} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : mode === 'single' ? 'repeat-1' : 'repeat'} /></button>
@@ -179,8 +225,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
           <button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={openSleepTimer}><Icon name="moon" /></button>
         </>}
         <button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button>
-        <button type="button" className="player-secondary-action" aria-label={muted ? '取消静音' : '静音'} onClick={toggleMute}><Icon name={muted || volume === 0 ? 'volume-xmark' : volume < 0.5 ? 'volume-low' : 'volume-high'} /></button>
-        <input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" />
+        <VolumeControl volume={volume} muted={muted} onVolumeChange={setVolume} onToggleMute={toggleMute} />
       </div>
     </footer>
     {!embedded && <SongActionsPopover song={currentSong} open={songMenuOpen} anchorRef={songMenuButtonRef} onClose={closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />}

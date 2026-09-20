@@ -8776,3 +8776,261 @@ textarea:focus-visible {
         transform: translateX(-50%) !important;
     }
 }
+
+/* Compact reference-style transport bar. The track is intentionally a
+   single quiet line; the current position is painted without the browser's
+   default chunky range control. */
+.react-player-footer#player-footer {
+    min-height: 4.05rem;
+    padding: .44rem .82rem;
+    gap: .82rem;
+}
+
+.react-player-footer#player-footer .react-footer-song-section {
+    gap: .2rem;
+}
+
+.react-player-footer#player-footer .react-footer-cover-button {
+    width: 2.68rem;
+    height: 2.68rem;
+    border-radius: .58rem;
+}
+
+.react-player-footer#player-footer .react-footer-song {
+    gap: .58rem;
+}
+
+.react-player-footer#player-footer .react-footer-title-row strong {
+    font-size: .82rem;
+}
+
+.react-player-footer#player-footer .react-footer-song-meta small {
+    font-size: .68rem;
+}
+
+.react-player-footer#player-footer .react-play-button {
+    width: 2.28rem;
+    height: 2.28rem;
+    background: transparent !important;
+    color: var(--app-text) !important;
+    box-shadow: none !important;
+    font-size: 1.12rem;
+}
+
+.react-player-footer#player-footer .react-play-button:hover,
+.react-player-footer#player-footer .react-play-button:focus-visible {
+    background: var(--app-surface-soft) !important;
+}
+
+.react-player-footer#player-footer .react-progress-row {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    min-height: .35rem;
+    margin-top: .08rem;
+}
+
+.react-player-footer#player-footer .react-progress-time {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.react-player-footer#player-footer .react-progress-row input[type="range"] {
+    width: 100%;
+    height: .22rem;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+    outline: none;
+    background: linear-gradient(90deg, var(--app-accent) 0 var(--progress, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--progress, 0%) 100%);
+    cursor: pointer;
+}
+
+.react-player-footer#player-footer .react-progress-row input[type="range"]::-webkit-slider-runnable-track {
+    height: .22rem;
+    border-radius: 999px;
+    background: transparent;
+}
+
+.react-player-footer#player-footer .react-progress-row input[type="range"]::-webkit-slider-thumb {
+    width: .5rem;
+    height: .5rem;
+    margin-top: -.14rem;
+    appearance: none;
+    border: 0;
+    border-radius: 50%;
+    background: var(--app-accent);
+    opacity: 0;
+    transition: opacity var(--app-motion-fast, 140ms) ease;
+}
+
+.react-player-footer#player-footer .react-progress-row input[type="range"]:hover::-webkit-slider-thumb,
+.react-player-footer#player-footer .react-progress-row input[type="range"]:focus-visible::-webkit-slider-thumb {
+    opacity: 1;
+}
+
+.react-player-footer#player-footer .react-progress-row input[type="range"]::-moz-range-track {
+    height: .22rem;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-text) 20%, transparent);
+}
+
+.react-player-footer#player-footer .react-progress-row input[type="range"]::-moz-range-progress {
+    height: .22rem;
+    border-radius: 999px;
+    background: var(--app-accent);
+}
+
+.react-volume-control {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.react-volume-trigger[aria-expanded="true"] {
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+}
+
+.react-volume-popover {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + .52rem);
+    z-index: 245;
+    display: grid;
+    grid-template-columns: auto minmax(5.8rem, 1fr) auto;
+    align-items: center;
+    gap: .52rem;
+    width: min(13rem, calc(100vw - 1.25rem));
+    padding: .48rem .62rem;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 82%, transparent);
+    border-radius: .82rem;
+    background: color-mix(in srgb, var(--app-surface-solid) 94%, transparent);
+    color: var(--app-text);
+    box-shadow: 0 .9rem 2.4rem rgb(0 0 0 / 28%);
+    backdrop-filter: blur(22px) saturate(1.2);
+    -webkit-backdrop-filter: blur(22px) saturate(1.2);
+    animation: react-panel-enter 180ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.react-volume-mute {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-width: 1.9rem;
+    min-height: 1.9rem;
+    padding: .28rem;
+    border: 0;
+    border-radius: .5rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.react-volume-mute span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.react-volume-mute:hover,
+.react-volume-mute:focus-visible,
+.react-volume-mute[aria-pressed="true"] {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+    outline: none;
+}
+
+.react-volume-popover .react-volume-range {
+    width: 100%;
+    min-width: 0;
+    accent-color: var(--app-accent);
+}
+
+.react-volume-popover output {
+    min-width: 2.2rem;
+    color: var(--app-text-muted);
+    font-size: .68rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+@media (max-width: 900px) {
+    .react-player-footer#player-footer {
+        min-height: 3.72rem;
+        padding: .36rem .58rem;
+        gap: .42rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-cover-button {
+        width: 2.38rem;
+        height: 2.38rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-title-row strong {
+        font-size: .76rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-song-meta small {
+        font-size: .62rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-controls .player-secondary-action,
+    .react-player-footer#player-footer .react-footer-actions .player-secondary-action {
+        width: 1.92rem;
+        height: 1.92rem;
+    }
+
+    .react-player-footer#player-footer .react-play-button {
+        width: 2.1rem;
+        height: 2.1rem;
+        font-size: 1rem;
+    }
+
+    .react-volume-popover {
+        right: -.25rem;
+    }
+}
+
+@media (max-width: 560px) {
+    .react-player-footer#player-footer {
+        width: calc(100% - .55rem) !important;
+        padding-inline: .38rem;
+        gap: .18rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-song {
+        gap: .34rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-song-menu-trigger {
+        width: 1.42rem;
+        height: 1.42rem;
+    }
+
+    .react-volume-popover {
+        right: -.35rem;
+        width: min(12.25rem, calc(100vw - .9rem));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-player-footer#player-footer .react-progress-row input[type="range"]::-webkit-slider-thumb,
+    .react-volume-popover {
+        transition: none;
+        animation: none;
+    }
+}
