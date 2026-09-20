@@ -55,6 +55,59 @@ describe('System Routes (routes/system.ts)', () => {
     expect(data.serverName).toBe('LX Server Test')
   })
 
+  test('POST /api/config requires admin auth', async () => {
+    const router = createSystemRouter()
+    const req = new Request('http://localhost:9527/api/config', {
+      method: 'POST',
+      body: JSON.stringify({ serverName: 'New Server' }),
+    })
+    const res = await router.handle(req)
+    expect(res.status).toBe(401)
+  })
+
+  test('POST /api/config updates configuration and triggers saveConfig', async () => {
+    let saveConfigCalled = false
+    ;(global as any).lx.saveConfig = async () => {
+      saveConfigCalled = true
+    }
+    const router = createSystemRouter()
+    const req = new Request('http://localhost:9527/api/config', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+      },
+      body: JSON.stringify({
+        serverName: 'Updated Server Name',
+        'user.enablePath': true,
+        'user.enableRoot': false,
+      }),
+    })
+    const res = await router.handle(req)
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.success).toBe(true)
+    expect(saveConfigCalled).toBe(true)
+    expect((global as any).lx.config.serverName).toBe('Updated Server Name')
+  })
+
+  test('POST /api/config rejects identical admin and player paths', async () => {
+    const router = createSystemRouter()
+    const req = new Request('http://localhost:9527/api/config', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+      },
+      body: JSON.stringify({
+        'admin.path': '/music',
+        'player.path': '/music',
+      }),
+    })
+    const res = await router.handle(req)
+    expect(res.status).toBe(422)
+  })
+
   test('removed external protocol endpoints are unavailable', async () => {
     const router = createSystemRouter()
     const res = await router.handle(new Request('http://localhost:9527/api/webdav/logs', {

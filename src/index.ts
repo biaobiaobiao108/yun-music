@@ -13,6 +13,7 @@ import { ENV_PARAMS, File } from './constants'
 import { checkAndCreateDirSync } from './utils'
 import { assertSafePathSegment } from './utils/pathSecurity'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses } from './server/core/context'
+import { parseConfigFile } from './utils/configLoader'
 
 // Declare Env Params Type
 type ENV_PARAMS_Type = typeof ENV_PARAMS
@@ -86,9 +87,9 @@ const saveConfigToFile = async () => {
         return
       }
     }
+    lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
     await Bun.write(configPath, content)
     try { fs.chmodSync(configPath, 0o600) } catch { }
-    lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
     // console.log('Current memory config saved to config.js')
   } catch (err) {
     console.error('Failed to save config.js:', err)
@@ -132,9 +133,7 @@ const mergeConfigFileEnv = (config: Partial<Record<ENV_PARAMS_Value_Type, string
 const margeConfig = (p: string) => {
   let config
   try {
-    config = path.extname(p) == '.js'
-      ? require(p)
-      : JSON.parse(fs.readFileSync(p).toString()) as LX.Config
+    config = parseConfigFile(p)
   } catch (err: any) {
     console.warn('Read config error: ' + (err.message as string))
     return false
@@ -423,7 +422,6 @@ if (fs.existsSync(rootConfigPath)) {
 
         console.log('Detected external config.js change, hot-reloading...')
         try {
-          delete require.cache[require.resolve(rootConfigPath)]
           margeConfig(rootConfigPath)
         } catch (e) {
           console.error('Hot-reload config.js failed:', e)
