@@ -9281,10 +9281,17 @@ textarea:focus-visible {
 .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
     position: absolute !important;
     inset-block-start: auto !important;
-    inset-inline-start: 50% !important;
+    /* Match the ordinary footer's center: the immersive dialog covers the
+       viewport, while the ordinary footer is centered in the main column
+       after the sidebar and shell gap. */
+    inset-inline-start: calc(
+        50% + ((var(--app-sidebar-width, 17.5rem) + var(--player-shell-gap, 1rem)) / 2)
+    ) !important;
     inset-inline-end: auto !important;
     inset-block-end: max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom)) !important;
-    left: 50% !important;
+    left: calc(
+        50% + ((var(--app-sidebar-width, 17.5rem) + var(--player-shell-gap, 1rem)) / 2)
+    ) !important;
     right: auto !important;
     bottom: max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom)) !important;
     z-index: 20 !important;
@@ -9305,7 +9312,9 @@ textarea:focus-visible {
 
     .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
         inset-block-end: max(.6rem, env(safe-area-inset-bottom)) !important;
+        inset-inline-start: 50% !important;
         bottom: max(.6rem, env(safe-area-inset-bottom)) !important;
+        left: 50% !important;
         width: calc(100% - 1rem) !important;
         max-width: calc(100% - 1rem) !important;
     }
@@ -9330,5 +9339,41 @@ textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
     .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
         transform: translateX(-50%) !important;
+    }
+}
+
+/* Enter the top-layer lyrics surface as one quiet composition. Keeping the
+   transform on the dialog (instead of the footer) preserves the footer's
+   final alignment with the ordinary player while still giving the transition
+   a clear visual start point. */
+@keyframes react-immersive-dialog-enter {
+    from {
+        opacity: 0;
+        transform: translate3d(0, .55rem, 0) scale(.992);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes react-immersive-backdrop-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.react-immersive-lyrics-dialog[open] {
+    animation: react-immersive-dialog-enter 280ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.react-immersive-lyrics-dialog[open]::backdrop {
+    animation: react-immersive-backdrop-enter 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-immersive-lyrics-dialog[open],
+    .react-immersive-lyrics-dialog[open]::backdrop {
+        animation: none;
     }
 }

@@ -255,6 +255,9 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-immersive-cover-panel')
     expect(css).toContain('.react-immersive-shared-footer#player-footer')
     expect(css).toContain('--react-immersive-footer-reserve')
+    expect(css).toContain('var(--app-sidebar-width, 17.5rem)')
+    expect(css).toContain('@keyframes react-immersive-dialog-enter')
+    expect(css).toContain('.react-immersive-lyrics-dialog[open]::backdrop')
     expect(css).not.toMatch(/(?:react-)?vinyl|visualizer|频谱/i)
   })
 
