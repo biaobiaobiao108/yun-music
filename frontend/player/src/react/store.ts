@@ -122,7 +122,7 @@ export function connectPlayerTabNavigation(navigate: (tab: PlayerTab) => void): 
   return connectPlayerNavigation(({ tab }) => navigate(tab))
 }
 
-type UiState = { tab: PlayerTab; detail: PlayerDetail | null; favoriteListId: string; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'sleep' | 'lyrics' | 'comments' | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; setFavoriteListId: (listId: string) => void; openFavoriteList: (listId: string) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null, listId?: string) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
+type UiState = { tab: PlayerTab; detail: PlayerDetail | null; favoriteListId: string; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'sleep' | 'lyrics' | 'comments' | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void; setFavoriteListId: (listId: string) => void; openFavoriteList: (listId: string) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null, listId?: string) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
 export const usePlayerUiStore = create<UiState>((set, get) => ({
   tab: 'home', detail: null, favoriteListId: 'love', sidebarOpen: false, drawer: null, dialog: null, immersiveLyrics: false, notice: '',
   setTab: (tab) => {
@@ -133,6 +133,11 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
     else if (typeof window !== 'undefined') window.history.pushState({ tab }, '', `#${tab}`)
   },
   setDetail: detail => { set({ detail }); if (playerNavigation) playerNavigation({ tab: get().tab, detail, listId: get().tab === 'favorites' ? get().favoriteListId : undefined }); else if (typeof window !== 'undefined') window.history.pushState({ tab: get().tab, detail }, '', `#${get().tab}`) },
+  openLibraryDetail: (tab, detail) => {
+    set({ tab, detail, sidebarOpen: false })
+    if (playerNavigation) playerNavigation({ tab, detail })
+    else if (typeof window !== 'undefined') window.history.pushState({ tab, detail }, '', `#${tab}`)
+  },
   setFavoriteListId: favoriteListId => set({ favoriteListId }),
   openFavoriteList: favoriteListId => {
     set({ tab: 'favorites', detail: null, favoriteListId, sidebarOpen: false })

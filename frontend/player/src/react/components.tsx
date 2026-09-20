@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
-import { safeImageUrl, formatDuration } from '../../../shared/src/runtime'
+import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
 import { songArtist, songImage, songKey, songTitle } from './types'
 import { useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
@@ -23,6 +23,25 @@ export function SafeImage({ src, fallback = '/music/assets/yun-yin.png', onError
   }} />
 }
 
+function songAlbum(song: Song): string {
+  return String(song.album || song.albumName || '—')
+}
+
+function songDuration(song: Song): string {
+  const value = song.interval ?? song.duration
+  if (typeof value === 'string' && value.includes(':')) return value
+  return formatDuration(value)
+}
+
+function songSize(song: Song): string {
+  const value = song.size ?? song.fileSize ?? song.sizeBytes
+  return value === undefined || value === null || value === '' || Number(value) <= 0 ? '—' : formatBytes(value)
+}
+
+function songFormat(song: Song): string {
+  return String(song.format || song.type || song.quality || 'FLAC').toUpperCase()
+}
+
 export function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void }) {
   const playSong = usePlaybackStore(state => state.playSong)
   const enqueue = usePlaybackStore(state => state.enqueue)
@@ -31,12 +50,32 @@ export function SongRow({ song, index, list, listId = 'love', compact = false, s
   const inList = useLibraryStore(state => listId === 'love' ? (state.data.loveList ?? []).some(item => songKey(item) === songKey(song)) : (state.data.userList ?? []).find(listItem => String(listItem.id) === String(listId))?.list?.some(item => songKey(item) === songKey(song)) ?? false)
   const notify = usePlayerUiStore(state => state.notify)
   const actionLabel = listId === 'love' ? (inList ? '取消收藏' : '收藏') : '从歌单移除'
-  return <li className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''}`}>{onSelect && <input type="checkbox" checked={selected} onChange={() => onSelect(song)} aria-label={`选择 ${songTitle(song)}`} />}<button type="button" className="react-song-main" onClick={() => playSong(song, list, index)}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}{song.album ? ` · ${String(song.album)}` : ''}</small></span></button><span className="react-song-quality">{String(song.quality || song.type || 'FLAC')}</span><span className="react-song-actions"><button type="button" title="加入队列" aria-label={`将 ${songTitle(song)} 加入队列`} onClick={() => { enqueue([song]); notify('已加入播放队列') }}><Icon name="plus" /></button><button type="button" title={actionLabel} aria-label={`${actionLabel} ${songTitle(song)}`} onClick={() => { const operation = listId === 'love' && !inList ? addSong('love', song) : removeSong(listId, song); void operation.then(() => notify(listId === 'love' && !inList ? '已收藏' : listId === 'love' ? '已取消收藏' : '已从歌单移除')).catch(error => notify(error instanceof Error ? error.message : '操作失败')) }}><Icon name={listId === 'love' ? 'heart' : 'trash'} /></button></span></li>
+  const updateList = () => {
+    const operation = listId === 'love' && !inList ? addSong('love', song) : removeSong(listId, song)
+    void operation.then(() => notify(listId === 'love' && !inList ? '已收藏' : listId === 'love' ? '已取消收藏' : '已从歌单移除')).catch(error => notify(error instanceof Error ? error.message : '操作失败'))
+  }
+  return <li className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''}`}>
+    {onSelect && <span className="react-song-select"><input type="checkbox" checked={selected} onChange={() => onSelect(song)} aria-label={`选择 ${songTitle(song)}`} /></span>}
+    <span className="react-song-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+    <button type="button" className="react-song-main" onClick={() => playSong(song, list, index)}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button>
+    <span className="react-song-album" title={songAlbum(song)}>{songAlbum(song)}</span>
+    <button type="button" className="react-song-favorite" title={actionLabel} aria-label={`${actionLabel} ${songTitle(song)}`} onClick={updateList}><Icon name={listId === 'love' ? 'heart' : 'trash'} /></button>
+    <span className="react-song-duration">{songDuration(song)}</span>
+    <span className="react-song-size">{songSize(song)}</span>
+    <span className="react-song-quality">{songFormat(song)}</span>
+    <span className="react-song-actions"><button type="button" title="加入队列" aria-label={`将 ${songTitle(song)} 加入队列`} onClick={() => { enqueue([song]); notify('已加入播放队列') }}><Icon name="plus" /></button></span>
+  </li>
 }
 
 export function SongList({ songs, empty = '暂无歌曲', compact = false, listId = 'love', selected, onSelect }: { songs: Song[]; empty?: string; compact?: boolean; listId?: string; selected?: Set<string>; onSelect?: (song: Song) => void }) {
   if (!songs.length) return <div className="react-empty"><Icon name="music" /><p>{empty}</p></div>
-  return <ul className="react-song-list" aria-label="歌曲列表">{songs.map((song, index) => <SongRow key={`${songKey(song)}-${index}`} song={song} index={index} list={songs} listId={listId} compact={compact} selected={selected?.has(songKey(song))} onSelect={onSelect} />)}</ul>
+  return <div className="react-song-table">
+    <div className={`react-song-head ${onSelect ? 'is-selectable' : ''}`} aria-hidden="true">
+      {onSelect && <span />}
+      <span>#</span><span>歌曲 / 歌手</span><span>专辑</span><span>收藏</span><span>时长</span><span>大小</span><span>格式</span><span />
+    </div>
+    <ul className="react-song-list" aria-label="歌曲列表">{songs.map((song, index) => <SongRow key={`${songKey(song)}-${index}`} song={song} index={index} list={songs} listId={listId} compact={compact} selected={selected?.has(songKey(song))} onSelect={onSelect} />)}</ul>
+  </div>
 }
 
 export function Modal({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {

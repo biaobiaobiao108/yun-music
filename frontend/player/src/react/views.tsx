@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { playerApi, type CommentItem, type CustomSource, type SearchType } from './api'
 import { Button, Icon, Loading, Modal, SafeImage, SongList } from './components'
+import { PlayerFooterBar } from './player_footer'
 import { useAuthStore, useCommentStore, useLibraryStore, useLyricStore, usePlaybackStore, usePlayerUiStore, useSearchStore, useSettingsStore } from './store'
 import type { PlayerDetail, PlayerTab, Song } from './types'
 import { songArtist, songImage, songKey, songTitle } from './types'
@@ -37,7 +38,7 @@ function SearchEntityGrid({ items, kind, onOpen }: { items: Song[]; kind: 'artis
   })}</div>
 }
 
-function SearchDetailView({ detail }: { detail: PlayerDetail }) {
+export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
   const setDetail = usePlayerUiStore(state => state.setDetail)
   const [info, setInfo] = useState<Record<string, unknown>>({})
   const [songs, setSongs] = useState<Song[]>([])
@@ -254,13 +255,14 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
       </header>
       <div className="react-immersive-lyrics-grid">
         <section className="react-vinyl-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
-          <div className={`react-vinyl ${isPlaying ? 'is-spinning' : ''}`}><div className="react-vinyl-record"><SafeImage src={songImage(song)} width="360" height="360" alt={song ? `${title}封面` : ''} /><span className="react-vinyl-label">云音</span></div><span className="react-vinyl-hole" /></div>
+          <div className={`react-vinyl ${isPlaying ? 'is-spinning' : ''}`}><div className="react-vinyl-record"><span className="react-vinyl-label">云音</span></div><SafeImage className="react-vinyl-cover" src={songImage(song)} width="360" height="360" alt={song ? `${title}封面` : ''} /><span className="react-vinyl-hole" /></div>
           <div className="react-vinyl-meta"><strong>{song ? title : '选择一首歌曲开始播放'}</strong><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div>
         </section>
         <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={index === active ? 'is-active' : ''} aria-current={index === active ? 'true' : undefined} onClick={() => usePlaybackStore.getState().seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
         </section>
       </div>
+      <PlayerFooterBar embedded />
     </div>
   </dialog>
 }

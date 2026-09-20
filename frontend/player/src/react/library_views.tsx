@@ -85,10 +85,10 @@ export function RecentView() {
 
 function MediaGrid({ kind }: { kind: 'album' | 'artist' }) {
   const { albums, artists, loading, error } = useMediaLibraryStore(state => state)
-  const setDetail = usePlayerUiStore(state => state.setDetail)
+  const openLibraryDetail = usePlayerUiStore(state => state.openLibraryDetail)
   const items = kind === 'album' ? albums : artists
   const title = kind === 'album' ? '专辑' : '歌手'
-  return <ViewFrame title={title} subtitle={`你的音乐库 · 共 ${items.length} 个${kind === 'album' ? '专辑' : '歌手'}`}><section className="react-library-view">{loading ? <Loading label={`正在加载${title}…`} /> : error ? <div className="react-empty"><Icon name="triangle-exclamation" /><p>{error}</p></div> : items.length ? <div className={`react-artwork-grid react-library-grid ${kind === 'artist' ? 'react-artist-grid' : ''}`}>{items.map((item, index) => <ArtworkCard key={`${songKey(item)}-${index}`} song={item} kind={kind} onOpen={() => setDetail(detailFor(item, kind))} />)}</div> : <div className="react-empty"><Icon name={kind === 'album' ? 'compact-disc' : 'user'} /><p>媒体库还是空的</p><button type="button" className="react-text-button" onClick={() => usePlayerUiStore.getState().setTab('search')}>去搜索音乐</button></div>}</section></ViewFrame>
+  return <ViewFrame title={title} subtitle={`你的音乐库 · 共 ${items.length} 个${kind === 'album' ? '专辑' : '歌手'}`}><section className="react-library-view">{loading ? <Loading label={`正在加载${title}…`} /> : error ? <div className="react-empty"><Icon name="triangle-exclamation" /><p>{error}</p></div> : items.length ? <div className={`react-artwork-grid react-library-grid ${kind === 'artist' ? 'react-artist-grid' : ''}`}>{items.map((item, index) => <ArtworkCard key={`${songKey(item)}-${index}`} song={item} kind={kind} onOpen={() => openLibraryDetail(kind === 'artist' ? 'artists' : 'albums', detailFor(item, kind))} />)}</div> : <div className="react-empty"><Icon name={kind === 'album' ? 'compact-disc' : 'user'} /><p>媒体库还是空的</p><button type="button" className="react-text-button" onClick={() => usePlayerUiStore.getState().setTab('search')}>去搜索音乐</button></div>}</section></ViewFrame>
 }
 
 export function LibraryAlbumsView() { return <MediaGrid kind="album" /> }

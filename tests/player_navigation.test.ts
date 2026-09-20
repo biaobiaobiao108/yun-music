@@ -35,16 +35,19 @@ describe('React player navigation and state restoration', () => {
     const store = read('frontend/player/src/react/store.ts')
     const views = read('frontend/player/src/react/views.tsx')
     const components = read('frontend/player/src/react/components.tsx')
+    const footer = read('frontend/player/src/react/player_footer.tsx')
     expect(store).toContain('window.history.pushState')
     expect(shell).toContain('window.history.back()')
     expect(shell).toContain('react-sidebar')
-    expect(shell).toContain('react-player-footer')
+    expect(shell).toContain('PlayerFooterBar')
+    expect(footer).toContain('react-player-footer')
     expect(shell).toContain('setDrawer(\'queue\')')
     expect(views).toContain('LyricsDialog')
     expect(components).toContain('<dialog')
     expect(components).toContain('inert={!open ? true : undefined}')
     expect(components).toContain('dialog.showModal()')
     expect(components).toContain('lastFocus.current?.focus')
+    expect(views).toContain('<PlayerFooterBar embedded />')
   })
 
   it('preserves responsive, reduced-motion and long-list performance guards', () => {
@@ -58,6 +61,8 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('contain-intrinsic-size')
     expect(css).toContain('@media (max-width: 720px)')
     expect(source).toContain('loading="lazy"')
+    expect(source).toContain('react-song-album')
+    expect(source).toContain('react-song-duration')
   })
 
   it('does not retain legacy HTML event bridges in the React source or release shell', () => {

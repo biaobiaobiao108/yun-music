@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { adminApi, type AdminConfig, type AdminData, type AdminSong, type AdminUser, type Snapshot, type StorageItem } from './api'
+import { adminApi, type AdminConfig, type AdminData, type AdminSong, type AdminStatus, type AdminUser, type Snapshot, type StorageItem } from './api'
 import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Modal, Panel, StatCard, formatUptime } from './components'
 import { useAdminStore, type AdminView } from './store'
 import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runtime'
@@ -26,11 +26,23 @@ function useViewState() {
 
 type ConfirmRequest = { title: string; message: string; confirmLabel?: string; onConfirm: () => void | Promise<void> }
 
+function storageSummary(stats: AdminStatus['cacheStats'], key: 'cache' | 'music'): { fileCount: number; totalSize: number } {
+  const value = stats?.[key]
+  if (!value || typeof value !== 'object') return { fileCount: 0, totalSize: 0 }
+  const record = value as Record<string, unknown>
+  return {
+    fileCount: Number(record.fileCount ?? record.count) || 0,
+    totalSize: Number(record.totalSize ?? record.size) || 0,
+  }
+}
+
 export function DashboardView() {
   const status = useAdminStore(state => state.status)
   const users = useAdminStore(state => state.users)
   const setView = useAdminStore(state => state.setView)
   const { busy, error, retry } = useViewState()
+  const cache = storageSummary(status?.cacheStats, 'cache')
+  const downloads = storageSummary(status?.cacheStats, 'music')
   return <ViewFrame title="仪表盘" subtitle="实时查看服务运行状态与存储概况">
     <ErrorPanel message={error} onRetry={retry} />
     {busy && !status ? <Loading /> : <>
@@ -39,6 +51,10 @@ export function DashboardView() {
         <StatCard label="服务状态" value={status?.publicAccess ? '公开访问' : '访问受限'} icon="shield-halved" />
         <StatCard label="系统 CPU" value={`${status?.cpuUsage ?? '0.00'}%`} icon="microchip" />
         <StatCard label="进程内存" value={`${status?.processMemoryUsage ?? '0.00'}%`} icon="memory" />
+      </div>
+      <div className="admin-react-storage-summary" aria-label="缓存与下载统计">
+        <article className="admin-react-storage-stat"><span className="admin-react-storage-icon"><Icon name="database" /></span><div><span>缓存歌曲</span><strong>{cache.fileCount} 首</strong><small>占用 {formatBytes(cache.totalSize)}</small></div></article>
+        <article className="admin-react-storage-stat"><span className="admin-react-storage-icon"><Icon name="download" /></span><div><span>下载歌曲</span><strong>{downloads.fileCount} 首</strong><small>占用 {formatBytes(downloads.totalSize)}</small></div></article>
       </div>
       <div className="admin-react-two-column">
         <Panel title="运行概览"><dl className="admin-react-definition-list"><div><dt>运行时间</dt><dd>{formatUptime(status?.uptime)}</dd></div><div><dt>处理器</dt><dd>{String(status?.cpuModel || '—')}</dd></div><div><dt>内存占用</dt><dd>{formatBytes(status?.memory)}</dd></div><div><dt>缓存限制</dt><dd>{formatBytes(status?.cacheLimit)}</dd></div></dl></Panel>

@@ -5093,3 +5093,58 @@ textarea:focus-visible {
         transition: none;
     }
 }
+
+.admin-react-storage-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.admin-react-storage-stat {
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    min-width: 0;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow-soft);
+}
+
+.admin-react-storage-icon {
+    display: grid;
+    flex: 0 0 2.8rem;
+    place-items: center;
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: .9rem;
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+    font-size: 1.15rem;
+}
+
+.admin-react-storage-stat > div {
+    display: grid;
+    min-width: 0;
+    gap: .2rem;
+}
+
+.admin-react-storage-stat > div > span,
+.admin-react-storage-stat small {
+    color: var(--app-text-muted);
+    font-size: .78rem;
+}
+
+.admin-react-storage-stat strong {
+    color: var(--app-text);
+    font-size: 1.25rem;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 620px) {
+    .admin-react-storage-summary {
+        grid-template-columns: 1fr;
+    }
+}
