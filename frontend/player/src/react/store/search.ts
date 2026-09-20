@@ -47,11 +47,15 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     searchRequestId += 1
     hotRequestId += 1
     set({ source, page: 1, results: [], hot: [], error: '', loadedAt: 0 })
+    const query = get().query.trim()
+    if (query) void get().search(query, 1, { force: true })
   },
   setType: type => {
     searchController?.abort()
     searchRequestId += 1
     set({ type, page: 1, results: [], error: '', loadedAt: 0 })
+    const query = get().query.trim()
+    if (query) void get().search(query, 1, { force: true })
   },
   search: async (query = get().query, page = 1, options = {}) => {
     const normalizedQuery = query.trim()

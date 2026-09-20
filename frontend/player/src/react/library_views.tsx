@@ -4,7 +4,7 @@ import { Button, Icon, Loading, SafeImage, SelectMenu, SongList } from './compon
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { selectLoveList, selectUserLists, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore } from './store'
 import type { Song } from './types'
-import { songImage, songKey, songTitle } from './types'
+import { songAlbum, songImage, songKey, songTitle } from './types'
 import { ViewFrame } from './views'
 
 function listOf(payload: unknown, keys: string[] = ['list', 'data', 'result', 'songs']): Song[] {
@@ -20,7 +20,7 @@ function sourceOf(song: Song): string {
 }
 
 function ArtworkCard({ song, kind, onOpen, onPlay }: { song: Song; kind?: 'artist' | 'album'; onOpen?: () => void; onPlay?: () => void }) {
-  const title = String(kind === 'artist' ? song.singer || song.artist || song.name : song.album || song.name || '未命名')
+  const title = String(kind === 'artist' ? song.singer || song.artist || song.name : songAlbum(song) === '—' ? song.name || '未命名' : songAlbum(song))
   const subtitle = kind === 'artist' ? String(song.songCount ?? song.count ?? '歌手') : String(song.singer || song.artist || '专辑')
   return <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''}`}>
     <button type="button" className="react-artwork-button" onClick={onOpen ?? onPlay}>
@@ -49,7 +49,7 @@ export function HomeView() {
   const recentAlbums = useMemo(() => {
     const seen = new Set<string>()
     return recent.filter(song => {
-      const key = `${sourceOf(song)}:${String(song.album || song.name || songKey(song))}`
+      const key = `${sourceOf(song)}:${String(songAlbum(song) === '—' ? song.name || songKey(song) : songAlbum(song))}`
       if (seen.has(key)) return false
       seen.add(key)
       return true

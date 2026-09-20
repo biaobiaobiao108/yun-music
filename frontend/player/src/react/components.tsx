@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
-import { sameSong, songArtist, songImage, songKey, songTitle } from './types'
+import { sameSong, songAlbum, songArtist, songImage, songKey, songTitle } from './types'
 import { useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 
 export function Icon({ name }: { name: string }) { return <i className={`fas fa-${name}`} aria-hidden="true" /> }
@@ -102,10 +102,6 @@ export function SafeImage({ src, fallback = '/music/assets/yun-yin.png', onError
     target.dataset.fallbackApplied = 'true'
     target.src = fallbackUrl
   }} />
-}
-
-function songAlbum(song: Song): string {
-  return String(song.album || song.albumName || '—')
 }
 
 function songDuration(song: Song): string {

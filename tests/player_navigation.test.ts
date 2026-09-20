@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createPlayerHistoryController } from '../frontend/player/src/features/player_history'
+import { songAlbum } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
@@ -112,6 +113,25 @@ describe('React player navigation and state restoration', () => {
     expect(shell).toContain('<PlayerFooter hidden={immersiveLyrics} />')
     expect(views).toContain('consumeImmersiveLyricsTrigger')
     expect(views).toContain("#player-footer .react-footer-cover-button")
+    expect(shell).not.toContain('react-sidebar-close')
+  })
+
+  it('refreshes search results when source or type changes and keeps search controls aligned', () => {
+    const searchStore = read('frontend/player/src/react/store/search.ts')
+    const views = read('frontend/player/src/react/views.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(searchStore).toContain('if (query) void get().search(query, 1, { force: true })')
+    expect(views).not.toContain('<span>音源</span>')
+    expect(views).not.toContain('<span>类型</span>')
+    expect(css).toContain('grid-template-columns: minmax(12rem, 1fr) minmax(8.75rem, 10rem) minmax(8.75rem, 10rem) auto')
+    expect(css).toContain('.react-search-filter .react-select-menu-trigger')
+  })
+
+  it('reads album names from legacy and nested song metadata', () => {
+    expect(songAlbum({ meta: { albumName: '旧快照专辑' } })).toBe('旧快照专辑')
+    expect(songAlbum({ album: { name: '对象专辑' } })).toBe('对象专辑')
+    expect(songAlbum({ albumName: '顶层专辑' })).toBe('顶层专辑')
+    expect(songAlbum({ name: '没有专辑' })).toBe('—')
   })
 
   it('keeps the normal footer order and exposes the portal song action flow', () => {

@@ -194,8 +194,38 @@ body.overlay-open > *:not(.skip-link) {
 
 /* Final React control overrides (kept after the legacy compatibility rules). */
 .react-search-form {
-    grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) minmax(8rem, auto) auto;
+    grid-template-columns: minmax(12rem, 1fr) minmax(8.75rem, 10rem) minmax(8.75rem, 10rem) auto;
     gap: .65rem;
+    align-items: stretch;
+}
+
+.react-search-input,
+.react-search-filter,
+.react-search-form > .react-player-button {
+    min-width: 0;
+    min-height: 2.75rem;
+    height: 2.75rem;
+    box-sizing: border-box;
+}
+
+.react-search-filter {
+    display: flex;
+    align-items: stretch;
+}
+
+.react-search-filter .react-select-menu {
+    width: 100%;
+    min-width: 0;
+}
+
+.react-search-filter .react-select-menu-trigger {
+    height: 100%;
+    min-height: 2.75rem;
+    box-sizing: border-box;
+}
+
+.react-search-form > .react-player-button {
+    white-space: nowrap;
 }
 
 .react-toolbar-card {
@@ -1048,8 +1078,7 @@ html, body {
 .react-sidebar { width: 15rem; flex: 0 0 15rem; z-index: 60; display: flex; flex-direction: column; min-height: 100%; background: var(--bg-panel); border-right: 1px solid var(--border-main); }
 .react-sidebar-brand { min-height: 4.2rem; display: flex; align-items: center; justify-content: center; gap: .65rem; padding: .75rem; border-bottom: 1px solid var(--border-main); color: var(--c-600); font-size: 1.1rem; }
 .react-sidebar-brand img { border-radius: .7rem; box-shadow: 0 4px 12px color-mix(in srgb, var(--c-500) 20%, transparent); }
-.react-sidebar-close { display: none; margin-left: auto; }
-.react-sidebar-nav { flex: 1; min-height: 0; overflow: auto; padding: .75rem .55rem; }
+ .react-sidebar-nav { flex: 1; min-height: 0; overflow: auto; padding: .75rem .55rem; }
 .react-sidebar-nav > p { padding: .7rem .7rem .3rem; color: var(--text-dim); font-size: .72rem; font-weight: 700; letter-spacing: .08em; }
 .react-sidebar-nav .netease-nav-item { width: 100%; min-height: 2.65rem; justify-content: flex-start; gap: .7rem; padding: .65rem .75rem; border: 0; border-radius: .65rem; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; text-align: left; }
 .react-sidebar-nav .netease-nav-item:hover, .react-sidebar-nav .netease-nav-item:focus-visible { color: var(--c-600); background: color-mix(in srgb, var(--c-500) 10%, transparent); }
@@ -1265,7 +1294,7 @@ html, body {
 @media (max-width: 1024px) {
   .react-sidebar { position: fixed; inset: 0 auto 0 0; transform: translateX(-102%); transition: transform .24s ease; box-shadow: 18px 0 48px rgba(0,0,0,.16); }
   .react-sidebar.is-open { transform: translateX(0); }
-  .react-sidebar-close, .react-menu-button { display: inline-grid; }
+  .react-menu-button { display: inline-grid; }
   .react-sidebar-backdrop { position: fixed; inset: 0; z-index: 50; display: block; background: rgba(15,23,42,.52); opacity: 0; pointer-events: none; transition: opacity .24s ease; }
   .react-sidebar-backdrop.is-open { opacity: 1; pointer-events: auto; }
   .react-player-footer { left: 0; }
@@ -6007,7 +6036,6 @@ textarea:focus-visible {
     letter-spacing: .02em;
 }
 
-.react-sidebar-close,
 .react-menu-button {
     display: none;
 }
@@ -7034,13 +7062,8 @@ textarea:focus-visible {
         pointer-events: auto;
     }
 
-    .react-sidebar-close,
     .react-menu-button {
         display: inline-grid;
-    }
-
-    .react-sidebar-brand .react-sidebar-close {
-        margin-left: auto;
     }
 
     .react-player-main {
@@ -8402,8 +8425,38 @@ textarea:focus-visible {
 
 /* Last-mile controls: these rules intentionally follow all compatibility CSS. */
 .react-search-form {
-    grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) minmax(8rem, auto) auto;
+    grid-template-columns: minmax(12rem, 1fr) minmax(8.75rem, 10rem) minmax(8.75rem, 10rem) auto;
     gap: .65rem;
+    align-items: stretch;
+}
+
+.react-search-input,
+.react-search-filter,
+.react-search-form > .react-player-button {
+    min-width: 0;
+    min-height: 2.75rem;
+    height: 2.75rem;
+    box-sizing: border-box;
+}
+
+.react-search-filter {
+    display: flex;
+    align-items: stretch;
+}
+
+.react-search-filter .react-select-menu {
+    width: 100%;
+    min-width: 0;
+}
+
+.react-search-filter .react-select-menu-trigger {
+    height: 100%;
+    min-height: 2.75rem;
+    box-sizing: border-box;
+}
+
+.react-search-form > .react-player-button {
+    white-space: nowrap;
 }
 
 .react-toolbar-card { align-items: end; box-shadow: none; }
@@ -8455,6 +8508,7 @@ textarea:focus-visible {
     .react-search-form { grid-template-columns: 1fr 1fr; }
     .react-search-input,
     .react-search-form > .react-player-button { grid-column: 1 / -1; }
+    .react-search-form > .react-player-button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

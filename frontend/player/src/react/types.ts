@@ -61,6 +61,40 @@ export function songArtist(song: Song | null | undefined): string {
   return String(song?.singer || song?.artist || '未知歌手')
 }
 
+function textValue(value: unknown): string {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return ''
+}
+
+/**
+ * Album metadata is persisted in several shapes across old list snapshots and
+ * different music sources. Keep the fallback in one place so every song list
+ * renders the same album value.
+ */
+export function songAlbum(song: Song | null | undefined): string {
+  if (!song) return '—'
+  const record = song as Record<string, unknown>
+  const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
+  const album = record.album
+  const albumRecord = album && typeof album === 'object' ? album as Record<string, unknown> : {}
+  const value = [
+    textValue(album),
+    textValue(record.albumName),
+    textValue(record.albumname),
+    textValue(record.albumTitle),
+    textValue(record.album_name),
+    textValue(albumRecord.name),
+    textValue(albumRecord.title),
+    textValue(albumRecord.albumName),
+    textValue(meta.albumName),
+    textValue(meta.albumname),
+    textValue(meta.albumTitle),
+    textValue(meta.album),
+  ].find(Boolean)
+  return value || '—'
+}
+
 export function songImage(song: Song | null | undefined): unknown {
   if (!song) return undefined
   const record = song as Record<string, unknown>
