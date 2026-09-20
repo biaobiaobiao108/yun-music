@@ -1,7 +1,6 @@
 /* 
    UI Utilities for 云音管理控制台
    Standardizes notifications (Toasts) and Dialogs
-   Requires: Tailwind CSS, FontAwesome
 */
 
 (function () {
@@ -11,157 +10,404 @@
         return element.innerHTML;
     }
 
-    // 1. Inject enhanced premium CSS
+    // 1. 注入现代白色玻璃风格样式
     const style = document.createElement('style');
     style.textContent = `
-        @keyframes toast-in { from { transform: translateX(100%) scale(0.9); opacity: 0; } to { transform: translateX(0) scale(1); opacity: 1; } }
-        @keyframes modal-in { from { transform: scale(0.95) translateY(10px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
-        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        @keyframes toast-slide-down {
+            0% {
+                transform: translateY(-24px) scale(0.96);
+                opacity: 0;
+            }
+            100% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+        @keyframes toast-slide-up {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+                max-height: 120px;
+                margin-bottom: 10px;
+            }
+            100% {
+                transform: translateY(-16px) scale(0.94);
+                opacity: 0;
+                max-height: 0;
+                margin-bottom: 0;
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+        }
+        @keyframes modal-fade-in {
+            from { transform: scale(0.96) translateY(8px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
         
-        .lx-toast-in { animation: toast-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-        .lx-modal-in { animation: modal-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-        .animate-marquee { display: inline-block; animation: marquee 10s linear infinite; }
-        .pause-animation { animation-play-state: paused; }
-        
-        /* Premium Solid Style for Toasts (Better Legibility) */
-        .lx-toast-card {
-            font-family: 'Outfit', sans-serif !important;
-            background: #1a1a1a !important; 
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) !important;
-            color: #ffffff !important;
+        #lx-toast-container {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+            width: auto;
+            max-width: min(92vw, 560px);
         }
 
-        /* Premium Glassmorphism Overrides */
-        .lx-glass {
-            font-family: 'Outfit', sans-serif !important;
-            background: rgba(255, 255, 255, 0.08) !important;
-            backdrop-filter: blur(20px) saturate(180%) !important;
-            -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+        .toast-item {
+            pointer-events: auto;
+            animation: toast-slide-down 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .lx-btn {
-            font-family: 'Outfit', sans-serif !important;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
+        .toast-item.toast-leave {
+            animation: toast-slide-up 0.24s cubic-bezier(0.4, 0, 1, 1) forwards;
             overflow: hidden;
         }
-        .lx-btn::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(255,255,255,0.1), transparent);
-            opacity: 0; transition: opacity 0.2s;
-        }
-        .lx-btn:hover::after { opacity: 1; }
-        .lx-btn:active { transform: scale(0.96); }
 
-        .lx-input {
-            background: rgba(0, 0, 0, 0.2) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            color: #fff !important;
-            transition: border-color 0.3s, box-shadow 0.3s;
+        /* 现代轻质玻璃拟态风格 Toast 卡片 */
+        .lx-toast-card {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            background: rgba(255, 255, 255, 0.96) !important;
+            backdrop-filter: blur(20px) saturate(180%) !important;
+            -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+            border-radius: 14px !important;
+            padding: 10px 16px 10px 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+            min-width: 240px !important;
+            max-width: 520px !important;
+            box-sizing: border-box !important;
+            transition: all 0.2s ease !important;
         }
-        .lx-input:focus {
-            border-color: rgba(16, 185, 129, 0.5) !important;
-            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1) !important;
+
+        .lx-toast-card.success {
+            border: 1px solid rgba(16, 185, 129, 0.28) !important;
+            box-shadow: 0 12px 32px -4px rgba(16, 185, 129, 0.16), 0 4px 14px -2px rgba(23, 33, 29, 0.06) !important;
         }
-        .lx-close-btn {
-            background: transparent !important;
+        .lx-toast-card.info {
+            border: 1px solid rgba(59, 130, 246, 0.28) !important;
+            box-shadow: 0 12px 32px -4px rgba(59, 130, 246, 0.16), 0 4px 14px -2px rgba(23, 33, 29, 0.06) !important;
+        }
+        .lx-toast-card.error {
+            border: 1px solid rgba(239, 68, 68, 0.28) !important;
+            box-shadow: 0 12px 32px -4px rgba(239, 68, 68, 0.16), 0 4px 14px -2px rgba(23, 33, 29, 0.06) !important;
+        }
+        .lx-toast-card.warning {
+            border: 1px solid rgba(245, 158, 11, 0.28) !important;
+            box-shadow: 0 12px 32px -4px rgba(245, 158, 11, 0.16), 0 4px 14px -2px rgba(23, 33, 29, 0.06) !important;
+        }
+
+        .lx-toast-icon-wrapper {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .lx-toast-icon-wrapper.success {
+            background: rgba(16, 185, 129, 0.12);
+            color: #0f9f6e;
+        }
+        .lx-toast-icon-wrapper.info {
+            background: rgba(59, 130, 246, 0.12);
+            color: #2563eb;
+        }
+        .lx-toast-icon-wrapper.error {
+            background: rgba(239, 68, 68, 0.12);
+            color: #dc2626;
+        }
+        .lx-toast-icon-wrapper.warning {
+            background: rgba(245, 158, 11, 0.12);
+            color: #d97706;
+        }
+
+        .lx-toast-message {
+            font-size: 0.885rem !important;
+            font-weight: 600 !important;
+            color: #17211d !important;
+            line-height: 1.45 !important;
+            white-space: pre-line !important;
+            word-break: break-word !important;
+            flex: 1 !important;
+            padding-right: 4px !important;
+        }
+
+        .lx-toast-close {
+            width: 24px !important;
+            height: 24px !important;
+            border-radius: 50% !important;
             border: none !important;
-            box-shadow: none !important;
-            outline: none !important;
+            background: transparent !important;
+            color: #87968f !important;
             cursor: pointer !important;
-            transition: all 0.2s !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
+            flex-shrink: 0 !important;
+            padding: 0 !important;
+            transition: all 0.2s ease !important;
         }
-        .lx-close-btn:hover {
-            background: rgba(255, 255, 255, 0.1) !important;
+        .lx-toast-close:hover {
+            background: rgba(23, 33, 29, 0.06) !important;
+            color: #17211d !important;
+        }
+
+        /* 现代磨砂玻璃风格对话框 */
+        .lx-dialog-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            transition: opacity 0.25s ease;
+        }
+
+        .lx-dialog-card {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            background: rgba(255, 255, 255, 0.96) !important;
+            backdrop-filter: blur(24px) saturate(180%) !important;
+            -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+            border: 1px solid rgba(23, 33, 29, 0.1) !important;
+            border-radius: 22px !important;
+            box-shadow: 0 24px 52px -12px rgba(23, 33, 29, 0.22), 0 4px 16px -2px rgba(23, 33, 29, 0.06) !important;
+            color: #17211d !important;
+            width: 100% !important;
+            max-width: 400px !important;
+            overflow: hidden !important;
+            position: relative !important;
+            animation: modal-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+        }
+
+        .lx-dialog-close-btn {
+            position: absolute !important;
+            top: 1rem !important;
+            right: 1rem !important;
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 50% !important;
+            border: none !important;
+            background: transparent !important;
+            color: #87968f !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: all 0.2s ease !important;
+            z-index: 10 !important;
+        }
+        .lx-dialog-close-btn:hover {
+            background: rgba(23, 33, 29, 0.06) !important;
+            color: #17211d !important;
+        }
+
+        .lx-dialog-body {
+            padding: 2rem 1.75rem 1.25rem !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            text-align: center !important;
+            gap: 1rem !important;
+        }
+
+        .lx-dialog-icon-badge {
+            width: 56px !important;
+            height: 56px !important;
+            border-radius: 18px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin-bottom: 0.25rem !important;
+        }
+        .lx-dialog-icon-badge.danger {
+            background: rgba(239, 68, 68, 0.1) !important;
+            color: #ef4444 !important;
+            border: 1px solid rgba(239, 68, 68, 0.2) !important;
+        }
+        .lx-dialog-icon-badge.normal {
+            background: rgba(15, 159, 110, 0.1) !important;
+            color: #0f9f6e !important;
+            border: 1px solid rgba(15, 159, 110, 0.2) !important;
+        }
+
+        .lx-dialog-title {
+            color: #17211d !important;
+            font-weight: 700 !important;
+            font-size: 1.15rem !important;
+            margin: 0 !important;
+            letter-spacing: -0.01em !important;
+        }
+
+        .lx-dialog-message {
+            color: #5f7067 !important;
+            font-size: 0.9rem !important;
+            line-height: 1.55 !important;
+            margin: 0 !important;
+            white-space: pre-line !important;
+            word-break: break-word !important;
+            padding: 0 0.5rem !important;
+        }
+
+        .lx-dialog-input {
+            width: 100% !important;
+            background: #ffffff !important;
+            border: 1px solid rgba(23, 33, 29, 0.15) !important;
+            border-radius: 12px !important;
+            color: #17211d !important;
+            padding: 0.75rem 1rem !important;
+            font-size: 0.95rem !important;
+            outline: none !important;
+            transition: all 0.2s ease !important;
+            box-sizing: border-box !important;
+            margin-top: 0.75rem !important;
+        }
+        .lx-dialog-input:focus {
+            border-color: #0f9f6e !important;
+            box-shadow: 0 0 0 3px rgba(15, 159, 110, 0.15) !important;
+        }
+
+        .lx-dialog-footer {
+            padding: 1rem 1.75rem 1.75rem !important;
+            display: flex !important;
+            gap: 0.75rem !important;
+        }
+
+        .lx-dialog-btn-cancel {
+            flex: 1 !important;
+            background: #f1f5f9 !important;
+            color: #475569 !important;
+            border: 1px solid rgba(23, 33, 29, 0.08) !important;
+            border-radius: 12px !important;
+            font-weight: 600 !important;
+            padding: 0.75rem 1rem !important;
+            font-size: 0.9rem !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
+        .lx-dialog-btn-cancel:hover {
+            background: #e2e8f0 !important;
+            color: #1e293b !important;
+        }
+
+        .lx-dialog-btn-confirm {
+            flex: 1 !important;
+            border: none !important;
+            border-radius: 12px !important;
+            font-weight: 600 !important;
+            padding: 0.75rem 1rem !important;
+            font-size: 0.9rem !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+            color: #ffffff !important;
+        }
+        .lx-dialog-btn-confirm.normal {
+            background: linear-gradient(135deg, #0f9f6e, #0f766e) !important;
+            box-shadow: 0 4px 14px rgba(15, 159, 110, 0.28) !important;
+        }
+        .lx-dialog-btn-confirm.normal:hover {
+            filter: brightness(1.08) !important;
+            transform: translateY(-1px) !important;
+        }
+        .lx-dialog-btn-confirm.danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.28) !important;
+        }
+        .lx-dialog-btn-confirm.danger:hover {
+            filter: brightness(1.08) !important;
+            transform: translateY(-1px) !important;
+        }
+        .lx-dialog-btn-confirm:active, .lx-dialog-btn-cancel:active {
+            transform: translateY(0) !important;
         }
     `;
     document.head.appendChild(style);
 
-    /**
-     * Fresh Toast Notification (Solid Card Style)
-     */
-    function showToast(type, message, duration = 3000) {
-        const config = {
-            success: { gradient: 'from-emerald-400 to-teal-500', icon: 'fa-check-circle' },
-            info: { gradient: 'from-blue-400 to-indigo-500', icon: 'fa-info-circle' },
-            error: { gradient: 'from-rose-400 to-red-500', icon: 'fa-exclamation-circle' }
-        };
-        const conf = config[type] || config.info;
+    function getToastContainer() {
+        let container = document.getElementById('lx-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'lx-toast-container';
+            document.body.appendChild(container);
+        }
+        return container;
+    }
 
+    const toastIcons = {
+        success: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
+        info: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="0.75" fill="currentColor"/></svg>`,
+        error: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+        warning: `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="0.75" fill="currentColor"/></svg>`
+    };
+
+    /**
+     * 优雅顶部轻提示 (Toast)
+     */
+    function showToast(type, message, duration = 2500) {
+        const validTypes = ['success', 'info', 'error', 'warning'];
+        const toastType = validTypes.includes(type) ? type : 'info';
+        const iconSvg = toastIcons[toastType];
+
+        const container = getToastContainer();
         const toast = document.createElement('div');
-        toast.className = `toast-item fixed bottom-8 right-8 z-[5000] lx-toast-in`;
+        toast.className = 'toast-item';
 
         toast.innerHTML = `
-            <div class="lx-toast-card px-5 py-3.5 rounded-2xl flex items-center gap-4 min-w-[320px] max-w-[450px]">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br ${conf.gradient} flex items-center justify-center text-white shadow-lg shrink-0">
-                    <i class="fas ${conf.icon} text-lg"></i>
+            <div class="lx-toast-card ${toastType}">
+                <div class="lx-toast-icon-wrapper ${toastType}">
+                    ${iconSvg}
                 </div>
-                <div class="flex-1 overflow-hidden">
-                    <div class="lx-toast-message text-sm font-bold text-white pr-2"></div>
-                </div>
-                <button class="lx-close-btn w-8 h-8 text-white/50 hover:text-white rounded-full ml-1 shrink-0">
-                    <i class="fas fa-times text-sm"></i>
+                <div class="lx-toast-message"></div>
+                <button type="button" class="lx-toast-close" title="关闭" aria-label="关闭">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
                 </button>
             </div>
         `;
         toast.querySelector('.lx-toast-message').textContent = String(message ?? '');
 
-        const gap = 12;
-        let bottomBase = 32;
+        container.appendChild(toast);
 
-        document.body.appendChild(toast);
-
-        // Position stack (Bottom-up)
-        const toasts = document.querySelectorAll('.toast-item');
-        toasts.forEach((el) => {
-            if (el === toast) return;
-            const h = el.offsetHeight;
-            const oldB = parseFloat(el.style.bottom || bottomBase);
-            const newB = oldB + h + gap;
-            el.style.bottom = `${newB}px`;
-            el.dataset.offset = newB;
-        });
-
-        toast.style.bottom = `${bottomBase}px`;
-        toast.dataset.offset = bottomBase;
-
+        let removed = false;
         const removeToast = () => {
-            toast.classList.replace('lx-toast-in', 'opacity-0');
-            toast.style.transform = 'scale(0.9) translateX(20px)';
+            if (removed) return;
+            removed = true;
+            toast.classList.add('toast-leave');
             setTimeout(() => {
-                const currentOffset = parseFloat(toast.dataset.offset);
-                const h = toast.offsetHeight + gap;
                 toast.remove();
-                document.querySelectorAll('.toast-item').forEach(el => {
-                    const elB = parseFloat(el.style.bottom || 0);
-                    if (elB > currentOffset) {
-                        const newB = elB - h;
-                        el.style.bottom = `${newB}px`;
-                        el.dataset.offset = newB;
-                    }
-                });
-            }, 400);
+            }, 240);
         };
 
         const timer = setTimeout(removeToast, duration);
-        toast.querySelector('button').onclick = () => {
-            clearTimeout(timer);
-            removeToast();
-        };
+        const closeBtn = toast.querySelector('.lx-toast-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                clearTimeout(timer);
+                removeToast();
+            });
+        }
     }
 
     /**
-     * Applies dialog semantics and keyboard behaviour to the ad-hoc overlays built
-     * by showSelect/showInput: role, accessible label, initial focus, focus trap,
-     * Escape/Enter handling and focus restoration. Returns a restore-focus callback.
+     * 对话框键盘无障碍与焦点捕获
      */
     let dialogSeq = 0;
 
@@ -190,7 +436,6 @@
                 return;
             }
             if (event.key === 'Enter') {
-                // Focused buttons activate themselves; Enter on 取消 must not confirm.
                 if (document.activeElement instanceof HTMLButtonElement) return;
                 event.preventDefault();
                 onConfirm();
@@ -230,7 +475,7 @@
     }
 
     /**
-     * Fresh Confirmation Modal (Clean & Modern)
+     * 现代磨砂玻璃确认框 (showSelect)
      */
     function showSelect(title, message, options = {}) {
         const {
@@ -239,37 +484,35 @@
             danger = false
         } = options;
 
-        const accentGradient = danger ? 'from-rose-400 to-red-500 shadow-rose-500/30' : 'from-emerald-400 to-teal-500 shadow-emerald-500/30';
-        const icon = danger ? 'fa-exclamation-triangle' : 'fa-question-circle';
-        const iconClass = danger ? 'text-rose-400' : 'text-emerald-400';
+        const iconBadgeClass = danger ? 'danger' : 'normal';
+        const confirmBtnClass = danger ? 'danger' : 'normal';
+        const dialogIcon = danger
+            ? `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="0.8" fill="currentColor"/></svg>`
+            : `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
 
         return new Promise((resolve) => {
             const modal = document.createElement('div');
-            modal.className = "fixed inset-0 z-[3000] flex items-center justify-center p-6 animate-fade-in";
+            modal.className = "lx-dialog-overlay";
             modal.innerHTML = `
-                <div class="absolute inset-0 bg-black/40 backdrop-blur-[4px]"></div>
-                <div class="lx-glass rounded-[28px] w-full max-w-sm overflow-hidden lx-modal-in relative shadow-2xl">
-                    <button id="modal-close-x" class="lx-close-btn absolute top-5 right-5 w-8 h-8 text-white/50 hover:text-white rounded-full z-10">
-                        <i class="fas fa-times text-sm"></i>
+                <div class="lx-dialog-card">
+                    <button id="modal-close-x" class="lx-dialog-close-btn" aria-label="关闭">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
                     </button>
-                    <div class="p-8">
-                        <div class="flex flex-col items-center text-center gap-5">
-                            <div class="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center ${iconClass} border border-white/10 mb-2">
-                                <i class="fas ${icon} text-3xl"></i>
-                            </div>
-                            <div class="space-y-2">
-                                <h3 class="text-xl font-bold text-white tracking-tight"></h3>
-                                <p class="lx-dialog-message text-sm text-white/60 leading-relaxed px-4"></p>
-                            </div>
+                    <div class="lx-dialog-body">
+                        <div class="lx-dialog-icon-badge ${iconBadgeClass}">
+                            ${dialogIcon}
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+                            <h3 class="lx-dialog-title"></h3>
+                            <p class="lx-dialog-message"></p>
                         </div>
                     </div>
-                    <div class="p-5 flex gap-3">
-                        <button id="confirm-cancel" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-2xl">
-
-                        </button>
-                        <button id="confirm-ok" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white bg-gradient-to-br ${accentGradient} rounded-2xl shadow-lg uppercase tracking-wider">
-
-                        </button>
+                    <div class="lx-dialog-footer">
+                        <button id="confirm-cancel" class="lx-dialog-btn-cancel"></button>
+                        <button id="confirm-ok" class="lx-dialog-btn-confirm ${confirmBtnClass}"></button>
                     </div>
                 </div>
             `;
@@ -277,7 +520,6 @@
             modal.querySelector('h3').textContent = String(title ?? '');
             const messageElement = modal.querySelector('.lx-dialog-message');
             messageElement.textContent = String(message ?? '');
-            messageElement.style.whiteSpace = 'pre-line';
             modal.querySelector('#confirm-cancel').textContent = String(cancelText ?? '取消');
             modal.querySelector('#confirm-ok').textContent = String(confirmText ?? '确定');
 
@@ -288,31 +530,29 @@
             const close = (result) => {
                 if (closed) return;
                 closed = true;
-                const content = modal.querySelector('.lx-modal-in');
-                if (content) {
-                    content.style.transform = 'scale(0.9) translateY(10px)';
-                    content.style.opacity = '0';
-                    modal.classList.add('opacity-0');
+                modal.style.opacity = '0';
+                const card = modal.querySelector('.lx-dialog-card');
+                if (card) {
+                    card.style.transform = 'scale(0.95) translateY(8px)';
+                    card.style.opacity = '0';
                 }
                 setTimeout(() => {
                     modal.remove();
                     restoreFocus();
                     resolve(result);
-                }, 300);
+                }, 220);
             };
 
             restoreFocus = enhanceDialog(modal, () => close(true), () => close(false));
 
-            modal.querySelector('#confirm-ok').onclick = () => close(true);
-            modal.querySelector('#confirm-cancel').onclick = () => close(false);
-            if (modal.querySelector('#modal-close-x')) {
-                modal.querySelector('#modal-close-x').onclick = () => close(false);
-            }
+            modal.querySelector('#confirm-ok')?.addEventListener('click', () => close(true));
+            modal.querySelector('#confirm-cancel')?.addEventListener('click', () => close(false));
+            modal.querySelector('#modal-close-x')?.addEventListener('click', () => close(false));
         });
     }
 
     /**
-     * Fresh Input Modal
+     * 现代磨砂玻璃输入框 (showInput)
      */
     function showInput(title, message, options = {}) {
         const {
@@ -326,34 +566,31 @@
 
         return new Promise((resolve) => {
             const modal = document.createElement('div');
-            modal.className = "fixed inset-0 z-[3000] flex items-center justify-center p-6 animate-fade-in";
+            modal.className = "lx-dialog-overlay";
             modal.innerHTML = `
-                <div class="absolute inset-0 bg-black/40 backdrop-blur-[4px]"></div>
-                <div class="lx-glass rounded-[28px] w-full max-w-sm overflow-hidden lx-modal-in relative shadow-2xl">
-                    <button id="modal-close-x" class="lx-close-btn absolute top-5 right-5 w-8 h-8 text-white/50 hover:text-white rounded-full z-10">
-                        <i class="fas fa-times text-sm"></i>
+                <div class="lx-dialog-card">
+                    <button id="modal-close-x" class="lx-dialog-close-btn" aria-label="关闭">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
                     </button>
-                    <div class="p-8">
-                        <div class="flex flex-col items-center text-center gap-5">
-                            <div class="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center text-emerald-400 border border-white/10">
-                                <i class="fas fa-edit text-3xl"></i>
-                            </div>
-                            <div class="space-y-2 w-full text-center">
-                                <h3 class="text-xl font-bold text-white tracking-tight"></h3>
-                                <p class="lx-dialog-message text-sm text-white/60 leading-relaxed mb-6"></p>
-                                <input type="text" id="modal-input"
-                                    class="lx-input w-full px-5 py-4 rounded-2xl outline-none text-base placeholder:text-white/20"
-                                    >
-                            </div>
+                    <div class="lx-dialog-body">
+                        <div class="lx-dialog-icon-badge normal">
+                            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+                            <h3 class="lx-dialog-title"></h3>
+                            <p class="lx-dialog-message"></p>
+                            <input type="text" id="modal-input" class="lx-dialog-input">
                         </div>
                     </div>
-                    <div class="p-5 flex gap-3">
-                        <button id="confirm-cancel" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-2xl">
-
-                        </button>
-                        <button id="confirm-ok" class="lx-btn flex-1 py-3.5 text-sm font-bold text-white bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/30 rounded-2xl uppercase tracking-wider">
-
-                        </button>
+                    <div class="lx-dialog-footer">
+                        <button id="confirm-cancel" class="lx-dialog-btn-cancel"></button>
+                        <button id="confirm-ok" class="lx-dialog-btn-confirm normal"></button>
                     </div>
                 </div>
             `;
@@ -375,30 +612,31 @@
             const close = (result) => {
                 if (closed) return;
                 closed = true;
-                const content = modal.querySelector('.lx-modal-in');
-                if (content) {
-                    content.style.transform = 'scale(0.9) translateY(10px)';
-                    content.style.opacity = '0';
-                    modal.classList.add('opacity-0');
+                modal.style.opacity = '0';
+                const card = modal.querySelector('.lx-dialog-card');
+                if (card) {
+                    card.style.transform = 'scale(0.95) translateY(8px)';
+                    card.style.opacity = '0';
                 }
                 setTimeout(() => {
                     modal.remove();
                     restoreFocus();
                     resolve(result);
-                }, 300);
+                }, 220);
             };
 
             let closed = false;
             let restoreFocus = () => {};
             restoreFocus = enhanceDialog(modal, () => close(input.value), () => close(null));
 
-            modal.querySelector('#confirm-ok').onclick = () => close(input.value);
-            modal.querySelector('#confirm-cancel').onclick = () => close(null);
+            modal.querySelector('#confirm-ok')?.addEventListener('click', () => close(input.value));
+            modal.querySelector('#confirm-cancel')?.addEventListener('click', () => close(null));
+            modal.querySelector('#modal-close-x')?.addEventListener('click', () => close(null));
         });
     }
 
     /**
-     * Marquee Helpers
+     * 跑马灯辅助函数
      */
     function createMarqueeHtml(text, className = '') {
         return `<div class="truncate dynamic-marquee min-w-0 ${escapeHtml(className)}" data-text="${escapeHtml(text)}">${escapeHtml(text)}</div>`;
@@ -425,17 +663,16 @@
         }, 50);
     }
 
-    // Expose to global
+    // 挂载至全局 window
     window.createMarqueeHtml = createMarqueeHtml;
     window.applyMarqueeChecks = applyMarqueeChecks;
     window.showToast = showToast;
-    window.showSuccess = (msg) => showToast('success', msg, 2000);
-    window.showInfo = (msg) => showToast('info', msg, 2000);
-    window.showError = (msg) => showToast('error', msg, 3000);
+    window.showSuccess = (msg) => showToast('success', msg, 2500);
+    window.showInfo = (msg) => showToast('info', msg, 3000);
+    window.showError = (msg) => showToast('error', msg, 3500);
     window.showSelect = showSelect;
     window.showInput = showInput;
 
-    // Listen for resize
     window.addEventListener('resize', () => {
         clearTimeout(window._marqueeResizeTimer);
         window._marqueeResizeTimer = setTimeout(applyMarqueeChecks, 300);
