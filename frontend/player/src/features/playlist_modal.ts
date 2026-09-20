@@ -219,7 +219,7 @@ function cleanSongData(song) {
     }
 
     // 2. Resolve Album Name
-    let albumName = sourceMeta.albumName || song.albumName || song.album?.name || '';
+    let albumName = sourceMeta.albumName || song.albumName || '';
 
     // 3. Resolve Pic URL
     let picUrl = sourceMeta.picUrl || song.picUrl || song.img || song.album?.cover;

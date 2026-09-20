@@ -328,7 +328,7 @@ function renderCacheList() {
             : '/music/assets/yun-yin.png';
         const itemName = escapeHtmlText(item.name || '未命名歌曲');
         const itemSinger = escapeHtmlText(item.singer || '未知歌手');
-        const itemAlbum = escapeHtmlText(item.album || '');
+        const itemAlbum = escapeHtmlText(item.albumName || '');
         const itemJson = safeInlineJson(item);
 
         return `
@@ -351,7 +351,7 @@ function renderCacheList() {
                         ${sourceTagHtml}
                         ${qTagHtml}
                         <span class="text-[10px] font-bold t-text-muted truncate opacity-60">${itemSinger}</span>
-                        ${item.album ? `<span class="text-[10px] t-text-muted opacity-40 ml-1 truncate">· ${itemAlbum}</span>` : ''}
+                        ${item.albumName ? `<span class="text-[10px] t-text-muted opacity-40 ml-1 truncate">· ${itemAlbum}</span>` : ''}
                     </div>
                     ${item.hasLyric === true ? `
                         <div class="mt-1">
@@ -401,7 +401,7 @@ async function retryCacheLyric(btn, item) {
             name: item.name,
             singer: item.singer,
             source: item.source,
-            albumName: item.album || ''
+            albumName: item.albumName || ''
         };
 
         const synced = await window.requestServerLyricCache(songData, item.quality, true); // 强制补齐
@@ -442,7 +442,7 @@ async function downloadAllCacheLyrics() {
                 name: item.name,
                 singer: item.singer,
                 source: item.source,
-                albumName: item.album || ''
+                albumName: item.albumName || ''
             };
             if (window.requestServerLyricCache) {
                 const synced = await window.requestServerLyricCache(songData, item.quality, true); // 强制补全

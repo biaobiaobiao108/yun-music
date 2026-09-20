@@ -338,7 +338,7 @@ export interface CacheItem {
     songmid?: string
     name: string
     singer: string
-    album: string
+    albumName: string
     albumId?: string
     img?: string
     interval?: string
@@ -921,8 +921,7 @@ const extractSongMetadata = (songInfo: any) => {
         id: id,
         name: songInfo.name || meta.songName || 'Unknown',
         singer: songInfo.singer || meta.singerName || 'Unknown',
-        album: songInfo.albumName || meta.albumName ||
-            (typeof songInfo.album === 'string' ? songInfo.album : songInfo.album?.name) || '',
+        albumName: songInfo.albumName || meta.albumName || '',
         albumId: String(songInfo.albumId || meta.albumId || ''),
         img: songInfo.img || meta.picUrl || '',
         interval: songInfo.interval || meta.interval || '',
@@ -1027,9 +1026,7 @@ const getFileName = (songInfo: any, quality?: string, isOnlyDownload?: boolean, 
     const q = quality || songInfo.quality || 'unknown'
     const nameStr = sanitizeFilename(songInfo.name || 'Unknown')
     const singerStr = sanitizeFilename(songInfo.singer || 'Unknown')
-    const albumValue = songInfo.albumName || songInfo.meta?.albumName ||
-        (typeof songInfo.album === 'string' ? songInfo.album : songInfo.album?.name) ||
-        'Unknown Album'
+    const albumValue = songInfo.albumName || songInfo.meta?.albumName || 'Unknown Album'
     const albumStr = sanitizeFilename(albumValue)
 
     let baseName = ''
@@ -1054,7 +1051,7 @@ const getFileName = (songInfo: any, quality?: string, isOnlyDownload?: boolean, 
 
         // The album is part of the simple filename, so different album editions do not collide.
         const conflict = existingItems.find(item => {
-            const itemAlbumValue = item.album || 'Unknown Album'
+            const itemAlbumValue = item.albumName || 'Unknown Album'
             return sanitizeFilename(item.name || 'Unknown').toLowerCase() === normalizedName &&
                 sanitizeFilename(item.singer || 'Unknown').toLowerCase() === normalizedSinger &&
                 sanitizeFilename(item.quality || 'unknown').toLowerCase() === normalizedQuality &&
@@ -1145,7 +1142,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
             let singer = existing?.singer || ''
             let source = existing?.source || ''
             let quality = existing?.quality || ''
-            let album = existing?.album || ''
+            let albumName = existing?.albumName || ''
             let hasCover = existing?.hasCover || false
 
             // subPath calculation: the directory part of the relative path
@@ -1170,7 +1167,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
                         songName = segmentsShort[0]
                         singer = segmentsShort[1]
                         quality = segmentsShort[2] || 'unknown'
-                        album = segmentsShort.slice(3).join(' - ')
+                        albumName = segmentsShort.slice(3).join(' - ')
                         songId = nameWithoutExt // Fallback ID for unknown files
                     } else {
                         // Fallback for completely unknown filenames (e.g. download_4.mp3)
@@ -1282,7 +1279,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
                         tagger.loadPath(filePath)
                         if (tagger.title && !songName) songName = tagger.title
                         if (tagger.artist && !singer) singer = tagger.artist
-                        if (tagger.album && !album) album = tagger.album
+                        if (tagger.album && !albumName) albumName = tagger.album
                         if (hasValidEmbeddedCover(tagger.pictures)) hasCover = true
 
                         const dur = tagger.duration
@@ -1316,7 +1313,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
                         songmid: normalizedId,
                         name: songName || nameWithoutExt || 'Unknown',
                         singer: singer || 'Unknown',
-                        album: album || '',
+                        albumName: albumName || '',
                         albumId: '',
                         img: '',
                         interval: interval,
@@ -1428,7 +1425,7 @@ export const getCacheList = async (username?: string) => {
             singer: item.singer,
             source: item.source,
             quality: item.quality,
-            albumName: item.album,
+            albumName: item.albumName,
             albumId: item.albumId,
             img: item.img,
             interval: item.interval,
@@ -1505,7 +1502,7 @@ export const batchRenameCacheFiles = async (username: string | undefined) => {
                 singer: item.singer,
                 source: item.source,
                 quality: item.quality,
-                albumName: item.album,
+                albumName: item.albumName,
                 albumId: item.albumId,
                 img: item.img,
                 interval: item.interval
@@ -1616,7 +1613,7 @@ export const batchUpdateMetadata = async (filenames: string[], username: string 
                 tagger.loadPath(filePath)
                 tagger.title = item.name || 'Unknown'
                 tagger.artist = item.singer || 'Unknown'
-                if (item.album) tagger.album = item.album
+                if (item.albumName) tagger.album = item.albumName
                 if (imageBuffer && imageBuffer.length > 0) {
                     tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, new Uint8Array(imageBuffer), 'Cover')]
                 }
@@ -1720,7 +1717,7 @@ export const linkLocalFile = async (oldFilename: string, songInfo: any, username
     item.songmid = newId
     item.name = metadata.name
     item.singer = metadata.singer
-    item.album = metadata.album
+    item.albumName = metadata.albumName
     item.albumId = metadata.albumId
     item.img = metadata.img
     item.source = metadata.source
@@ -2062,9 +2059,9 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                     if (collisionFileName && isUsableCacheFile(collisionFilePath)) {
                         const requestedSource = String(songInfo.source || songInfo.meta?.source || '').trim().toLowerCase()
                         const cachedSource = String(collision.source || '').trim().toLowerCase()
-                        const sameAlbum = Boolean(songInfo.albumName || songInfo.album || songInfo.meta?.albumName) &&
-                            Boolean(collision.album) &&
-                            String(songInfo.albumName || songInfo.album?.name || songInfo.album || songInfo.meta?.albumName || '').trim().toLowerCase() === String(collision.album).trim().toLowerCase()
+                        const sameAlbum = Boolean(songInfo.albumName || songInfo.meta?.albumName) &&
+                            Boolean(collision.albumName) &&
+                            String(songInfo.albumName || songInfo.meta?.albumName || '').trim().toLowerCase() === String(collision.albumName).trim().toLowerCase()
                         const parseDuration = (value: unknown) => {
                             const text = String(value || '').trim()
                             if (!text) return 0
@@ -2596,7 +2593,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
 
             indexManager.update(normalizedUsername, {
                 id, songmid: id, name: metadata.name, singer: metadata.singer,
-                album: metadata.album, albumId: metadata.albumId, img: metadata.img,
+                albumName: metadata.albumName, albumId: metadata.albumId, img: metadata.img,
                 interval: metadata.interval, source: metadata.source, requestedSource,
                 downloadSource: actualDownloadSource, sourceName: actualSourceName,
                 quality: actualQuality, filename: path.basename(finalPath),
@@ -2844,7 +2841,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
 
                     indexManager.update(normalizedUsername, {
                         id, songmid: id, name: metadata.name, singer: metadata.singer,
-                        album: metadata.album, albumId: metadata.albumId, img: metadata.img,
+                        albumName: metadata.albumName, albumId: metadata.albumId, img: metadata.img,
                         interval: metadata.interval, source: metadata.source, requestedSource,
                         downloadSource, sourceName,
                         quality: actualQuality, filename: finalBaseName + ext,
@@ -2863,7 +2860,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                         tagger.loadPath(finalPath)
                         tagger.title = metadata.name
                         tagger.artist = metadata.singer
-                        tagger.album = metadata.album
+                        tagger.album = metadata.albumName
                         if (imageBuffer && imageBuffer.length > 0) tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, new Uint8Array(imageBuffer), 'Cover')]
                         tagger.save()
                         metadataWritable = true

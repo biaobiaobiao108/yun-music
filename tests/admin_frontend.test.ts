@@ -10,12 +10,13 @@ describe('React admin frontend', () => {
   it('normalizes persisted song metadata so data view can render real playlist entries', () => {
     const data = normalizeAdminData({
       data: {
-        defaultList: [{ id: 7, name: '试听歌曲', singer: '歌手', albumName: '专辑', meta: { picUrl: 'https://example.com/cover.jpg', songId: 7 } }],
+        defaultList: [{ id: 7, name: '试听歌曲', singer: '歌手', albumName: '专辑', album: '旧专辑字段', meta: { picUrl: 'https://example.com/cover.jpg', songId: 7 } }],
         loveList: [],
         userList: [{ id: 12, name: '夜间歌单', list: [{ songmid: 88, title: '另一首歌', artist: '另一位歌手', albumName: '另一张专辑' }] }],
       },
     })
     expect(data.defaultList?.[0]).toMatchObject({ id: '7', name: '试听歌曲', singer: '歌手', albumName: '专辑', img: 'https://example.com/cover.jpg' })
+    expect('album' in (data.defaultList?.[0] ?? {})).toBe(false)
     expect(data.userList?.[0]).toMatchObject({ id: '12', name: '夜间歌单' })
     expect(data.userList?.[0]?.list[0]).toMatchObject({ id: '88', name: '另一首歌', singer: '另一位歌手', albumName: '另一张专辑' })
     expect(adminSongId(data.userList?.[0]?.list[0] ?? {}, '0')).toBe('88')

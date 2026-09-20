@@ -87,7 +87,7 @@ export const markDownloadTaskPausedIfAborted = (task: ServerDownloadTask, aborte
 }
 
 const SONG_INFO_FIELDS = [
-  'id', 'songmid', 'songId', 'source', 'name', 'singer', 'albumName', 'albumId', 'album',
+  'id', 'songmid', 'songId', 'source', 'name', 'singer', 'albumName', 'albumId',
   'interval', 'img', 'pic', 'types', '_types', 'hash', 'strMediaMid', 'albumMid',
   'copyrightId', 'lrcUrl', 'mrcUrl', 'trcUrl', 'quality', 'requestedSource',
   'downloadSource', 'sourceName',

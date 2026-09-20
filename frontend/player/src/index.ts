@@ -2317,7 +2317,7 @@ function updateMediaSessionMetadata(song) {
         navigator.mediaSession.metadata = new MediaMetadata({
             title: song.name,
             artist: song.singer,
-            album: song.albumName || '',
+            albumName: song.albumName || '',
             artwork: [
                 { src: fullImgUrl, sizes: '96x96', type: 'image/jpeg' },
                 { src: fullImgUrl, sizes: '128x128', type: 'image/jpeg' },
@@ -4023,7 +4023,6 @@ function formatSongToLxMusicStandard(item) {
 
     // 1. 提取核心元数据
     const albumName = s.albumName ||
-        (s.album && s.album.name) ||
         (s.al && s.al.name) ||
         (s.meta && s.meta.albumName) || '';
 

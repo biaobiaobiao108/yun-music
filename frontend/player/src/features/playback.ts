@@ -1509,7 +1509,7 @@ function updatePlayerInfo(song, actualQuality) {
     }
 
     // Bottom Player - 更新专辑并支持专辑类型搜索
-    const albumName = String(song.albumName || song.album || song.meta?.albumName || song.meta?.album || '').trim();
+    const albumName = String(song.albumName || song.meta?.albumName || '').trim();
     if (albumEl) {
         if (albumName) {
             albumEl.innerText = albumName;

@@ -530,7 +530,7 @@ window.LocalMusicManager = {
     },
 
     getSearchValues(item, includeQuality = false) {
-        const values = [item.name, item.singer, item.album, item.filename];
+        const values = [item.name, item.singer, item.albumName, item.filename];
         if (includeQuality) values.push(item.quality);
         return values;
     },
@@ -1103,8 +1103,8 @@ window.LocalMusicManager = {
                     valB = (b.singer || '').toLowerCase();
                     break;
                 case 'album':
-                    valA = (a.album || '').toLowerCase();
-                    valB = (b.album || '').toLowerCase();
+                    valA = (a.albumName || '').toLowerCase();
+                    valB = (b.albumName || '').toLowerCase();
                     break;
                 case 'source':
                     valA = (a.source || '').toLowerCase();
@@ -1249,7 +1249,7 @@ window.LocalMusicManager = {
             const index = page.start + pageIndex;
             const safeName = this.escapeHtml(item.name || '未知歌曲');
             const safeSinger = this.escapeHtml(item.singer || '未知歌手');
-            const safeAlbum = this.escapeHtml(item.album || '--');
+            const safeAlbum = this.escapeHtml(item.albumName || '--');
             const displayedSource = item.downloadSource || item.source;
             const safeSource = this.escapeHtml(displayedSource === 'unknown' ? '未知' : (displayedSource || ''));
             const sourceTitle = item.downloadSource && item.downloadSource !== item.source
@@ -1642,7 +1642,7 @@ window.LocalMusicManager = {
             name: item.name || songInfo.name,
             singer: item.singer || songInfo.singer,
             source: identity.source,
-            albumName: item.album || songInfo.albumName || '',
+            albumName: item.albumName || songInfo.albumName || '',
             albumId: item.albumId || songInfo.albumId,
             img: item.img || songInfo.img,
             interval: item.interval || songInfo.interval,

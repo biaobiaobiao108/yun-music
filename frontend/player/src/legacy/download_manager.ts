@@ -1196,8 +1196,8 @@ export class DownloadManager {
             finalUrl = this.extractRawDownloadUrl(finalUrl);
 
             if (shouldProxyDownload && !finalUrl.startsWith('/api/music/download') && !isLocalCache) {
-                // Add metadata for tagging — 用 albumName 优先（playlist 字段），album 为兼容备选
-                const albumName = task.song.albumName || (task.song.album && typeof task.song.album === 'string' ? task.song.album : (task.song.album?.name || ''));
+                // Add metadata for tagging from the canonical albumName field.
+            const albumName = task.song.albumName || '';
                 let coverUrl = this.getSongCover(task.song);
 
                 // [Critical Fix] 相对路径改为绝对路径，服务器才能正确抓取并嵌入封面

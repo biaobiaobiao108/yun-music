@@ -83,13 +83,13 @@ React 继续兼容以下 hash 地址：
 
 `lx_settings`、`lx_playback_state`、`lx_volume`、`lx_play_mode`、`lx_user_name`、`lx_download_tasks`、`play_history` 以及歌词和 IndexedDB 缓存。
 
-自定义音源、缓存/下载、歌词翻译与罗马音、歌单切换加入/移除、管理员存储统计均通过既有 API 客户端调用。新 UI 不应新增第二套播放、缓存或认证协议。
+自定义音源、缓存/下载、歌词翻译与罗马音、歌单切换加入/移除、管理员存储统计均通过既有 API 客户端调用。歌曲实体和缓存索引统一使用 `albumName`；音频标签的 `album`、第三方 SDK 的原始 `album` 对象不属于用户歌曲快照字段，只在边界解析处保留。新 UI 不应新增第二套播放、缓存或认证协议。
 
 ## 管理后台迁移边界
 
 管理后台的 React 页面不是旧模板的静态外壳，而是对旧管理能力的语义化重组：
 
-- `frontend/admin/src/react/data-view.tsx` 负责用户数据查看。接口返回的 `defaultList`、`loveList`、`userList` 会先经过 `normalizeAdminData`，兼容旧歌单快照中 `meta.songId`、`meta.albumName`、`meta.picUrl` 等字段，再进入全部歌曲、试听列表、我的收藏和自定义歌单导航。自定义歌单保留重命名、删除、单曲删除和批量删除；系统列表保留单曲移除。
+- `frontend/admin/src/react/data-view.tsx` 负责用户数据查看。接口返回的 `defaultList`、`loveList`、`userList` 会先经过 `normalizeAdminData`，歌曲展示字段统一读取顶层 `id`、`name`、`singer`、`albumName`、`img` 和 `interval`；`meta` 只保留播放协议仍需要的标识与音源信息，不再读取或写回顶层旧 `album` 字段。当前测试数据已清空，不再提供旧快照字段迁移。自定义歌单保留重命名、删除、单曲删除和批量删除；系统列表保留单曲移除。
 - `frontend/admin/src/react/storage-view.tsx` 负责缓存与下载音乐，保留搜索、排序、试听、移动、批量删除、批量移动和清空缓存。试听使用元数据预加载，不把文件读入 React 状态；移动仍调用原 `/api/music/cache/move` 接口。
 - `frontend/admin/src/react/config-view.tsx` 覆盖旧配置页的基础路径、歌单加入位置、代理、用户访问限制、缓存上限、音源优先级、管理员密码和播放器认证字段。密码只提交用户主动填写的新值，服务端返回的 `*passwordConfigured` 只用于提示，不回显密文。
 - 日志类型由后台 store 的 `logType` 管理，应用、访问、登录和错误日志复用同一张安全文本表；用户、快照、备份、重启和仪表盘存储统计继续走原有接口。

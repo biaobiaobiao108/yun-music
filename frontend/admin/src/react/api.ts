@@ -35,7 +35,7 @@ export type AdminStatus = {
   [key: string]: unknown
 }
 export type AdminConfig = Record<string, unknown> & { serverName?: string; playerPath?: string }
-export type StorageItem = Record<string, unknown> & { id?: string; filename?: string; rawUsername?: string; name?: string; singer?: string; size?: number; folder?: 'cache' | 'music'; mtime?: number }
+export type StorageItem = Record<string, unknown> & { id?: string; filename?: string; rawUsername?: string; name?: string; singer?: string; albumName?: string; size?: number; folder?: 'cache' | 'music'; mtime?: number }
 export type Snapshot = Record<string, unknown> & { id?: string; time?: number; size?: number; name?: string }
 
 type UnknownRecord = Record<string, unknown>
@@ -65,6 +65,7 @@ function arrayValue(value: unknown): unknown[] {
 
 export function normalizeAdminSong(value: unknown): AdminSong {
   const record = asRecord(value) ?? {}
+  const { album: _legacyAlbum, ...canonicalRecord } = record
   const meta = asRecord(record.meta) ?? {}
   const id = firstText(record.id, record.songmid, record.songId, record.hash, meta.songId, meta.songmid, meta.id)
   const name = firstText(record.name, record.title, record.songName, meta.name, meta.title)
@@ -73,7 +74,7 @@ export function normalizeAdminSong(value: unknown): AdminSong {
   const img = firstText(record.img, record.picUrl, record.pic, record.cover, meta.picUrl, meta.img, meta.pic, meta.cover)
   const interval = firstText(record.interval, record.duration, meta.interval, meta.duration)
   return {
-    ...record,
+    ...canonicalRecord,
     ...(id ? { id } : {}),
     ...(name ? { name } : {}),
     ...(singer ? { singer } : {}),

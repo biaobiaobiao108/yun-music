@@ -158,7 +158,7 @@ export type StorageItem = {
     songmid?: string;
     name: string;
     singer: string;
-    album: string;
+    albumName: string;
     albumId?: string;
     img?: string;
     interval?: string;

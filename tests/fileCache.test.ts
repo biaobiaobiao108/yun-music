@@ -105,7 +105,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'wy_test-song',
         name: 'Test Song',
         singer: 'Test Singer',
-        album: 'Test Album',
+        albumName: 'Test Album',
         source: 'wy',
         quality: 'flac',
         filename: audioFilename,
@@ -136,6 +136,8 @@ describe('File Cache Path Traversal Defense', () => {
       const repaired = fileCache.indexManager.get('test-user', 'wy_test-song', 'music', 'flac', true)
       expect(repaired?.hasLyric).toBe(true)
       expect(repaired?.lyricFilename).toBe(lyricFilename)
+      expect(repaired?.albumName).toBe('Test Album')
+      expect('album' in (repaired ?? {})).toBe(false)
     } finally {
       closeDb()
       ;(global as any).lx = previousLx
@@ -161,7 +163,7 @@ describe('File Cache Path Traversal Defense', () => {
         id: '1869271',
         name: 'We Will Rock You',
         singer: 'Queen',
-        album: 'Queen Rocks',
+        albumName: 'Queen Rocks',
         quality: 'flac',
       }
       const lyric = { lyric: '[00:00.00]We Will Rock You' }
@@ -200,7 +202,7 @@ describe('File Cache Path Traversal Defense', () => {
         id: '1463165983',
         name: '花人局',
         singer: 'ヨルシカ',
-        album: '盗作',
+        albumName: '盗作',
       }
       const lyric = { lyric: '[00:00.00]花人局' }
 
@@ -245,7 +247,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: '111',
         name: 'Collision Song',
         singer: 'Collision Singer',
-        album: 'Collision Album',
+        albumName: 'Collision Album',
         source: 'wy',
         quality: 'flac',
         filename: 'song.flac',
@@ -298,7 +300,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'wy_canonical-id',
         name: 'ID Alias Song',
         singer: 'ID Alias Singer',
-        album: 'ID Alias Album',
+        albumName: 'ID Alias Album',
         source: 'wy',
         quality: 'flac',
         filename,
@@ -351,7 +353,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'wy_indexed-id',
         name: 'Source Alias Song',
         singer: 'Source Alias Singer',
-        album: 'Source Alias Album',
+        albumName: 'Source Alias Album',
         interval: '03:21',
         source: 'wy',
         quality: 'flac',
@@ -419,7 +421,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'alternate-song',
         name: 'Alternate Song',
         singer: 'Alternate Singer',
-        album: 'Alternate Album',
+        albumName: 'Alternate Album',
         source: 'wy',
         quality: 'flac',
         filename,
@@ -474,7 +476,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'empty-song',
         name: 'Empty Song',
         singer: 'Empty Singer',
-        album: '',
+        albumName: '',
         source: 'wy',
         quality: '320k',
         filename,
@@ -515,7 +517,7 @@ describe('File Cache Path Traversal Defense', () => {
       id: 'processing-song',
       name: 'Processing Song',
       singer: 'Processing Singer',
-      album: 'Processing Album',
+      albumName: 'Processing Album',
       quality: 'flac',
     }
     try {
@@ -534,7 +536,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'processing-song',
         name: songInfo.name,
         singer: songInfo.singer,
-        album: songInfo.album,
+        albumName: songInfo.albumName,
         source: songInfo.source,
         quality: 'flac',
         filename,
@@ -583,7 +585,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'wy_deleted-song',
         name: 'Deleted Song',
         singer: 'Test Singer',
-        album: 'Test Album',
+        albumName: 'Test Album',
         source: 'wy',
         quality: 'flac',
         filename: audioFilename,
@@ -641,7 +643,7 @@ describe('File Cache Path Traversal Defense', () => {
         songmid: 'wy_clear-song',
         name: 'Clear Song',
         singer: 'Test Singer',
-        album: 'Test Album',
+        albumName: 'Test Album',
         source: 'wy',
         quality: 'mp3',
         filename: audioFilename,
@@ -786,7 +788,7 @@ describe('File Cache Path Traversal Defense', () => {
         id: 'wy_old',
         name: 'Old',
         singer: 'Singer',
-        album: 'Album',
+        albumName: 'Album',
         source: 'wy',
         quality: '128k',
         filename: 'old_cache.mp3',
@@ -800,7 +802,7 @@ describe('File Cache Path Traversal Defense', () => {
         id: 'wy_new',
         name: 'New',
         singer: 'Singer',
-        album: 'Album',
+        albumName: 'Album',
         source: 'wy',
         quality: '128k',
         filename: 'new_cache.mp3',
@@ -858,7 +860,7 @@ describe('File Cache Path Traversal Defense', () => {
       const baseItem = {
         name: 'Test',
         singer: 'Singer',
-        album: 'Album',
+        albumName: 'Album',
         source: 'wy',
         quality: '128k',
         folder: 'cache' as const,
@@ -1001,4 +1003,3 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
     }
   })
 })
-
