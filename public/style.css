@@ -2488,16 +2488,37 @@ select.form-input option:checked {
     transform: translateY(-1px);
 }
 
-/* 批量删除按钮样式已在 index.html 中定义为 btn-danger，这里确保样式存在 */
+/* 危险操作按钮样式已在 index.html 中定义为 btn-danger，统一圆角与交互 */
 .btn-danger {
+    padding: 0.625rem 1.25rem;
     background: rgba(239, 68, 68, 0.1);
     color: var(--accent-error);
     border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     white-space: nowrap;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
     background: rgba(239, 68, 68, 0.2);
+    border-color: var(--accent-error);
+    transform: translateY(-1px);
+}
+
+.btn-danger:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-danger:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* =============== 模态框底部按钮布局修复 =============== */
@@ -3892,28 +3913,70 @@ select {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.875rem 1.5rem;
+    padding: 0.75rem 1.25rem;
     border-radius: 14px;
     margin-bottom: 1.25rem;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-sm);
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
-.batch-action-btns {
+.storage-batch-bar .batch-select-btns {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.storage-batch-bar .batch-select-btns .btn-batch {
+    padding: 0.4rem 0.85rem;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 0.825rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.storage-batch-bar .batch-action-btns {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
-/* 批量选择药丸按钮 (胶囊圆角 12px) */
+.storage-batch-bar .batch-action-btns button {
+    padding: 0.45rem 1rem !important;
+    font-size: 0.825rem !important;
+    font-weight: 600;
+    border-radius: 10px !important;
+    height: 34px !important;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    box-shadow: none;
+}
+
+.storage-batch-bar .batch-action-btns button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.storage-batch-bar .batch-action-btns button svg {
+    width: 14px !important;
+    height: 14px !important;
+    margin-right: 0 !important;
+}
+
+/* 批量选择药丸按钮全局样式 (胶囊圆角 10px) */
 .btn-batch {
-    padding: 0.5rem 1rem;
+    padding: 0.45rem 0.9rem;
     background: var(--bg-tertiary);
     border: 1px solid var(--glass-border);
-    border-radius: 12px;
+    border-radius: 10px;
     color: var(--text-primary);
     cursor: pointer;
     font-size: 0.85rem;
