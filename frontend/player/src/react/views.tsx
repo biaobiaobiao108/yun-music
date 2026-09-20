@@ -477,12 +477,23 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
+    const surface = dialog.querySelector<HTMLElement>('.react-immersive-lyrics')
+    const syncFooterPosition = () => {
+      const bodyWidth = document.body.getBoundingClientRect().width
+      const viewportWidth = window.innerWidth
+      const scrollbarGutter = Math.max(0, viewportWidth - bodyWidth)
+      surface?.style.setProperty('--react-immersive-scrollbar-gutter', `${scrollbarGutter}px`)
+    }
     if (open && !dialog.open) {
       lastFocus.current = consumeImmersiveLyricsTrigger() ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+      syncFooterPosition()
       dialog.showModal()
       dialog.querySelector<HTMLButtonElement>('[data-immersive-close]')?.focus()
-    } else if (!open && dialog.open) {
+    } else if (open) {
+      syncFooterPosition()
+    } else if (dialog.open) {
       dialog.close()
+      surface?.style.removeProperty('--react-immersive-scrollbar-gutter')
       const focusTarget = lastFocus.current
       const restoreFocus = () => document.querySelector<HTMLButtonElement>('#player-footer .react-footer-cover-button')?.focus()
       if (focusTarget?.isConnected && focusTarget !== document.body && !dialog.contains(focusTarget) && !focusTarget.matches(':disabled')) focusTarget.focus()
@@ -490,6 +501,11 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
       else window.requestAnimationFrame(restoreFocus)
       lastFocus.current = null
     }
+    if (open) {
+      window.addEventListener('resize', syncFooterPosition)
+      return () => window.removeEventListener('resize', syncFooterPosition)
+    }
+    return undefined
   }, [open])
   useEffect(() => {
     if (active < 0) return

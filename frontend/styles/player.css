@@ -9262,6 +9262,7 @@ textarea:focus-visible {
    own canvas and lyric scroll surface, but the transport itself uses the
    same three-column capsule as the ordinary player footer. */
 .react-immersive-lyrics {
+    --react-immersive-scrollbar-gutter: 0px;
     --react-immersive-footer-reserve: 6.25rem;
     position: relative;
     block-size: 100%;
@@ -9286,14 +9287,22 @@ textarea:focus-visible {
        after the sidebar and shell gap. */
     inset-inline-start: calc(
         50% + ((var(--app-sidebar-width, 17.5rem) + var(--player-shell-gap, 1rem)) / 2)
+        - (var(--react-immersive-scrollbar-gutter, 0px) / 2)
     ) !important;
     inset-inline-end: auto !important;
-    inset-block-end: max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom)) !important;
+    inset-block-end: max(
+        calc(var(--player-shell-gap, 1rem) * 2),
+        calc(env(safe-area-inset-bottom) + var(--player-shell-gap, 1rem))
+    ) !important;
     left: calc(
         50% + ((var(--app-sidebar-width, 17.5rem) + var(--player-shell-gap, 1rem)) / 2)
+        - (var(--react-immersive-scrollbar-gutter, 0px) / 2)
     ) !important;
     right: auto !important;
-    bottom: max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom)) !important;
+    bottom: max(
+        calc(var(--player-shell-gap, 1rem) * 2),
+        calc(env(safe-area-inset-bottom) + var(--player-shell-gap, 1rem))
+    ) !important;
     z-index: 20 !important;
     width: min(60rem, calc(100% - 2rem)) !important;
     max-width: calc(100% - 2rem) !important;
@@ -9311,9 +9320,9 @@ textarea:focus-visible {
     }
 
     .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
-        inset-block-end: max(.6rem, env(safe-area-inset-bottom)) !important;
+        inset-block-end: max(1.15rem, calc(env(safe-area-inset-bottom) + .55rem)) !important;
         inset-inline-start: 50% !important;
-        bottom: max(.6rem, env(safe-area-inset-bottom)) !important;
+        bottom: max(1.15rem, calc(env(safe-area-inset-bottom) + .55rem)) !important;
         left: 50% !important;
         width: calc(100% - 1rem) !important;
         max-width: calc(100% - 1rem) !important;
@@ -9342,20 +9351,12 @@ textarea:focus-visible {
     }
 }
 
-/* Enter the top-layer lyrics surface as one quiet composition. Keeping the
-   transform on the dialog (instead of the footer) preserves the footer's
-   final alignment with the ordinary player while still giving the transition
-   a clear visual start point. */
+/* Enter the top-layer lyrics surface as one quiet composition. Fade only: a
+   transform on the dialog would also scale and move the shared footer while
+   it is entering, which makes it appear to jump away from the ordinary bar. */
 @keyframes react-immersive-dialog-enter {
-    from {
-        opacity: 0;
-        transform: translate3d(0, .55rem, 0) scale(.992);
-    }
-
-    to {
-        opacity: 1;
-        transform: translate3d(0, 0, 0) scale(1);
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 @keyframes react-immersive-backdrop-enter {
@@ -9376,4 +9377,13 @@ textarea:focus-visible {
     .react-immersive-lyrics-dialog[open]::backdrop {
         animation: none;
     }
+}
+
+/* The shell already provides the page canvas. Keep the main content as an
+   open surface so only intentional inner sections read as cards. */
+#player-main-content.react-player-content {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
 }

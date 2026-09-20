@@ -255,10 +255,20 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-immersive-cover-panel')
     expect(css).toContain('.react-immersive-shared-footer#player-footer')
     expect(css).toContain('--react-immersive-footer-reserve')
+    expect(views).toContain('--react-immersive-scrollbar-gutter')
     expect(css).toContain('var(--app-sidebar-width, 17.5rem)')
     expect(css).toContain('@keyframes react-immersive-dialog-enter')
     expect(css).toContain('.react-immersive-lyrics-dialog[open]::backdrop')
+    expect(css).not.toContain('translate3d(0, .55rem, 0) scale(.992)')
     expect(css).not.toMatch(/(?:react-)?vinyl|visualizer|频谱/i)
+  })
+
+  it('keeps the main player surface open instead of wrapping it in a card', () => {
+    const css = read('frontend/styles/player.css')
+    expect(css).toContain('#player-main-content.react-player-content {')
+    expect(css).toContain('background: transparent !important')
+    expect(css).toContain('border-radius: 0 !important')
+    expect(css).toContain('box-shadow: none !important')
   })
 
   it('keeps playlist artwork through detail navigation and renders one entity heading', () => {
