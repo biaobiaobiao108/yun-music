@@ -2,10 +2,17 @@ import { create } from 'zustand'
 import { playerApi, parseLyric, persistLegacySettings, readLegacySettings, type CommentItem } from './api'
 import type { PlayerConfig, SearchType, UserListData } from './api'
 import { readJson, readString, writeJson, writeString } from '../../../shared/src/storage'
+import { applyThemePreferences } from '../../../shared/src/theme'
 import type { DrawerName, LyricLine, PlayMode, PlayerDetail, PlayerTab, Song } from './types'
 import { songKey } from './types'
 
+function browserStorage(): Storage | null {
+  return typeof localStorage === 'undefined' ? null : localStorage
+}
+
 export const DEFAULT_SETTINGS = {
+  appearance: 'system',
+  themeColor: 'netease',
   defaultEntry: 'favorites',
   preferredQuality: 'flac',
   defaultDownloadTarget: 'server',
@@ -80,15 +87,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const [playerSession, userSession] = await Promise.all([playerApi.verify(), playerApi.userVerify()])
       const authenticatedUserName = userSession.valid ? (userSession.username || get().userName) : null
       set({ config, playerAuthRequired: Boolean(config['player.enableAuth']), playerAuthenticated: !config['player.enableAuth'] || playerSession.valid, userAuthenticated: userSession.valid, userName: authenticatedUserName, checking: false })
-      writeString(localStorage, 'lx_user_name', authenticatedUserName || '')
+      writeString(browserStorage(), 'lx_user_name', authenticatedUserName || '')
     } catch (error) {
       set({ checking: false, error: error instanceof Error ? error.message : '初始化失败，请刷新重试' })
     }
   },
   login: async (password) => { await playerApi.login(password); set({ playerAuthenticated: true, error: '' }) },
   logout: async () => { await playerApi.logout(); set({ playerAuthenticated: false }) },
-  userLogin: async (username, password) => { const result = await playerApi.userLogin(username, password); writeString(localStorage, 'lx_user_name', result.username); set({ userName: result.username, userAuthenticated: true }) },
-  userLogout: async () => { await playerApi.userLogout(); writeString(localStorage, 'lx_user_name', ''); set({ userName: null, userAuthenticated: false }) },
+  userLogin: async (username, password) => { const result = await playerApi.userLogin(username, password); writeString(browserStorage(), 'lx_user_name', result.username); set({ userName: result.username, userAuthenticated: true }) },
+  userLogout: async () => { await playerApi.userLogout(); writeString(browserStorage(), 'lx_user_name', ''); set({ userName: null, userAuthenticated: false }) },
 }))
 
 type SettingsState = { settings: PlayerSettings; setSetting: (key: string, value: unknown) => void; hydrate: () => Promise<void> }
@@ -99,14 +106,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 }))
 
 function applyAppearance(settings: Record<string, unknown>) {
-  const appearance = String(settings.appearance || settings.theme || 'system')
-  if (appearance === 'dark' || appearance === 'light') document.documentElement.dataset.appearance = appearance
-  else delete document.documentElement.dataset.appearance
-  const theme = String(settings.themeColor || settings.colorTheme || 'netease')
-  if (theme) document.documentElement.dataset.theme = theme
+  applyThemePreferences({
+    appearance: String(settings.appearance || settings.theme || 'system') as 'system' | 'light' | 'dark',
+    themeColor: String(settings.themeColor || settings.colorTheme || 'netease'),
+  })
 }
 
-type PlayerNavigation = { tab: PlayerTab; detail: PlayerDetail | null }
+type PlayerNavigation = { tab: PlayerTab; detail: PlayerDetail | null; listId?: string }
 let playerNavigation: ((navigation: PlayerNavigation) => void) | null = null
 export function connectPlayerNavigation(navigate: (navigation: PlayerNavigation) => void): () => void {
   playerNavigation = navigate
@@ -116,17 +122,24 @@ export function connectPlayerTabNavigation(navigate: (tab: PlayerTab) => void): 
   return connectPlayerNavigation(({ tab }) => navigate(tab))
 }
 
-type UiState = { tab: PlayerTab; detail: PlayerDetail | null; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'sleep' | 'lyrics' | 'comments' | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
+type UiState = { tab: PlayerTab; detail: PlayerDetail | null; favoriteListId: string; sidebarOpen: boolean; drawer: DrawerName; dialog: 'login' | 'userLogin' | 'createList' | 'sleep' | 'lyrics' | 'comments' | null; immersiveLyrics: boolean; notice: string; setTab: (tab: PlayerTab) => void; setDetail: (detail: PlayerDetail | null) => void; setFavoriteListId: (listId: string) => void; openFavoriteList: (listId: string) => void; setTabFromHistory: (tab: PlayerTab, detail?: PlayerDetail | null, listId?: string) => void; toggleSidebar: () => void; closeSidebar: () => void; setDrawer: (drawer: DrawerName) => void; setDialog: (dialog: UiState['dialog']) => void; setImmersiveLyrics: (open: boolean) => void; notify: (notice: string) => void; clearNotice: () => void }
 export const usePlayerUiStore = create<UiState>((set, get) => ({
-  tab: 'search', detail: null, sidebarOpen: false, drawer: null, dialog: null, immersiveLyrics: false, notice: '',
+  tab: 'home', detail: null, favoriteListId: 'love', sidebarOpen: false, drawer: null, dialog: null, immersiveLyrics: false, notice: '',
   setTab: (tab) => {
     if (get().tab === tab) return
+    const listId = tab === 'favorites' ? get().favoriteListId : undefined
     set({ tab, detail: null, sidebarOpen: false })
-    if (playerNavigation) playerNavigation({ tab, detail: null })
+    if (playerNavigation) playerNavigation({ tab, detail: null, listId })
     else if (typeof window !== 'undefined') window.history.pushState({ tab }, '', `#${tab}`)
   },
-  setDetail: detail => { set({ detail }); if (playerNavigation) playerNavigation({ tab: get().tab, detail }); else if (typeof window !== 'undefined') window.history.pushState({ tab: get().tab, detail }, '', `#${get().tab}`) },
-  setTabFromHistory: (tab, detail = null) => set({ tab, detail, sidebarOpen: false }),
+  setDetail: detail => { set({ detail }); if (playerNavigation) playerNavigation({ tab: get().tab, detail, listId: get().tab === 'favorites' ? get().favoriteListId : undefined }); else if (typeof window !== 'undefined') window.history.pushState({ tab: get().tab, detail }, '', `#${get().tab}`) },
+  setFavoriteListId: favoriteListId => set({ favoriteListId }),
+  openFavoriteList: favoriteListId => {
+    set({ tab: 'favorites', detail: null, favoriteListId, sidebarOpen: false })
+    if (playerNavigation) playerNavigation({ tab: 'favorites', detail: null, listId: favoriteListId })
+    else if (typeof window !== 'undefined') window.history.pushState({ tab: 'favorites', listId: favoriteListId }, '', '#favorites')
+  },
+  setTabFromHistory: (tab, detail = null, favoriteListId = 'love') => set({ tab, detail, favoriteListId, sidebarOpen: false }),
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
   closeSidebar: () => set({ sidebarOpen: false }),
   setDrawer: (drawer) => set({ drawer }),
@@ -198,6 +211,70 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   deleteList: async (listId) => { const data = get().data; await playerApi.saveListData({ ...data, userList: (data.userList ?? []).filter(list => String(list.id) !== String(listId)) }); await get().hydrate() },
 }))
 
+export type RecentSong = Song & { playedAt?: number; quality?: string }
+
+export function normalizePlayHistory(value: unknown): RecentSong[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  return value
+    .filter(item => Boolean(item && typeof item === 'object'))
+    .map(item => item as RecentSong)
+    .sort((a, b) => Number(b.playedAt || 0) - Number(a.playedAt || 0))
+    .filter(song => {
+      const key = songKey(song)
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 50)
+}
+
+export function readPlayHistory(): RecentSong[] {
+  const storage = typeof localStorage === 'undefined' ? null : localStorage
+  return normalizePlayHistory(readJson<unknown>(storage, 'play_history', []))
+}
+
+export function appendPlayHistory(song: Song, quality?: string): RecentSong[] {
+  const next: RecentSong = { ...song, ...(quality ? { quality } : {}), playedAt: Date.now() }
+  const history = normalizePlayHistory([next, ...readPlayHistory()])
+  const storage = typeof localStorage === 'undefined' ? null : localStorage
+  writeJson(storage, 'play_history', history)
+  return history
+}
+
+type RecentState = { items: RecentSong[]; hydrate: () => void; record: (song: Song, quality?: string) => void }
+export const useRecentStore = create<RecentState>((set) => ({
+  items: [],
+  hydrate: () => set({ items: readPlayHistory() }),
+  record: (song, quality) => set({ items: appendPlayHistory(song, quality) }),
+}))
+
+function normalizeLibraryItems(payload: unknown): Song[] {
+  if (Array.isArray(payload)) return payload as Song[]
+  if (!payload || typeof payload !== 'object') return []
+  const record = payload as Record<string, unknown>
+  for (const key of ['list', 'items', 'data', 'result', 'albums', 'artists']) {
+    if (Array.isArray(record[key])) return record[key] as Song[]
+  }
+  return []
+}
+
+type MediaLibraryState = { albums: Song[]; artists: Song[]; loading: boolean; error: string; hydrate: () => Promise<void> }
+export const useMediaLibraryStore = create<MediaLibraryState>((set) => ({
+  albums: [], artists: [], loading: false, error: '',
+  hydrate: async () => {
+    set({ loading: true, error: '' })
+    try {
+      const [albums, artists] = await Promise.all([playerApi.libraryAlbums(), playerApi.libraryArtists()])
+      set({ albums: normalizeLibraryItems(albums), artists: normalizeLibraryItems(artists) })
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : '媒体库加载失败' })
+    } finally {
+      set({ loading: false })
+    }
+  },
+}))
+
 type PlaybackState = { queue: Song[]; currentIndex: number; currentSong: Song | null; isPlaying: boolean; currentTime: number; duration: number; volume: number; muted: boolean; mode: PlayMode; quality: string; resolving: boolean; error: string; playSong: (song: Song, queue?: Song[], index?: number) => void; toggle: () => void; setPlaying: (isPlaying: boolean) => void; setProgress: (time: number, duration?: number) => void; setVolume: (volume: number) => void; toggleMute: () => void; setMode: (mode: PlayMode) => void; setQuality: (quality: string) => void; seek: (time: number) => void; next: () => void; previous: () => void; enqueue: (songs: Song[]) => void; removeFromQueue: (index: number) => void; hydrate: () => void }
 
 let playCommand: () => void = () => undefined
@@ -208,11 +285,11 @@ let lastPlaybackPersistAt = 0
 export function connectAudioCommands(commands: { play: () => void; pause: () => void; seek: (time: number) => void; volume: (volume: number) => void }) { playCommand = commands.play; pauseCommand = commands.pause; seekCommand = commands.seek; volumeCommand = commands.volume }
 
 function persistPlayback(state: Pick<PlaybackState, 'currentSong' | 'currentIndex' | 'currentTime' | 'queue' | 'mode' | 'quality'>) {
-  writeJson(localStorage, 'lx_playback_state', { song: state.currentSong, index: state.currentIndex, time: state.currentTime, playlist: state.queue.slice(0, 300), playMode: state.mode, quality: state.quality, timestamp: Date.now() })
+  writeJson(browserStorage(), 'lx_playback_state', { song: state.currentSong, index: state.currentIndex, time: state.currentTime, playlist: state.queue.slice(0, 300), playMode: state.mode, quality: state.quality, timestamp: Date.now() })
 }
 
 export const usePlaybackStore = create<PlaybackState>((set, get) => ({
-  queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, volume: (() => { const value = Number(localStorage.getItem('lx_volume') ?? 0.8); return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8 })(), muted: false, mode: (['list', 'single', 'random'] as PlayMode[]).includes(readString(localStorage, 'lx_play_mode', 'list') as PlayMode) ? readString(localStorage, 'lx_play_mode', 'list') as PlayMode : 'list', quality: 'flac', resolving: false, error: '',
+  queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, volume: (() => { const value = Number(readString(browserStorage(), 'lx_volume', '0.8')); return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8 })(), muted: false, mode: (['list', 'single', 'random'] as PlayMode[]).includes(readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode) ? readString(browserStorage(), 'lx_play_mode', 'list') as PlayMode : 'list', quality: 'flac', resolving: false, error: '',
   // Loading a new song is asynchronous. Calling audio.play() here would run
   // against the previous source, and its rejected promise could later switch
   // the newly selected song back to the paused state. AudioRuntime owns the
@@ -221,16 +298,16 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   toggle: () => { if (get().isPlaying) { pauseCommand(); set({ isPlaying: false }) } else { playCommand(); set({ isPlaying: true }) } },
   setPlaying: (isPlaying) => set({ isPlaying }),
   setProgress: (currentTime, duration) => { set({ currentTime, ...(duration !== undefined ? { duration } : {}) }); if (Date.now() - lastPlaybackPersistAt >= 3000) { lastPlaybackPersistAt = Date.now(); persistPlayback({ ...get(), currentTime }) } },
-  setVolume: (volume) => { const next = Math.min(1, Math.max(0, volume)); writeString(localStorage, 'lx_volume', String(next)); volumeCommand(next); set({ volume: next, muted: next === 0 }) },
+  setVolume: (volume) => { const next = Math.min(1, Math.max(0, volume)); writeString(browserStorage(), 'lx_volume', String(next)); volumeCommand(next); set({ volume: next, muted: next === 0 }) },
   toggleMute: () => set(state => { const muted = !state.muted; volumeCommand(muted ? 0 : state.volume || 0.8); return { muted } }),
-  setMode: (mode) => { writeString(localStorage, 'lx_play_mode', mode); set({ mode }); persistPlayback({ ...get(), mode }) },
+  setMode: (mode) => { writeString(browserStorage(), 'lx_play_mode', mode); set({ mode }); persistPlayback({ ...get(), mode }) },
   setQuality: (quality) => { const next = String(quality || 'flac'); set({ quality: next }); persistPlayback({ ...get(), quality: next }) },
   seek: (time) => { seekCommand(time); set({ currentTime: time }) },
   next: () => { const { queue, currentIndex, mode } = get(); if (!queue.length) return; const index = mode === 'random' ? Math.floor(Math.random() * queue.length) : (currentIndex + 1) % queue.length; const song = queue[index]; if (song) get().playSong(song, queue, index) },
   previous: () => { const { queue, currentIndex } = get(); if (!queue.length) return; const index = (currentIndex - 1 + queue.length) % queue.length; get().playSong(queue[index], queue, index) },
   enqueue: (songs) => { const next = { ...get(), queue: [...get().queue, ...songs.filter(song => !get().queue.some(item => songKey(item) === songKey(song)))] }; set({ queue: next.queue }); persistPlayback(next) },
   removeFromQueue: (index) => { const state = get(); const queue = state.queue.filter((_, itemIndex) => itemIndex !== index); const currentIndex = state.currentIndex > index ? state.currentIndex - 1 : state.currentIndex === index ? Math.min(index, queue.length - 1) : state.currentIndex; const currentSong = currentIndex >= 0 ? queue[currentIndex] ?? null : null; set({ queue, currentIndex, currentSong }); persistPlayback({ ...state, queue, currentIndex, currentSong }) },
-  hydrate: () => { const saved = readJson<{ song?: Song; index?: number; time?: number; playlist?: Song[]; playMode?: PlayMode; quality?: string }>(localStorage, 'lx_playback_state', {}); if (saved.playlist?.length) set({ currentSong: saved.song ?? saved.playlist[saved.index ?? 0] ?? null, currentIndex: saved.index ?? 0, currentTime: saved.time ?? 0, queue: saved.playlist, mode: saved.playMode ?? get().mode, quality: saved.quality ?? 'flac' }) },
+  hydrate: () => { const saved = readJson<{ song?: Song; index?: number; time?: number; playlist?: Song[]; playMode?: PlayMode; quality?: string }>(browserStorage(), 'lx_playback_state', {}); if (saved.playlist?.length) set({ currentSong: saved.song ?? saved.playlist[saved.index ?? 0] ?? null, currentIndex: saved.index ?? 0, currentTime: saved.time ?? 0, queue: saved.playlist, mode: saved.playMode ?? get().mode, quality: saved.quality ?? 'flac' }) },
 }))
 
 type LyricState = { lines: LyricLine[]; loading: boolean; error: string; activeIndex: number; load: (song: Song | null) => Promise<void> }

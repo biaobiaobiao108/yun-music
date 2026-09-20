@@ -13,7 +13,7 @@ export type Song = Record<string, unknown> & {
   hash?: string
 }
 
-export type PlayerTab = 'search' | 'songlist' | 'leaderboard' | 'favorites' | 'localmusic' | 'settings' | 'about'
+export type PlayerTab = 'home' | 'favorites' | 'recent' | 'albums' | 'artists' | 'genres' | 'library' | 'search' | 'songlist' | 'leaderboard' | 'localmusic' | 'settings' | 'about'
 export type PlayerDetail = { page: 'search-detail' | 'songlist-detail'; kind: 'artist' | 'album' | 'playlist'; id: string; source: string; name?: string; image?: string }
 export type PlayMode = 'list' | 'single' | 'random'
 export type DrawerName = 'queue' | 'cache' | 'download' | null

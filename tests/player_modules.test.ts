@@ -4,6 +4,7 @@ import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
 import { songKey } from '../frontend/player/src/react/types'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
+import { normalizePlayHistory } from '../frontend/player/src/react/store'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
@@ -77,5 +78,32 @@ describe('React player module boundaries', () => {
     expect(api).toContain("'/api/music/url'")
     expect(api).toContain("'/api/music/cache/queue'")
     expect(api).toContain("'/api/music/lyric'")
+  })
+
+  it('keeps recent playback compatible with the legacy play_history contract', () => {
+    const items = Array.from({ length: 55 }, (_, index) => ({ source: 'wy', songmid: String(index), name: `歌曲 ${index}`, playedAt: index }))
+    const normalized = normalizePlayHistory([items[54], ...items, { source: 'wy', songmid: '54', name: '重复歌曲', playedAt: 0 }])
+    expect(normalized).toHaveLength(50)
+    expect(normalized[0]?.songmid).toBe('54')
+    expect(normalized.at(-1)?.songmid).toBe('5')
+    expect(new Set(normalized.map(item => songKey(item))).size).toBe(50)
+  })
+
+  it('publishes the reference navigation and shared theme contracts', () => {
+    const shell = read('frontend/player/src/react/shell.tsx')
+    const library = read('frontend/player/src/react/library_views.tsx')
+    const store = read('frontend/player/src/react/store.ts')
+    const admin = read('frontend/admin/src/react/index.tsx')
+    const tokens = read('frontend/styles/design-tokens.css')
+    for (const label of ['home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library', 'search', 'songlist', 'leaderboard']) expect(shell).toContain(`id: '${label}'`)
+    expect(shell).toContain('listId: navigation.listId')
+    expect(shell).toContain('react-global-search')
+    expect(library).toContain('LibraryAlbumsView')
+    expect(library).toContain('LibraryArtistsView')
+    expect(store).toContain('libraryAlbums')
+    expect(store).toContain('libraryArtists')
+    expect(admin).toContain('updateThemePreferences')
+    expect(tokens).toContain('--app-sidebar-width')
+    expect(tokens).toContain('[data-theme="violet"]')
   })
 })

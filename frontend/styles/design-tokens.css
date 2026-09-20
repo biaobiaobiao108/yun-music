@@ -1,0 +1,78 @@
+/* Shared 云音 visual language. Entrypoint stylesheets consume these tokens so
+   the player and admin shell stay visually aligned without sharing markup. */
+:root {
+    color-scheme: light dark;
+    --font-sans: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --app-bg: #f4f3f8;
+    --app-bg-raised: #ffffff;
+    --app-sidebar: #ffffff;
+    --app-surface: rgba(255, 255, 255, .82);
+    --app-surface-solid: #ffffff;
+    --app-surface-soft: #f0eff5;
+    --app-border: rgba(32, 28, 48, .11);
+    --app-border-strong: rgba(32, 28, 48, .18);
+    --app-text: #1c1927;
+    --app-text-muted: #6d6879;
+    --app-text-dim: #9d98a9;
+    --app-on-accent: #ffffff;
+    --app-shadow: 0 1.4rem 3.5rem rgba(31, 25, 48, .12);
+    --app-shadow-soft: 0 .7rem 2rem rgba(31, 25, 48, .08);
+    --app-radius-sm: .65rem;
+    --app-radius-md: .9rem;
+    --app-radius-lg: 1.25rem;
+    --app-radius-xl: 1.5rem;
+    --app-sidebar-width: 17.5rem;
+    --app-topbar-height: 5rem;
+    --app-control-height: 2.75rem;
+    --app-accent: #e83b68;
+    --app-accent-soft: rgba(232, 59, 104, .14);
+    --app-motion-fast: 140ms;
+    --app-motion: 220ms;
+}
+
+:root[data-appearance="dark"] {
+    --app-bg: #1b1827;
+    --app-bg-raised: #201d2d;
+    --app-sidebar: #211e2e;
+    --app-surface: rgba(39, 35, 54, .78);
+    --app-surface-solid: #292538;
+    --app-surface-soft: #302b42;
+    --app-border: rgba(239, 235, 250, .105);
+    --app-border-strong: rgba(239, 235, 250, .18);
+    --app-text: #f6f3fb;
+    --app-text-muted: #b7b1c3;
+    --app-text-dim: #80798e;
+    --app-shadow: 0 1.6rem 4rem rgba(0, 0, 0, .28);
+    --app-shadow-soft: 0 .8rem 2.2rem rgba(0, 0, 0, .2);
+}
+
+:root[data-theme="emerald"] { --app-accent: #18a779; --app-accent-soft: rgba(24, 167, 121, .14); }
+:root[data-theme="blue"] { --app-accent: #4d83ea; --app-accent-soft: rgba(77, 131, 234, .14); }
+:root[data-theme="amber"] { --app-accent: #d9922e; --app-accent-soft: rgba(217, 146, 46, .16); }
+:root[data-theme="violet"] { --app-accent: #8d6bea; --app-accent-soft: rgba(141, 107, 234, .15); }
+:root[data-theme="rose"] { --app-accent: #e95d93; --app-accent-soft: rgba(233, 93, 147, .15); }
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-appearance="light"]) {
+        --app-bg: #1b1827;
+        --app-bg-raised: #201d2d;
+        --app-sidebar: #211e2e;
+        --app-surface: rgba(39, 35, 54, .78);
+        --app-surface-solid: #292538;
+        --app-surface-soft: #302b42;
+        --app-border: rgba(239, 235, 250, .105);
+        --app-border-strong: rgba(239, 235, 250, .18);
+        --app-text: #f6f3fb;
+        --app-text-muted: #b7b1c3;
+        --app-text-dim: #80798e;
+        --app-shadow: 0 1.6rem 4rem rgba(0, 0, 0, .28);
+        --app-shadow-soft: 0 .8rem 2.2rem rgba(0, 0, 0, .2);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --app-motion-fast: 0ms;
+        --app-motion: 0ms;
+    }
+}

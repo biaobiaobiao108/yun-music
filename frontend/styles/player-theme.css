@@ -376,3 +376,21 @@ i {
     color: #9ca3af;
     border: 1px solid rgba(156, 163, 175, 0.3);
 }
+
+/* Compatibility aliases for the existing player components. The React shell
+   now uses the shared visual language while legacy-compatible utility classes
+   continue to resolve through the same semantic tokens. */
+:root {
+    --bg-main: var(--app-bg);
+    --bg-panel: var(--app-surface-solid);
+    --bg-item-hover: var(--app-surface-soft);
+    --bg-header: color-mix(in srgb, var(--app-bg-raised) 82%, transparent);
+    --bg-glass: var(--app-surface);
+    --text-main: var(--app-text);
+    --text-muted: var(--app-text-muted);
+    --text-dim: var(--app-text-dim);
+    --border-main: var(--app-border);
+    --border-dim: var(--app-border-strong);
+    --glass-border: var(--app-border);
+    --shadow-main: var(--app-shadow-soft);
+}
