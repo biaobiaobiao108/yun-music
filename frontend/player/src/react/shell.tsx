@@ -7,6 +7,7 @@ import { songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type 
 import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from '../features/player_history'
 import { configureAudioGraph, ensureAudioGraph, getAudioAnalyser, releaseAudioGraph, subscribeAudioGraph } from './audio_graph'
+import { buildPlaybackUrl, normalizeCachePlaybackUrl } from './media_url'
 
 const SongListView = lazy(() => import('./heavy_views').then(module => ({ default: module.SongListView })))
 const LeaderboardView = lazy(() => import('./heavy_views').then(module => ({ default: module.LeaderboardView })))
@@ -88,11 +89,13 @@ function AudioRuntime() {
   const volume = usePlaybackStore(state => state.volume)
   const setQuality = usePlaybackStore(state => state.setQuality)
   const settings = useSettingsStore(state => state.settings)
+  const userName = useAuthStore(state => state.userName)
   const [resolvedError, setResolvedError] = useState('')
   const notify = usePlayerUiStore(state => state.notify)
   const songId = currentSong ? songKey(currentSong) : ''
   const recoveryAttempts = useRef(new Set<string>())
   const cacheQueued = useRef(new Set<string>())
+  const resolvedSongKey = useRef('')
 
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
@@ -106,7 +109,7 @@ function AudioRuntime() {
     if (prefetchedUrls.has(key) || prefetchControllers.has(key)) return
     const controller = new AbortController()
     prefetchControllers.set(key, controller)
-    void playerApi.songUrl(nextSong, quality, controller.signal).then(result => {
+    void playerApi.songUrl(nextSong, quality, controller.signal, settings.enableAutoSwitchSource !== false).then(result => {
       if (!controller.signal.aborted && result.url) prefetchedUrls.set(key, result)
     }).catch(() => undefined).finally(() => { prefetchControllers.delete(key) })
   }
@@ -114,7 +117,29 @@ function AudioRuntime() {
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-    connectAudioCommands({ play: () => { void audio.play().catch(() => setPlaying(false)) }, pause: () => audio.pause(), seek: time => { audio.currentTime = time }, volume: next => { audio.volume = next } })
+    connectAudioCommands({
+      play: () => {
+        const requestedSource = audio.currentSrc || audio.src
+        if (!requestedSource || !currentSong) {
+          setPlaying(false)
+          notify('请选择歌曲后再播放')
+          return
+        }
+        void audio.play().catch(error => {
+          // A stale play() rejection must not stop a newer source selected by
+          // the user. This is especially common when switching songs quickly.
+          const activeSource = audio.currentSrc || audio.src
+          if (activeSource !== requestedSource) return
+          setPlaying(false)
+          if (error instanceof DOMException && error.name === 'NotAllowedError') {
+            notify('浏览器阻止了自动播放，请点击播放按钮')
+          }
+        })
+      },
+      pause: () => audio.pause(),
+      seek: time => { if (Number.isFinite(time)) audio.currentTime = Math.max(0, time) },
+      volume: next => { audio.volume = next },
+    })
     audio.volume = volume
     const onPlay = () => {
       setPlaying(true)
@@ -177,10 +202,13 @@ function AudioRuntime() {
     void (async () => {
       try {
         const prefetchKey = `${songKey(currentSong)}:${quality}`
-        const result = typeof currentSong.url === 'string' && currentSong.url ? { url: currentSong.url } : prefetchedUrls.get(prefetchKey) ?? await playerApi.songUrl(currentSong, quality)
+        const result = typeof currentSong.url === 'string' && currentSong.url
+          ? { url: normalizeCachePlaybackUrl(currentSong.url, userName) }
+          : prefetchedUrls.get(prefetchKey) ?? await playerApi.songUrl(currentSong, quality, undefined, settings.enableAutoSwitchSource !== false)
         if (cancelled) return
         prefetchedUrls.delete(prefetchKey)
-        audio.src = result.url
+        resolvedSongKey.current = songId
+        audio.src = buildPlaybackUrl(result.url, currentSong, settings)
         audio.load()
         if (usePlaybackStore.getState().isPlaying) await audio.play()
       } catch (error) {
@@ -190,10 +218,22 @@ function AudioRuntime() {
         notify(error instanceof Error ? error.message : '歌曲解析失败')
       }
     })()
-    return () => { cancelled = true; audio.pause(); audio.removeAttribute('src'); audio.load() }
-  }, [currentSong, notify, quality, setPlaying, songId])
+    return () => { cancelled = true; if (resolvedSongKey.current === songId) resolvedSongKey.current = ''; audio.pause(); audio.removeAttribute('src'); audio.load() }
+  }, [currentSong, notify, quality, setPlaying, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
 
-  useEffect(() => { const audio = audioRef.current; if (!audio || !currentSong) return; if (isPlaying && audio.src) void audio.play().catch(() => setPlaying(false)); else if (!isPlaying) audio.pause() }, [currentSong, isPlaying, setPlaying])
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !currentSong || !isPlaying || resolvedSongKey.current !== songId) {
+      if (audio && !isPlaying) audio.pause()
+      return
+    }
+    const requestedSource = audio.currentSrc || audio.src
+    void audio.play().catch(error => {
+      if ((audio.currentSrc || audio.src) !== requestedSource) return
+      setPlaying(false)
+      if (error instanceof DOMException && error.name === 'NotAllowedError') notify('浏览器阻止了自动播放，请点击播放按钮')
+    })
+  }, [isPlaying, notify, setPlaying])
   useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.album || '云音'), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('pause', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('previoustrack', () => usePlaybackStore.getState().previous()); navigator.mediaSession.setActionHandler?.('nexttrack', () => usePlaybackStore.getState().next()) }, [currentSong])
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
@@ -256,12 +296,29 @@ function LegacyPlayerFooter() {
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const notify = usePlayerUiStore(state => state.notify)
+  const userName = useAuthStore(state => state.userName)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const isLiked = useLibraryStore(state => Boolean(currentSong && (state.data.loveList ?? []).some(song => songKey(song) === songKey(currentSong))))
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0
   const safeCurrentTime = Number.isFinite(currentTime) && currentTime > 0 ? Math.min(currentTime, safeDuration) : 0
-  const download = async () => { if (!currentSong) return; try { const result = typeof currentSong.url === 'string' ? { url: currentSong.url } : await playerApi.songUrl(currentSong, 'flac'); await playerApi.download(currentSong, result.url, 'flac'); notify('已加入下载队列'); setDrawer('download') } catch (error) { notify(error instanceof Error ? error.message : '下载失败') } }
+  const download = async () => {
+    if (!currentSong) return
+    try {
+      if (typeof currentSong.url === 'string' && currentSong.url.startsWith('/api/music/cache/file/')) {
+        const link = document.createElement('a')
+        link.href = normalizeCachePlaybackUrl(currentSong.url, userName)
+        link.download = `${songTitle(currentSong)}.mp3`
+        link.click()
+        notify('已开始下载')
+        return
+      }
+      const result = typeof currentSong.url === 'string' ? { url: currentSong.url } : await playerApi.songUrl(currentSong, 'flac', undefined, true)
+      await playerApi.download(currentSong, result.url, 'flac')
+      notify('已加入下载队列')
+      setDrawer('download')
+    } catch (error) { notify(error instanceof Error ? error.message : '下载失败') }
+  }
   const toggleLike = async () => {
     if (!currentSong) { notify('请选择歌曲后再收藏'); return }
     try {

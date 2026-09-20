@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
 import { songKey } from '../frontend/player/src/react/types'
+import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
@@ -47,6 +48,18 @@ describe('React player module boundaries', () => {
       { time: 1.2, text: '第一句', translation: 'translation' },
       { time: 3.5, text: '第二句', translation: undefined },
     ])
+  })
+
+  it('keeps private cache links playable and relays third-party source URLs', () => {
+    const song = { source: 'wy', songmid: 'song-1', name: '测试歌曲', singer: '测试歌手' }
+    expect(normalizeCachePlaybackUrl('/api/music/cache/file/test.mp3?folder=cache', 'steelway108'))
+      .toBe('/api/music/cache/file/steelway108/test.mp3?folder=cache')
+    expect(normalizeCachePlaybackUrl('/api/music/cache/file/steelway108/test.mp3?folder=cache', 'steelway108'))
+      .toBe('/api/music/cache/file/steelway108/test.mp3?folder=cache')
+    expect(buildPlaybackUrl('https://media.example.test/song.mp3', song, {}, 'http://localhost:9527'))
+      .toContain('/api/music/download?url=https%3A%2F%2Fmedia.example.test%2Fsong.mp3')
+    expect(buildPlaybackUrl('http://localhost:9527/api/music/cache/file/_open/song.mp3', song, {}, 'http://localhost:9527'))
+      .toBe('http://localhost:9527/api/music/cache/file/_open/song.mp3')
   })
 
   it('keeps audio lifecycle lightweight and cache APIs isolated behind services', () => {

@@ -154,10 +154,32 @@ export function LocalMusicView() {
   const cacheKey = (item: CacheItem) => `${String(item.rawUsername || userName || '_open')}:${String(item.folder)}:${String(item.filename)}`
   const cacheFileUrl = (item: CacheItem) => {
     const params = new URLSearchParams({ folder: String(item.folder || 'cache') })
-    if (item.rawUsername === '_open') params.set('user', '_open')
-    return `/api/music/cache/file/${encodeURIComponent(String(item.filename))}?${params.toString()}`
+    const username = String(item.rawUsername || item.username || userName || '_open').trim()
+    const encodedFilename = encodeURIComponent(String(item.filename))
+    const isPublic = username === '_open' || username === 'open' || username === 'default'
+    const target = isPublic
+      ? encodedFilename
+      : `${encodeURIComponent(username)}/${encodedFilename}`
+    return `/api/music/cache/file/${target}?${params.toString()}`
   }
-  const cacheSong = (item: CacheItem): Song => ({ ...(item.songInfo ?? {}), id: item.id, songmid: item.songmid ?? item.id, name: item.name, singer: item.singer, album: item.album, source: item.source, img: item.img, quality: item.quality, url: cacheFileUrl(item), cacheItem: item })
+  const cacheSong = (item: CacheItem): Song => {
+    const metadata = item.songInfo ?? {}
+    const image = [item.img, songImage(metadata), metadata.img, metadata.pic, metadata.picUrl]
+      .find(value => typeof value === 'string' && value.trim()) as string | undefined
+    return {
+      ...metadata,
+      id: item.id ?? metadata.id,
+      songmid: item.songmid ?? metadata.songmid ?? metadata.id,
+      name: item.name || metadata.name,
+      singer: item.singer || metadata.singer,
+      album: item.album || metadata.album,
+      source: item.source || metadata.source,
+      img: image,
+      quality: item.quality || metadata.quality,
+      url: cacheFileUrl(item),
+      cacheItem: item,
+    }
+  }
   const visibleCacheItems = useMemo(() => {
     const needle = keyword.trim().toLocaleLowerCase()
     return cacheItems.filter(item => (cacheFilter === 'all' || item.folder === cacheFilter) && (!needle || `${item.name} ${item.singer} ${item.album} ${item.filename}`.toLocaleLowerCase().includes(needle)))

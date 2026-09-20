@@ -47,7 +47,8 @@ export const DEFAULT_SETTINGS = {
   }),
 } as const
 
-export type PlayerSettings = { [K in keyof typeof DEFAULT_SETTINGS]: (typeof DEFAULT_SETTINGS)[K] } & Record<string, unknown>
+type WidenSetting<T> = T extends boolean ? boolean : T extends number ? number : T extends string ? string : T
+export type PlayerSettings = { [K in keyof typeof DEFAULT_SETTINGS]: WidenSetting<(typeof DEFAULT_SETTINGS)[K]> } & Record<string, unknown>
 
 type AuthState = {
   config: PlayerConfig | null
@@ -77,8 +78,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const config = await playerApi.config()
       const [playerSession, userSession] = await Promise.all([playerApi.verify(), playerApi.userVerify()])
-      set({ config, playerAuthRequired: Boolean(config['player.enableAuth']), playerAuthenticated: !config['player.enableAuth'] || playerSession.valid, userAuthenticated: userSession.valid, userName: userSession.username || get().userName, checking: false })
-      if (userSession.username) writeString(localStorage, 'lx_user_name', userSession.username)
+      const authenticatedUserName = userSession.valid ? (userSession.username || get().userName) : null
+      set({ config, playerAuthRequired: Boolean(config['player.enableAuth']), playerAuthenticated: !config['player.enableAuth'] || playerSession.valid, userAuthenticated: userSession.valid, userName: authenticatedUserName, checking: false })
+      writeString(localStorage, 'lx_user_name', authenticatedUserName || '')
     } catch (error) {
       set({ checking: false, error: error instanceof Error ? error.message : '初始化失败，请刷新重试' })
     }
@@ -210,7 +212,11 @@ function persistPlayback(state: Pick<PlaybackState, 'currentSong' | 'currentInde
 
 export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, volume: (() => { const value = Number(localStorage.getItem('lx_volume') ?? 0.8); return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8 })(), muted: false, mode: (['list', 'single', 'random'] as PlayMode[]).includes(readString(localStorage, 'lx_play_mode', 'list') as PlayMode) ? readString(localStorage, 'lx_play_mode', 'list') as PlayMode : 'list', quality: 'flac', resolving: false, error: '',
-  playSong: (song, queue = get().queue, index = Math.max(0, queue.findIndex(item => songKey(item) === songKey(song)))) => { const nextQueue = queue.length ? queue : [song]; const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song)); const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, error: '' }; set(next); persistPlayback({ ...get(), ...next }); playCommand() },
+  // Loading a new song is asynchronous. Calling audio.play() here would run
+  // against the previous source, and its rejected promise could later switch
+  // the newly selected song back to the paused state. AudioRuntime owns the
+  // actual play call after the new source is ready.
+  playSong: (song, queue = get().queue, index = Math.max(0, queue.findIndex(item => songKey(item) === songKey(song)))) => { const nextQueue = queue.length ? queue : [song]; const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song)); const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, error: '' }; set(next); persistPlayback({ ...get(), ...next }) },
   toggle: () => { if (get().isPlaying) { pauseCommand(); set({ isPlaying: false }) } else { playCommand(); set({ isPlaying: true }) } },
   setPlaying: (isPlaying) => set({ isPlaying }),
   setProgress: (currentTime, duration) => { set({ currentTime, ...(duration !== undefined ? { duration } : {}) }); if (Date.now() - lastPlaybackPersistAt >= 3000) { lastPlaybackPersistAt = Date.now(); persistPlayback({ ...get(), currentTime }) } },
