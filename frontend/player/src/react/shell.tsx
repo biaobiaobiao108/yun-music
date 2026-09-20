@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
 import { playerApi } from './api'
 import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
 import { AboutView, AddToListDialog, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchDetailView, SearchView, SettingsView, UserLoginDialog } from './views'
@@ -9,7 +9,7 @@ import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from '../features/player_history'
 import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
 import { emitPlaybackService } from './playback_service'
-import { configureAudioGraph, ensureAudioGraph, getAudioAnalyser, releaseAudioGraph, subscribeAudioGraph } from './audio_graph'
+import { configureAudioGraph, ensureAudioGraph, releaseAudioGraph } from './audio_graph'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from './media_url'
 import { PlayerFooterBar } from './player_footer'
 
@@ -45,7 +45,6 @@ const NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'recent', label: '最近', icon: 'clock' },
   { id: 'albums', label: '专辑', icon: 'compact-disc' },
   { id: 'artists', label: '歌手', icon: 'user' },
-  { id: 'genres', label: '风格', icon: 'wand-magic-sparkles' },
   { id: 'library', label: '音乐库', icon: 'folder-open' },
 ]
 
@@ -325,50 +324,9 @@ function AudioRuntime() {
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
 
-function VisualizerCanvas({ enabled }: { enabled: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [analyser, setAnalyser] = useState(getAudioAnalyser())
-  useEffect(() => subscribeAudioGraph(() => setAnalyser(getAudioAnalyser())), [])
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !enabled || !analyser) return
-    const context = canvas.getContext('2d')
-    if (!context) return
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const data = new Uint8Array(analyser.frequencyBinCount)
-    const draw = () => {
-      const width = canvas.clientWidth || 480
-      const height = canvas.clientHeight || 30
-      const ratio = Math.min(window.devicePixelRatio || 1, 2)
-      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) { canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); context.setTransform(ratio, 0, 0, ratio, 0, 0) }
-      analyser.getByteFrequencyData(data)
-      context.clearRect(0, 0, width, height)
-      const bars = Math.min(48, data.length)
-      const gap = 2
-      const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars)
-      for (let index = 0; index < bars; index += 1) {
-        const value = data[index] / 255
-        const barHeight = Math.max(2, value * height)
-        const x = index * (barWidth + gap)
-        const gradient = context.createLinearGradient(0, height, 0, height - barHeight)
-        gradient.addColorStop(0, 'rgba(16,185,129,.22)')
-        gradient.addColorStop(1, 'rgba(16,185,129,.9)')
-        context.fillStyle = gradient
-        context.fillRect(x, height - barHeight, barWidth, barHeight)
-      }
-    }
-    let frame = 0
-    const loop = () => { draw(); if (!reducedMotion) frame = requestAnimationFrame(loop) }
-    loop()
-    return () => cancelAnimationFrame(frame)
-  }, [analyser, enabled])
-  return enabled ? <canvas ref={canvasRef} className="react-footer-visualizer" aria-label="音频可视化" role="img" /> : null
-}
-
 function PlayerFooter({ hidden = false }: { hidden?: boolean }) {
-  const showVisualizer = useSettingsStore(state => Boolean(state.settings.showFooterVisualizer))
   if (hidden) return null
-  return <><VisualizerCanvas enabled={showVisualizer} /><PlayerFooterBar /></>
+  return <PlayerFooterBar />
 }
 
 function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {

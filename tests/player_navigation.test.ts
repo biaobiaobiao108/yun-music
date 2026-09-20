@@ -130,6 +130,19 @@ describe('React player navigation and state restoration', () => {
     expect(views).toContain('userList')
   })
 
+  it('keeps entity favorites and filtering controls inside the React surface', () => {
+    const views = read('frontend/player/src/react/views.tsx')
+    const components = read('frontend/player/src/react/components.tsx')
+    const heavyViews = read('frontend/player/src/react/heavy_views.tsx')
+    const shell = read('frontend/player/src/react/shell.tsx')
+    expect(views).toContain('toggleRemotePlaylist')
+    expect(views).toContain('toggleMedia')
+    expect(views).toContain('react-detail-favorite')
+    expect(components).toContain('role="listbox"')
+    expect(heavyViews).toContain('<SelectMenu')
+    expect(shell).not.toContain("{ id: 'genres', label: '风格'")
+  })
+
   it('keeps the love page separate from custom playlists while preserving legacy list data', () => {
     const api = read('frontend/player/src/react/api.ts')
     const store = read('frontend/player/src/react/store.ts')
@@ -195,7 +208,7 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain('react-vinyl-record')
     expect(css).toContain('--react-immersive-art')
     expect(css).toContain('.react-immersive-cover-panel')
-    expect(css).toContain('.react-immersive-lyrics .react-vinyl')
+    expect(css).not.toMatch(/(?:react-)?vinyl|visualizer|频谱/i)
   })
 
   it('keeps playlist artwork through detail navigation and renders one entity heading', () => {

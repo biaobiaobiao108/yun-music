@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
-import { songKey, songListId } from '../frontend/player/src/react/types'
+import { sameSong, songKey, songListId } from '../frontend/player/src/react/types'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
 import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
 import { songEntityDetail, songEntityId, songEntityName } from '../frontend/player/src/react/song_details'
@@ -50,6 +50,8 @@ describe('React player module boundaries', () => {
     expect(songKey(song)).toBe('wy:12345')
     expect(songListId({ id: 'wy_12345', songmid: 12345 })).toBe('wy_12345')
     expect(songListId({ songmid: 12345 })).toBe('12345')
+    expect(sameSong({ source: 'wy', id: 12345 }, { source: 'wy', songmid: '12345' })).toBe(true)
+    expect(sameSong({ source: 'wy', id: 12345 }, { source: 'tx', songmid: '12345' })).toBe(false)
     const lines = parseLyric({ lyric: '[00:01.20]第一句\n[00:03.50]第二句', tlyric: '[00:01.20]translation' })
     expect(lines).toEqual([
       { time: 1.2, text: '第一句', translation: 'translation' },
@@ -133,7 +135,9 @@ describe('React player module boundaries', () => {
     const mediaLibrary = read('frontend/player/src/react/store/media_library.ts')
     const admin = read('frontend/admin/src/react/index.tsx')
     const tokens = read('frontend/styles/design-tokens.css')
-    for (const label of ['home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library', 'search', 'songlist', 'leaderboard']) expect(shell).toContain(`id: '${label}'`)
+    for (const label of ['home', 'favorites', 'recent', 'albums', 'artists', 'library', 'search', 'songlist', 'leaderboard']) expect(shell).toContain(`id: '${label}'`)
+    expect(shell).not.toContain("{ id: 'genres', label: '风格'")
+    expect(shell).toContain("case 'genres': return <GenresView />")
     expect(shell).toContain('listId: navigation.listId')
     expect(shell).toContain('react-global-search')
     expect(library).toContain('LibraryAlbumsView')

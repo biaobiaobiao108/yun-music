@@ -4816,6 +4816,77 @@ textarea:focus-visible {
     font-size: .82rem;
 }
 
+.admin-react-select {
+    position: relative;
+    min-width: 9rem;
+}
+
+.admin-react-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .65rem;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: .45rem .7rem;
+    border: 1px solid var(--app-border);
+    border-radius: .65rem;
+    background: var(--app-surface-solid);
+    color: var(--app-text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+}
+
+.admin-react-select-trigger:hover,
+.admin-react-select-trigger:focus-visible,
+.admin-react-select.is-open .admin-react-select-trigger {
+    border-color: var(--app-accent);
+    box-shadow: 0 0 0 .2rem var(--app-accent-soft);
+    outline: 0;
+}
+
+.admin-react-select-list {
+    position: absolute;
+    z-index: 240;
+    top: calc(100% + .35rem);
+    left: 0;
+    min-width: 100%;
+    max-height: 16rem;
+    overflow: auto;
+    padding: .3rem;
+    border: 1px solid var(--app-border-strong);
+    border-radius: .75rem;
+    background: var(--app-surface-solid);
+    box-shadow: 0 1rem 2.4rem rgb(0 0 0 / 20%);
+}
+
+.admin-react-select-list button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    width: 100%;
+    min-height: 2.2rem;
+    padding: .45rem .6rem;
+    border: 0;
+    border-radius: .5rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.admin-react-select-list button:hover,
+.admin-react-select-list button:focus-visible,
+.admin-react-select-list button.is-selected {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+    outline: 0;
+}
+
 .admin-react-form input,
 .admin-react-form select,
 .admin-react-config-form input,

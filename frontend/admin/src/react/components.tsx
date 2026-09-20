@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 
 export function Icon({ name }: { name: string }) {
   return <i className={`fas fa-${name}`} aria-hidden="true" />
@@ -6,6 +6,39 @@ export function Icon({ name }: { name: string }) {
 
 export function Button({ children, variant = 'secondary', className = '', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' }) {
   return <button type="button" className={`admin-react-button admin-react-button-${variant} ${className}`} {...props}>{children}</button>
+}
+
+export type AdminSelectOption = { value: string; label: string; disabled?: boolean }
+
+export function SelectMenu({ value, options, onChange, label, disabled = false }: { value: string; options: AdminSelectOption[]; onChange: (value: string) => void; label: string; disabled?: boolean }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const listboxId = useId()
+  const [open, setOpen] = useState(false)
+  const selected = options.find(option => option.value === value)
+  const [highlighted, setHighlighted] = useState(Math.max(0, options.findIndex(option => option.value === value)))
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false) }
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); setOpen(false); triggerRef.current?.focus() } }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown) }
+  }, [open])
+  const move = (direction: 1 | -1) => {
+    if (!options.length) return
+    let next = highlighted
+    for (let index = 0; index < options.length; index += 1) { next = (next + direction + options.length) % options.length; if (!options[next]?.disabled) break }
+    setHighlighted(next)
+  }
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { event.preventDefault(); setOpen(true); move(1) }
+    else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); setOpen(true); move(-1) }
+    else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(current => !current) }
+    else if (event.key === 'Escape') { event.preventDefault(); setOpen(false) }
+  }
+  const choose = (option: AdminSelectOption) => { if (option.disabled) return; onChange(option.value); setOpen(false); window.requestAnimationFrame(() => triggerRef.current?.focus()) }
+  return <div ref={rootRef} className={`admin-react-select ${open ? 'is-open' : ''}`}><button ref={triggerRef} type="button" className="admin-react-select-trigger" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={listboxId} disabled={disabled} onClick={() => setOpen(current => !current)} onKeyDown={onKeyDown}><span>{selected?.label ?? '请选择'}</span><Icon name="chevron-down" /></button>{open && <div id={listboxId} className="admin-react-select-list" role="listbox" aria-label={label}>{options.map((option, index) => <button key={`${option.value}-${index}`} type="button" role="option" aria-selected={option.value === value} className={option.value === value ? 'is-selected' : ''} disabled={option.disabled} onMouseEnter={() => setHighlighted(index)} onClick={() => choose(option)}><span>{option.label}</span>{option.value === value && <Icon name="check" />}</button>)}</div>}</div>
 }
 
 export function StatCard({ label, value, icon }: { label: string; value: ReactNode; icon: string }) {

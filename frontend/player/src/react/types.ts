@@ -26,7 +26,31 @@ export function songKey(song: Song): string {
 // List mutations are keyed by the persisted MusicInfo.id on the server.
 // Some older entries only have songmid, so keep that as a compatibility fallback.
 export function songListId(song: Song): string {
-  return String(song.id ?? song.songmid ?? song.hash ?? '').trim()
+  const record = song as Record<string, unknown>
+  const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
+  return String(song.id ?? song.songmid ?? song.hash ?? meta.songId ?? meta.songmid ?? '').trim()
+}
+
+/**
+ * Music results from different sources are not shaped consistently.  Keep
+ * comparisons tolerant of numeric/string ids and legacy songmid-only rows.
+ */
+export function sameSong(left: Song | null | undefined, right: Song | null | undefined): boolean {
+  if (!left || !right) return false
+  if (songKey(left) === songKey(right)) return true
+  const leftId = songListId(left)
+  const rightId = songListId(right)
+  if (!leftId || !rightId || leftId !== rightId) return false
+  const leftSource = String(left.source || '').trim()
+  const rightSource = String(right.source || '').trim()
+  return !leftSource || !rightSource || leftSource === rightSource
+}
+
+/** Ensure list mutations always send the persisted id field when possible. */
+export function normalizeSongForList(song: Song): Song {
+  const id = songListId(song)
+  if (!id || song.id !== undefined && song.id !== null && String(song.id).trim()) return song
+  return { ...song, id }
 }
 
 export function songTitle(song: Song | null | undefined): string {

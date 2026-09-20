@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { playerApi } from './api'
-import { Button, Icon, Loading, SafeImage, SongList } from './components'
+import { Button, Icon, Loading, SafeImage, SelectMenu, SongList } from './components'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { selectLoveList, selectUserLists, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore } from './store'
 import type { Song } from './types'
@@ -24,11 +24,11 @@ function ArtworkCard({ song, kind, onOpen, onPlay }: { song: Song; kind?: 'artis
   const subtitle = kind === 'artist' ? String(song.songCount ?? song.count ?? '歌手') : String(song.singer || song.artist || '专辑')
   return <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''}`}>
     <button type="button" className="react-artwork-button" onClick={onOpen ?? onPlay}>
-      <SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} />
+      <span className="react-artwork-cover"><SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} /></span>
       <strong title={title}>{title}</strong>
       <small>{subtitle}</small>
     </button>
-    {onPlay && <button type="button" className="react-artwork-play" aria-label={`播放 ${title}`} onClick={onPlay}><Icon name="play" /></button>}
+    {onPlay && <button type="button" className="react-artwork-play-button" aria-label={`播放 ${title}`} onClick={event => { event.stopPropagation(); onPlay() }}><Icon name="play" /></button>}
   </article>
 }
 
@@ -114,5 +114,5 @@ export function GenresView() {
     void playerApi.songList(source, selected, 'hot', page, controller.signal, { cacheKey: `songlist:${source}:${selected}:hot:${page}`, cacheTtlMs: 60_000 }).then(payload => { if (!controller.signal.aborted) setSongs(listOf(payload)) }).catch(cause => { if (!controller.signal.aborted) { setSongs([]); setError(cause instanceof Error ? cause.message : '风格内容加载失败') } }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [page, selected, source])
-  return <ViewFrame title="风格" subtitle="按风格发现更多歌单"><section className="react-genres-view"><div className="react-toolbar-card t-bg-panel"><label>音源<select value={source} onChange={event => { setSource(event.target.value); setSelected(''); setPage(1) }}><option value="wy">网易云</option><option value="tx">QQ音乐</option></select></label><div className="react-tag-list" aria-label="风格分类"><button type="button" className={!selected ? 'is-active' : ''} onClick={() => { setSelected(''); setPage(1) }}>全部</button>{tags.map(tag => <button type="button" key={tag.id} className={selected === tag.id ? 'is-active' : ''} onClick={() => { setSelected(tag.id); setPage(1) }}>{tag.name}</button>)}</div></div><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>{selected ? tags.find(tag => tag.id === selected)?.name ?? '风格歌单' : '热门歌单'}</h2><p>第 {page} 页</p></div><div className="react-pagination"><Button aria-label="上一页" disabled={page <= 1 || loading} onClick={() => setPage(value => value - 1)}><Icon name="chevron-left" /></Button><Button aria-label="下一页" disabled={loading || songs.length < 20} onClick={() => setPage(value => value + 1)}><Icon name="chevron-right" /></Button></div></div>{loading ? <Loading /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="这个风格暂时没有歌单" />}</section></section></ViewFrame>
+  return <ViewFrame title="风格" subtitle="按风格发现更多歌单"><section className="react-genres-view"><div className="react-toolbar-card t-bg-panel"><div className="react-toolbar-field"><span>音源</span><SelectMenu label="音源" value={source} options={[{ value: 'wy', label: '网易云' }, { value: 'tx', label: 'QQ音乐' }]} onChange={value => { setSource(value); setSelected(''); setPage(1) }} /></div><div className="react-tag-list" aria-label="风格分类"><button type="button" className={!selected ? 'is-active' : ''} onClick={() => { setSelected(''); setPage(1) }}>全部</button>{tags.map(tag => <button type="button" key={tag.id} className={selected === tag.id ? 'is-active' : ''} onClick={() => { setSelected(tag.id); setPage(1) }}>{tag.name}</button>)}</div></div><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>{selected ? tags.find(tag => tag.id === selected)?.name ?? '风格歌单' : '热门歌单'}</h2><p>第 {page} 页</p></div></div>{loading ? <Loading /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="这个风格暂时没有歌单" />}<div className="react-pagination react-pagination-bottom"><Button aria-label="上一页" disabled={page <= 1 || loading} onClick={() => setPage(value => value - 1)}><Icon name="chevron-left" /></Button><span>第 {page} 页</span><Button aria-label="下一页" disabled={loading || songs.length < 20} onClick={() => setPage(value => value + 1)}><Icon name="chevron-right" /></Button></div></section></section></ViewFrame>
 }

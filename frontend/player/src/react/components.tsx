@@ -1,13 +1,94 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
-import { songArtist, songImage, songKey, songTitle } from './types'
+import { sameSong, songArtist, songImage, songKey, songTitle } from './types'
 import { useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 
 export function Icon({ name }: { name: string }) { return <i className={`fas fa-${name}`} aria-hidden="true" /> }
 
 export function Button({ children, variant = 'secondary', className = '', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' }) {
   return <button type="button" className={`react-player-button react-player-button-${variant} ${className}`} {...props}>{children}</button>
+}
+
+export type SelectOption = { value: string; label: string; disabled?: boolean }
+
+/** A small semantic listbox used instead of browser-dependent native selects. */
+export function SelectMenu({ value, options, onChange, label, disabled = false, className = '', placeholder = '请选择' }: {
+  value: string
+  options: SelectOption[]
+  onChange: (value: string) => void
+  label?: string
+  disabled?: boolean
+  className?: string
+  placeholder?: string
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const listboxId = useId()
+  const [open, setOpen] = useState(false)
+  const selectedIndex = Math.max(0, options.findIndex(option => option.value === value))
+  const [highlighted, setHighlighted] = useState(selectedIndex)
+  const selected = options[selectedIndex]
+
+  useEffect(() => {
+    if (!open) return
+    setHighlighted(selectedIndex)
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setOpen(false)
+      window.requestAnimationFrame(() => triggerRef.current?.focus())
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onEscape)
+    }
+  }, [open, selectedIndex])
+
+  useEffect(() => {
+    if (!open) return
+    document.getElementById(`${listboxId}-${highlighted}`)?.scrollIntoView({ block: 'nearest' })
+  }, [highlighted, listboxId, open])
+
+  const move = (direction: 1 | -1) => {
+    if (!options.length) return
+    let next = highlighted
+    for (let count = 0; count < options.length; count += 1) {
+      next = (next + direction + options.length) % options.length
+      if (!options[next]?.disabled) break
+    }
+    setHighlighted(next)
+  }
+
+  const choose = (option: SelectOption) => {
+    if (option.disabled) return
+    onChange(option.value)
+    setOpen(false)
+    window.requestAnimationFrame(() => triggerRef.current?.focus())
+  }
+
+  const onTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { event.preventDefault(); setOpen(true); move(1); return }
+    if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); setOpen(true); move(-1); return }
+    if (event.key === 'Home') { event.preventDefault(); setOpen(true); setHighlighted(options.findIndex(option => !option.disabled)); return }
+    if (event.key === 'End') { event.preventDefault(); setOpen(true); setHighlighted([...options].reverse().findIndex(option => !option.disabled) < 0 ? 0 : options.length - 1); return }
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(current => !current); return }
+    if (event.key === 'Escape' && open) { event.preventDefault(); setOpen(false); return }
+  }
+
+  return <div ref={rootRef} className={`react-select-menu ${open ? 'is-open' : ''} ${className}`}>
+    <button ref={triggerRef} type="button" className="react-select-menu-trigger" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={listboxId} disabled={disabled} onClick={() => setOpen(current => !current)} onKeyDown={onTriggerKeyDown}>
+      <span>{selected?.label ?? placeholder}</span><Icon name="chevron-down" />
+    </button>
+    {open && <div id={listboxId} className="react-select-menu-list" role="listbox" aria-label={label}>
+      {options.map((option, index) => <button id={`${listboxId}-${index}`} key={`${option.value}-${index}`} type="button" role="option" aria-selected={option.value === value} className={`react-select-menu-option ${option.value === value ? 'is-selected' : ''} ${index === highlighted ? 'is-highlighted' : ''}`} disabled={option.disabled} onMouseEnter={() => setHighlighted(index)} onClick={() => choose(option)}><span>{option.label}</span>{option.value === value && <Icon name="check" />}</button>)}
+    </div>}
+  </div>
 }
 
 type SafeImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: unknown; fallback?: string }
@@ -47,7 +128,7 @@ export function SongRow({ song, index, list, listId = 'love', compact = false, s
   const enqueue = usePlaybackStore(state => state.enqueue)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
-  const isLoved = useLibraryStore(state => (state.data.loveList ?? []).some(item => songKey(item) === songKey(song)))
+  const isLoved = useLibraryStore(state => (state.data.loveList ?? []).some(item => sameSong(item, song)))
   const notify = usePlayerUiStore(state => state.notify)
   const toggleFavorite = () => {
     const operation = isLoved ? removeSong('love', song) : addSong('love', song)

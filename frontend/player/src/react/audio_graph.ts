@@ -10,20 +10,9 @@ type AudioGraph = {
   low: BiquadFilterNode
   high: BiquadFilterNode
   gain: GainNode
-  analyser: AnalyserNode
 }
 
 let graph: AudioGraph | null = null
-const listeners = new Set<() => void>()
-
-export function subscribeAudioGraph(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-export function getAudioAnalyser(): AnalyserNode | null {
-  return graph?.analyser ?? null
-}
 
 export function ensureAudioGraph(audio: HTMLAudioElement): AudioGraph | null {
   if (graph) {
@@ -42,16 +31,11 @@ export function ensureAudioGraph(audio: HTMLAudioElement): AudioGraph | null {
     high.type = 'highshelf'
     high.frequency.value = 4200
     const gain = context.createGain()
-    const analyser = context.createAnalyser()
-    analyser.fftSize = 128
-    analyser.smoothingTimeConstant = .82
     source.connect(low)
     low.connect(high)
     high.connect(gain)
-    gain.connect(analyser)
-    analyser.connect(context.destination)
-    graph = { context, source, low, high, gain, analyser }
-    listeners.forEach(listener => listener())
+    gain.connect(context.destination)
+    graph = { context, source, low, high, gain }
     return graph
   } catch {
     return null
@@ -82,9 +66,7 @@ export function releaseAudioGraph(): void {
     graph.low.disconnect()
     graph.high.disconnect()
     graph.gain.disconnect()
-    graph.analyser.disconnect()
     void graph.context.close()
   } catch { /* browser may already have released the graph */ }
   graph = null
-  listeners.forEach(listener => listener())
 }

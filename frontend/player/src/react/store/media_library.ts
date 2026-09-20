@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { playerApi } from '../api'
 import { invalidateRequestCache, isAbortError } from '../data/request'
-import type { Song } from '../types'
+import { songEntityId, songEntityName, songSource } from '../song_details'
+import { songImage, type Song } from '../types'
 
 let mediaController: AbortController | null = null
 let mediaRequestId = 0
@@ -24,7 +25,22 @@ export type MediaLibraryState = {
   error: string
   loadedAt: number
   hydrate: (options?: { force?: boolean }) => Promise<void>
+  toggle: (kind: 'artist' | 'album', item: Song) => Promise<boolean>
   invalidate: () => void
+}
+
+export function mediaLibraryItemKey(item: Song, kind: 'artist' | 'album'): string {
+  const id = songEntityId(item, kind, { allowGenericId: true, allowGenericName: true }) || songEntityName(item, kind, { allowGenericName: true })
+  return `${songSource(item)}:${kind}:${id}`
+}
+
+function normalizeMediaItem(item: Song, kind: 'artist' | 'album'): Song {
+  const id = songEntityId(item, kind, { allowGenericId: true, allowGenericName: true })
+  const name = songEntityName(item, kind, { allowGenericName: true })
+  const source = songSource(item)
+  const image = songImage(item)
+  if (kind === 'artist') return { ...item, id: id || item.id, source, name, singer: name, picUrl: image ?? item.picUrl }
+  return { ...item, id: id || item.id, source, name, album: name, albumName: name, picUrl: image ?? item.picUrl }
 }
 
 export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
@@ -55,6 +71,26 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
         mediaController = null
         set({ loading: false, refreshing: false })
       }
+    }
+  },
+  toggle: async (kind, item) => {
+    const key = kind === 'artist' ? 'artists' : 'albums'
+    const current = get()[key]
+    const itemKey = mediaLibraryItemKey(item, kind)
+    const exists = current.some(candidate => mediaLibraryItemKey(candidate, kind) === itemKey)
+    const next = exists
+      ? current.filter(candidate => mediaLibraryItemKey(candidate, kind) !== itemKey)
+      : [...current, normalizeMediaItem(item, kind)]
+    set({ [key]: next } as Pick<MediaLibraryState, typeof key>)
+    try {
+      invalidateRequestCache('media-library:')
+      if (kind === 'artist') await playerApi.saveLibraryArtists(next)
+      else await playerApi.saveLibraryAlbums(next)
+      set({ loadedAt: Date.now(), error: '' })
+      return !exists
+    } catch (error) {
+      set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<MediaLibraryState, typeof key | 'error'>)
+      throw error
     }
   },
   invalidate: () => {

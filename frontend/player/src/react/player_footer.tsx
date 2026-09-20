@@ -3,7 +3,7 @@ import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
 import { useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
-import { songArtist, songImage, songKey, songTitle } from './types'
+import { sameSong, songArtist, songImage, songTitle } from './types'
 import { normalizeCachePlaybackUrl } from './media_url'
 
 let immersiveLyricsTrigger: HTMLButtonElement | null = null
@@ -42,7 +42,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
   const userAuthenticated = useAuthStore(state => state.userAuthenticated)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
-  const isLiked = useLibraryStore(state => Boolean(currentSong && (state.data.loveList ?? []).some(song => songKey(song) === songKey(currentSong))))
+  const isLiked = useLibraryStore(state => Boolean(currentSong && (state.data.loveList ?? []).some(song => sameSong(song, currentSong))))
   const [songMenuOpen, setSongMenuOpen] = useState(false)
   const songMenuButtonRef = useRef<HTMLButtonElement>(null)
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0

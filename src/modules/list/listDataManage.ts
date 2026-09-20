@@ -2,6 +2,12 @@ import { arrPush, arrPushByPosition, arrUnshift } from '@/utils/common'
 import { LIST_IDS } from '@/constants'
 import { type SnapshotDataManage } from './snapshotDataManage'
 
+function musicInfoId(musicInfo: LX.Music.MusicInfo): string {
+  const record = musicInfo as unknown as Record<string, unknown>
+  const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
+  return String(record.id ?? record.songmid ?? record.hash ?? meta.songId ?? meta.songmid ?? '').trim()
+}
+
 export class ListDataManage {
   snapshotDataManage: SnapshotDataManage
   userLists: LX.List.UserListInfo[] = []
@@ -240,10 +246,15 @@ export class ListDataManage {
     const targetList = await this.getListMusics(id)
 
     const listSet = new Set<string>()
-    for (const item of targetList) listSet.add(item.id)
+    for (const item of targetList) {
+      const id = musicInfoId(item)
+      if (id) listSet.add(id)
+    }
     musicInfos = musicInfos.filter(item => {
-      if (listSet.has(item.id)) return false
-      listSet.add(item.id)
+      const id = musicInfoId(item)
+      if (!id) return true
+      if (listSet.has(id)) return false
+      listSet.add(id)
       return true
     })
     switch (addMusicLocationType) {
@@ -264,10 +275,8 @@ export class ListDataManage {
   listMusicRemove = async (listId: string, ids: string[]): Promise<string[]> => {
     let targetList = await this.getListMusics(listId)
 
-    const listSet = new Set<string>()
-    for (const item of targetList) listSet.add(item.id)
-    for (const id of ids) listSet.delete(id)
-    const newList = targetList.filter(mInfo => listSet.has(mInfo.id))
+    const removeIds = new Set(ids.map(id => String(id)))
+    const newList = targetList.filter(mInfo => !removeIds.has(musicInfoId(mInfo)))
     targetList.splice(0, targetList.length)
     arrPush(targetList, newList)
 

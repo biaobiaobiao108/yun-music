@@ -13,6 +13,12 @@ export type UserPlaylist = Record<string, unknown> & {
   id: string | number
   name: string
   list?: Song[]
+  source?: string
+  sourceListId?: string | number
+  img?: string
+  pic?: string
+  picUrl?: string
+  image?: string
 }
 export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: UserPlaylist[] }
 export type CacheTask = Record<string, unknown> & { id?: string; songKey?: string; status?: string; progress?: number; name?: string }

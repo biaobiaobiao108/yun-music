@@ -192,6 +192,88 @@ body.overlay-open > *:not(.skip-link) {
     }
 }
 
+/* Final React control overrides (kept after the legacy compatibility rules). */
+.react-search-form {
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) minmax(8rem, auto) auto;
+    gap: .65rem;
+}
+
+.react-toolbar-card {
+    align-items: end;
+    box-shadow: none;
+}
+
+.react-artwork-cover {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+}
+
+.react-artwork-cover img {
+    width: 100%;
+    height: 100%;
+}
+
+.react-artwork-play-button {
+    position: absolute;
+    z-index: 2;
+    top: .7rem;
+    right: .7rem;
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 50%;
+    background: var(--app-surface-solid);
+    color: var(--app-text);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(.3rem) scale(.96);
+    box-shadow: 0 .7rem 1.2rem rgb(0 0 0 / 22%);
+    transition: opacity var(--app-motion-fast) ease, transform var(--app-motion-fast) ease, background-color var(--app-motion-fast) ease;
+}
+
+.react-artwork-card:hover .react-artwork-play-button,
+.react-artwork-card:focus-within .react-artwork-play-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+.react-entity-card .react-entity-favorite {
+    opacity: 0;
+    pointer-events: auto;
+}
+
+.react-entity-card:hover .react-entity-favorite,
+.react-entity-card:focus-within .react-entity-favorite,
+.react-entity-card .react-entity-favorite.is-active {
+    opacity: 1;
+}
+
+@media (max-width: 720px) {
+    .react-search-form {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .react-search-input,
+    .react-search-form > .react-player-button {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-artwork-play-button,
+    .react-entity-card .react-entity-favorite {
+        transition: none;
+        transform: none;
+    }
+}
+
 /* Modern mobile web standards */
 html, body {
     overscroll-behavior-y: none;
@@ -408,10 +490,6 @@ html, body {
         border-radius: 999px;
     }
 
-    #player-footer .player-footer-progress-row #visualizer-container {
-        display: none !important;
-    }
-
     #player-footer .player-footer-collapse-button {
         inset-inline-end: 0.25rem !important;
         inset-block-start: 0.25rem !important;
@@ -520,6 +598,446 @@ html, body {
     .skip-link,
     .player-menu-action {
         transition: none;
+    }
+}
+
+/* Refined controls and dense content primitives. Keep these overrides at the
+   end so the React surface has one predictable visual contract. */
+.react-toolbar-field,
+.react-search-filter,
+.react-setting-field {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+    color: var(--app-text-muted);
+    font-size: .78rem;
+}
+
+.react-select-menu {
+    position: relative;
+    min-width: 8.5rem;
+    color: var(--app-text);
+}
+
+.react-select-menu-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .7rem;
+    width: 100%;
+    min-height: 2.55rem;
+    padding: .55rem .72rem;
+    border: 1px solid var(--app-border);
+    border-radius: .72rem;
+    background: var(--app-surface-soft);
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition: border-color var(--app-motion-fast) ease, background-color var(--app-motion-fast) ease, box-shadow var(--app-motion-fast) ease;
+}
+
+.react-select-menu-trigger:hover,
+.react-select-menu-trigger:focus-visible,
+.react-select-menu.is-open .react-select-menu-trigger {
+    border-color: var(--app-accent);
+    background: var(--app-surface);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    outline: none;
+}
+
+.react-select-menu-trigger > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-select-menu-trigger > i {
+    flex: 0 0 auto;
+    color: var(--app-text-dim);
+    font-size: .7rem;
+}
+
+.react-select-menu-list {
+    position: absolute;
+    z-index: 260;
+    top: calc(100% + .4rem);
+    left: 0;
+    width: max-content;
+    min-width: 100%;
+    max-width: min(19rem, calc(100vw - 1.5rem));
+    max-height: min(18rem, 48vh);
+    overflow: auto;
+    padding: .35rem;
+    border: 1px solid var(--app-border-strong);
+    border-radius: .8rem;
+    background: var(--app-surface-solid);
+    box-shadow: 0 1rem 2.6rem rgb(0 0 0 / 22%);
+    animation: react-panel-enter var(--app-motion-fast) ease both;
+}
+
+.react-select-menu-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    min-height: 2.25rem;
+    padding: .5rem .62rem;
+    border: 0;
+    border-radius: .55rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.react-select-menu-option:hover,
+.react-select-menu-option.is-highlighted,
+.react-select-menu-option.is-selected {
+    background: var(--app-accent-soft);
+    color: var(--app-text);
+}
+
+.react-select-menu-option.is-selected {
+    color: var(--app-accent);
+    font-weight: 650;
+}
+
+.react-select-menu-option:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.react-search-form {
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) minmax(8rem, auto) auto;
+    gap: .65rem;
+}
+
+.react-search-filter {
+    display: grid;
+    align-items: stretch;
+    gap: .25rem;
+}
+
+.react-search-filter > span,
+.react-toolbar-field > span,
+.react-setting-field > span {
+    color: var(--app-text-dim);
+    font-size: .68rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.react-search-input {
+    min-height: 2.65rem;
+    border-radius: .82rem;
+    background: var(--app-surface-soft);
+    transition: border-color var(--app-motion-fast) ease, box-shadow var(--app-motion-fast) ease;
+}
+
+.react-search-input:focus-within {
+    border-color: var(--app-accent);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
+}
+
+.react-toolbar-card {
+    align-items: end;
+    gap: 1rem;
+    box-shadow: none;
+}
+
+.react-toolbar-field,
+.react-setting-field {
+    display: grid;
+    align-items: stretch;
+    gap: .28rem;
+}
+
+.react-pagination-bottom {
+    justify-content: center;
+    width: 100%;
+    margin-top: 1.15rem;
+    padding-top: .9rem;
+    border-top: 1px solid var(--app-border);
+}
+
+.react-pagination-bottom span {
+    min-width: 4rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.react-artwork-cover {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+}
+
+.react-artwork-cover img {
+    width: 100%;
+    height: 100%;
+}
+
+.react-artwork-play-button {
+    position: absolute;
+    z-index: 2;
+    top: .7rem;
+    right: .7rem;
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 50%;
+    background: var(--app-surface-solid);
+    color: var(--app-text);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(.3rem) scale(.96);
+    box-shadow: 0 .7rem 1.2rem rgb(0 0 0 / 22%);
+    transition: opacity var(--app-motion-fast) ease, transform var(--app-motion-fast) ease, background-color var(--app-motion-fast) ease;
+}
+
+.react-artwork-card:hover .react-artwork-play-button,
+.react-artwork-card:focus-within .react-artwork-play-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+.react-artwork-play-button:hover,
+.react-artwork-play-button:focus-visible {
+    background: var(--app-accent);
+    color: #fff;
+    outline: none;
+}
+
+.react-entity-card {
+    position: relative;
+}
+
+.react-entity-card .react-entity-open {
+    padding: .6rem;
+}
+
+.react-entity-card .react-entity-favorite {
+    position: absolute;
+    top: .92rem;
+    right: .92rem;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 20%);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--app-surface-solid) 82%, transparent);
+    color: var(--app-text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(.2rem);
+    transition: opacity var(--app-motion-fast) ease, transform var(--app-motion-fast) ease, color var(--app-motion-fast) ease, background-color var(--app-motion-fast) ease;
+}
+
+.react-entity-card:hover .react-entity-favorite,
+.react-entity-card:focus-within .react-entity-favorite,
+.react-entity-card .react-entity-favorite.is-active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.react-entity-card .react-entity-favorite:hover,
+.react-entity-card .react-entity-favorite:focus-visible,
+.react-entity-card .react-entity-favorite.is-active {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+    outline: none;
+}
+
+.react-detail-favorite {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    min-height: 2.35rem;
+    margin-top: .75rem;
+    padding: .45rem .72rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+    font: inherit;
+}
+
+.react-detail-favorite.is-active,
+.react-detail-favorite:hover,
+.react-detail-favorite:focus-visible {
+    border-color: var(--app-accent);
+    color: var(--app-accent);
+    outline: none;
+}
+
+.react-custom-source-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: .7rem;
+}
+
+.react-custom-source-card {
+    display: grid;
+    gap: .7rem;
+    min-width: 0;
+    padding: .8rem;
+    border: 1px solid var(--app-border);
+    border-radius: .85rem;
+    background: var(--app-surface-soft);
+}
+
+.react-custom-source-card.is-enabled {
+    border-color: color-mix(in srgb, var(--app-accent) 38%, var(--app-border));
+}
+
+.react-custom-source-card-head {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    min-width: 0;
+}
+
+.react-custom-source-card-head > div {
+    display: grid;
+    gap: .18rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.react-custom-source-card-head strong,
+.react-custom-source-card-head small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-custom-source-card-head small,
+.react-custom-source-error {
+    color: var(--app-text-muted);
+    font-size: .74rem;
+}
+
+.react-custom-source-icon {
+    display: grid;
+    place-items: center;
+    width: 2.15rem;
+    height: 2.15rem;
+    flex: 0 0 auto;
+    border-radius: .62rem;
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+}
+
+.react-source-status {
+    flex: 0 0 auto;
+    padding: .22rem .42rem;
+    border-radius: 999px;
+    background: var(--app-surface);
+    color: var(--app-text-dim);
+    font-size: .68rem;
+}
+
+.react-source-status.is-enabled {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+}
+
+.react-custom-source-card-actions {
+    display: flex;
+    gap: .45rem;
+}
+
+.react-custom-source-card-actions .react-player-button {
+    min-height: 2.2rem;
+    padding: .42rem .7rem;
+    font-size: .78rem;
+}
+
+.react-source-forms {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--app-border);
+}
+
+.react-source-forms form {
+    display: grid;
+    gap: .35rem;
+    min-width: 0;
+}
+
+.react-source-forms form > label {
+    color: var(--app-text-muted);
+    font-size: .76rem;
+}
+
+.react-source-forms form > div {
+    display: flex;
+    gap: .45rem;
+    min-width: 0;
+}
+
+.react-source-forms input {
+    min-width: 0;
+    flex: 1;
+}
+
+.react-source-forms .react-player-button {
+    min-height: 2.5rem;
+    padding: .45rem .72rem;
+}
+
+@media (max-width: 720px) {
+    .react-search-form {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .react-search-input,
+    .react-search-form > .react-player-button {
+        grid-column: 1 / -1;
+    }
+
+    .react-toolbar-field,
+    .react-search-filter,
+    .react-setting-field {
+        min-width: min(100%, 11rem);
+    }
+
+    .react-source-forms {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-select-menu-list,
+    .react-artwork-play-button,
+    .react-entity-card .react-entity-favorite,
+    .react-search-input,
+    .react-select-menu-trigger {
+        animation: none;
+        transition: none;
+    }
+
+    .react-artwork-play-button,
+    .react-entity-card .react-entity-favorite {
+        transform: none;
     }
 }
 
@@ -725,7 +1243,6 @@ html, body {
 .react-play-button:hover { background: var(--c-600); }
 .react-progress-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .5rem; color: var(--text-dim); font-size: .67rem; }
 .react-progress-row input, .react-volume-range { min-width: 0; accent-color: var(--c-500); }
-.react-footer-visualizer { position: fixed; right: clamp(.8rem, 2.5vw, 2rem); bottom: 5.75rem; left: max(16rem, calc(50% - 18rem)); width: min(36rem, calc(100vw - 34rem)); height: 1.8rem; pointer-events: none; opacity: .72; }
 .react-footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: .3rem; }
 .react-like-button { width: auto !important; display: inline-flex; align-items: center; gap: .25rem; padding-inline: .4rem; }
 .react-like-button.is-active { color: var(--c-600); }
@@ -777,7 +1294,6 @@ html, body {
   .react-footer-song img { width: 2.8rem; height: 2.8rem; }
   .react-footer-center { grid-column: 1 / -1; grid-row: 2; }
   .react-footer-actions { grid-column: 2; grid-row: 1; }
-  .react-footer-visualizer { right: .65rem; bottom: 6.25rem; left: .65rem; width: auto; height: 1.4rem; }
   .react-volume-range { display: none; }
   .react-like-button span { display: none; }
   .react-footer-controls { gap: .1rem; }
@@ -1235,9 +1751,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 /* The footer is fixed to the viewport, so every main surface must reserve
-   its measured height plus a small visual breathing room. Keeping this in
-   one layout rule prevents the spacing from depending on the visualizer
-   setting or on a particular view being initialized first. */
+   its measured height plus a small visual breathing room. */
 .player-main-view {
     box-sizing: border-box;
     min-block-size: 0;
@@ -2466,74 +2980,6 @@ aside {
     animation-delay: 0.4s;
 }
 
-/* Music Visualizer Loader */
-@keyframes music-bar-animate {
-
-    0%,
-    100% {
-        transform: scaleY(0.3);
-        opacity: 0.3;
-    }
-
-    50% {
-        transform: scaleY(1.2);
-        opacity: 1;
-    }
-}
-
-.music-visualizer-loader {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    height: 60px;
-}
-
-.music-visualizer-loader div {
-    width: 5px;
-    height: 40px;
-    background: var(--c-500);
-    border-radius: 3px;
-    box-shadow: 0 0 15px color-mix(in srgb, var(--c-500) 40%, transparent);
-    animation: music-bar-animate 1.2s infinite ease-in-out;
-}
-
-.music-visualizer-loader div:nth-child(1) {
-    animation-delay: 0.0s;
-}
-
-.music-visualizer-loader div:nth-child(2) {
-    animation-delay: 0.1s;
-}
-
-.music-visualizer-loader div:nth-child(3) {
-    animation-delay: 0.2s;
-}
-
-.music-visualizer-loader div:nth-child(4) {
-    animation-delay: 0.3s;
-}
-
-.music-visualizer-loader div:nth-child(5) {
-    animation-delay: 0.4s;
-}
-
-.music-visualizer-loader div:nth-child(6) {
-    animation-delay: 0.3s;
-}
-
-.music-visualizer-loader div:nth-child(7) {
-    animation-delay: 0.2s;
-}
-
-.music-visualizer-loader div:nth-child(8) {
-    animation-delay: 0.1s;
-}
-
-.music-visualizer-loader div:nth-child(9) {
-    animation-delay: 0.0s;
-}
-
 /* Search Match Highlights - Consistently use theme color-mix */
 .search-match {
     background-color: color-mix(in srgb, var(--c-500) 10%, transparent) !important;
@@ -3022,94 +3468,6 @@ aside {
    NetEase Cloud Music Modern Experience Styles
    ========================================================================== */
 
-/* ── 拟真黑胶唱片机 (Vinyl Record Turntable) - 严格正圆几何 ── */
-.vinyl-player-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: min(72vw, 340px);
-    height: min(72vw, 340px);
-    max-width: 340px;
-    max-height: 340px;
-    aspect-ratio: 1 / 1;
-    flex-shrink: 0;
-    margin: 0 auto;
-    /* Keep the circular record shadow from being clipped into a square. */
-    contain: layout;
-}
-
-@media (min-width: 1025px) {
-    .vinyl-player-container {
-        width: 380px;
-        height: 380px;
-        max-width: 380px;
-        max-height: 380px;
-    }
-}
-
-@media (min-width: 1280px) {
-    .vinyl-player-container {
-        width: 420px;
-        height: 420px;
-        max-width: 420px;
-        max-height: 420px;
-    }
-}
-
-/* 机械唱针 (Tonearm) */
-.vinyl-tonearm {
-    position: absolute;
-    top: -46px;
-    left: 50%;
-    width: 100px;
-    height: 155px;
-    margin-left: -18px;
-    z-index: 25;
-    transform-origin: 18px 18px;
-    transform: rotate(-32deg);
-    transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
-    pointer-events: none;
-    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.45));
-}
-
-.vinyl-tonearm.is-playing {
-    transform: rotate(0deg);
-}
-
-/* 唱片四周环状波形特效 Canvas (衬于黑胶底层向外律动扩散) */
-.vinyl-visualizer-canvas {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 132%;
-    height: 132%;
-    max-width: none;
-    max-height: none;
-    pointer-events: none;
-    z-index: 1;
-    border-radius: 50%;
-    transition: opacity 0.4s ease;
-}
-
-/* 旋转黑胶盘底座 (Vinyl Disc Base Wrap) - 严格正圆 */
-.vinyl-disc-wrap {
-    position: relative;
-    z-index: 2;
-    width: 100%;
-    height: 100%;
-    aspect-ratio: 1 / 1;
-    background: transparent;
-    padding: 0;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    overflow: visible;
-}
-
 /* ── 歌词右侧微调悬浮胶囊条 (Vertical Lyric Offset Floating Capsule) ── */
 .lyric-offset-capsule {
     position: absolute;
@@ -3199,98 +3557,6 @@ aside {
     color: var(--c-500, #10b981);
     opacity: 0.95;
     font-weight: 700;
-}
-
-/* 旋转黑胶盘 (Vinyl Disc) - 严格正圆与 GPU 加速 */
-.vinyl-disc {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    aspect-ratio: 1 / 1;
-    border-radius: 50% !important;
-    background: radial-gradient(
-        circle,
-        #101114 0%,
-        #1c1d22 35%,
-        #0d0e11 37%,
-        #24252b 55%,
-        #131418 60%,
-        #25262d 75%,
-        #101114 85%,
-        #1a1b20 95%,
-        #0a0b0e 100%
-    );
-    box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.85), inset 0 0 0 2px rgba(255, 255, 255, 0.08), 0 20px 48px -8px rgba(0, 0, 0, 0.65);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: vinyl-spin 22s linear infinite;
-    animation-play-state: paused;
-    box-sizing: border-box;
-    flex-shrink: 0;
-    will-change: transform;
-    transform: translateZ(0);
-}
-
-.vinyl-disc.is-playing {
-    animation-play-state: running;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .vinyl-disc {
-        animation: none;
-    }
-
-    .vinyl-tonearm {
-        transition: none;
-    }
-}
-
-@keyframes vinyl-spin {
-    from {
-        transform: rotate(0deg) translateZ(0);
-    }
-    to {
-        transform: rotate(360deg) translateZ(0);
-    }
-}
-
-/* 唱片中心封面 - 严格正圆 */
-.vinyl-disc-cover {
-    width: 66%;
-    height: 66%;
-    aspect-ratio: 1 / 1;
-    border-radius: 50% !important;
-    overflow: hidden;
-    position: relative;
-    box-shadow: 0 0 0 4px #0c0d10, 0 0 16px rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    flex-shrink: 0;
-}
-
-.vinyl-disc-cover img {
-    width: 100%;
-    height: 100%;
-    aspect-ratio: 1 / 1;
-    border-radius: 50% !important;
-    object-fit: cover;
-    display: block;
-}
-
-/* 唱片中心金属轴心 - 严格正圆 */
-.vinyl-center-hole {
-    position: absolute;
-    width: 28px;
-    height: 28px;
-    aspect-ratio: 1 / 1;
-    border-radius: 50% !important;
-    background: radial-gradient(circle, #f1f5f9 35%, #94a3b8 70%, #475569 100%);
-    box-shadow: 0 0 6px rgba(0, 0, 0, 0.65), inset 0 0 2px rgba(0, 0, 0, 0.85);
-    z-index: 5;
-    flex-shrink: 0;
 }
 
 /* ── 歌单卡片播放量与浮动播放按钮 ── */
@@ -4439,7 +4705,6 @@ dialog.runtime-input-dialog #modal-input {
 
     .animate-marquee,
     .animate-loading-dots span,
-    .music-visualizer-loader div,
     .fa-spin {
         animation: none !important;
     }
@@ -5495,12 +5760,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     box-sizing: border-box;
 }
 
-.react-footer-visualizer {
-    position: absolute !important;
-    inset-inline-start: max(1rem, calc(50% - 18rem)) !important;
-    inset-inline-end: max(1rem, calc(50% - 18rem)) !important;
-    width: auto !important;
-}
 
 .react-immersive-lyrics-dialog {
     inset: 0;
@@ -5569,113 +5828,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding: clamp(1.2rem, 4vw, 3.5rem) clamp(1rem, 5vw, 4rem) max(1.2rem, env(safe-area-inset-bottom));
 }
 
-.react-vinyl-panel {
-    min-width: 0;
-    display: grid;
-    justify-items: center;
-    gap: 1.25rem;
-}
-
-.react-vinyl {
-    width: min(32vw, 25rem);
-    min-width: 15rem;
-    aspect-ratio: 1;
-    display: grid;
-    place-items: center;
-    filter: drop-shadow(0 1.4rem 2.4rem color-mix(in srgb, #000 28%, transparent));
-}
-
-.react-vinyl-record {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 1;
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-    border-radius: 50%;
-    background:
-        repeating-radial-gradient(circle, #262626 0 1px, #0b0b0b 2px 4px),
-        #0b0b0b;
-    box-shadow: inset 0 0 0 .25rem #171717, inset 0 0 0 .55rem #050505;
-}
-
-.react-vinyl-record::before,
-.react-vinyl-record::after {
-    content: '';
-    position: absolute;
-    z-index: 1;
-    border-radius: 50%;
-    pointer-events: none;
-}
-
-.react-vinyl-record::before {
-    inset: 9%;
-    border: 1px solid rgb(255 255 255 / 12%);
-}
-
-.react-vinyl-record::after {
-    inset: 49%;
-    background: #090909;
-    box-shadow: 0 0 0 .35rem color-mix(in srgb, var(--c-500) 76%, #111);
-}
-
-.react-vinyl-record img {
-    width: 62%;
-    aspect-ratio: 1;
-    object-fit: cover;
-    border-radius: 50%;
-    box-shadow: 0 0 0 .22rem #111, 0 0 0 .34rem color-mix(in srgb, var(--c-500) 56%, #111);
-}
-
-.react-vinyl-label {
-    position: absolute;
-    z-index: 2;
-    width: 2.8rem;
-    aspect-ratio: 1;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    color: rgb(255 255 255 / 82%);
-    background: color-mix(in srgb, var(--c-500) 82%, #111);
-    font-size: .62rem;
-    font-weight: 800;
-    letter-spacing: .08em;
-}
-
-.react-vinyl-hole {
-    position: absolute;
-    z-index: 3;
-    width: .48rem;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background: #0a0a0a;
-    box-shadow: 0 0 0 .16rem rgb(255 255 255 / 22%);
-}
-
-.react-vinyl.is-spinning .react-vinyl-record {
-    animation: react-vinyl-spin 14s linear infinite;
-}
-
-.react-vinyl-meta {
-    min-width: 0;
-    display: grid;
-    justify-items: center;
-    gap: .25rem;
-    text-align: center;
-}
-
-.react-vinyl-meta strong {
-    max-width: min(32vw, 25rem);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.react-vinyl-meta span {
-    color: var(--text-muted);
-    font-size: .82rem;
-}
-
 .react-immersive-lyrics-list {
     box-sizing: border-box;
     min-height: 0;
@@ -5737,15 +5889,6 @@ body > .flex.flex-1.overflow-hidden.relative {
         padding-top: 1.2rem;
     }
 
-    .react-vinyl {
-        width: min(58vw, 18rem);
-        min-width: 11rem;
-    }
-
-    .react-vinyl-meta {
-        display: none;
-    }
-
     .react-immersive-lyrics-list {
         height: 47dvh;
         padding-block: 44%;
@@ -5753,10 +5896,6 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .react-vinyl.is-spinning .react-vinyl-record {
-        animation-play-state: paused;
-    }
-
     .react-immersive-lyrics-list {
         scroll-behavior: auto;
     }
@@ -6431,22 +6570,6 @@ textarea:focus-visible {
     font-size: .76rem;
 }
 
-.react-artwork-play {
-    position: absolute;
-    right: .55rem;
-    top: calc(100% - 4.2rem);
-    display: grid;
-    place-items: center;
-    width: 2.35rem;
-    height: 2.35rem;
-    border: 0;
-    border-radius: 50%;
-    background: var(--app-accent);
-    color: var(--app-on-accent);
-    cursor: pointer;
-    box-shadow: 0 .4rem .9rem rgb(0 0 0 / 18%);
-}
-
 .react-home-playlists {
     grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
 }
@@ -6857,14 +6980,6 @@ textarea:focus-visible {
     background: color-mix(in srgb, var(--app-surface-solid) 62%, transparent) !important;
 }
 
-.react-vinyl-panel {
-    padding: 1.2rem;
-    border: 1px solid var(--app-border);
-    border-radius: var(--app-radius-xl);
-    background: color-mix(in srgb, var(--app-surface) 58%, transparent);
-    box-shadow: var(--app-shadow);
-}
-
 .react-immersive-lyrics-list > button.is-active {
     color: var(--app-accent) !important;
 }
@@ -7234,67 +7349,6 @@ textarea:focus-visible {
     min-width: 0;
 }
 
-.react-immersive-lyrics .react-vinyl-panel {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-}
-
-.react-vinyl {
-    position: relative;
-    display: block;
-    width: min(36vw, 26rem);
-    min-width: 16rem;
-    aspect-ratio: 1;
-}
-
-.react-vinyl-record {
-    position: absolute;
-    inset: 4% 0 auto auto;
-    z-index: 1;
-    width: 92%;
-    aspect-ratio: 1;
-    transform-origin: center;
-}
-
-.react-vinyl-record::before {
-    inset: 8%;
-    border: 1px solid rgb(255 255 255 / 16%);
-    box-shadow: 0 0 0 1px rgb(0 0 0 / 32%), inset 0 0 0 1px rgb(255 255 255 / 7%);
-}
-
-.react-vinyl-record::after {
-    inset: 47%;
-    width: 6%;
-    height: 6%;
-    background: #0b0b0b;
-    box-shadow: 0 0 0 .28rem color-mix(in srgb, var(--app-accent) 70%, #111);
-}
-
-.react-vinyl-cover {
-    position: absolute;
-    inset: 15% auto auto 0;
-    z-index: 2;
-    width: 67%;
-    aspect-ratio: 1;
-    object-fit: cover;
-    border-radius: 1.1rem;
-    background: var(--app-surface-soft);
-    box-shadow: 0 1.6rem 3rem rgb(0 0 0 / 30%), 0 0 0 1px var(--app-border-strong);
-}
-
-.react-vinyl-label {
-    width: 2.7rem;
-    background: color-mix(in srgb, var(--app-accent) 82%, #111);
-    opacity: .82;
-}
-
-.react-vinyl-hole {
-    display: none;
-}
-
 @media (max-width: 900px) {
     .react-immersive-lyrics .react-immersive-footer,
     .react-immersive-lyrics footer.react-player-footer.react-immersive-footer {
@@ -7366,11 +7420,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 560px) {
-    .react-vinyl {
-        width: min(72vw, 19rem);
-        min-width: 12rem;
-    }
-
     .react-immersive-lyrics .react-immersive-footer,
     .react-immersive-lyrics footer.react-player-footer.react-immersive-footer {
         margin-bottom: max(.55rem, env(safe-area-inset-bottom));
@@ -7378,7 +7427,7 @@ textarea:focus-visible {
 }
 
 /* Final immersive lyrics treatment: album artwork, readable lyrics, and
-   controls remain in the main content column without the retired vinyl card. */
+   controls remain in the main content column without the retired disc card. */
 .react-immersive-lyrics-dialog {
     color: var(--app-text);
     background: var(--app-bg) !important;
@@ -7544,11 +7593,6 @@ textarea:focus-visible {
 .react-immersive-like.is-active {
     background: var(--app-accent-soft);
     color: var(--app-accent);
-}
-
-.react-immersive-lyrics .react-vinyl,
-.react-immersive-lyrics .react-vinyl-panel {
-    display: none !important;
 }
 
 .react-immersive-cover-panel .react-immersive-footer,
@@ -8354,4 +8398,66 @@ textarea:focus-visible {
     .react-home-playlist:active {
         transform: none;
     }
+}
+
+/* Last-mile controls: these rules intentionally follow all compatibility CSS. */
+.react-search-form {
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) minmax(8rem, auto) auto;
+    gap: .65rem;
+}
+
+.react-toolbar-card { align-items: end; box-shadow: none; }
+
+.react-artwork-cover {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+}
+
+.react-artwork-cover img { width: 100%; height: 100%; }
+
+.react-artwork-play-button {
+    position: absolute;
+    z-index: 2;
+    top: .7rem;
+    right: .7rem;
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 50%;
+    background: var(--app-surface-solid);
+    color: var(--app-text);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(.3rem) scale(.96);
+    box-shadow: 0 .7rem 1.2rem rgb(0 0 0 / 22%);
+    transition: opacity var(--app-motion-fast) ease, transform var(--app-motion-fast) ease, background-color var(--app-motion-fast) ease;
+}
+
+.react-artwork-card:hover .react-artwork-play-button,
+.react-artwork-card:focus-within .react-artwork-play-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+.react-entity-card .react-entity-favorite { opacity: 0; pointer-events: auto; }
+.react-entity-card:hover .react-entity-favorite,
+.react-entity-card:focus-within .react-entity-favorite,
+.react-entity-card .react-entity-favorite.is-active { opacity: 1; }
+
+@media (max-width: 720px) {
+    .react-search-form { grid-template-columns: 1fr 1fr; }
+    .react-search-input,
+    .react-search-form > .react-player-button { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-artwork-play-button,
+    .react-entity-card .react-entity-favorite { transition: none; transform: none; }
 }

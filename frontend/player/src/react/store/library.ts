@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { playerApi, type UserListData, type UserPlaylist } from '../api'
 import { invalidateRequestCache, isAbortError } from '../data/request'
-import { songListId, songKey, type Song } from '../types'
+import { normalizeSongForList, sameSong, songListId, songKey, type Song } from '../types'
 
 let libraryController: AbortController | null = null
 let libraryRequestId = 0
@@ -17,6 +17,7 @@ export type LibraryState = {
   removeSong: (listId: string, song: Song) => Promise<void>
   removeSongs: (listId: string, songs: Song[]) => Promise<void>
   createList: (name: string) => Promise<UserPlaylist>
+  toggleRemotePlaylist: (detail: { id: string; source: string; name: string; image?: string }, songs: Song[]) => Promise<boolean>
   renameList: (listId: string, name: string) => Promise<void>
   deleteList: (listId: string) => Promise<void>
   reset: () => void
@@ -60,7 +61,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
   addSong: async (listId, song) => {
-    await playerApi.addToList(listId, [song])
+    await playerApi.addToList(listId, [normalizeSongForList(song)])
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
   },
@@ -83,6 +84,30 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
     return list
+  },
+  toggleRemotePlaylist: async (detail, songs) => {
+    const data = get().data
+    const source = String(detail.source || '').trim() || 'wy'
+    const sourceListId = String(detail.id)
+    const existing = (data.userList ?? []).find(list => String(list.source || '') === source && String(list.sourceListId ?? '') === sourceListId)
+    if (existing) {
+      await playerApi.saveListData({ ...data, userList: (data.userList ?? []).filter(list => String(list.id) !== String(existing.id)) })
+      invalidateRequestCache('library:lists')
+      await get().hydrate({ force: true })
+      return false
+    }
+    const list: UserPlaylist = {
+      id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: detail.name || '在线歌单',
+      source,
+      sourceListId,
+      img: detail.image,
+      list: songs.map(normalizeSongForList),
+    }
+    await playerApi.saveListData({ ...data, userList: [...(data.userList ?? []), list] })
+    invalidateRequestCache('library:lists')
+    await get().hydrate({ force: true })
+    return true
   },
   renameList: async (listId, name) => {
     const data = get().data
@@ -118,4 +143,8 @@ export const selectPlaylist = (listId: string) => (state: LibraryState): UserPla
 
 export function playlistSongs(list: UserPlaylist | undefined): Song[] {
   return list?.list?.filter(song => Boolean(song && songKey(song))) ?? []
+}
+
+export function playlistContainsSong(list: UserPlaylist | undefined, song: Song): boolean {
+  return Boolean(list?.list?.some(item => sameSong(item, song)))
 }
