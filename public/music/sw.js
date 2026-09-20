@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yun-yin-web-react-v2';
+const CACHE_NAME = 'yun-yin-web-react-v3';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',

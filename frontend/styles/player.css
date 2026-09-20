@@ -627,6 +627,10 @@ html, body {
 .react-empty i, .react-loading i { color: var(--c-500); font-size: 1.4rem; }
 .react-loading i { animation: react-player-spin 1s linear infinite; }
 .react-error { color: #dc2626; padding: .75rem; border-radius: .65rem; background: rgba(239,68,68,.08); }
+.react-error-view { min-height: min(28rem, 60vh); display: grid; place-items: center; align-content: center; gap: .75rem; padding: 2rem; color: var(--text-muted); text-align: center; }
+.react-error-view > i { color: #dc2626; font-size: 2rem; }
+.react-error-view h2 { color: var(--text-main); }
+.react-error-view p { max-width: 34rem; }
 .react-toolbar-card { display: flex; flex-wrap: wrap; gap: .85rem; align-items: center; padding: .85rem 1rem; }
 .react-toolbar-card label { display: inline-flex; align-items: center; gap: .45rem; color: var(--text-muted); font-size: .8rem; }
 .react-local-toolbar { justify-content: flex-start; }
@@ -643,6 +647,14 @@ html, body {
 .react-favorites-layout { display: grid; grid-template-columns: 220px minmax(0,1fr); gap: 1rem; align-items: start; }
 .react-list-sidebar { padding: .75rem; border: 1px solid var(--border-main); border-radius: 1rem; background: var(--bg-panel); }
 .react-list-sidebar h2 { padding: .35rem .5rem .7rem; font-size: .9rem; }
+.react-list-entry { display: flex; align-items: center; gap: .15rem; width: 100%; border-radius: .6rem; }
+.react-list-entry.is-active, .react-list-entry:hover { color: var(--c-600); background: color-mix(in srgb, var(--c-500) 10%, transparent); }
+.react-list-select { min-width: 0; flex: 1; display: flex; align-items: center; gap: .55rem; padding: .65rem .4rem .65rem .55rem; border: 0; border-radius: .6rem; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.react-list-select span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.react-list-select small { color: var(--text-dim); }
+.react-list-actions { display: inline-flex; align-items: center; gap: .05rem; padding-inline-end: .2rem; }
+.react-list-actions button { width: 2rem; height: 2rem; display: grid; place-items: center; border: 0; border-radius: .45rem; background: transparent; color: var(--text-dim); cursor: pointer; }
+.react-list-actions button:hover, .react-list-actions button:focus-visible { color: var(--c-600); background: color-mix(in srgb, var(--c-500) 12%, transparent); }
 .react-list-sidebar > button { width: 100%; display: flex; align-items: center; gap: .55rem; padding: .65rem .55rem; border: 0; border-radius: .6rem; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; text-align: left; }
 .react-list-sidebar > button span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .react-list-sidebar > button small { color: var(--text-dim); }
@@ -715,6 +727,9 @@ html, body {
 .react-progress-row input, .react-volume-range { min-width: 0; accent-color: var(--c-500); }
 .react-footer-visualizer { position: fixed; right: clamp(.8rem, 2.5vw, 2rem); bottom: 5.75rem; left: max(16rem, calc(50% - 18rem)); width: min(36rem, calc(100vw - 34rem)); height: 1.8rem; pointer-events: none; opacity: .72; }
 .react-footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: .3rem; }
+.react-like-button { width: auto !important; display: inline-flex; align-items: center; gap: .25rem; padding-inline: .4rem; }
+.react-like-button.is-active { color: var(--c-600); }
+.react-like-button span { font-size: .72rem; }
 .react-volume-range { width: 5rem; }
 .react-player-toast { position: fixed; right: 1.2rem; bottom: 6.4rem; z-index: 300; max-width: min(360px, calc(100vw - 2rem)); padding: .75rem .9rem; border-radius: .65rem; color: #fff; background: rgba(15,23,42,.9); box-shadow: var(--shadow-main); }
 .react-player-loading, .react-player-auth-page, .react-player-login-page { min-height: 100dvh; display: grid; place-items: center; background: var(--bg-main); color: var(--text-main); }
@@ -755,6 +770,7 @@ html, body {
   .react-favorites-layout, .react-settings-grid { grid-template-columns: 1fr; }
   .react-list-sidebar { display: flex; gap: .35rem; overflow: auto; padding: .5rem; }
   .react-list-sidebar h2 { display: none; }
+  .react-list-entry { width: auto; min-width: max-content; }
   .react-list-sidebar > button { width: auto; min-width: max-content; }
   .react-create-list { margin-top: 0; border-top: 0 !important; border-left: 1px dashed var(--border-main) !important; }
   .react-player-footer { grid-template-columns: minmax(0, 1fr) auto; gap: .35rem; padding: .45rem .6rem calc(.45rem + env(safe-area-inset-bottom)); }
@@ -763,6 +779,7 @@ html, body {
   .react-footer-actions { grid-column: 2; grid-row: 1; }
   .react-footer-visualizer { right: .65rem; bottom: 6.25rem; left: .65rem; width: auto; height: 1.4rem; }
   .react-volume-range { display: none; }
+  .react-like-button span { display: none; }
   .react-footer-controls { gap: .1rem; }
   .react-player-drawer { width: 100vw; }
   .react-detail-hero { align-items: flex-start; }
@@ -886,6 +903,17 @@ body > .flex.flex-1.overflow-hidden.relative {
     overflow: hidden;
     overflow: clip;
     overflow-clip-margin: 0;
+}
+
+/* The React content area is the single scroll owner. The legacy shell rule
+   above intentionally clips its old flex surface, but must not clip the
+   migrated React view itself. */
+#player-main-content.react-player-content {
+    display: block;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 
 #player-main-content > header {

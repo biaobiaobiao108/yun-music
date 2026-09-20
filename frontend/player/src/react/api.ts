@@ -9,7 +9,7 @@ export type PlayerConfig = RuntimeConfig & {
   'user.enablePublicFavorites'?: boolean
 }
 export type SearchType = 'song' | 'singer' | 'album' | 'playlist'
-export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: { id: string; name: string; list?: Song[] }[] }
+export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: { id: string | number; name: string; list?: Song[] }[] }
 export type CacheTask = Record<string, unknown> & { id?: string; songKey?: string; status?: string; progress?: number; name?: string }
 export type CacheStats = Record<string, unknown> & { cacheSize?: number; musicSize?: number; cacheCount?: number; musicCount?: number }
 export type CacheItem = Record<string, unknown> & {
@@ -71,7 +71,15 @@ export const playerApi = {
   songListTags: (source: string) => requestJson<unknown>(`/api/music/songList/tags?source=${encodeURIComponent(source)}`),
   songList: (source: string, tagId = '', sortId = 'hot', page = 1, signal?: AbortSignal) => requestJson<unknown>(`/api/music/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${page}`, { signal }),
   songListDetail: (source: string, id: string, signal?: AbortSignal) => requestJson<unknown>(`/api/music/songList/detail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`, { signal }),
-  leaderboardBoards: (source: string) => requestJson<unknown[]>(`/api/music/leaderboard/boards?source=${encodeURIComponent(source)}`),
+  leaderboardBoards: async (source: string) => {
+    const payload = await requestJson<unknown>(`/api/music/leaderboard/boards?source=${encodeURIComponent(source)}`)
+    if (Array.isArray(payload)) return payload
+    if (payload && typeof payload === 'object') {
+      const record = payload as Record<string, unknown>
+      for (const key of ['list', 'boards', 'data', 'result']) if (Array.isArray(record[key])) return record[key] as unknown[]
+    }
+    return []
+  },
   leaderboard: (source: string, boardId: string, page = 1, signal?: AbortSignal) => requestJson<unknown>(`/api/music/leaderboard/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(boardId)}&page=${page}`, { signal }),
   comments: (songInfo: Song, type: 'hot' | 'new', page = 1, limit = 20, signal?: AbortSignal) => requestJson<unknown>('/api/music/comment', { method: 'POST', body: JSON.stringify({ songInfo, type, page, limit }), signal }),
   customSources: (username?: string) => requestJson<CustomSource[]>(`/api/custom-source/list${username ? `?username=${encodeURIComponent(username)}` : ''}`),

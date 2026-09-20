@@ -22,10 +22,29 @@ export function assetUrl(path: string): string {
 }
 
 export function safeImageUrl(value: unknown, fallback = '/music/assets/yun-yin.png'): string {
-  const source = String(value ?? '').trim()
+  const source = (() => {
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>
+      for (const key of ['url', 'src', 'picUrl', 'img', 'cover', 'picture', 'avatar']) {
+        const candidate = record[key]
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+      }
+    }
+    return typeof value === 'string' ? value.trim() : String(value ?? '').trim()
+  })()
   if (!source) return fallback
-  if (/^(?:https?:|blob:|data:image\/)/i.test(source)) return source
   if (source.startsWith('/') || source.startsWith('./')) return source
+  if (/^(?:blob:|data:image\/)/i.test(source)) return source
+  try {
+    const base = typeof window === 'undefined' ? 'http://localhost/' : window.location.href
+    const parsed = new URL(source, base)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      if (parsed.protocol === 'http:' && typeof window !== 'undefined' && parsed.origin !== window.location.origin) parsed.protocol = 'https:'
+      return parsed.href
+    }
+  } catch {
+    // Invalid remote image URLs use the local placeholder below.
+  }
   return fallback
 }
 

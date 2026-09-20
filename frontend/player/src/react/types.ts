@@ -30,3 +30,23 @@ export function songTitle(song: Song | null | undefined): string {
 export function songArtist(song: Song | null | undefined): string {
   return String(song?.singer || song?.artist || '未知歌手')
 }
+
+export function songImage(song: Song | null | undefined): unknown {
+  if (!song) return undefined
+  const record = song as Record<string, unknown>
+  const nested = (...keys: string[]) => keys.flatMap(key => {
+    const value = record[key]
+    if (!value || typeof value !== 'object') return []
+    const nestedRecord = value as Record<string, unknown>
+    return ['url', 'src', 'picUrl', 'img', 'pic', 'cover', 'picture'].map(field => nestedRecord[field]).filter(Boolean)
+  })
+  return [
+    record.img,
+    record.pic,
+    record.picUrl,
+    record.cover,
+    record.picture,
+    record.albumImg,
+    ...nested('meta', 'album', 'al', 'music', 'songInfo'),
+  ].find(value => (typeof value === 'string' ? value.trim().length > 0 : Boolean(value)))
+}

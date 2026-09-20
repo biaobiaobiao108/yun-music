@@ -1,9 +1,9 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
 import { playerApi } from './api'
-import { Button, Drawer, Icon, Loading, Modal, SongMeta, Time, ToastRegion } from './components'
+import { Button, Drawer, Icon, Loading, Modal, SafeImage, SongMeta, Time, ToastRegion } from './components'
 import { AboutView, CommentsDialog, CreateListDialog, FavoritesView, LoginDialog, LyricsDialog, SearchView, SettingsView, UserLoginDialog } from './views'
 import { connectAudioCommands, connectPlayerNavigation, useAuthStore, useCacheStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore, useSleepTimerStore } from './store'
-import { songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
+import { songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from '../features/player_history'
 import { configureAudioGraph, ensureAudioGraph, getAudioAnalyser, releaseAudioGraph, subscribeAudioGraph } from './audio_graph'
@@ -39,6 +39,23 @@ function PlayerView({ tab, detail }: { tab: PlayerTab; detail: PlayerDetail | nu
     }
   })()
   return <Suspense fallback={<Loading label="正在加载页面…" />}>{view}</Suspense>
+}
+
+class PlayerErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[Player] 页面渲染失败', error, info.componentStack)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return <section className="react-error-view" role="alert"><Icon name="triangle-exclamation" /><h2>页面加载失败</h2><p>刚才的页面遇到异常，播放器的其他功能仍可继续使用。</p><Button variant="primary" onClick={() => this.setState({ error: null })}>重新加载页面</Button></section>
+  }
 }
 
 function Sidebar() {
@@ -112,14 +129,21 @@ function AudioRuntime() {
       }
     }
     const onPause = () => setPlaying(false)
-    const onTime = () => { setProgress(audio.currentTime, audio.duration); prefetchNext() }
+    const onTime = () => {
+      const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
+      setProgress(currentTime, duration)
+      prefetchNext()
+    }
     const onLoaded = () => {
       const state = usePlaybackStore.getState()
       const resumeTime = state.currentTime
-      setProgress(audio.currentTime, audio.duration)
-      if (settings.autoResume && resumeTime > 0 && resumeTime < audio.duration && recoveryAttempts.current.has(`resume:${songId}`) === false) {
+      const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
+      setProgress(currentTime, duration)
+      if (settings.autoResume && duration > 0 && resumeTime > 0 && resumeTime < duration && recoveryAttempts.current.has(`resume:${songId}`) === false) {
         audio.currentTime = resumeTime
-        setProgress(resumeTime, audio.duration)
+        setProgress(resumeTime, duration)
         recoveryAttempts.current.add(`resume:${songId}`)
       }
     }
@@ -170,7 +194,7 @@ function AudioRuntime() {
   }, [currentSong, notify, quality, setPlaying, songId])
 
   useEffect(() => { const audio = audioRef.current; if (!audio || !currentSong) return; if (isPlaying && audio.src) void audio.play().catch(() => setPlaying(false)); else if (!isPlaying) audio.pause() }, [currentSong, isPlaying, setPlaying])
-  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.album || '云音'), artwork: [{ src: safeImageUrl(currentSong.img ?? currentSong.pic) }] }); navigator.mediaSession.setActionHandler?.('play', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('pause', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('previoustrack', () => usePlaybackStore.getState().previous()); navigator.mediaSession.setActionHandler?.('nexttrack', () => usePlaybackStore.getState().next()) }, [currentSong])
+  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.album || '云音'), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('pause', () => usePlaybackStore.getState().toggle()); navigator.mediaSession.setActionHandler?.('previoustrack', () => usePlaybackStore.getState().previous()); navigator.mediaSession.setActionHandler?.('nexttrack', () => usePlaybackStore.getState().next()) }, [currentSong])
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
 
@@ -232,8 +256,20 @@ function LegacyPlayerFooter() {
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const notify = usePlayerUiStore(state => state.notify)
+  const addSong = useLibraryStore(state => state.addSong)
+  const removeSong = useLibraryStore(state => state.removeSong)
+  const isLiked = useLibraryStore(state => Boolean(currentSong && (state.data.loveList ?? []).some(song => songKey(song) === songKey(currentSong))))
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0
+  const safeCurrentTime = Number.isFinite(currentTime) && currentTime > 0 ? Math.min(currentTime, safeDuration) : 0
   const download = async () => { if (!currentSong) return; try { const result = typeof currentSong.url === 'string' ? { url: currentSong.url } : await playerApi.songUrl(currentSong, 'flac'); await playerApi.download(currentSong, result.url, 'flac'); notify('已加入下载队列'); setDrawer('download') } catch (error) { notify(error instanceof Error ? error.message : '下载失败') } }
-  return <footer id="player-footer" className="react-player-footer"><button type="button" className="react-footer-song" onClick={() => setDialog('lyrics')} aria-label="打开歌词"><img src={safeImageUrl(currentSong?.img ?? currentSong?.pic)} width="52" height="52" alt="" /><span><SongMeta song={currentSong} /></span></button><div className="react-footer-center"><div className="react-footer-controls"><button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button><button type="button" id="btn-play" className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button><button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button><button type="button" className={`player-secondary-action ${mode !== 'list' ? 'is-active' : ''}`} aria-label={`播放模式：${mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'}`} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : mode === 'single' ? 'repeat-1' : 'repeat'} /></button></div><div className="react-progress-row"><Time value={currentTime} /><input type="range" min="0" max={Math.max(duration, 0)} step="0.1" value={Math.min(currentTime, duration || 0)} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><Time value={duration} /></div></div><div className="react-footer-actions"><button type="button" className="player-secondary-action" aria-label={muted ? '取消静音' : '静音'} onClick={toggleMute}><Icon name={muted || volume === 0 ? 'volume-xmark' : volume < 0.5 ? 'volume-low' : 'volume-high'} /></button><input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" /><button type="button" className="player-secondary-action" aria-label="打开评论" onClick={() => setDialog('comments')}><Icon name="comments" /></button><button type="button" className="player-secondary-action" aria-label="下载歌曲" onClick={() => void download()}><Icon name="download" /></button><button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={() => setDialog('sleep')}><Icon name="moon" /></button><button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button></div></footer>
+  const toggleLike = async () => {
+    if (!currentSong) { notify('请选择歌曲后再收藏'); return }
+    try {
+      if (isLiked) { await removeSong('love', currentSong); notify('已取消喜欢') }
+      else { await addSong('love', currentSong); notify('已添加到喜欢') }
+    } catch (error) { notify(error instanceof Error ? error.message : '喜欢操作失败') }
+  }
+  return <footer id="player-footer" className="react-player-footer"><button type="button" className="react-footer-song" onClick={() => setDialog('lyrics')} aria-label="打开歌词"><SafeImage src={songImage(currentSong)} width="52" height="52" alt="" /><span><SongMeta song={currentSong} /></span></button><div className="react-footer-center"><div className="react-footer-controls"><button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button><button type="button" id="btn-play" className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button><button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button><button type="button" className={`player-secondary-action ${mode !== 'list' ? 'is-active' : ''}`} aria-label={`播放模式：${mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'}`} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : mode === 'single' ? 'repeat-1' : 'repeat'} /></button></div><div className="react-progress-row"><Time value={safeCurrentTime} /><input type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><Time value={safeDuration} /></div></div><div className="react-footer-actions"><button type="button" id="player-like-btn" className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name={isLiked ? 'heart' : 'heart'} /><span>喜欢</span></button><button type="button" className="player-secondary-action" aria-label={muted ? '取消静音' : '静音'} onClick={toggleMute}><Icon name={muted || volume === 0 ? 'volume-xmark' : volume < 0.5 ? 'volume-low' : 'volume-high'} /></button><input className="react-volume-range" type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" /><button type="button" className="player-secondary-action" aria-label="打开评论" onClick={() => setDialog('comments')}><Icon name="comments" /></button><button type="button" className="player-secondary-action" aria-label="下载歌曲" onClick={() => void download()}><Icon name="download" /></button><button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={() => setDialog('sleep')}><Icon name="moon" /></button><button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button></div></footer>
 }
 
 function PlayerFooter() {
@@ -255,7 +291,7 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const load = useCacheStore(state => state.load)
   const remove = useCacheStore(state => state.remove)
   useEffect(() => { if (open) void load() }, [load, open])
-  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(stats?.cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(stats?.musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load()}><Icon name="rotate" />刷新</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); return <li key={id}><span><strong>{String(task.name || task.songKey || '下载任务')}</strong><small>{String(task.status || '等待中')}</small></span><button type="button" onClick={() => void remove(id)} aria-label="移除任务"><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
+  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(stats?.cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(stats?.musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load()}><Icon name="rotate" />刷新</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); return <li key={`${id}-${index}`}><span><strong>{String(task.name || task.songKey || '下载任务')}</strong><small>{String(task.status || '等待中')}</small></span><button type="button" onClick={() => void remove(id)} aria-label="移除任务"><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
 }
 
 function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -329,7 +365,7 @@ export function PlayerShell() {
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
   }, [])
   useEffect(() => { if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(usePlaybackStore.getState().duration)) { try { navigator.mediaSession.setPositionState({ duration: Math.max(0.1, usePlaybackStore.getState().duration), playbackRate: 1, position: Math.min(usePlaybackStore.getState().currentTime, usePlaybackStore.getState().duration) }) } catch { /* browser may reject transient media metadata */ } } }, [currentSong])
-  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerView tab={tab} detail={detail} /></main><PlayerFooter /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><LyricsDialog open={dialog === 'lyrics'} onClose={() => setDialog(null)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><LyricsDialog open={dialog === 'lyrics'} onClose={() => setDialog(null)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
 }
 
 export function PlayerAuthGate() {
