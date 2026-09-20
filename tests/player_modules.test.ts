@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
-import { songKey } from '../frontend/player/src/react/types'
+import { songKey, songListId } from '../frontend/player/src/react/types'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
 import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
 import { songEntityDetail, songEntityId, songEntityName } from '../frontend/player/src/react/song_details'
@@ -45,6 +45,8 @@ describe('React player module boundaries', () => {
   it('keeps URL/lyric parsing and source identity type-safe', () => {
     const song = { source: 'wy', songmid: 12345, name: '测试' }
     expect(songKey(song)).toBe('wy:12345')
+    expect(songListId({ id: 'wy_12345', songmid: 12345 })).toBe('wy_12345')
+    expect(songListId({ songmid: 12345 })).toBe('12345')
     const lines = parseLyric({ lyric: '[00:01.20]第一句\n[00:03.50]第二句', tlyric: '[00:01.20]translation' })
     expect(lines).toEqual([
       { time: 1.2, text: '第一句', translation: 'translation' },

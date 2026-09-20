@@ -209,51 +209,115 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
   return <ViewFrame title="搜索音乐" subtitle="搜索歌曲、歌手、专辑与歌单"><section className="react-search-card t-bg-panel"><form className="react-search-form" onSubmit={submit}><label htmlFor="player-search" className="sr-only">搜索音乐</label><div className="react-search-input"><Icon name="search" /><input id="player-search" value={input} onChange={event => { setInput(event.target.value); setQuery(event.target.value) }} placeholder="搜索音乐、歌手、专辑或歌单" autoComplete="off" /><button type="button" aria-label="清空搜索" onClick={() => { setInput(''); setQuery('') }}><Icon name="xmark" /></button></div><select aria-label="音源" value={source} onChange={event => useSearchStore.setState({ source: event.target.value })}><option value="wy">网易云</option><option value="tx">QQ音乐</option></select><select aria-label="搜索类型" value={type} onChange={event => setType(event.target.value as SearchType)}><option value="song">歌曲</option><option value="singer">歌手</option><option value="album">专辑</option><option value="playlist">歌单</option></select><Button variant="primary" type="submit" disabled={loading}><Icon name="search" />搜索</Button></form>{!results.length && !query && <div className="react-hot-search"><h2>热门搜索</h2><div>{hot.slice(0, 20).map((item, index) => { const text = typeof item === 'string' ? item : String((item as Record<string, unknown>)?.name ?? (item as Record<string, unknown>)?.keyword ?? item); return <button type="button" key={`${text}-${index}`} onClick={() => { setInput(text); void search(text, 1) }}>{text}</button> })}</div></div>}</section><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>{query ? `“${query}”的${label}结果` : '搜索结果'}</h2>{results.length > 0 && <p>共显示 {results.length} 条</p>}</div><div className="react-pagination"><button type="button" aria-label="上一页" disabled={page <= 1 || loading} onClick={() => void search(query, page - 1)}><Icon name="chevron-left" /></button><span>第 {page} 页</span><button type="button" aria-label="下一页" disabled={!query || loading || results.length < 40} onClick={() => void search(query, page + 1)}><Icon name="chevron-right" /></button></div></div>{loading ? <Loading label="正在搜索…" /> : error ? <p className="react-error" role="alert">{error}</p> : resultView}</section></ViewFrame>
 }
 
-export function FavoritesView() {
-  const data = useLibraryStore(state => state.data)
-  const loading = useLibraryStore(state => state.loading)
-  const removeSong = useLibraryStore(state => state.removeSong)
-  const renameList = useLibraryStore(state => state.renameList)
-  const deleteList = useLibraryStore(state => state.deleteList)
+type SongCollectionViewProps = {
+  listId: string
+  name: string
+  songs: Song[]
+  loading: boolean
+  error: string
+  onRename?: (name: string) => Promise<void>
+  onDelete?: () => Promise<void>
+}
+
+function SongCollectionView({ listId, name, songs, loading, error, onRename, onDelete }: SongCollectionViewProps) {
+  const removeSongs = useLibraryStore(state => state.removeSongs)
+  const playSong = usePlaybackStore(state => state.playSong)
   const notify = usePlayerUiStore(state => state.notify)
-  const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
-  const setFavoriteListId = usePlayerUiStore(state => state.setFavoriteListId)
-  const [selectedList, setSelectedList] = useState(favoriteListId || 'love')
+  const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedSongs, setSelectedSongs] = useState<Set<string>>(new Set())
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null)
-  const [renameValue, setRenameValue] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const lists = [
-    { id: 'default', key: 'default', name: '默认列表', list: data.defaultList ?? [] },
-    { id: 'love', key: 'love', name: '我喜欢的音乐', list: data.loveList ?? [] },
-    ...(data.userList ?? []).map((list, index) => ({ id: String(list.id), key: `${String(list.id)}-${index}`, name: list.name, list: list.list ?? [] })),
-  ]
-  const active = lists.find(list => String(list.id) === selectedList) ?? lists[0]
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState(name)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   useEffect(() => {
-    if (lists.some(list => String(list.id) === favoriteListId)) setSelectedList(favoriteListId)
-  }, [favoriteListId, lists.length])
-  useEffect(() => { setSelectedSongs(new Set()) }, [active?.key])
-  const toggleSong = (song: Song) => setSelectedSongs(current => { const next = new Set(current); const key = songKey(song); if (next.has(key)) next.delete(key); else next.add(key); return next })
-  const removeBatch = async () => {
-    if (!active) return
-    try { await Promise.all(active.list.filter(song => selectedSongs.has(songKey(song))).map(song => removeSong(active.id, song))); notify(`已从歌单移除 ${selectedSongs.size} 首歌曲`); setSelectedSongs(new Set()); setConfirmOpen(false) } catch (error) { notify(error instanceof Error ? error.message : '批量移除失败') }
+    setSelectedSongs(new Set())
+    setBatchMode(false)
+    setRenameValue(name)
+  }, [listId, name])
+  const selectedListSongs = useMemo(() => songs.filter(song => selectedSongs.has(songKey(song))), [selectedSongs, songs])
+  const toggleSong = (song: Song) => setSelectedSongs(current => {
+    const next = new Set(current)
+    const key = songKey(song)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    return next
+  })
+  const selectAll = () => setSelectedSongs(new Set(songs.map(songKey)))
+  const playRandom = () => {
+    if (!songs.length) {
+      notify('当前歌单没有歌曲')
+      return
+    }
+    const index = Math.floor(Math.random() * songs.length)
+    playSong(songs[index], songs, index)
   }
-  const selectAll = () => setSelectedSongs(new Set(active?.list.map(songKey) ?? []))
+  const removeBatch = async () => {
+    if (!selectedListSongs.length) return
+    try {
+      await removeSongs(listId, selectedListSongs)
+      notify(`已从“${name}”移除 ${selectedListSongs.length} 首歌曲`)
+      setSelectedSongs(new Set())
+      setConfirmOpen(false)
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : '批量移除失败')
+    }
+  }
   const submitRename = async (event: FormEvent) => {
     event.preventDefault()
-    if (!renameTarget || !renameValue.trim()) return
-    try { await renameList(renameTarget.id, renameValue.trim()); notify('歌单已重命名'); setRenameTarget(null) } catch (error) { notify(error instanceof Error ? error.message : '歌单重命名失败') }
+    const nextName = renameValue.trim()
+    if (!onRename || !nextName) return
+    try {
+      await onRename(nextName)
+      setRenameOpen(false)
+      notify('歌单已重命名')
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : '歌单重命名失败')
+    }
   }
   const confirmDelete = async () => {
-    if (!deleteTarget) return
-    try { await deleteList(deleteTarget.id); setSelectedList('love'); setFavoriteListId('love'); setDeleteTarget(null); notify('歌单已删除') } catch (error) { notify(error instanceof Error ? error.message : '歌单删除失败') }
+    if (!onDelete) return
+    try {
+      await onDelete()
+      setDeleteOpen(false)
+      openFavoriteList('love')
+      notify('歌单已删除')
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : '歌单删除失败')
+    }
   }
-  return <ViewFrame title="我的音乐" subtitle="管理收藏歌曲与个人歌单"><section className="react-favorites-layout"><aside className="react-list-sidebar"><h2>我的歌单</h2>{lists.map(list => <div className={`react-list-entry ${active?.key === list.key ? 'is-active' : ''}`} key={list.key}><button type="button" className="react-list-select" onClick={() => { const id = String(list.id); setSelectedList(id); setFavoriteListId(id); setSelectedSongs(new Set()); setBatchMode(false) }}><Icon name={list.id === 'love' ? 'heart' : 'music'} /><span>{list.name}</span><small>{list.list.length}</small></button>{list.id !== 'love' && <span className="react-list-actions"><button type="button" aria-label={`重命名歌单 ${list.name}`} title="重命名歌单" onClick={() => { setRenameTarget({ id: list.id, name: list.name }); setRenameValue(list.name) }}><Icon name="pen" /></button><button type="button" aria-label={`删除歌单 ${list.name}`} title="删除歌单" onClick={() => setDeleteTarget({ id: list.id, name: list.name })}><Icon name="trash" /></button></span>}</div>)}<CreateListButton /></aside><section className="react-content-card t-bg-panel react-favorites-content"><div className="react-section-heading"><div><h2>{active?.name ?? '我的歌单'}</h2><p>{active?.list.length ?? 0} 首歌曲{batchMode && selectedSongs.size ? ` · 已选择 ${selectedSongs.size} 首` : ''}</p></div><div className="react-dialog-actions">{batchMode && <><Button onClick={selectAll} disabled={!active?.list.length}>全选</Button><Button onClick={() => setSelectedSongs(new Set())} disabled={!selectedSongs.size}>取消选择</Button><Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selectedSongs.size}>批量移除</Button></>}<Button onClick={() => { setBatchMode(value => !value); setSelectedSongs(new Set()) }}>{batchMode ? '退出多选' : '多选操作'}</Button></div></div>{loading ? <Loading /> : <SongList songs={active?.list ?? []} listId={active?.id ?? 'love'} selected={batchMode ? selectedSongs : undefined} onSelect={batchMode ? toggleSong : undefined} empty="歌单还是空的，去搜索音乐吧" />}<Modal open={confirmOpen} title="批量移除歌曲" onClose={() => setConfirmOpen(false)}><p>确定从“{active?.name ?? '当前歌单'}”移除选中的 {selectedSongs.size} 首歌曲吗？</p><div className="react-dialog-actions"><Button onClick={() => setConfirmOpen(false)}>取消</Button><Button variant="danger" onClick={() => void removeBatch()}>确认移除</Button></div></Modal><Modal open={Boolean(renameTarget)} title="重命名歌单" onClose={() => setRenameTarget(null)}><form className="react-dialog-form" onSubmit={submitRename}><label htmlFor="rename-list-name">新的歌单名称</label><input id="rename-list-name" value={renameValue} onChange={event => setRenameValue(event.target.value)} maxLength={80} required /><div className="react-dialog-actions"><Button type="button" onClick={() => setRenameTarget(null)}>取消</Button><Button variant="primary" type="submit">保存</Button></div></form></Modal><Modal open={Boolean(deleteTarget)} title="删除歌单" onClose={() => setDeleteTarget(null)}><p>确定删除歌单“{deleteTarget?.name ?? ''}”吗？其中的歌曲也会从该歌单移除。</p><div className="react-dialog-actions"><Button type="button" onClick={() => setDeleteTarget(null)}>取消</Button><Button variant="danger" type="button" onClick={() => void confirmDelete()}>确认删除</Button></div></Modal></section></section></ViewFrame>
+  const headerActions = <div className="react-view-header-actions"><Button variant="primary" onClick={playRandom} disabled={!songs.length}><Icon name="play" />随机漫游</Button>{onRename && <Button onClick={() => { setRenameValue(name); setRenameOpen(true) }}><Icon name="pen" />重命名</Button>}{onDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Icon name="trash" />删除</Button>}</div>
+  return <ViewFrame title={name} subtitle={`${songs.length} 首歌曲`} actions={headerActions}><section className="react-content-card t-bg-panel react-playlist-page"><div className="react-section-heading"><div><h2>歌曲</h2><p>{batchMode && selectedSongs.size ? `已选择 ${selectedSongs.size} 首` : listId === 'love' ? '我喜欢的音乐' : '歌单歌曲'}</p></div><div className="react-dialog-actions">{batchMode && <><Button onClick={selectAll} disabled={!songs.length}>全选</Button><Button onClick={() => setSelectedSongs(new Set())} disabled={!selectedSongs.size}>取消选择</Button><Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selectedSongs.size}>批量移除</Button></>}<Button onClick={() => { setBatchMode(value => !value); setSelectedSongs(new Set()) }}>{batchMode ? '退出多选' : '多选操作'}</Button></div></div>{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} listId={listId} selected={batchMode ? selectedSongs : undefined} onSelect={batchMode ? toggleSong : undefined} empty={listId === 'love' ? '还没有喜欢的歌曲，去搜索音乐吧' : '歌单还是空的，去搜索音乐吧'} />}<Modal open={confirmOpen} title="批量移除歌曲" onClose={() => setConfirmOpen(false)}><p>确定从“{name}”移除选中的 {selectedSongs.size} 首歌曲吗？</p><div className="react-dialog-actions"><Button onClick={() => setConfirmOpen(false)}>取消</Button><Button variant="danger" onClick={() => void removeBatch()}>确认移除</Button></div></Modal><Modal open={renameOpen} title="重命名歌单" onClose={() => setRenameOpen(false)}><form className="react-dialog-form" onSubmit={submitRename}><label htmlFor="rename-list-name">新的歌单名称</label><input id="rename-list-name" value={renameValue} onChange={event => setRenameValue(event.target.value)} maxLength={80} required /><div className="react-dialog-actions"><Button type="button" onClick={() => setRenameOpen(false)}>取消</Button><Button variant="primary" type="submit">保存</Button></div></form></Modal><Modal open={deleteOpen} title="删除歌单" onClose={() => setDeleteOpen(false)}><p>确定删除歌单“{name}”吗？其中的歌曲也会从该歌单移除。</p><div className="react-dialog-actions"><Button type="button" onClick={() => setDeleteOpen(false)}>取消</Button><Button variant="danger" type="button" onClick={() => void confirmDelete()}>确认删除</Button></div></Modal></section></ViewFrame>
 }
 
-function CreateListButton() { const setDialog = usePlayerUiStore(state => state.setDialog); return <button type="button" className="react-create-list" onClick={() => setDialog('createList')}><Icon name="plus" />新建歌单</button> }
+function LoveListView({ data, loading, error }: { data: ReturnType<typeof useLibraryStore.getState>['data']; loading: boolean; error: string }) {
+  return <SongCollectionView listId="love" name="我喜欢的音乐" songs={data.loveList ?? []} loading={loading} error={error} />
+}
+
+function UserPlaylistView({ listId, data, loading, error }: { listId: string; data: ReturnType<typeof useLibraryStore.getState>['data']; loading: boolean; error: string }) {
+  const notify = usePlayerUiStore(state => state.notify)
+  const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
+  const renameList = useLibraryStore(state => state.renameList)
+  const deleteList = useLibraryStore(state => state.deleteList)
+  const list = useMemo(() => (data.userList ?? []).find(item => String(item.id) === listId), [data.userList, listId])
+  useEffect(() => {
+    if (!loading && !list) {
+      notify('歌单不存在，已返回我喜欢的音乐')
+      openFavoriteList('love')
+    }
+  }, [list, loading, notify, openFavoriteList])
+  if (!list) return <ViewFrame title="歌单" subtitle="正在恢复歌单内容"><section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载歌单…" /> : <div className="react-empty"><Icon name="list" /><p>歌单不存在或已被删除</p><Button variant="primary" onClick={() => openFavoriteList('love')}>返回我喜欢的音乐</Button></div>}</section></ViewFrame>
+  const name = String(list.name || '未命名歌单')
+  return <SongCollectionView listId={listId} name={name} songs={list.list ?? []} loading={loading} error={error} onRename={nextName => renameList(listId, nextName)} onDelete={() => deleteList(listId)} />
+}
+
+export function FavoritesView() {
+  const data = useLibraryStore(state => state.data)
+  const loading = useLibraryStore(state => state.loading)
+  const error = useLibraryStore(state => state.error)
+  const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
+  return favoriteListId === 'love' ? <LoveListView data={data} loading={loading} error={error} /> : <UserPlaylistView listId={favoriteListId} data={data} loading={loading} error={error} />
+}
 
 function CustomSourcesContent() {
   const userName = useAuthStore(state => state.userName)
@@ -313,7 +377,7 @@ export function AboutView() {
   return <ViewFrame title="关于云音" subtitle="一个轻量、可自部署的 Web 音乐播放器"><section className="react-content-card t-bg-panel"><div className="react-about-content" dangerouslySetInnerHTML={{ __html: content }} /></section></ViewFrame>
 }
 
-export function ViewFrame({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) { return <section id={`view-${title}`} className="player-main-view react-view"><header className="react-view-header"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div></header>{children}</section> }
+export function ViewFrame({ title, subtitle, actions, children }: { title: string; subtitle?: string; actions?: React.ReactNode; children: React.ReactNode }) { return <section id={`view-${title}`} className="player-main-view react-view"><header className="react-view-header"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{actions}</header>{children}</section> }
 
 export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose: () => void }) {
   const song = usePlaybackStore(state => state.currentSong)
@@ -444,10 +508,11 @@ export function UserLoginDialog({ open, onClose }: { open: boolean; onClose: () 
 export function CreateListDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const createList = useLibraryStore(state => state.createList)
   const notify = usePlayerUiStore(state => state.notify)
+  const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
   const pendingSong = usePlayerUiStore(state => state.playlistSong)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const [name, setName] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); if (!name.trim()) return; try { await createList(name.trim()); setName(''); if (pendingSong) setDialog('addToList'); else onClose(); notify('歌单已创建') } catch (error) { notify(error instanceof Error ? error.message : '创建歌单失败') } }
+  const submit = async (event: FormEvent) => { event.preventDefault(); if (!name.trim()) return; try { const created = await createList(name.trim()); setName(''); if (pendingSong) setDialog('addToList'); else { onClose(); openFavoriteList(String(created.id)) }; notify('歌单已创建') } catch (error) { notify(error instanceof Error ? error.message : '创建歌单失败') } }
   return <Modal open={open} title="新建歌单" onClose={onClose}><form className="react-dialog-form" onSubmit={submit}><label htmlFor="new-list-name">歌单名称</label><input id="new-list-name" value={name} onChange={event => setName(event.target.value)} required maxLength={80} /><Button variant="primary" type="submit">创建</Button></form></Modal>
 }
 

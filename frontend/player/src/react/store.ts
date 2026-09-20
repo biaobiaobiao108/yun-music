@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { playerApi, parseLyric, persistLegacySettings, readLegacySettings, type CommentItem } from './api'
-import type { PlayerConfig, SearchType, UserListData } from './api'
+import type { PlayerConfig, SearchType, UserListData, UserPlaylist } from './api'
 import { readJson, readString, writeJson, writeString } from '../../../shared/src/storage'
 import { applyThemePreferences } from '../../../shared/src/theme'
 import type { DrawerName, LyricLine, PlayMode, PlayerDetail, PlayerTab, Song } from './types'
-import { songKey } from './types'
+import { songKey, songListId } from './types'
 
 function browserStorage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage
@@ -114,6 +114,12 @@ function applyAppearance(settings: Record<string, unknown>) {
 
 type PlayerNavigation = { tab: PlayerTab; detail: PlayerDetail | null; listId?: string }
 let playerNavigation: ((navigation: PlayerNavigation) => void) | null = null
+
+function favoriteHash(listId: string): string {
+  const normalized = String(listId || 'love')
+  return normalized === 'love' ? '#favorites' : `#favorites?listId=${encodeURIComponent(normalized)}`
+}
+
 export function connectPlayerNavigation(navigate: (navigation: PlayerNavigation) => void): () => void {
   playerNavigation = navigate
   return () => { if (playerNavigation === navigate) playerNavigation = null }
@@ -127,11 +133,11 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   tab: 'home', detail: null, favoriteListId: 'love', sidebarOpen: false, drawer: null, dialog: null, playlistSong: null, immersiveLyrics: false, notice: '',
   setTab: (tab) => {
     const state = get()
-    if (state.tab === tab && !state.detail) return
-    const listId = tab === 'favorites' ? state.favoriteListId : undefined
-    set({ tab, detail: null, sidebarOpen: false })
+    const listId = tab === 'favorites' ? 'love' : undefined
+    if (state.tab === tab && !state.detail && (tab !== 'favorites' || state.favoriteListId === 'love')) return
+    set({ tab, detail: null, favoriteListId: tab === 'favorites' ? 'love' : state.favoriteListId, sidebarOpen: false })
     if (playerNavigation) playerNavigation({ tab, detail: null, listId })
-    else if (typeof window !== 'undefined') window.history.pushState({ tab }, '', `#${tab}`)
+    else if (typeof window !== 'undefined') window.history.pushState({ tab, ...(listId ? { listId } : {}) }, '', tab === 'favorites' ? favoriteHash(listId || 'love') : `#${tab}`)
   },
   setDetail: detail => { set({ detail }); if (playerNavigation) playerNavigation({ tab: get().tab, detail, listId: get().tab === 'favorites' ? get().favoriteListId : undefined }); else if (typeof window !== 'undefined') window.history.pushState({ tab: get().tab, detail }, '', `#${get().tab}`) },
   openLibraryDetail: (tab, detail) => {
@@ -141,11 +147,14 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   },
   setFavoriteListId: favoriteListId => set({ favoriteListId }),
   openFavoriteList: favoriteListId => {
-    set({ tab: 'favorites', detail: null, favoriteListId, sidebarOpen: false })
-    if (playerNavigation) playerNavigation({ tab: 'favorites', detail: null, listId: favoriteListId })
-    else if (typeof window !== 'undefined') window.history.pushState({ tab: 'favorites', listId: favoriteListId }, '', '#favorites')
+    const listId = String(favoriteListId || 'love')
+    const state = get()
+    if (state.tab === 'favorites' && state.favoriteListId === listId && !state.detail) return
+    set({ tab: 'favorites', detail: null, favoriteListId: listId, sidebarOpen: false })
+    if (playerNavigation) playerNavigation({ tab: 'favorites', detail: null, listId })
+    else if (typeof window !== 'undefined') window.history.pushState({ tab: 'favorites', listId }, '', favoriteHash(listId))
   },
-  setTabFromHistory: (tab, detail = null, favoriteListId = 'love') => set({ tab, detail, favoriteListId, sidebarOpen: false }),
+  setTabFromHistory: (tab, detail = null, favoriteListId = 'love') => set({ tab, detail, favoriteListId: tab === 'favorites' ? String(favoriteListId || 'love') : get().favoriteListId, sidebarOpen: false }),
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
   closeSidebar: () => set({ sidebarOpen: false }),
   setDrawer: (drawer) => set({ drawer }),
@@ -209,13 +218,16 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   loadHot: async () => { try { set({ hot: await playerApi.hotSearch(get().source) }) } catch { set({ hot: [] }) } },
 }))
 
-type LibraryState = { data: UserListData; loading: boolean; error: string; hydrate: () => Promise<void>; addSong: (listId: string, song: Song) => Promise<void>; removeSong: (listId: string, song: Song) => Promise<void>; createList: (name: string) => Promise<void>; renameList: (listId: string, name: string) => Promise<void>; deleteList: (listId: string) => Promise<void> }
+type LibraryState = { data: UserListData; loading: boolean; error: string; hydrate: () => Promise<void>; addSong: (listId: string, song: Song) => Promise<void>; removeSong: (listId: string, song: Song) => Promise<void>; removeSongs: (listId: string, songs: Song[]) => Promise<void>; createList: (name: string) => Promise<UserPlaylist>; renameList: (listId: string, name: string) => Promise<void>; deleteList: (listId: string) => Promise<void> }
 export const useLibraryStore = create<LibraryState>((set, get) => ({
-  data: { defaultList: [], loveList: [], userList: [] }, loading: false, error: '',
+  // Keep the initial state loading so a direct #favorites?listId=… navigation
+  // is not mistaken for a deleted playlist before the first hydration finishes.
+  data: { defaultList: [], loveList: [], userList: [] }, loading: true, error: '',
   hydrate: async () => { set({ loading: true }); try { set({ data: await playerApi.listData(), error: '' }) } catch (error) { set({ error: error instanceof Error ? error.message : '歌单加载失败' }) } finally { set({ loading: false }) } },
   addSong: async (listId, song) => { await playerApi.addToList(listId, [song]); await get().hydrate() },
-  removeSong: async (listId, song) => { await playerApi.removeFromList(listId, [String(song.songmid ?? song.id)]); await get().hydrate() },
-  createList: async (name) => { const data = get().data; const list = { id: `list_${Date.now()}`, name, list: [] }; await playerApi.saveListData({ ...data, userList: [...(data.userList ?? []), list] }); await get().hydrate() },
+  removeSong: async (listId, song) => { await get().removeSongs(listId, [song]) },
+  removeSongs: async (listId, songs) => { const songIds = [...new Set(songs.map(songListId).filter(Boolean))]; if (!songIds.length) return; await playerApi.removeFromList(listId, songIds); await get().hydrate() },
+  createList: async (name) => { const data = get().data; const list: UserPlaylist = { id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name, list: [] }; await playerApi.saveListData({ ...data, userList: [...(data.userList ?? []), list] }); await get().hydrate(); return list },
   renameList: async (listId, name) => { const data = get().data; const userList = (data.userList ?? []).map(list => String(list.id) === String(listId) ? { ...list, name } : list); await playerApi.saveListData({ ...data, userList }); await get().hydrate() },
   deleteList: async (listId) => { const data = get().data; await playerApi.saveListData({ ...data, userList: (data.userList ?? []).filter(list => String(list.id) !== String(listId)) }); await get().hydrate() },
 }))

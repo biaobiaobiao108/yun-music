@@ -52,6 +52,8 @@ React 继续兼容以下 hash 地址：
 
 `#search`、`#songlist`、`#leaderboard`、`#favorites`、`#localmusic`、`#settings`、`#about`，以及首页、最近、专辑、歌手、风格和音乐库入口。
 
+收藏与自定义歌单使用同一组兼容路由：`#favorites` 固定表示“我喜欢的音乐”；自定义歌单使用 `#favorites?listId=<id>`，历史状态中的 `listId` 也会被恢复。侧栏只展示 `userList`，旧 `defaultList` 仍随歌单数据和快照保存，但不作为用户可见导航项。首页可以提供歌单快捷入口，但不会把自定义歌单嵌入收藏页。
+
 `frontend/player/src/features/player_history.ts` 只管理浏览器 History API 的序列化状态；详情状态包含页面、实体类型、来源、ID，并保留名称和封面作为返回时的即时展示数据。组件通过 `setTabFromHistory` 恢复界面，不直接拼接 HTML。
 
 ## 存储与 API 兼容
@@ -61,6 +63,8 @@ React 继续兼容以下 hash 地址：
 `lx_settings`、`lx_playback_state`、`lx_volume`、`lx_play_mode`、`lx_user_name`、`lx_download_tasks`、`play_history` 以及歌词和 IndexedDB 缓存。
 
 自定义音源、缓存/下载、歌词翻译与罗马音、歌单切换加入/移除、管理员存储统计均通过既有 API 客户端调用。新 UI 不应新增第二套播放、缓存或认证协议。
+
+歌曲列表页面统一复用密集列表组件：歌曲封面、歌曲/歌手、专辑、收藏、时长、大小、格式和行操作保持稳定列结构；收藏动作始终针对 `loveList`，自定义歌单的移除动作位于行操作和批量操作中。新建歌单完成后，普通创建流程会进入新歌单页；从“添加到歌单”流程创建时会保留待添加歌曲。
 
 缓存统计接口当前返回 `cache` / `music` 两个分组，分别包含 `fileCount` 和 `totalSize`；播放器缓存抽屉与后台仪表盘都按分组读取，同时兼容旧版扁平字段。歌曲下载链接必须挂载到 `document.body` 后触发，避免浏览器忽略脱离文档的锚点点击。
 

@@ -47,23 +47,25 @@ export function SongRow({ song, index, list, listId = 'love', compact = false, s
   const enqueue = usePlaybackStore(state => state.enqueue)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
-  const inList = useLibraryStore(state => listId === 'love' ? (state.data.loveList ?? []).some(item => songKey(item) === songKey(song)) : (state.data.userList ?? []).find(listItem => String(listItem.id) === String(listId))?.list?.some(item => songKey(item) === songKey(song)) ?? false)
+  const isLoved = useLibraryStore(state => (state.data.loveList ?? []).some(item => songKey(item) === songKey(song)))
   const notify = usePlayerUiStore(state => state.notify)
-  const actionLabel = listId === 'love' ? (inList ? '取消收藏' : '收藏') : '从歌单移除'
-  const updateList = () => {
-    const operation = listId === 'love' && !inList ? addSong('love', song) : removeSong(listId, song)
-    void operation.then(() => notify(listId === 'love' && !inList ? '已收藏' : listId === 'love' ? '已取消收藏' : '已从歌单移除')).catch(error => notify(error instanceof Error ? error.message : '操作失败'))
+  const toggleFavorite = () => {
+    const operation = isLoved ? removeSong('love', song) : addSong('love', song)
+    void operation.then(() => notify(isLoved ? '已取消收藏' : '已收藏')).catch(error => notify(error instanceof Error ? error.message : '操作失败'))
+  }
+  const removeFromPlaylist = () => {
+    void removeSong(listId, song).then(() => notify('已从歌单移除')).catch(error => notify(error instanceof Error ? error.message : '操作失败'))
   }
   return <li className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''}`}>
     {onSelect && <span className="react-song-select"><input type="checkbox" checked={selected} onChange={() => onSelect(song)} aria-label={`选择 ${songTitle(song)}`} /></span>}
     <span className="react-song-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
     <button type="button" className="react-song-main" onClick={() => playSong(song, list, index)}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button>
     <span className="react-song-album" title={songAlbum(song)}>{songAlbum(song)}</span>
-    <button type="button" className="react-song-favorite" title={actionLabel} aria-label={`${actionLabel} ${songTitle(song)}`} onClick={updateList}><Icon name={listId === 'love' ? 'heart' : 'trash'} /></button>
+    <button type="button" className={`react-song-favorite ${isLoved ? 'is-loved' : ''}`} title={isLoved ? '取消收藏' : '收藏'} aria-label={`${isLoved ? '取消收藏' : '收藏'} ${songTitle(song)}`} aria-pressed={isLoved} onClick={toggleFavorite}><Icon name="heart" /></button>
     <span className="react-song-duration">{songDuration(song)}</span>
     <span className="react-song-size">{songSize(song)}</span>
     <span className="react-song-quality">{songFormat(song)}</span>
-    <span className="react-song-actions"><button type="button" title="加入队列" aria-label={`将 ${songTitle(song)} 加入队列`} onClick={() => { enqueue([song]); notify('已加入播放队列') }}><Icon name="plus" /></button></span>
+    <span className="react-song-actions">{listId !== 'love' && <button type="button" title="从当前歌单移除" aria-label={`从当前歌单移除 ${songTitle(song)}`} onClick={removeFromPlaylist}><Icon name="trash" /></button>}<button type="button" title="加入队列" aria-label={`将 ${songTitle(song)} 加入队列`} onClick={() => { enqueue([song]); notify('已加入播放队列') }}><Icon name="plus" /></button></span>
   </li>
 }
 

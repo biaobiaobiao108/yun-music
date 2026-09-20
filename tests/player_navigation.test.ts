@@ -30,6 +30,48 @@ describe('React player navigation and state restoration', () => {
     expect(controller.forward()).toBe(false)
   })
 
+  it('serializes the love list and custom playlist routes without losing history state', () => {
+    let currentState: unknown = null
+    let currentUrl = ''
+    const stack: Array<{ state: unknown; url: string }> = []
+    let stackIndex = -1
+    const history = {
+      get state() { return currentState },
+      replaceState(state: unknown, _title: string, url?: string | URL | null) {
+        currentState = state
+        currentUrl = String(url ?? '')
+        if (stackIndex < 0) {
+          stack.push({ state, url: currentUrl })
+          stackIndex = 0
+        } else {
+          stack[stackIndex] = { state, url: currentUrl }
+        }
+      },
+      pushState(state: unknown, _title: string, url?: string | URL | null) {
+        currentState = state
+        currentUrl = String(url ?? '')
+        stack.splice(stackIndex + 1)
+        stack.push({ state, url: currentUrl })
+        stackIndex += 1
+      },
+      go(delta: number) {
+        stackIndex = Math.max(0, Math.min(stack.length - 1, stackIndex + delta))
+        currentState = stack[stackIndex]?.state ?? null
+        currentUrl = stack[stackIndex]?.url ?? ''
+      },
+    }
+    const controller = createPlayerHistoryController({ history, documentRef: { getElementById: () => null } })
+    controller.initialize({ page: 'tab', tabId: 'favorites', listId: 'love' })
+    expect(currentUrl).toBe('#favorites')
+    controller.push({ page: 'tab', tabId: 'favorites', listId: 'playlist 1' })
+    expect(currentUrl).toBe('#favorites?listId=playlist%201')
+    expect(controller.getState()?.listId).toBe('playlist 1')
+    expect(controller.back()).toBe(true)
+    expect(controller.handlePopState(currentState)?.state.listId).toBe('love')
+    expect(controller.forward()).toBe(true)
+    expect(controller.handlePopState(currentState)?.state.listId).toBe('playlist 1')
+  })
+
   it('keeps detail presentation metadata across browser history restores', () => {
     let currentState: unknown = null
     const history = {
@@ -84,6 +126,24 @@ describe('React player navigation and state restoration', () => {
     expect(views).toContain('export function AddToListDialog')
     expect(views).toContain("name: '我的收藏'")
     expect(views).toContain('userList')
+  })
+
+  it('keeps the love page separate from custom playlists while preserving legacy list data', () => {
+    const api = read('frontend/player/src/react/api.ts')
+    const store = read('frontend/player/src/react/store.ts')
+    const shell = read('frontend/player/src/react/shell.tsx')
+    const views = read('frontend/player/src/react/views.tsx')
+    expect(api).toContain('export type UserPlaylist')
+    expect(store).toContain('defaultList')
+    expect(store).toContain('userList')
+    expect(store).toContain('Promise<UserPlaylist>')
+    expect(store).toContain('removeSongs')
+    expect(shell).toContain('favoriteListId === \'love\'')
+    expect(shell).toContain('aria-current={isActive ? \'page\' : undefined}')
+    expect(views).toContain('name="我喜欢的音乐"')
+    expect(views).toContain('function UserPlaylistView')
+    expect(views).toContain('react-playlist-page')
+    expect(views).not.toContain('默认列表')
   })
 
   it('preserves responsive, reduced-motion and long-list performance guards', () => {

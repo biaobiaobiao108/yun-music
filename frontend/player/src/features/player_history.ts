@@ -89,7 +89,11 @@ function samePayload(left: PlayerHistoryPayload | null, right: PlayerHistoryPayl
 }
 
 function payloadUrl(payload: PlayerHistoryPayload): string | undefined {
-    return payload.tabId ? `#${encodeURIComponent(payload.tabId)}` : undefined;
+    if (!payload.tabId) return undefined;
+    if (payload.tabId === 'favorites' && payload.listId && payload.listId !== 'love') {
+        return `#favorites?listId=${encodeURIComponent(payload.listId)}`;
+    }
+    return `#${encodeURIComponent(payload.tabId)}`;
 }
 
 function isPlayerHistoryState(state: unknown): state is PlayerHistoryState {

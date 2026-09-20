@@ -97,6 +97,7 @@ class PlayerErrorBoundary extends Component<{ children: ReactNode }, { error: Er
 
 function Sidebar() {
   const tab = usePlayerUiStore(state => state.tab)
+  const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const setTab = usePlayerUiStore(state => state.setTab)
   const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
   const setDialog = usePlayerUiStore(state => state.setDialog)
@@ -104,11 +105,12 @@ function Sidebar() {
   const closeSidebar = usePlayerUiStore(state => state.closeSidebar)
   const userName = useAuthStore(state => state.userName)
   const userLists = useLibraryStore(state => state.data.userList ?? [])
-  return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><div className="react-sidebar-brand"><img src="/music/assets/yun-yin.png" width="36" height="36" alt="云音图标" /><strong>云音</strong><button type="button" className="react-icon-button react-sidebar-close" onClick={closeSidebar} aria-label="关闭导航菜单"><Icon name="xmark" /></button></div><nav className="react-sidebar-nav"><p className="react-sidebar-label">我的空间</p>{NAV_ITEMS.map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">歌单</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map(list => <button type="button" className="react-sidebar-playlist" key={String(list.id)} onClick={() => openFavoriteList(String(list.id))}><Icon name="music" /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button>)}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">更多功能</p>{MORE_NAV_ITEMS.map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav><div className="react-sidebar-user">{userName ? <><Icon name="circle-user" /><span>{userName}</span></> : <button type="button" onClick={() => setDialog('userLogin')}><Icon name="circle-user" /><span>登录用户账户</span></button>}</div></aside></>
+  return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><div className="react-sidebar-brand"><img src="/music/assets/yun-yin.png" width="36" height="36" alt="云音图标" /><strong>云音</strong><button type="button" className="react-icon-button react-sidebar-close" onClick={closeSidebar} aria-label="关闭导航菜单"><Icon name="xmark" /></button></div><nav className="react-sidebar-nav"><p className="react-sidebar-label">我的空间</p>{NAV_ITEMS.map(item => { const isActive = item.id === 'favorites' ? tab === 'favorites' && favoriteListId === 'love' : tab === item.id; return <button type="button" key={item.id} className={`netease-nav-item ${isActive ? 'active-tab' : ''}`} aria-current={isActive ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button> })}<div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">歌单</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map(list => { const id = String(list.id); const isActive = tab === 'favorites' && favoriteListId === id; return <button type="button" className={`react-sidebar-playlist ${isActive ? 'is-active' : ''}`} aria-current={isActive ? 'page' : undefined} key={id} onClick={() => openFavoriteList(id)}><Icon name="music" /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button> })}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">更多功能</p>{MORE_NAV_ITEMS.map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav><div className="react-sidebar-user">{userName ? <><Icon name="circle-user" /><span>{userName}</span></> : <button type="button" onClick={() => setDialog('userLogin')}><Icon name="circle-user" /><span>登录用户账户</span></button>}</div></aside></>
 }
 
 function TopBar() {
   const tab = usePlayerUiStore(state => state.tab)
+  const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const toggleSidebar = usePlayerUiStore(state => state.toggleSidebar)
   const setTab = usePlayerUiStore(state => state.setTab)
   const setDialog = usePlayerUiStore(state => state.setDialog)
@@ -119,8 +121,10 @@ function TopBar() {
   const query = useSearchStore(state => state.query)
   const setQuery = useSearchStore(state => state.setQuery)
   const search = useSearchStore(state => state.search)
+  const userLists = useLibraryStore(state => state.data.userList ?? [])
   const [searchInput, setSearchInput] = useState(query)
-  const title = ALL_NAV_ITEMS.find(item => item.id === tab)?.label ?? (tab === 'favorites' ? '收藏' : '云音')
+  const currentPlaylist = favoriteListId === 'love' ? null : userLists.find(list => String(list.id) === favoriteListId)
+  const title = tab === 'favorites' && currentPlaylist ? currentPlaylist.name : ALL_NAV_ITEMS.find(item => item.id === tab)?.label ?? (tab === 'favorites' ? '收藏' : '云音')
   useEffect(() => setSearchInput(query), [query])
   useEffect(() => { document.title = `${title} - 云音` }, [title])
   const submit = (event: FormEvent) => { event.preventDefault(); const value = searchInput.trim(); setQuery(value); if (!value) return; setTab('search'); void search(value, 1) }
@@ -430,22 +434,31 @@ export function PlayerShell() {
   }, [closeOverlays, keyboardShortcuts])
   useEffect(() => {
     const validTabs: PlayerTab[] = ['home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library', 'search', 'songlist', 'leaderboard', 'localmusic', 'settings', 'about']
-    const fromHash = window.location.hash.slice(1) as PlayerTab
-    const initialTab = validTabs.includes(fromHash) ? fromHash : 'home'
+    const parseHash = () => {
+      const raw = window.location.hash.slice(1)
+      const [tabPart, queryPart = ''] = raw.split('?')
+      let decodedTab = tabPart || ''
+      try { decodedTab = decodeURIComponent(decodedTab) } catch { /* malformed hand-edited hash falls back to home */ }
+      const query = new URLSearchParams(queryPart)
+      return { tab: validTabs.includes(decodedTab as PlayerTab) ? decodedTab as PlayerTab : 'home', listId: query.get('listId') || 'love' }
+    }
+    const initialRoute = parseHash()
+    const initialTab = initialRoute.tab
     const historyController = createPlayerHistoryController()
-    historyController.initialize({ page: 'tab', tabId: initialTab })
-    usePlayerUiStore.getState().setTabFromHistory(initialTab, null, 'love')
+    historyController.initialize({ page: 'tab', tabId: initialTab, ...(initialTab === 'favorites' ? { listId: initialRoute.listId } : {}) })
+    usePlayerUiStore.getState().setTabFromHistory(initialTab, null, initialRoute.listId)
     const disconnect = connectPlayerNavigation(navigation => {
       const detail = navigation.detail
       historyController.push(detail ? { page: detail.page, tabId: navigation.tab, kind: detail.kind, id: detail.id, source: detail.source, name: detail.name, image: detail.image, listId: navigation.listId } : { page: 'tab', tabId: navigation.tab, listId: navigation.listId })
     })
     const onPop = () => {
       const restored = historyController.handlePopState(window.history.state)
-      const tabName = (restored?.state.tabId || window.location.hash.slice(1)) as PlayerTab
+      const parsed = parseHash()
+      const tabName = (restored?.state.tabId || parsed.tab) as PlayerTab
       if (validTabs.includes(tabName)) {
         const isDetail = restored?.state.page === 'search-detail' || restored?.state.page === 'songlist-detail'
         const restoredDetail = isDetail && restored?.state.kind && restored.state.id ? { page: restored.state.page, kind: restored.state.kind, id: restored.state.id, source: restored.state.source || 'wy', name: restored.state.name, image: restored.state.image } as PlayerDetail : null
-        usePlayerUiStore.getState().setTabFromHistory(tabName, restoredDetail, restored?.state.listId || 'love')
+        usePlayerUiStore.getState().setTabFromHistory(tabName, restoredDetail, restored?.state.listId || parsed.listId || 'love')
       }
     }
     window.addEventListener('popstate', onPop)

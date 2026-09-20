@@ -23,6 +23,12 @@ export function songKey(song: Song): string {
   return `${String(song.source || 'unknown')}:${String(song.songmid ?? song.id ?? song.hash ?? song.name ?? '')}`
 }
 
+// List mutations are keyed by the persisted MusicInfo.id on the server.
+// Some older entries only have songmid, so keep that as a compatibility fallback.
+export function songListId(song: Song): string {
+  return String(song.id ?? song.songmid ?? song.hash ?? '').trim()
+}
+
 export function songTitle(song: Song | null | undefined): string {
   return String(song?.name || '未知歌曲')
 }

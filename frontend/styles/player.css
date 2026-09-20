@@ -561,6 +561,7 @@ html, body {
 .react-secondary-button:hover { border-color: var(--c-500); color: var(--c-600); }
 .react-view { width: min(100%, 1220px); margin-inline: auto; }
 .react-view-header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.2rem; }
+.react-view-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .5rem; }
 .react-view-header h1 { font-size: clamp(1.45rem, 2.4vw, 2rem); letter-spacing: -.02em; }
 .react-view-header > div > p:last-child { margin-top: .4rem; color: var(--text-muted); }
 .react-content-card, .react-search-card, .react-toolbar-card { border: 1px solid var(--border-main); border-radius: 1rem; box-shadow: var(--shadow-main); }
@@ -5966,8 +5967,12 @@ textarea:focus-visible {
 .react-sidebar-playlists {
     display: grid;
     gap: .12rem;
-    max-height: 11rem;
+    flex: 0 0 auto;
+    min-block-size: min-content;
+    max-block-size: min(24rem, 38dvh);
     overflow: auto;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
 }
 
 .react-sidebar-playlist {
@@ -5989,6 +5994,16 @@ textarea:focus-visible {
 .react-sidebar-playlist:focus-visible {
     background: var(--app-surface-soft);
     color: var(--app-text);
+}
+
+.react-sidebar-playlist.is-active {
+    background: color-mix(in srgb, var(--app-accent) 13%, var(--app-surface-soft));
+    color: var(--app-text);
+    font-weight: 700;
+}
+
+.react-sidebar-playlist.is-active i {
+    color: var(--app-accent);
 }
 
 .react-sidebar-playlist span {
@@ -7007,6 +7022,13 @@ textarea:focus-visible {
 
     .react-view-header {
         padding-top: .65rem;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .react-view-header-actions {
+        width: 100%;
+        justify-content: flex-start;
     }
 
     .react-home-shortcuts,
@@ -7187,6 +7209,19 @@ textarea:focus-visible {
 .react-song-favorite:focus-visible {
     background: var(--app-accent-soft);
     color: var(--app-accent);
+}
+
+.react-song-favorite.is-loved {
+    color: var(--app-accent);
+}
+
+.react-playlist-page {
+    min-width: 0;
+    overflow: visible;
+}
+
+.react-playlist-page .react-song-table {
+    margin-top: .35rem;
 }
 
 .react-song-actions {

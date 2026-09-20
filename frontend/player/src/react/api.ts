@@ -9,7 +9,12 @@ export type PlayerConfig = RuntimeConfig & {
   'user.enablePublicFavorites'?: boolean
 }
 export type SearchType = 'song' | 'singer' | 'album' | 'playlist'
-export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: { id: string | number; name: string; list?: Song[] }[] }
+export type UserPlaylist = Record<string, unknown> & {
+  id: string | number
+  name: string
+  list?: Song[]
+}
+export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: UserPlaylist[] }
 export type CacheTask = Record<string, unknown> & { id?: string; songKey?: string; status?: string; progress?: number; name?: string }
 export type CacheStats = Record<string, unknown> & {
   cache?: { totalSize?: number; fileCount?: number }
