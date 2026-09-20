@@ -38,4 +38,35 @@ describe('Admin frontend modular entrypoint', () => {
         expect(source).not.toMatch(/\bonclick\s*=/i);
         expect(source).not.toContain('window.app');
     });
+
+    it('ensures all views are siblings and balanced in html structure', () => {
+        const html = fs.readFileSync(adminHtmlPath, 'utf8');
+        const lines = html.split(/\r?\n/);
+        let divDepth = 0;
+        const viewDepths: Record<string, number> = {};
+        for (const line of lines) {
+            const opens = (line.match(/<div\b/g) || []).length;
+            const closes = (line.match(/<\/div>/g) || []).length;
+            divDepth += opens - closes;
+            const viewMatch = line.match(/id="(view-[a-z0-9-]+)"/);
+            if (viewMatch) {
+                viewDepths[viewMatch[1]] = divDepth;
+            }
+        }
+        expect(divDepth).toBe(0);
+        const expectedViews = [
+            'view-dashboard',
+            'view-users',
+            'view-storage',
+            'view-data',
+            'view-config',
+            'view-logs',
+            'view-snapshots',
+            'view-about',
+        ];
+        for (const viewId of expectedViews) {
+            expect(viewDepths[viewId]).toBe(3);
+        }
+    });
 });
+
