@@ -16,6 +16,7 @@ const serviceWorkerFiles = [
 ];
 
 const deletedResourceNames = [
+  'ui-utils.js',
   'tailwindcss.js',
   'tailwind_setup.js',
   'quality.js',

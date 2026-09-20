@@ -42,15 +42,24 @@ const finalHash = new Bun.CryptoHasher('md5').update(publicHash + srcHash).diges
 // Update config.js using Bun native I/O
 const configPath = path.join(targetDir, 'public', 'js', 'config.js');
 const configFile = Bun.file(configPath);
+let configContent = `// 此文件中仅版本号为静态写死值
+// 其余配置由服务端在运行时动态注入 (环境变量 > config.js > defaultConfig.ts)
+// 服务端拦截 /js/config.js 请求, 读取此处版本号并合并服务端配置后返回
+window.CONFIG = {
+    buildHash: '${finalHash}',
+    version: 'v2.0.0',
+};
+`;
+
 if (await configFile.exists()) {
-    let configContent = await configFile.text();
+    configContent = await configFile.text();
 
     if (configContent.includes('buildHash:')) {
-        configContent = configContent.replace(/buildHash:\s*['"][a-f0-9]+['"]/, `buildHash: '${finalHash}'`);
+        configContent = configContent.replace(/buildHash:\s*['"][^'"]*['"]/, `buildHash: '${finalHash}'`);
     } else {
         configContent = configContent.replace(/(window\.CONFIG\s*=\s*\{)/, `$1\n    buildHash: '${finalHash}',`);
     }
-
-    await Bun.write(configPath, configContent);
-    console.log(`Build hash updated to ${finalHash} in config.js`);
 }
+
+await Bun.write(configPath, configContent);
+console.log(`Build hash updated to ${finalHash} in config.js`);

@@ -167,6 +167,12 @@ async function build() {
   const playerSize = (fs.statSync(playerOutput.path).size / 1024).toFixed(1)
   const loginSize = (fs.statSync(loginOutput.path).size / 1024).toFixed(1)
   console.log(`[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminFileName} ${adminSize}KB, player: ${playerFileName} ${playerSize}KB, login: ${loginFileName} ${loginSize}KB, minified: ${shouldMinify})`)
+
+  const updateHashProcess = Bun.spawn(['bun', 'run', path.join(import.meta.dir, 'update-build-hash.js')], {
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  await updateHashProcess.exited
 }
 
 async function main() {

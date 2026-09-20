@@ -39,6 +39,8 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     const text = await res.text()
     expect(text).toContain('window.CONFIG =')
     expect(text).toContain('"port": 9527')
+    expect(text).toContain('"version": "v2.0.0"')
+    expect(text).toMatch(/"buildHash":\s*"[a-f0-9]{7}"/)
   })
 
   test('Serves static files and handles ETag/304 caching', async () => {
