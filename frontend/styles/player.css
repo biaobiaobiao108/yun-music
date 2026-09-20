@@ -9257,3 +9257,78 @@ textarea:focus-visible {
         inline-size: auto;
     }
 }
+
+/* Shared transport bar for immersive lyrics. The immersive page keeps its
+   own canvas and lyric scroll surface, but the transport itself uses the
+   same three-column capsule as the ordinary player footer. */
+.react-immersive-lyrics {
+    --react-immersive-footer-reserve: 6.25rem;
+    position: relative;
+    block-size: 100%;
+    min-block-size: 100%;
+    overflow: clip;
+}
+
+.react-immersive-lyrics > .react-immersive-lyrics-grid {
+    min-block-size: 0;
+    max-block-size: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-block-end: calc(var(--react-immersive-footer-reserve) + env(safe-area-inset-bottom)) !important;
+}
+
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+    position: absolute !important;
+    inset-block-start: auto !important;
+    inset-inline-start: 50% !important;
+    inset-inline-end: auto !important;
+    inset-block-end: max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom)) !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom)) !important;
+    z-index: 20 !important;
+    width: min(60rem, calc(100% - 2rem)) !important;
+    max-width: calc(100% - 2rem) !important;
+    margin: 0 !important;
+    transform: translate3d(-50%, 0, 0) !important;
+}
+
+.react-immersive-shared-footer .react-footer-actions {
+    min-inline-size: 0;
+}
+
+@media (max-width: 900px) {
+    .react-immersive-lyrics {
+        --react-immersive-footer-reserve: 5.25rem;
+    }
+
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+        inset-block-end: max(.6rem, env(safe-area-inset-bottom)) !important;
+        bottom: max(.6rem, env(safe-area-inset-bottom)) !important;
+        width: calc(100% - 1rem) !important;
+        max-width: calc(100% - 1rem) !important;
+    }
+}
+
+@media (max-width: 560px) {
+    .react-immersive-lyrics {
+        --react-immersive-footer-reserve: 4.9rem;
+    }
+
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+        width: calc(100% - .7rem) !important;
+        max-width: calc(100% - .7rem) !important;
+        padding-inline: .48rem;
+    }
+
+    .react-immersive-shared-footer .react-footer-actions {
+        gap: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+        transform: translateX(-50%) !important;
+    }
+}

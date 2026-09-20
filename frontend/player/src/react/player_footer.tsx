@@ -59,7 +59,10 @@ function VolumeControl({ volume, muted, onVolumeChange, onToggleMute }: {
   </div>
 }
 
-export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
+export type PlayerFooterVariant = 'normal' | 'immersive'
+
+export function PlayerFooterBar({ variant = 'normal' }: { variant?: PlayerFooterVariant }) {
+  const immersive = variant === 'immersive'
   const currentSong = usePlaybackStore(state => state.currentSong)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
   const currentTime = usePlaybackStore(state => state.currentTime)
@@ -106,7 +109,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
 
   const download = useCallback(async () => {
     if (!currentSong) return
-    if (embedded) setImmersiveLyrics(false)
+    if (immersive) setImmersiveLyrics(false)
     try {
       const currentReference = parseCachePlaybackUrl(currentSong.url) ?? parseCachePlaybackUrl(resolvedUrl)
       let cachedItem = currentReference ? {
@@ -158,7 +161,7 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
       notify('已加入下载队列，继续复用当前播放链接')
       setDrawer('download')
     } catch (error) { notify(error instanceof Error ? error.message : '下载失败') }
-  }, [currentSong, embedded, notify, resolvedUrl, setCurrentSongUrl, setDrawer, setImmersiveLyrics, userName])
+  }, [currentSong, immersive, notify, resolvedUrl, setCurrentSongUrl, setDrawer, setImmersiveLyrics, userName])
 
   const toggleLike = useCallback(async () => {
     if (!currentSong) { notify('请选择歌曲后再收藏'); return }
@@ -179,37 +182,37 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
   }, [currentSong, notify, openAddToList, userAuthenticated])
 
   const openComments = useCallback(() => {
-    if (embedded) setImmersiveLyrics(false)
+    if (immersive) setImmersiveLyrics(false)
     setDialog('comments')
-  }, [embedded, setDialog, setImmersiveLyrics])
+  }, [immersive, setDialog, setImmersiveLyrics])
 
   const openSleepTimer = useCallback(() => {
-    if (embedded) setImmersiveLyrics(false)
+    if (immersive) setImmersiveLyrics(false)
     setDialog('sleep')
-  }, [embedded, setDialog, setImmersiveLyrics])
+  }, [immersive, setDialog, setImmersiveLyrics])
 
   const openQueue = () => {
-    if (embedded) setImmersiveLyrics(false)
+    if (immersive) setImmersiveLyrics(false)
     setDrawer('queue')
   }
 
   const openLyrics = (event: MouseEvent<HTMLButtonElement>) => {
-    if (currentSong && !embedded) {
+    if (currentSong && !immersive) {
       rememberImmersiveLyricsTrigger(event.currentTarget)
       setImmersiveLyrics(true)
     }
   }
 
   return <>
-    <footer id={embedded ? undefined : 'player-footer'} className={`react-player-footer ${embedded ? 'react-immersive-footer' : ''}`}>
+    <footer id="player-footer" className={`react-player-footer${immersive ? ' react-immersive-shared-footer' : ''}`}>
       <div className="react-footer-controls">
         <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
-        <button type="button" id={embedded ? undefined : 'btn-play'} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
+        <button type="button" id="btn-play" className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
         <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
       </div>
       <div className="react-footer-song-section">
         <div className="react-footer-song">
-          <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label="打开沉浸式歌词" disabled={!currentSong || embedded}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
+          <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label={immersive ? '当前歌曲封面' : '打开沉浸式歌词'} disabled={!currentSong || immersive}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
           <div className="react-footer-song-meta">
             <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
             <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
@@ -218,10 +221,10 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
         <div className="react-progress-row"><span className="react-progress-time"><Time value={safeCurrentTime} /></span><input style={progressStyle} type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><span className="react-progress-time"><Time value={safeDuration} /></span></div>
       </div>
       <div className="react-footer-actions">
-        {!embedded && <button ref={songMenuButtonRef} type="button" className="player-secondary-action react-song-menu-button" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!currentSong}><Icon name="ellipsis" /></button>}
+        {!immersive && <button ref={songMenuButtonRef} type="button" className="player-secondary-action react-song-menu-button" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!currentSong}><Icon name="ellipsis" /></button>}
         <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
-        <button type="button" id={embedded ? undefined : 'player-like-btn'} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
-        {embedded && <>
+        <button type="button" id={!immersive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
+        {immersive && <>
           <button type="button" className="player-secondary-action" aria-label="打开评论" onClick={openComments}><Icon name="comments" /></button>
           <button type="button" className="player-secondary-action" aria-label="下载歌曲" onClick={() => void download()}><Icon name="download" /></button>
           <button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={openSleepTimer}><Icon name="moon" /></button>
@@ -230,6 +233,6 @@ export function PlayerFooterBar({ embedded = false }: { embedded?: boolean }) {
         <VolumeControl volume={volume} muted={muted} onVolumeChange={setVolume} onToggleMute={toggleMute} />
       </div>
     </footer>
-    {!embedded && <SongActionsPopover song={currentSong} open={songMenuOpen} anchorRef={songMenuButtonRef} onClose={closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />}
+    {!immersive && <SongActionsPopover song={currentSong} open={songMenuOpen} anchorRef={songMenuButtonRef} onClose={closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />}
   </>
 }
