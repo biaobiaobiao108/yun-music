@@ -498,11 +498,12 @@ export const createCacheRouter = (): Router => {
     }
 
     if (!isPublic) {
+      const isAdmin = verifyAdminAuth(ctx.request)
       const tokenUser = verifyUserAuth(ctx)
-      if (!tokenUser || tokenUser !== reqUsername) {
+      if (!isAdmin && (!tokenUser || tokenUser !== reqUsername)) {
         return ctx.fail(401, '登录状态已失效，请重新登录')
       }
-      username = tokenUser
+      username = reqUsername
     }
 
     let decodedFilename = filename
@@ -652,11 +653,25 @@ export const createCacheRouter = (): Router => {
   })
 
   router.post('/api/music/cache/clear', (ctx) => {
+    const isAdmin = verifyAdminAuth(ctx.request)
+    const reqUser = ctx.query.get('user')
+    if (reqUser === 'all' || reqUser === '_all') {
+      if (!isAdmin) {
+        return ctx.fail(403, '权限不足：只有管理员可以清空所有用户缓存')
+      }
+      try {
+        const result = fileCache.clearAllUsersAudioCache()
+        return ctx.json({ success: true, data: result })
+      } catch (err) {
+        return ctx.fail(500, toUserMessage(err, '清空缓存失败，请稍后重试'))
+      }
+    }
+
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
     try {
-      const result = fileCache.clearAllCache(target.username)
+      const result = fileCache.clearOnlyAudioCache(target.username)
       return ctx.json({ success: true, data: result })
     } catch (err) {
       return ctx.fail(500, toUserMessage(err, '清空缓存失败，请稍后重试'))
@@ -700,13 +715,31 @@ export const createCacheRouter = (): Router => {
     const isAdmin = verifyAdminAuth(ctx.request)
     const verified = verifyUserAuth(ctx)
     const isPublicAlias = reqUsername === 'default' || reqUsername === 'open' || reqUsername === '_open'
+    const isAll = reqUsername === 'all' || reqUsername === '_all'
+
+    if (isAll) {
+      if (!isAdmin) {
+        return ctx.fail(403, '权限不足：只有管理员可以查看所有用户缓存与下载数据')
+      }
+      try {
+        const list = await fileCache.getAllCacheList()
+        return ctx.json({ success: true, data: list }, 200, {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        })
+      } catch (err: any) {
+        return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
+      }
+    }
+
     let username = '_open'
 
-    // An authenticated request without an explicit public alias means the
-    // current user's own cache. The previous implementation treated every
-    // empty `user` query as `_open`, making personal cached files invisible
-    // even though syncCacheIndex had correctly indexed them by username.
-    if (!reqUsername && verified) {
+    if (isAdmin && reqUsername && !isPublicAlias) {
+      try {
+        username = assertSafePathSegment(reqUsername, 'user name')
+      } catch {
+        return ctx.fail(400, '用户参数不合法')
+      }
+    } else if (!reqUsername && verified) {
       username = verified
     } else if (!reqUsername || isPublicAlias) {
       if (!canReadPublicLocalMusic(ctx, verified, isAdmin)) {
@@ -738,10 +771,13 @@ export const createCacheRouter = (): Router => {
     const reqUsername = ctx.query.get('user') || ''
     const isPublicAlias = reqUsername === '_open' || reqUsername === 'default' || reqUsername === 'open'
     const verified = verifyUserAuth(ctx)
+    const isAdmin = verifyAdminAuth(ctx.request)
     let username = verified || '_open'
 
     if (isPublicAlias) {
       username = '_open'
+    } else if (reqUsername && isAdmin) {
+      username = reqUsername
     } else if (reqUsername && (!verified || verified !== reqUsername)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -778,6 +814,7 @@ export const createCacheRouter = (): Router => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
+    const isAdmin = verifyAdminAuth(ctx.request)
 
     try {
       const payload = await ctx.bodyJson<any>()
@@ -787,29 +824,36 @@ export const createCacheRouter = (): Router => {
         : (legacyFilenames ? (Array.isArray(legacyFilenames) ? legacyFilenames : [legacyFilenames]) : [])
       if (rawItems.length === 0) throw new Error('Missing items')
 
-      const deleteItems: Array<{ filename: string; folder?: fileCache.CacheFolder }> = rawItems.map((item: any) => {
+      const deleteItems: Array<{ filename: string; folder?: fileCache.CacheFolder; user?: string }> = rawItems.map((item: any) => {
         if (typeof item === 'string') return { filename: item }
         if (!item || typeof item.filename !== 'string') throw new Error('Invalid delete item')
         if (item.folder !== undefined && item.folder !== 'cache' && item.folder !== 'music') {
           throw new Error('Invalid folder')
         }
-        return { filename: item.filename, folder: item.folder }
+        return {
+          filename: item.filename,
+          folder: item.folder,
+          user: typeof item.user === 'string' && item.user ? item.user : (typeof item.rawUsername === 'string' && item.rawUsername ? item.rawUsername : undefined),
+        }
       })
 
       let deletedCount = 0
       const failures: Array<{ filename: string; folder?: fileCache.CacheFolder; message: string }> = []
       for (const item of deleteItems) {
         try {
-          const result = fileCache.removeCacheFile(item.filename, username, item.folder)
+          const itemUser = (isAdmin && item.user)
+            ? assertSafePathSegment(item.user, 'user name')
+            : username
+          const result = fileCache.removeCacheFile(item.filename, itemUser, item.folder)
           if (result.deleted) {
             deletedCount++
-            accessLog.info(`music file deleted user=${username} folder=${result.folder} filename=${JSON.stringify(item.filename)}`)
+            accessLog.info(`music file deleted user=${itemUser} folder=${result.folder} filename=${JSON.stringify(item.filename)}`)
           } else {
             failures.push({ ...item, message: 'File not found' })
           }
         } catch (error: any) {
           failures.push({ ...item, message: error?.message || 'Delete failed' })
-          accessLog.warn(`music file delete rejected user=${username} folder=${item.folder || 'unspecified'} filename=${JSON.stringify(item.filename)} reason=${JSON.stringify(error?.message || 'Delete failed')}`)
+          accessLog.warn(`music file delete rejected user=${item.user || username} folder=${item.folder || 'unspecified'} filename=${JSON.stringify(item.filename)} reason=${JSON.stringify(error?.message || 'Delete failed')}`)
         }
       }
 
@@ -830,14 +874,34 @@ export const createCacheRouter = (): Router => {
   router.post('/api/music/cache/move', async (ctx) => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
+    const isAdmin = verifyAdminAuth(ctx.request)
 
     try {
-      const { filenames } = await ctx.bodyJson<{ filenames?: string[] | string }>()
-      if (!filenames) return ctx.fail(400, '缺少必要参数：filenames')
-      const fileList = Array.isArray(filenames) ? filenames : [filenames]
-      if (fileList.length > 500) return ctx.fail(400, '单次最多移动 500 个文件')
-      const result = await fileCache.switchFolder(fileList, target.username)
-      return ctx.json({ success: true, ...result })
+      const payload = await ctx.bodyJson<any>()
+      const rawItems = Array.isArray(payload.items)
+        ? payload.items
+        : (payload.filenames ? (Array.isArray(payload.filenames) ? payload.filenames.map((f: string) => ({ filename: f, user: payload.user })) : [{ filename: payload.filenames, user: payload.user }]) : [])
+      if (rawItems.length === 0) return ctx.fail(400, '缺少必要参数：filenames')
+      if (rawItems.length > 500) return ctx.fail(400, '单次最多移动 500 个文件')
+
+      const userGroup = new Map<string, string[]>()
+      for (const item of rawItems) {
+        const itemUser = (isAdmin && (item.user || item.rawUsername))
+          ? assertSafePathSegment(item.user || item.rawUsername, 'user name')
+          : target.username
+        const list = userGroup.get(itemUser) || []
+        list.push(item.filename)
+        userGroup.set(itemUser, list)
+      }
+
+      let totalSuccess = 0
+      let totalFail = 0
+      for (const [user, filenames] of userGroup.entries()) {
+        const result = await fileCache.switchFolder(filenames, user)
+        totalSuccess += result.successCount
+        totalFail += result.failCount
+      }
+      return ctx.json({ success: true, successCount: totalSuccess, failCount: totalFail })
     } catch (e: any) {
       return ctx.fail(400, toUserMessage(e, '移动文件失败，请稍后重试'))
     }

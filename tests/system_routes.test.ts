@@ -36,6 +36,11 @@ describe('System Routes (routes/system.ts)', () => {
     const json = await res2.json()
     expect(json.users).toBe(1)
     expect(json.uptime).toBeGreaterThanOrEqual(0)
+    expect(json.cacheStats).toBeDefined()
+    expect(typeof json.cacheStats.cache.fileCount).toBe('number')
+    expect(typeof json.cacheStats.cache.totalSize).toBe('number')
+    expect(typeof json.cacheStats.music.fileCount).toBe('number')
+    expect(typeof json.cacheStats.music.totalSize).toBe('number')
   })
 
   test('GET /api/config returns full configuration for admin', async () => {

@@ -130,7 +130,51 @@ export interface AdminApp {
     handleLocalRestore: AdminMethod;
     restoreSnapshot: AdminMethod;
     restartServer: AdminMethod;
+    currentStorageTab: 'cache' | 'music';
+    storageItems: StorageItem[];
+    bindStorageEvents: AdminMethod;
+    loadStorageData: (tab?: 'cache' | 'music') => Promise<void>;
+    renderStorageList: AdminMethod;
+    switchStorageTab: (tab: 'cache' | 'music') => void;
+    toggleStorageAudio: (index: number) => void;
+    deleteStorageItem: (index: number) => Promise<void>;
+    batchDeleteStorageItems: AdminMethod;
+    moveStorageItem: (index: number) => Promise<void>;
+    batchMoveStorageItems: AdminMethod;
+    clearStorageCache: AdminMethod;
+    filterStorageSongs: AdminMethod;
+    sortStorageSongs: AdminMethod;
+    toggleAllStorageSongs: (checked: boolean) => void;
+    selectAllStorageSongs: AdminMethod;
+    invertStorageSelection: AdminMethod;
+    clearStorageSelection: AdminMethod;
+    updateStorageBatchBtns: AdminMethod;
 }
+
+export type StorageItem = {
+    id: string;
+    songmid?: string;
+    name: string;
+    singer: string;
+    album: string;
+    albumId?: string;
+    img?: string;
+    interval?: string;
+    source: string;
+    quality: string;
+    filename: string;
+    folder: 'cache' | 'music';
+    subPath?: string;
+    mtime: number;
+    size: number;
+    lyricFilename?: string;
+    ext: string;
+    username?: string;
+    rawUsername?: string;
+    hasCover?: boolean;
+    hasLyric?: boolean;
+    songInfo?: AdminSong;
+};
 
 export type AdminFeatureContext = {
     app: AdminApp;

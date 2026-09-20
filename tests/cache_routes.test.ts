@@ -93,6 +93,78 @@ describe('cache list user scope', () => {
     }
   })
 
+  test('rejects non-admin from querying cache list for user=all', async () => {
+    const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=all', {
+      headers: { cookie: `lx_user_session=${sessionId}` },
+    }))
+    expect(response.status).toBe(403)
+  })
+
+  test('allows admin to query cache list with user=all', async () => {
+    const getAllCacheList = spyOn(fileCache, 'getAllCacheList').mockResolvedValue([
+      { id: '1', songmid: '1', name: 'Song 1', singer: 'Singer 1', path: '', size: 100, mtime: 1, quality: '128k', folder: 'cache', username: '用户: user1', rawUsername: 'user1' } as any,
+    ])
+    try {
+      const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=all', {
+        headers: { cookie: adminCookie },
+      }))
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.success).toBe(true)
+      expect(data.data.length).toBe(1)
+      expect(data.data[0].rawUsername).toBe('user1')
+      expect(getAllCacheList).toHaveBeenCalled()
+    } finally {
+      getAllCacheList.mockRestore()
+    }
+  })
+
+  test('allows admin to clear audio cache across all users with user=all', async () => {
+    const clearAllUsersAudioCache = spyOn(fileCache, 'clearAllUsersAudioCache').mockResolvedValue(undefined)
+    try {
+      const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/clear?user=all', {
+        method: 'POST',
+        headers: { cookie: adminCookie },
+      }))
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.success).toBe(true)
+      expect(clearAllUsersAudioCache).toHaveBeenCalled()
+    } finally {
+      clearAllUsersAudioCache.mockRestore()
+    }
+  })
+
+  test('allows admin to remove cache files for multiple users via item.user', async () => {
+    const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'cache' })
+    try {
+      const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/remove', {
+        method: 'POST',
+        headers: {
+          cookie: adminCookie,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: [
+            { filename: 'song1.mp3', folder: 'cache', user: 'user1' },
+            { filename: 'song2.mp3', folder: 'music', user: '_open' },
+          ],
+        }),
+      }))
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.success).toBe(true)
+      expect(data.deletedCount).toBe(2)
+      expect(removeCacheFile).toHaveBeenCalledWith('song1.mp3', 'user1', 'cache')
+      expect(removeCacheFile).toHaveBeenCalledWith('song2.mp3', '_open', 'music')
+    } finally {
+      removeCacheFile.mockRestore()
+    }
+  })
+
   test('rejects anonymous public cache mutations', async () => {
     const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/queue', {
       method: 'POST',

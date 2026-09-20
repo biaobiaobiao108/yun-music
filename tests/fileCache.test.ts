@@ -943,3 +943,62 @@ describe('File Cache Post-processing Limiter', () => {
     expect(fileCache.getCachePostProcessStats()).toEqual({ active: 0, waiting: 0 })
   })
 })
+
+describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
+  it('correctly aggregates global stats and clears only cache without touching music folder', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-global-cache-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = {
+        dataPath,
+        appPath: root,
+        config: {
+          users: [{ name: 'user1' }, { name: 'user2' }]
+        }
+      }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const user1CacheDir = fileCache.getCacheDir('user1', false)
+      const user1MusicDir = fileCache.getCacheDir('user1', true)
+      const openCacheDir = fileCache.getCacheDir('_open', false)
+
+      fs.mkdirSync(user1CacheDir, { recursive: true })
+      fs.mkdirSync(user1MusicDir, { recursive: true })
+      fs.mkdirSync(openCacheDir, { recursive: true })
+
+      fs.writeFileSync(path.join(user1CacheDir, 'cached1.mp3'), Buffer.alloc(1000))
+      fs.writeFileSync(path.join(user1MusicDir, 'downloaded1.mp3'), Buffer.alloc(2000))
+      fs.writeFileSync(path.join(openCacheDir, 'open_cached.flac'), Buffer.alloc(3000))
+
+      fileCache.invalidateGlobalCacheStats()
+      const stats = fileCache.getGlobalCacheStats()
+      expect(stats.cache.fileCount).toBe(2)
+      expect(stats.cache.totalSize).toBe(4000)
+      expect(stats.music.fileCount).toBe(1)
+      expect(stats.music.totalSize).toBe(2000)
+      expect(stats.totalSize).toBe(6000)
+      expect(stats.fileCount).toBe(3)
+
+      // Test clearOnlyAudioCache for user1
+      await fileCache.clearOnlyAudioCache('user1')
+      expect(fs.existsSync(path.join(user1CacheDir, 'cached1.mp3'))).toBe(false)
+      expect(fs.existsSync(path.join(user1MusicDir, 'downloaded1.mp3'))).toBe(true) // Strictly preserved!
+      expect(fs.existsSync(path.join(openCacheDir, 'open_cached.flac'))).toBe(true) // Untouched!
+
+      // Test clearAllUsersAudioCache
+      await fileCache.clearAllUsersAudioCache()
+      expect(fs.existsSync(path.join(openCacheDir, 'open_cached.flac'))).toBe(false)
+      expect(fs.existsSync(path.join(user1MusicDir, 'downloaded1.mp3'))).toBe(true) // Still strictly preserved!
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+

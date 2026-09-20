@@ -21,8 +21,9 @@ import { initDataFeature } from './features/data';
 import { initLogsFeature } from './features/logs';
 import { initShellFeature } from './features/shell';
 import { initSnapshotsFeature } from './features/snapshots';
+import { initStorageFeature } from './features/storage';
 import { initUsersFeature } from './features/users';
-import type { AdminApp, AdminRequest, AdminUser, AdminUserData, InstallPromptEvent } from './types';
+import type { AdminApp, AdminRequest, AdminUser, AdminUserData, InstallPromptEvent, StorageItem } from './types';
 import {
     escapeHtml,
     formatFileSize,
@@ -42,6 +43,8 @@ class App {
     configLoaded = false;
     currentUserData: AdminUserData | null = null;
     currentPlaylistView: number | string | null = null;
+    currentStorageTab: 'cache' | 'music' = 'cache';
+    storageItems: StorageItem[] = [];
     editingUser: string | null = null;
     deferredPrompt: InstallPromptEvent | null = null;
     monitorTimer: ReturnType<typeof setInterval> | null = null;
@@ -77,6 +80,7 @@ class App {
             initShellFeature({ app: this as unknown as AdminApp }),
             initDashboardFeature({ app: this as unknown as AdminApp }),
             initUsersFeature({ app: this as unknown as AdminApp }),
+            initStorageFeature({ app: this as unknown as AdminApp }),
             initDataFeature({ app: this as unknown as AdminApp }),
             initConfigFeature({ app: this as unknown as AdminApp }),
             initLogsFeature({ app: this as unknown as AdminApp }),
@@ -89,6 +93,7 @@ class App {
 
         this.bindShellEvents();
         this.bindUsersEvents();
+        this.bindStorageEvents();
         this.bindDataEvents();
         this.bindConfigEvents();
         this.bindLogsEvents();

@@ -14,10 +14,29 @@ export function initDashboardFeature(context: AdminFeatureContext) {
             }
 
             // 更新顶部概览卡片
-            document.getElementById('stat-users').textContent = status.users;
-            document.getElementById('stat-public-access').textContent = status.publicAccess ? '开' : '关';
-            document.getElementById('stat-cpu').textContent = status.cpuUsage + '%';
-            document.getElementById('stat-memory').textContent = app.formatFileSize(status.memory);
+            const statUsersEl = document.getElementById('stat-users');
+            if (statUsersEl) statUsersEl.textContent = status.users;
+            const statPublicAccessEl = document.getElementById('stat-public-access');
+            if (statPublicAccessEl) statPublicAccessEl.textContent = status.publicAccess ? '开' : '关';
+            const statCpuEl = document.getElementById('stat-cpu');
+            if (statCpuEl) statCpuEl.textContent = status.cpuUsage + '%';
+            const statMemoryEl = document.getElementById('stat-memory');
+            if (statMemoryEl) statMemoryEl.textContent = app.formatFileSize(status.memory);
+
+            // 更新缓存音乐与下载音乐卡片
+            const cacheStats = status.cacheStats || {};
+            const cacheInfo = cacheStats.cache || { fileCount: 0, totalSize: 0 };
+            const musicInfo = cacheStats.music || { fileCount: 0, totalSize: 0 };
+
+            const statCacheCount = document.getElementById('stat-cache-count');
+            const statCacheSize = document.getElementById('stat-cache-size');
+            if (statCacheCount) statCacheCount.textContent = `${cacheInfo.fileCount || 0} 首`;
+            if (statCacheSize) statCacheSize.textContent = app.formatFileSize(cacheInfo.totalSize || 0);
+
+            const statMusicCount = document.getElementById('stat-music-count');
+            const statMusicSize = document.getElementById('stat-music-size');
+            if (statMusicCount) statMusicCount.textContent = `${musicInfo.fileCount || 0} 首`;
+            if (statMusicSize) statMusicSize.textContent = app.formatFileSize(musicInfo.totalSize || 0);
 
             // 实时监控详情
             app.updateMonitorUI(status);
@@ -152,6 +171,21 @@ export function initDashboardFeature(context: AdminFeatureContext) {
         if (statCpuInfo) {
             const speedGhz = (status.cpuSpeed / 1000).toFixed(1);
             statCpuInfo.textContent = `${status.cpus} Cores @ ${speedGhz}GHz`;
+        }
+
+        // 保持缓存与下载音乐数据同步
+        if (status.cacheStats) {
+            const cacheInfo = status.cacheStats.cache || { fileCount: 0, totalSize: 0 };
+            const musicInfo = status.cacheStats.music || { fileCount: 0, totalSize: 0 };
+            const statCacheCount = document.getElementById('stat-cache-count');
+            const statCacheSize = document.getElementById('stat-cache-size');
+            if (statCacheCount) statCacheCount.textContent = `${cacheInfo.fileCount || 0} 首`;
+            if (statCacheSize) statCacheSize.textContent = app.formatFileSize(cacheInfo.totalSize || 0);
+
+            const statMusicCount = document.getElementById('stat-music-count');
+            const statMusicSize = document.getElementById('stat-music-size');
+            if (statMusicCount) statMusicCount.textContent = `${musicInfo.fileCount || 0} 首`;
+            if (statMusicSize) statMusicSize.textContent = app.formatFileSize(musicInfo.totalSize || 0);
         }
     }
 

@@ -50,6 +50,8 @@ export const CACHE_ROOTS = {
     ROOT: 'root'  // relative to process.cwd() (local instance storage)
 }
 
+const getRootPath = (): string => (global.lx as any)?.appPath || (global.lx as any)?.rootPath || process.cwd()
+
 let currentCacheLocation = CACHE_ROOTS.ROOT
 const CACHE_LIST_SYNC_TTL = 30 * 1000
 const cacheListSyncState = new NativeLruCache<string, { lastSync: number, pending?: Promise<void> }>({
@@ -274,7 +276,7 @@ export const getCacheDir = (
         const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
         baseDir = path.join(dataPath, folderName)
     } else {
-        baseDir = path.join(process.cwd(), folderName)
+        baseDir = path.join(getRootPath(), folderName)
     }
 
     // [New] Segment cache by username
@@ -299,7 +301,7 @@ export const getCacheDir = (
 const getCoverCacheBaseDirs = (): string[] => {
     const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
     return [...new Set([
-        path.resolve(process.cwd(), 'cover_cache'),
+        path.resolve(getRootPath(), 'cover_cache'),
         path.resolve(dataPath, 'cover_cache'),
     ])]
 }
@@ -1417,6 +1419,8 @@ export const getCacheList = async (username?: string) => {
 
     return items.map(item => ({
         ...item,
+        username: normalizedUsername === '_open' ? '公共曲库' : normalizedUsername,
+        rawUsername: normalizedUsername,
         songInfo: {
             id: item.id,
             songmid: item.songmid || item.id,
@@ -1433,6 +1437,50 @@ export const getCacheList = async (username?: string) => {
         },
         hasLyric: item.hasLyric || !!item.lyricFilename
     }))
+}
+
+/**
+ * Get cache list across all users and the public library
+ */
+export const getAllCacheList = async () => {
+    const usernames = new Set<string>(['_open'])
+    const configuredUsers = global.lx?.config?.users || []
+    for (const u of configuredUsers) {
+        if (u?.name) usernames.add(u.name)
+    }
+
+    for (const location of getCacheLocations()) {
+        for (const folder of ['cache', 'music'] as const) {
+            let baseDir = ''
+            if (location === CACHE_ROOTS.DATA) {
+                const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
+                baseDir = path.join(dataPath, folder)
+            } else {
+                baseDir = path.join(getRootPath(), folder)
+            }
+            if (fs.existsSync(baseDir)) {
+                try {
+                    const entries = fs.readdirSync(baseDir, { withFileTypes: true })
+                    for (const entry of entries) {
+                        if (entry.isDirectory() && !entry.isSymbolicLink()) {
+                            usernames.add(entry.name)
+                        }
+                    }
+                } catch { }
+            }
+        }
+    }
+
+    const allItems: any[] = []
+    for (const user of usernames) {
+        try {
+            const list = await getCacheList(user)
+            allItems.push(...list)
+        } catch (err) {
+            console.error(`[getAllCacheList] Failed to fetch cache list for ${user}:`, err)
+        }
+    }
+    return allItems
 }
 
 /**
@@ -1887,6 +1935,7 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
         removeCoverCacheFiles(filename, normalizedUsername, coverCacheHash)
     }
 
+    invalidateGlobalCacheStats()
     return { deleted: true, folder }
 }
 
@@ -2872,6 +2921,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                         }
 
                         setCacheProgress(songKey, { progress: 100, status: 'finished', total: total || received, received, speed: 0, updatedAt: Date.now() })
+                        invalidateGlobalCacheStats()
                         settle(() => { resolve(); void checkAndCleanupCache(username) })
                     }
                 })
@@ -2973,6 +3023,102 @@ export const getCacheStats = (username?: string) => {
             }
         }
     }
+    return result
+}
+
+let lastGlobalStats: {
+    cache: { totalSize: number; fileCount: number }
+    music: { totalSize: number; fileCount: number }
+    totalSize: number
+    fileCount: number
+} | null = null
+let lastGlobalStatsTime = 0
+const GLOBAL_STATS_TTL = 10 * 1000
+
+export const invalidateGlobalCacheStats = () => {
+    lastGlobalStatsTime = 0
+}
+
+export const getGlobalCacheStats = () => {
+    const now = Date.now()
+    if (lastGlobalStats && (now - lastGlobalStatsTime < GLOBAL_STATS_TTL)) {
+        return lastGlobalStats
+    }
+
+    const roots: Array<'cache' | 'music'> = ['cache', 'music']
+    const result = {
+        cache: { totalSize: 0, fileCount: 0 },
+        music: { totalSize: 0, fileCount: 0 },
+        totalSize: 0,
+        fileCount: 0,
+    }
+    const extensions = CACHE_SIZE_EXTENSIONS
+    const seenPaths = new Set<string>()
+
+    for (const location of getCacheLocations()) {
+        for (const folder of roots) {
+            let baseDir = ''
+            if (location === CACHE_ROOTS.DATA) {
+                const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
+                baseDir = path.join(dataPath, folder)
+            } else {
+                baseDir = path.join(getRootPath(), folder)
+            }
+            if (!fs.existsSync(baseDir)) continue
+
+            let userEntries: fs.Dirent[] = []
+            try {
+                userEntries = fs.readdirSync(baseDir, { withFileTypes: true })
+            } catch {
+                continue
+            }
+
+            for (const userEntry of userEntries) {
+                if (userEntry.isSymbolicLink()) continue
+                const userPath = path.join(baseDir, userEntry.name)
+                if (userEntry.isDirectory()) {
+                    const files = getCacheFilesRecursively(userPath)
+                    for (const filePath of files) {
+                        const resolved = path.resolve(filePath)
+                        if (seenPaths.has(resolved)) continue
+                        seenPaths.add(resolved)
+
+                        const ext = path.extname(filePath).toLowerCase()
+                        if (extensions.has(ext)) {
+                            try {
+                                const stats = fs.statSync(filePath)
+                                result[folder].totalSize += stats.size
+                                result.totalSize += stats.size
+                                if (ext !== '.lrc') {
+                                    result[folder].fileCount++
+                                    result.fileCount++
+                                }
+                            } catch { }
+                        }
+                    }
+                } else if (userEntry.isFile()) {
+                    const resolved = path.resolve(userPath)
+                    if (seenPaths.has(resolved)) continue
+                    seenPaths.add(resolved)
+                    const ext = path.extname(userPath).toLowerCase()
+                    if (extensions.has(ext)) {
+                        try {
+                            const stats = fs.statSync(userPath)
+                            result[folder].totalSize += stats.size
+                            result.totalSize += stats.size
+                            if (ext !== '.lrc') {
+                                result[folder].fileCount++
+                                result.fileCount++
+                            }
+                        } catch { }
+                    }
+                }
+            }
+        }
+    }
+
+    lastGlobalStats = result
+    lastGlobalStatsTime = now
     return result
 }
 
@@ -3151,6 +3297,53 @@ export const clearAllCache = (username?: string) => {
         }
     }
     invalidateCacheListSync(normalizedUsername)
+    invalidateGlobalCacheStats()
+    return result
+}
+
+export const clearOnlyAudioCache = (username?: string) => {
+    const normalizedUsername = normalizeCacheUsername(username)
+    const result: CacheCleanupResult = { deletedCount: 0, freedSize: 0 }
+    for (const location of getCacheLocations()) {
+        const dir = getCacheDir(normalizedUsername, false, location, false)
+        addCleanupResult(result, removeDirectoryTree(dir))
+        indexManager.clear(normalizedUsername, 'cache', location)
+    }
+    invalidateCacheListSync(normalizedUsername)
+    invalidateGlobalCacheStats()
+    return result
+}
+
+export const clearAllUsersAudioCache = () => {
+    const result: CacheCleanupResult = { deletedCount: 0, freedSize: 0 }
+    const usernames = new Set<string>(['_open'])
+    const configuredUsers = global.lx?.config?.users || []
+    for (const u of configuredUsers) {
+        if (u?.name) usernames.add(u.name)
+    }
+    for (const location of getCacheLocations()) {
+        let baseDir = ''
+        if (location === CACHE_ROOTS.DATA) {
+            const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
+            baseDir = path.join(dataPath, 'cache')
+        } else {
+            baseDir = path.join(getRootPath(), 'cache')
+        }
+        if (fs.existsSync(baseDir)) {
+            try {
+                const entries = fs.readdirSync(baseDir, { withFileTypes: true })
+                for (const entry of entries) {
+                    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+                        usernames.add(entry.name)
+                    }
+                }
+            } catch { }
+        }
+    }
+    for (const u of usernames) {
+        addCleanupResult(result, clearOnlyAudioCache(u))
+    }
+    invalidateGlobalCacheStats()
     return result
 }
 
@@ -3414,6 +3607,7 @@ export const switchFolder = async (filenames: string[], username: string | undef
         }
     }
 
+    if (successCount > 0) invalidateGlobalCacheStats()
     return { successCount, failCount }
 }
 
@@ -3503,6 +3697,7 @@ export const switchBaseLocation = async (filenames: string[], username: string |
         }
     }
 
+    if (successCount > 0) invalidateGlobalCacheStats()
     return { successCount, failCount, targetLoc }
 }
 

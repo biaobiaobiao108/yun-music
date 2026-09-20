@@ -206,6 +206,7 @@ export const createSystemRouter = (): Router => {
       serverStatus: serverStatus.status,
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
+      cacheStats: fileCache.getGlobalCacheStats(),
     }
     return ctx.json(stats)
   })
@@ -284,6 +285,7 @@ export const createSystemRouter = (): Router => {
       cpus: os.cpus().length,
       cpuModel: os.cpus()[0]?.model || 'Unknown',
       cpuSpeed: os.cpus()[0]?.speed || 0,
+      cacheStats: fileCache.getGlobalCacheStats(),
     }
 
     return ctx.json(status)

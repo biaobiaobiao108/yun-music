@@ -48,6 +48,14 @@ export function initShellFeature(context: AdminFeatureContext) {
                 case 'switch-users':
                     app.switchView('users');
                     break;
+                case 'switch-storage-cache':
+                    app.switchView('storage');
+                    app.switchStorageTab('cache');
+                    break;
+                case 'switch-storage-music':
+                    app.switchView('storage');
+                    app.switchStorageTab('music');
+                    break;
                 case 'toggle-user-dropdown':
                     app.toggleUserDropdown(target.dataset.adminDropdown);
                     break;
@@ -312,6 +320,7 @@ export function initShellFeature(context: AdminFeatureContext) {
         const titles = {
             dashboard: '仪表盘',
             users: '用户管理',
+            storage: '数据管理',
             data: '数据查看',
             config: '系统配置',
             logs: '系统日志',
@@ -329,6 +338,9 @@ export function initShellFeature(context: AdminFeatureContext) {
                 break;
             case 'users':
                 app.loadUsers();
+                break;
+            case 'storage':
+                app.loadStorageData();
                 break;
             case 'data':
                 app.loadUserData();

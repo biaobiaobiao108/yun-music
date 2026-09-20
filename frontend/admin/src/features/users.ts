@@ -25,12 +25,13 @@ export function initUsersFeature(context: AdminFeatureContext) {
     function renderAllUserSelectors() {
         app.renderUserDropdown('data');
         app.renderUserDropdown('snapshot');
+        app.renderUserDropdown('storage');
 
         // 如果当前没有选择用户，在内容区展示选择网格
-        if (!document.getElementById('data-user-select').value) {
+        if (!document.getElementById('data-user-select')?.value) {
             app.renderUserSelectionGrid('data');
         }
-        if (!document.getElementById('snapshot-user-select').value) {
+        if (!document.getElementById('snapshot-user-select')?.value) {
             app.renderUserSelectionGrid('snapshot');
         }
     }
@@ -59,9 +60,21 @@ export function initUsersFeature(context: AdminFeatureContext) {
         const dropdown = document.getElementById(`${type}-user-dropdown`);
         if (!dropdown || !app.allUsers) return;
 
-        const currentSelected = document.getElementById(`${type}-user-select`).value;
+        const currentSelected = (document.getElementById(`${type}-user-select`) as HTMLInputElement)?.value;
 
-        dropdown.innerHTML = app.allUsers.map(user => {
+        let html = '';
+        if (type === 'storage') {
+            const isAll = currentSelected === 'all' || !currentSelected;
+            html += `
+            <div class="dropdown-item ${isAll ? 'active' : ''}" 
+                 data-admin-action="select-user" data-admin-user-type="storage" data-admin-user-name="all">
+                <div class="dropdown-avatar" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); font-size:12px;">📁</div>
+                <span>全部用户（含公共曲库）</span>
+                ${isAll ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:14px;height:14px;margin-left:auto;"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+            </div>`;
+        }
+
+        html += app.allUsers.map(user => {
             const isPublic = user.name === '_open';
             const displayName = isPublic ? '公开用户 (_open)' : app.escapeHtml(user.name);
             const avatarChar = isPublic ? '🌐' : app.escapeHtml(user.name.charAt(0).toUpperCase());
@@ -73,7 +86,10 @@ export function initUsersFeature(context: AdminFeatureContext) {
                 <span>${displayName}</span>
                 ${user.name === currentSelected ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:14px;height:14px;margin-left:auto;"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
             </div>
-        `}).join('');
+            `;
+        }).join('');
+
+        dropdown.innerHTML = html;
     }
 
     function renderUserSelectionGrid(type) {
@@ -105,15 +121,21 @@ export function initUsersFeature(context: AdminFeatureContext) {
     }
 
     function selectUser(type, username) {
-        const input = document.getElementById(`${type}-user-select`);
+        const input = document.getElementById(`${type}-user-select`) as HTMLInputElement | null;
         const title = document.querySelector(`#${type}-user-selector .selected-username`);
 
-        input.value = username;
-        title.textContent = username === '_open' ? '公开用户 (_open)' : username;
+        if (input) input.value = username;
+        if (title) {
+            if (type === 'storage' && username === 'all') {
+                title.textContent = '全部用户';
+            } else {
+                title.textContent = username === '_open' ? '公开用户 (_open)' : username;
+            }
+        }
 
         // 关闭下拉
-        document.getElementById(`${type}-user-dropdown`).classList.add('hidden');
-        document.getElementById(`${type}-user-selector`).classList.remove('open');
+        document.getElementById(`${type}-user-dropdown`)?.classList.add('hidden');
+        document.getElementById(`${type}-user-selector`)?.classList.remove('open');
 
         // 刷新下拉列表显示状态
         app.renderUserDropdown(type);
@@ -121,6 +143,8 @@ export function initUsersFeature(context: AdminFeatureContext) {
         // 加载数据
         if (type === 'data') {
             app.loadUserData();
+        } else if (type === 'storage') {
+            app.loadStorageData();
         } else {
             app.loadSnapshots();
         }

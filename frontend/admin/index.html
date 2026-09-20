@@ -97,6 +97,14 @@
                     </svg>
                     <span>用户管理</span>
                 </button>
+                <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="storage">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
+                    <span>数据管理</span>
+                </button>
                 <button type="button" class="nav-item appearance-none border-0 bg-transparent text-left w-full" data-view="data">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -308,6 +316,43 @@
                                 <p id="stat-uptime" class="stat-value">0h</p>
                             </div>
                         </div>
+
+                        <!-- 缓存音乐监控卡片 -->
+                        <div class="stat-card glass stat-clickable" role="button" tabindex="0" aria-label="查看缓存音乐" data-admin-action="switch-storage-cache">
+                            <div class="stat-icon cache-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3>缓存音乐</h3>
+                                <div class="stat-value-pair">
+                                    <span id="stat-cache-count" class="stat-value">0 首</span>
+                                </div>
+                                <p id="stat-cache-size" class="stat-value-small"
+                                    style="margin-top: 4px; opacity: 0.6; font-size: 0.75rem;">0 B</p>
+                            </div>
+                        </div>
+
+                        <!-- 下载音乐监控卡片 -->
+                        <div class="stat-card glass stat-clickable" role="button" tabindex="0" aria-label="查看下载音乐" data-admin-action="switch-storage-music">
+                            <div class="stat-icon download-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <h3>下载音乐</h3>
+                                <div class="stat-value-pair">
+                                    <span id="stat-music-count" class="stat-value">0 首</span>
+                                </div>
+                                <p id="stat-music-size" class="stat-value-small"
+                                    style="margin-top: 4px; opacity: 0.6; font-size: 0.75rem;">0 B</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- 实时监控面板 -->
@@ -468,6 +513,113 @@
                         </div>
                         <div id="users-list" class="users-table-body"></div>
                     </div>
+                <!-- 数据管理视图 -->
+                <div id="view-storage" class="view">
+                    <div class="view-header storage-view-header">
+                        <div class="storage-header-left">
+                            <div class="storage-tabs">
+                                <button type="button" class="storage-tab active" data-storage-tab="cache">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <polyline points="12 6 12 12 16 14" />
+                                    </svg>
+                                    <span>缓存音乐</span>
+                                    <span class="storage-tab-badge" id="storage-cache-badge">0</span>
+                                </button>
+                                <button type="button" class="storage-tab" data-storage-tab="music">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                    <span>下载音乐</span>
+                                    <span class="storage-tab-badge" id="storage-music-badge">0</span>
+                                </button>
+                            </div>
+
+                            <div class="custom-user-selector" id="storage-user-selector">
+                                <button type="button" class="selector-trigger" aria-haspopup="listbox" aria-expanded="false" data-admin-action="toggle-user-dropdown" data-admin-dropdown="storage">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="selector-icon">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                    <span class="selected-username" id="storage-user-display">全部用户</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                                <div class="selector-dropdown hidden" id="storage-user-dropdown">
+                                    <!-- 动态渲染 -->
+                                </div>
+                            </div>
+                            <input type="hidden" id="storage-user-select" value="all">
+                        </div>
+
+                        <div class="storage-header-right">
+                            <div class="search-box">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                                <input type="text" id="storage-search-input" placeholder="搜索歌曲、歌手、文件名..." data-admin-action="filter-storage-songs">
+                            </div>
+
+                            <select id="storage-sort-select" data-admin-action="sort-storage-songs" class="sort-select">
+                                <option value="">默认排序</option>
+                                <option value="size-desc">文件大小 ↓</option>
+                                <option value="size-asc">文件大小 ↑</option>
+                                <option value="mtime-desc">时间最新 ↓</option>
+                                <option value="mtime-asc">时间最早 ↑</option>
+                                <option value="name-asc">歌曲名 (A-Z)</option>
+                                <option value="name-desc">歌曲名 (Z-A)</option>
+                            </select>
+
+                            <button id="refresh-storage-btn" class="btn-secondary" title="刷新列表">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+                                    <polyline points="23 4 23 10 17 10" />
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                                </svg>
+                                <span>刷新</span>
+                            </button>
+
+                            <button id="clear-cache-btn" class="btn-danger" title="清空全部缓存" style="display: inline-flex;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                                <span>清空缓存</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="storage-batch-bar glass" id="storage-batch-bar">
+                        <div class="batch-select-btns">
+                            <button data-admin-action="storage-select-all" class="btn-batch">全选</button>
+                            <button data-admin-action="storage-invert-selection" class="btn-batch">反选</button>
+                            <button data-admin-action="storage-clear-selection" class="btn-batch">清空</button>
+                        </div>
+                        <div class="batch-action-btns">
+                            <button id="storage-batch-move-btn" class="btn-secondary" disabled>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px;">
+                                    <polyline points="17 1 21 5 17 9" />
+                                    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                                    <polyline points="7 23 3 19 7 15" />
+                                    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                                </svg>
+                                <span id="storage-batch-move-text">转为下载</span> (<span id="storage-move-count">0</span>)
+                            </button>
+                            <button id="storage-batch-delete-btn" class="btn-danger" disabled>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px;">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                                <span>批量删除</span> (<span id="storage-selected-count">0</span>)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="storage-stats-summary" class="storage-stats-summary"></div>
+                    <div id="storage-content" class="storage-content"></div>
                 </div>
 
 
