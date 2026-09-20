@@ -320,7 +320,7 @@ function AudioRuntime() {
       if (error instanceof DOMException && error.name === 'NotAllowedError') notify('浏览器阻止了自动播放，请点击播放按钮')
     })
   }, [isPlaying, notify, setPlaying])
-  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.album || '云音'), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', togglePlayback); navigator.mediaSession.setActionHandler?.('pause', togglePlayback); navigator.mediaSession.setActionHandler?.('previoustrack', previousPlayback); navigator.mediaSession.setActionHandler?.('nexttrack', nextPlayback) }, [currentSong, nextPlayback, previousPlayback, togglePlayback])
+  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: String(currentSong.albumName || '云音'), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', togglePlayback); navigator.mediaSession.setActionHandler?.('pause', togglePlayback); navigator.mediaSession.setActionHandler?.('previoustrack', previousPlayback); navigator.mediaSession.setActionHandler?.('nexttrack', nextPlayback) }, [currentSong, nextPlayback, previousPlayback, togglePlayback])
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
 

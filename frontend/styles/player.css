@@ -8515,3 +8515,71 @@ textarea:focus-visible {
     .react-artwork-play-button,
     .react-entity-card .react-entity-favorite { transition: none; transform: none; }
 }
+
+/* React UI focus policy: quiet mouse focus, compact keyboard focus. */
+:where(button, a, input, select, textarea, [tabindex]):focus {
+    outline: none !important;
+    outline-offset: 0 !important;
+    border-color: var(--app-border) !important;
+}
+
+:where(button, a, input, select, textarea, [tabindex]):focus:not(:focus-visible) {
+    box-shadow: none !important;
+}
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline: none !important;
+    outline-offset: 0 !important;
+    border-color: var(--app-border) !important;
+    box-shadow: inset 0 0 0 1px var(--app-accent) !important;
+}
+
+:where(
+    .react-global-search,
+    .react-search-card,
+    .react-search-input,
+    .react-search-filter,
+    .react-toolbar-card,
+    .react-local-search,
+    .react-settings-form,
+    .react-dialog-form,
+    .react-dialog-actions,
+    .react-select-menu-trigger
+):focus-within {
+    border-color: var(--app-border) !important;
+    box-shadow: none !important;
+}
+
+@media (forced-colors: active) {
+    :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+        outline: 1px solid Highlight !important;
+        box-shadow: none !important;
+    }
+}
+
+:where(input, select, textarea):focus,
+:where(input, select, textarea):focus-visible {
+    outline: none !important;
+    outline-offset: 0 !important;
+    border-color: var(--app-border) !important;
+    box-shadow: none !important;
+}
+
+/* Keep legacy focus rules from reintroducing outer frames in the React shell. */
+.react-search-input:focus-within,
+.react-global-search:focus-within {
+    border-color: var(--app-border) !important;
+    box-shadow: none !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: none !important;
+    outline-offset: 0 !important;
+    border-color: var(--app-border) !important;
+    box-shadow: none !important;
+}

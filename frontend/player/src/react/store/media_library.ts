@@ -40,7 +40,7 @@ function normalizeMediaItem(item: Song, kind: 'artist' | 'album'): Song {
   const source = songSource(item)
   const image = songImage(item)
   if (kind === 'artist') return { ...item, id: id || item.id, source, name, singer: name, picUrl: image ?? item.picUrl }
-  return { ...item, id: id || item.id, source, name, album: name, albumName: name, picUrl: image ?? item.picUrl }
+  return { ...item, id: id || item.id, source, name, albumName: name, picUrl: image ?? item.picUrl }
 }
 
 export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({

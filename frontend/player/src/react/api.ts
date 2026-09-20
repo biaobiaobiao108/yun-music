@@ -35,7 +35,7 @@ export type CacheItem = Record<string, unknown> & {
   songmid?: string | number
   name: string
   singer: string
-  album?: string
+  albumName?: string
   img?: string
   source?: string
   quality?: string

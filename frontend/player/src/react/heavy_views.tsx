@@ -206,7 +206,7 @@ export function LocalMusicView() {
       songmid: item.songmid ?? metadata.songmid ?? metadata.id,
       name: item.name || metadata.name,
       singer: item.singer || metadata.singer,
-      album: item.album || metadata.album,
+      albumName: item.albumName || metadata.albumName,
       source: item.source || metadata.source,
       img: image,
       quality: item.quality || metadata.quality,
@@ -216,7 +216,7 @@ export function LocalMusicView() {
   }
   const visibleCacheItems = useMemo(() => {
     const needle = keyword.trim().toLocaleLowerCase()
-    return cacheItems.filter(item => (cacheFilter === 'all' || item.folder === cacheFilter) && (!needle || `${item.name} ${item.singer} ${item.album} ${item.filename}`.toLocaleLowerCase().includes(needle)))
+    return cacheItems.filter(item => (cacheFilter === 'all' || item.folder === cacheFilter) && (!needle || `${item.name} ${item.singer} ${item.albumName} ${item.filename}`.toLocaleLowerCase().includes(needle)))
   }, [cacheFilter, cacheItems, keyword])
   const toggleSelected = (item: CacheItem) => setSelected(current => { const next = new Set(current); const key = cacheKey(item); if (next.has(key)) next.delete(key); else next.add(key); return next })
   const deleteSelected = async () => {

@@ -3,7 +3,7 @@ export type Song = Record<string, unknown> & {
   songmid?: string | number
   name?: string
   singer?: string
-  album?: string
+  albumName?: string
   source?: string
   img?: string
   pic?: string
@@ -61,38 +61,9 @@ export function songArtist(song: Song | null | undefined): string {
   return String(song?.singer || song?.artist || '未知歌手')
 }
 
-function textValue(value: unknown): string {
-  if (typeof value === 'string' && value.trim()) return value.trim()
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return ''
-}
-
-/**
- * Album metadata is persisted in several shapes across old list snapshots and
- * different music sources. Keep the fallback in one place so every song list
- * renders the same album value.
- */
 export function songAlbum(song: Song | null | undefined): string {
-  if (!song) return '—'
-  const record = song as Record<string, unknown>
-  const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
-  const album = record.album
-  const albumRecord = album && typeof album === 'object' ? album as Record<string, unknown> : {}
-  const value = [
-    textValue(album),
-    textValue(record.albumName),
-    textValue(record.albumname),
-    textValue(record.albumTitle),
-    textValue(record.album_name),
-    textValue(albumRecord.name),
-    textValue(albumRecord.title),
-    textValue(albumRecord.albumName),
-    textValue(meta.albumName),
-    textValue(meta.albumname),
-    textValue(meta.albumTitle),
-    textValue(meta.album),
-  ].find(Boolean)
-  return value || '—'
+  const value = song?.albumName
+  return value === undefined || value === null || !String(value).trim() ? '—' : String(value).trim()
 }
 
 export function songImage(song: Song | null | undefined): unknown {

@@ -31,7 +31,7 @@ function textOf(value: unknown, fallback = '—'): string {
 }
 
 function songAlbum(song: AdminSong): string {
-  return textOf(song.album ?? song.albumName ?? song.meta?.albumName ?? song.meta?.album)
+  return textOf(song.albumName)
 }
 
 function songCover(song: AdminSong): string {
@@ -176,7 +176,7 @@ export function DataView() {
     const needle = query.trim().toLocaleLowerCase()
     const filtered = sourceRows.filter(row => {
       if (!needle) return true
-      const searchable = [row.song.name, row.song.singer, row.song.artist, row.song.album, row.song.albumName, row.sourceName].map(value => String(value ?? '')).join(' ').toLocaleLowerCase()
+      const searchable = [row.song.name, row.song.singer, row.song.artist, row.song.albumName, row.sourceName].map(value => String(value ?? '')).join(' ').toLocaleLowerCase()
       return searchable.includes(needle)
     })
     if (sort === 'default') return filtered

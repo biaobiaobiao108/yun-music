@@ -10,7 +10,6 @@ export type AdminSong = Record<string, unknown> & {
   name?: string
   singer?: string
   artist?: string
-  album?: string
   albumName?: string
   img?: string
   picUrl?: string
@@ -70,7 +69,7 @@ export function normalizeAdminSong(value: unknown): AdminSong {
   const id = firstText(record.id, record.songmid, record.songId, record.hash, meta.songId, meta.songmid, meta.id)
   const name = firstText(record.name, record.title, record.songName, meta.name, meta.title)
   const singer = firstText(record.singer, record.artist, record.artists, meta.singer, meta.artist, meta.artists)
-  const album = firstText(record.album, record.albumName, meta.albumName, meta.album, meta.albumTitle)
+  const albumName = firstText(record.albumName)
   const img = firstText(record.img, record.picUrl, record.pic, record.cover, meta.picUrl, meta.img, meta.pic, meta.cover)
   const interval = firstText(record.interval, record.duration, meta.interval, meta.duration)
   return {
@@ -78,7 +77,7 @@ export function normalizeAdminSong(value: unknown): AdminSong {
     ...(id ? { id } : {}),
     ...(name ? { name } : {}),
     ...(singer ? { singer } : {}),
-    ...(album ? { album } : {}),
+    ...(albumName ? { albumName } : {}),
     ...(img ? { img } : {}),
     ...(interval ? { interval } : {}),
     meta,

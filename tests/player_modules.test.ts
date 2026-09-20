@@ -66,13 +66,13 @@ describe('React player module boundaries', () => {
   })
 
   it('resolves song action entities by their own ids and supports search fallback metadata', () => {
-    const identified = { source: 'wy', songmid: 'song-1', singer: 'Aimer', artistId: 123, album: 'I beg you', albumId: 'album-9', name: '花の唄' }
+    const identified = { source: 'wy', songmid: 'song-1', singer: 'Aimer', artistId: 123, albumName: 'I beg you', albumId: 'album-9', name: '花の唄' }
     expect(songEntityId(identified, 'artist')).toBe('123')
     expect(songEntityId(identified, 'album')).toBe('album-9')
     expect(songEntityDetail(identified, 'artist')).toMatchObject({ kind: 'artist', id: '123', source: 'wy', name: 'Aimer' })
     expect(songEntityDetail(identified, 'album')).toMatchObject({ kind: 'album', id: 'album-9', source: 'wy', name: 'I beg you' })
 
-    const withoutIds = { source: 'tx', songmid: 'song-2', singer: '没有 ID 的歌手', album: '没有 ID 的专辑', name: '测试歌曲' }
+    const withoutIds = { source: 'tx', songmid: 'song-2', singer: '没有 ID 的歌手', albumName: '没有 ID 的专辑', name: '测试歌曲' }
     expect(songEntityDetail(withoutIds, 'artist')).toBeNull()
     expect(songEntityDetail(withoutIds, 'album')).toBeNull()
     expect(songEntityName(withoutIds, 'artist')).toBe('没有 ID 的歌手')

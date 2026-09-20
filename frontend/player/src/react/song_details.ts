@@ -34,8 +34,7 @@ export function songEntityName(song: Song, kind: SongEntityKind, options: SongEn
   if (kind === 'artist') {
     return firstText(song.singer, record.artist, record.artistName, record.singerName, meta.artistName, meta.singerName, options.allowGenericName ? record.name : '', options.allowGenericName ? record.title : '') || songArtist(song)
   }
-  const album = record.album
-  return firstText(typeof album === 'string' ? album : '', record.albumName, record.albumname, meta.albumName, nestedId(album), options.allowGenericName ? record.name : '', options.allowGenericName ? record.title : '') || '未知专辑'
+  return firstText(record.albumName, options.allowGenericName ? record.name : '', options.allowGenericName ? record.title : '') || '未知专辑'
 }
 
 export function songEntityId(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): string {
@@ -63,11 +62,6 @@ export function songEntityId(song: Song, kind: SongEntityKind, options: SongEnti
     record.albumid,
     record.albumMid,
     record.albummid,
-    meta.albumId,
-    meta.albumid,
-    meta.albumMid,
-    meta.albummid,
-    nestedId(record.album),
     options.allowGenericId ? record.id : '',
     options.allowGenericId ? record.mid : '',
   )

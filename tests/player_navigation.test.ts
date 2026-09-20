@@ -127,10 +127,10 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-search-filter .react-select-menu-trigger')
   })
 
-  it('reads album names from legacy and nested song metadata', () => {
-    expect(songAlbum({ meta: { albumName: '旧快照专辑' } })).toBe('旧快照专辑')
-    expect(songAlbum({ album: { name: '对象专辑' } })).toBe('对象专辑')
+  it('reads album names from the canonical React song field', () => {
     expect(songAlbum({ albumName: '顶层专辑' })).toBe('顶层专辑')
+    expect(songAlbum({ meta: { albumName: '旧快照专辑' } })).toBe('—')
+    expect(songAlbum({ album: { name: '对象专辑' } })).toBe('—')
     expect(songAlbum({ name: '没有专辑' })).toBe('—')
   })
 
@@ -201,6 +201,8 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('content-visibility: auto')
     expect(css).toContain('contain-intrinsic-size')
     expect(css).toContain('@media (max-width: 720px)')
+    expect(css).toContain('React UI focus policy: quiet mouse focus, compact keyboard focus.')
+    expect(css).toContain('box-shadow: inset 0 0 0 1px var(--app-accent) !important')
     expect(source).toContain('loading="lazy"')
     expect(source).toContain('react-song-album')
     expect(source).toContain('react-song-duration')

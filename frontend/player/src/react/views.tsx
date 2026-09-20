@@ -177,7 +177,7 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
     source: detail.source,
     name: detail.name,
     singer: detail.kind === 'artist' ? detail.name : undefined,
-    album: detail.kind === 'album' ? detail.name : undefined,
+    albumName: detail.kind === 'album' ? detail.name : undefined,
     picUrl: detail.image,
   }), [detail.id, detail.image, detail.kind, detail.name, detail.source])
   const isDetailFavorite = mediaKind

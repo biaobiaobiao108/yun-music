@@ -10,14 +10,14 @@ describe('React admin frontend', () => {
   it('normalizes persisted song metadata so data view can render real playlist entries', () => {
     const data = normalizeAdminData({
       data: {
-        defaultList: [{ id: 7, name: '试听歌曲', singer: '歌手', meta: { albumName: '专辑', picUrl: 'https://example.com/cover.jpg', songId: 7 } }],
+        defaultList: [{ id: 7, name: '试听歌曲', singer: '歌手', albumName: '专辑', meta: { picUrl: 'https://example.com/cover.jpg', songId: 7 } }],
         loveList: [],
-        userList: [{ id: 12, name: '夜间歌单', list: [{ songmid: 88, title: '另一首歌', artist: '另一位歌手', meta: { albumName: '另一张专辑' } }] }],
+        userList: [{ id: 12, name: '夜间歌单', list: [{ songmid: 88, title: '另一首歌', artist: '另一位歌手', albumName: '另一张专辑' }] }],
       },
     })
-    expect(data.defaultList?.[0]).toMatchObject({ id: '7', name: '试听歌曲', singer: '歌手', album: '专辑', img: 'https://example.com/cover.jpg' })
+    expect(data.defaultList?.[0]).toMatchObject({ id: '7', name: '试听歌曲', singer: '歌手', albumName: '专辑', img: 'https://example.com/cover.jpg' })
     expect(data.userList?.[0]).toMatchObject({ id: '12', name: '夜间歌单' })
-    expect(data.userList?.[0]?.list[0]).toMatchObject({ id: '88', name: '另一首歌', singer: '另一位歌手', album: '另一张专辑' })
+    expect(data.userList?.[0]?.list[0]).toMatchObject({ id: '88', name: '另一首歌', singer: '另一位歌手', albumName: '另一张专辑' })
     expect(adminSongId(data.userList?.[0]?.list[0] ?? {}, '0')).toBe('88')
   })
 
@@ -72,5 +72,7 @@ describe('React admin frontend', () => {
     expect(css).toContain(':focus-visible')
     expect(css).toContain('admin-react-storage-summary')
     expect(css).toContain('@media (max-width: 620px)')
+    expect(css).toContain('React UI focus policy: quiet mouse focus, compact keyboard focus.')
+    expect(css).toContain('box-shadow: inset 0 0 0 1px var(--app-accent) !important')
   })
 })
