@@ -8215,3 +8215,164 @@ textarea:focus-visible {
     .react-footer-song-menu-trigger,
     .react-add-to-list-option { transition: none; }
 }
+
+/* Restrained React motion layer. Keep route changes calm and composited: only
+   opacity/transform animate, while dense song rows stay visually stable. */
+@keyframes react-view-enter {
+    from { opacity: 0; transform: translate3d(0, .35rem, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes react-panel-enter {
+    from { opacity: 0; transform: translate3d(0, .25rem, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes react-grid-item-enter {
+    from { opacity: 0; transform: translate3d(0, .4rem, 0) scale(.992); }
+    to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.react-view {
+    animation: react-view-enter 280ms cubic-bezier(.22, 1, .36, 1) backwards;
+}
+
+.react-detail-header,
+.react-toolbar-card,
+.react-search-card,
+.react-content-card {
+    animation: react-panel-enter 300ms cubic-bezier(.22, 1, .36, 1) backwards;
+}
+
+.react-detail-hero h1,
+.react-detail-hero h2 {
+    margin: 0;
+    color: var(--app-text);
+    font-size: clamp(1.25rem, 3vw, 2rem);
+    letter-spacing: -.025em;
+}
+
+.react-entity-card,
+.react-playlist-card,
+.react-artwork-card {
+    animation: react-grid-item-enter 260ms cubic-bezier(.22, 1, .36, 1) backwards;
+}
+
+.react-entity-card:nth-child(1), .react-playlist-card:nth-child(1), .react-artwork-card:nth-child(1) { animation-delay: 20ms; }
+.react-entity-card:nth-child(2), .react-playlist-card:nth-child(2), .react-artwork-card:nth-child(2) { animation-delay: 40ms; }
+.react-entity-card:nth-child(3), .react-playlist-card:nth-child(3), .react-artwork-card:nth-child(3) { animation-delay: 60ms; }
+.react-entity-card:nth-child(4), .react-playlist-card:nth-child(4), .react-artwork-card:nth-child(4) { animation-delay: 80ms; }
+.react-entity-card:nth-child(5), .react-playlist-card:nth-child(5), .react-artwork-card:nth-child(5) { animation-delay: 100ms; }
+.react-entity-card:nth-child(6), .react-playlist-card:nth-child(6), .react-artwork-card:nth-child(6) { animation-delay: 120ms; }
+.react-entity-card:nth-child(7), .react-playlist-card:nth-child(7), .react-artwork-card:nth-child(7) { animation-delay: 140ms; }
+.react-entity-card:nth-child(8), .react-playlist-card:nth-child(8), .react-artwork-card:nth-child(8) { animation-delay: 160ms; }
+
+.react-entity-card:nth-child(n + 9),
+.react-playlist-card:nth-child(n + 9),
+.react-artwork-card:nth-child(n + 9) {
+    animation: none;
+}
+
+.react-entity-card button,
+.react-playlist-card button,
+.react-home-shortcut,
+.react-home-playlist {
+    transition: transform var(--app-motion) cubic-bezier(.22, 1, .36, 1),
+        border-color var(--app-motion-fast) ease,
+        background-color var(--app-motion-fast) ease,
+        box-shadow var(--app-motion) ease,
+        filter var(--app-motion) ease;
+}
+
+.react-entity-card button:hover,
+.react-entity-card button:focus-visible,
+.react-playlist-card button:hover,
+.react-playlist-card button:focus-visible,
+.react-home-playlist:hover,
+.react-home-playlist:focus-visible {
+    transform: translate3d(0, -.16rem, 0);
+    box-shadow: var(--app-shadow-soft);
+}
+
+.react-entity-card button:active,
+.react-playlist-card button:active,
+.react-home-shortcut:active,
+.react-home-playlist:active {
+    transform: translate3d(0, -.03rem, 0) scale(.995);
+}
+
+.react-playlist-card img,
+.react-entity-card img {
+    transition: transform var(--app-motion) cubic-bezier(.22, 1, .36, 1), filter var(--app-motion) ease;
+}
+
+.react-playlist-card button:hover img,
+.react-entity-card button:hover img,
+.react-playlist-card button:focus-visible img,
+.react-entity-card button:focus-visible img {
+    transform: scale(1.018);
+    filter: saturate(1.04);
+}
+
+.react-home-shortcut:hover {
+    filter: brightness(1.045);
+}
+
+.react-detail-tabs > button,
+.react-detail-tabs > span button,
+.react-text-button,
+.react-song-favorite,
+.react-song-actions button,
+.react-row-play {
+    transition: color var(--app-motion-fast) ease,
+        background-color var(--app-motion-fast) ease,
+        border-color var(--app-motion-fast) ease,
+        transform var(--app-motion-fast) ease;
+}
+
+.react-song-favorite:active,
+.react-song-actions button:active,
+.react-row-play:active {
+    transform: scale(.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-view,
+    .react-detail-header,
+    .react-toolbar-card,
+    .react-search-card,
+    .react-content-card,
+    .react-entity-card,
+    .react-playlist-card,
+    .react-artwork-card {
+        animation: none;
+    }
+
+    .react-entity-card button,
+    .react-playlist-card button,
+    .react-home-shortcut,
+    .react-home-playlist,
+    .react-playlist-card img,
+    .react-entity-card img,
+    .react-detail-tabs > button,
+    .react-detail-tabs > span button,
+    .react-text-button,
+    .react-song-favorite,
+    .react-song-actions button,
+    .react-row-play {
+        transition: none;
+    }
+
+    .react-entity-card button:hover,
+    .react-entity-card button:focus-visible,
+    .react-playlist-card button:hover,
+    .react-playlist-card button:focus-visible,
+    .react-home-playlist:hover,
+    .react-home-playlist:focus-visible,
+    .react-entity-card button:active,
+    .react-playlist-card button:active,
+    .react-home-shortcut:active,
+    .react-home-playlist:active {
+        transform: none;
+    }
+}

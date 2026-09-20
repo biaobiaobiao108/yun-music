@@ -189,6 +189,24 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-immersive-lyrics .react-vinyl')
   })
 
+  it('keeps playlist artwork through detail navigation and renders one entity heading', () => {
+    const heavyViews = read('frontend/player/src/react/heavy_views.tsx')
+    const views = read('frontend/player/src/react/views.tsx')
+    const types = read('frontend/player/src/react/types.ts')
+    const css = read('frontend/styles/player.css')
+    expect(types).toContain("'info', 'playlist', 'diss'")
+    expect(heavyViews).toContain('listItemImage(payload as Song, detail.image)')
+    expect(heavyViews).toContain('info.name')
+    expect(heavyViews).toContain('hideHeader')
+    expect(views).toContain('hideHeader')
+    expect(views).toContain('<h1>{name}</h1>')
+    expect(heavyViews).not.toContain('<h2>{name}</h2>')
+    expect(views).not.toContain('<h2>{name}</h2>')
+    expect(css).toContain('@keyframes react-view-enter')
+    expect(css).toContain('@keyframes react-grid-item-enter')
+    expect(css).toContain('prefers-reduced-motion: reduce')
+  })
+
   it('does not retain legacy HTML event bridges in the React source or release shell', () => {
     const files = [
       'frontend/player/src/react/index.tsx',

@@ -17,6 +17,10 @@ function extractSongs(payload: unknown): Song[] {
   return []
 }
 
+function recordOf(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
+}
+
 function extractListItems(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
   if (!payload || typeof payload !== 'object') return []
@@ -29,8 +33,10 @@ function listItemId(item: Song, index: number): string {
   return String(item.id ?? item.listId ?? item.dissid ?? item.uid ?? item.songmid ?? index)
 }
 
-function listItemImage(item: Song): string {
-  return safeImageUrl(songImage(item))
+function listItemImage(item: Song, fallback?: unknown): string {
+  const candidate = songImage(item)
+  const resolved = safeImageUrl(candidate, '')
+  return resolved || safeImageUrl(fallback)
 }
 
 function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
@@ -42,10 +48,11 @@ function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
   const resource = useRequestResource(loadDetail, [detail.id, detail.source], { initialData: { payload: {}, songs: [] as Song[] } })
   const { payload, songs } = resource.data
   const { loading, error } = resource
-  const name = String(payload.name ?? payload.title ?? payload.dissname ?? detail.name ?? '歌单详情')
-  const image = listItemImage(payload as Song)
-  const description = String(payload.desc ?? payload.description ?? payload.intro ?? '')
-  return <ViewFrame title={name} subtitle="歌单详情"><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={goBack}><Icon name="arrow-left" />返回歌单广场</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h2>{name}</h2>{description && <p>{description}</p>}<small>{detail.source.toUpperCase()} · {songs.length} 首歌曲</small></div></div></section><section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="歌单暂无歌曲" />}</section></ViewFrame>
+  const info = recordOf(payload.info)
+  const name = String(payload.name ?? payload.title ?? payload.dissname ?? info.name ?? detail.name ?? '歌单详情')
+  const image = listItemImage(payload as Song, detail.image)
+  const description = String(payload.desc ?? payload.description ?? payload.intro ?? info.desc ?? '')
+  return <ViewFrame title={name} subtitle="歌单详情" hideHeader><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={goBack}><Icon name="arrow-left" />返回歌单广场</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h1>{name}</h1>{description && <p>{description}</p>}<small>{String(payload.source ?? detail.source).toUpperCase()} · {songs.length} 首歌曲</small></div></div></section><section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="歌单暂无歌曲" />}</section></ViewFrame>
 }
 
 function SongListGrid() {

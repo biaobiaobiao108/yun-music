@@ -44,7 +44,7 @@ export function songImage(song: Song | null | undefined): unknown {
     const value = record[key]
     if (!value || typeof value !== 'object') return []
     const nestedRecord = value as Record<string, unknown>
-    return ['url', 'src', 'picUrl', 'img', 'pic', 'cover', 'picture'].map(field => nestedRecord[field]).filter(Boolean)
+    return ['url', 'src', 'picUrl', 'pic_url', 'img', 'pic', 'cover', 'coverUrl', 'coverImgUrl', 'cover_url', 'cover_url_medium', 'picture', 'logo', 'image', 'thumbnail'].map(field => nestedRecord[field]).filter(Boolean)
   })
   return [
     record.img,
@@ -54,8 +54,15 @@ export function songImage(song: Song | null | undefined): unknown {
     record.cover,
     record.coverUrl,
     record.coverImgUrl,
+    record.cover_url,
+    record.cover_url_medium,
     record.picture,
+    record.logo,
+    record.image,
+    record.thumbnail,
     record.albumImg,
-    ...nested('meta', 'album', 'al', 'music', 'songInfo'),
+    record.disscover,
+    record.dissCover,
+    ...nested('meta', 'album', 'al', 'music', 'songInfo', 'info', 'playlist', 'diss', 'data', 'result'),
   ].find(value => (typeof value === 'string' ? value.trim().length > 0 : Boolean(value)))
 }
