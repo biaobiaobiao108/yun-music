@@ -149,6 +149,15 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain('默认列表')
   })
 
+  it('renders one visible heading for playlist pages while retaining the browser title', () => {
+    const shell = read('frontend/player/src/react/shell.tsx')
+    const views = read('frontend/player/src/react/views.tsx')
+    expect(shell).not.toContain('className="react-topbar-title"')
+    expect(shell).toContain('document.title = `${title} - 云音`')
+    expect(views).toContain('<h2>歌曲</h2>{batchMode && selectedSongs.size > 0 && <p>已选择 {selectedSongs.size} 首</p>}')
+    expect(views).not.toContain("listId === 'love' ? '我喜欢的音乐' : '歌单歌曲'")
+  })
+
   it('preserves responsive, reduced-motion and long-list performance guards', () => {
     const html = read('public/music/index.html')
     const css = read('frontend/styles/player.css')

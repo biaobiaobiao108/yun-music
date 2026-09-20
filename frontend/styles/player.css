@@ -545,9 +545,7 @@ html, body {
 .react-player-topbar { min-height: 4.2rem; flex: 0 0 auto; display: flex; align-items: center; gap: .65rem; padding: .65rem clamp(.85rem, 3vw, 2.4rem); background: var(--bg-header); border-bottom: 1px solid var(--border-main); backdrop-filter: blur(14px); z-index: 30; }
 .react-menu-button { display: none; }
 .react-history-controls { display: flex; gap: .2rem; }
-.react-topbar-title { min-width: 0; }
-.react-topbar-title p, .react-eyebrow { color: var(--text-dim); font-size: .7rem; margin-bottom: .15rem; }
-.react-topbar-title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.15rem; }
+.react-eyebrow { color: var(--text-dim); font-size: .7rem; margin-bottom: .15rem; }
 .react-topbar-actions { display: flex; align-items: center; gap: .35rem; margin-left: auto; }
 .react-player-button { min-height: 2.65rem; padding: .62rem 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid var(--border-main); border-radius: .7rem; background: transparent; color: var(--text-main); cursor: pointer; font: inherit; font-weight: 650; }
 .react-player-button:hover:not(:disabled) { border-color: var(--c-500); color: var(--c-600); }
@@ -6163,24 +6161,6 @@ textarea:focus-visible {
     color: var(--app-on-accent);
 }
 
-.react-topbar-title {
-    min-width: 0;
-    margin-right: auto;
-}
-
-.react-topbar-title p {
-    display: none;
-}
-
-.react-topbar-title h1 {
-    margin: 0;
-    overflow: hidden;
-    color: var(--app-text);
-    font-size: 1.05rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .react-topbar-actions {
     display: flex;
     align-items: center;
@@ -6959,7 +6939,6 @@ textarea:focus-visible {
     }
 
     .react-history-controls,
-    .react-topbar-title,
     .react-user-chip {
         display: none;
     }
