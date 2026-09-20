@@ -7231,6 +7231,17 @@ textarea:focus-visible {
     grid-template-columns: 1.75rem 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem 5.5rem 4.2rem 3.5rem;
 }
 
+/* 收藏与自建歌单不展示文件属性，保留更宽的歌曲与专辑信息列。 */
+.react-song-table--without-file-metadata .react-song-head,
+.react-song-table--without-file-metadata .react-song-row {
+    grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem minmax(3.5rem, max-content);
+}
+
+.react-song-table--without-file-metadata .react-song-head.is-selectable,
+.react-song-table--without-file-metadata .react-song-row.is-selectable {
+    grid-template-columns: 1.75rem 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem minmax(3.5rem, max-content);
+}
+
 .react-song-row {
     min-height: 4.35rem;
     padding: .45rem .1rem;

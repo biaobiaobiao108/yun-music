@@ -207,9 +207,14 @@ describe('React player navigation and state restoration', () => {
   it('renders one visible heading for playlist pages while retaining the browser title', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
     const views = read('frontend/player/src/react/views.tsx')
+    const components = read('frontend/player/src/react/components.tsx')
+    const css = read('frontend/styles/player.css')
     expect(shell).not.toContain('className="react-topbar-title"')
     expect(shell).toContain('document.title = `${title} - 云音`')
     expect(views).toContain('<h2>歌曲</h2>{batchMode && selectedSongs.size > 0 && <p>已选择 {selectedSongs.size} 首</p>}')
+    expect(views).toContain('showFileMetadata={false}')
+    expect(components).toContain('react-song-table--without-file-metadata')
+    expect(css).toContain('.react-song-table--without-file-metadata .react-song-head')
     expect(views).not.toContain("listId === 'love' ? '我喜欢的音乐' : '歌单歌曲'")
   })
 

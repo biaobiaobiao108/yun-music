@@ -119,7 +119,7 @@ function songFormat(song: Song): string {
   return String(songFormatValue(song) || 'FLAC').toUpperCase()
 }
 
-export function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void }) {
+export function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect, showFileMetadata = true }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
   const playSong = usePlaybackStore(state => state.playSong)
   const enqueue = usePlaybackStore(state => state.enqueue)
   const addSong = useLibraryStore(state => state.addSong)
@@ -140,20 +140,19 @@ export function SongRow({ song, index, list, listId = 'love', compact = false, s
     <span className="react-song-album" title={songAlbum(song)}>{songAlbum(song)}</span>
     <button type="button" className={`react-song-favorite ${isLoved ? 'is-loved' : ''}`} title={isLoved ? '取消收藏' : '收藏'} aria-label={`${isLoved ? '取消收藏' : '收藏'} ${songTitle(song)}`} aria-pressed={isLoved} onClick={toggleFavorite}><Icon name="heart" /></button>
     <span className="react-song-duration">{songDuration(song)}</span>
-    <span className="react-song-size">{songSize(song)}</span>
-    <span className="react-song-quality">{songFormat(song)}</span>
+    {showFileMetadata && <><span className="react-song-size">{songSize(song)}</span><span className="react-song-quality">{songFormat(song)}</span></>}
     <span className="react-song-actions">{listId !== 'love' && <button type="button" title="从当前歌单移除" aria-label={`从当前歌单移除 ${songTitle(song)}`} onClick={removeFromPlaylist}><Icon name="trash" /></button>}<button type="button" title="加入队列" aria-label={`将 ${songTitle(song)} 加入队列`} onClick={() => { enqueue([song]); notify('已加入播放队列') }}><Icon name="plus" /></button></span>
   </li>
 }
 
-export function SongList({ songs, empty = '暂无歌曲', compact = false, listId = 'love', selected, onSelect }: { songs: Song[]; empty?: string; compact?: boolean; listId?: string; selected?: Set<string>; onSelect?: (song: Song) => void }) {
+export function SongList({ songs, empty = '暂无歌曲', compact = false, listId = 'love', selected, onSelect, showFileMetadata = true }: { songs: Song[]; empty?: string; compact?: boolean; listId?: string; selected?: Set<string>; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
   if (!songs.length) return <div className="react-empty"><Icon name="music" /><p>{empty}</p></div>
-  return <div className="react-song-table">
+  return <div className={`react-song-table ${showFileMetadata ? '' : 'react-song-table--without-file-metadata'}`}>
     <div className={`react-song-head ${onSelect ? 'is-selectable' : ''}`} aria-hidden="true">
       {onSelect && <span />}
-      <span>#</span><span>歌曲 / 歌手</span><span>专辑</span><span>收藏</span><span>时长</span><span>大小</span><span>格式</span><span />
+      <span>#</span><span>歌曲 / 歌手</span><span>专辑</span><span>收藏</span><span>时长</span>{showFileMetadata && <><span>大小</span><span>格式</span></>}<span />
     </div>
-    <ul className="react-song-list" aria-label="歌曲列表">{songs.map((song, index) => <SongRow key={`${songKey(song)}-${index}`} song={song} index={index} list={songs} listId={listId} compact={compact} selected={selected?.has(songKey(song))} onSelect={onSelect} />)}</ul>
+    <ul className="react-song-list" aria-label="歌曲列表">{songs.map((song, index) => <SongRow key={`${songKey(song)}-${index}`} song={song} index={index} list={songs} listId={listId} compact={compact} selected={selected?.has(songKey(song))} onSelect={onSelect} showFileMetadata={showFileMetadata} />)}</ul>
   </div>
 }
 
