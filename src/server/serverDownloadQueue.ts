@@ -544,6 +544,52 @@ export const initialize = (downloadResolver: DownloadResolver) => {
   void processQueue()
 }
 
+const targetFolderForInput = (input: QueueInput): fileCache.CacheFolder => (
+  input.enableOnlyDownloadMode === true ? 'music' : 'cache'
+)
+
+const hasRequestedTarget = (username: string, input: QueueInput, quality: string): boolean => {
+  const targetFolder = targetFolderForInput(input)
+  try {
+    const cached = fileCache.checkCache(
+      { ...input.songInfo, quality, exactQuality: true },
+      username,
+      false,
+      { preferredFolder: targetFolder },
+    )
+    return cached.exists === true && cached.isCollision !== true && cached.folder === targetFolder
+  } catch {
+    return false
+  }
+}
+
+const markTaskAsExisting = (task: ServerDownloadTask, username: string, input: QueueInput, quality: string) => {
+  const now = Date.now()
+  task.songKey = fileCache.normalizeSongId(input.songInfo) + '_' + quality
+  task.activeSongKey = undefined
+  task.songInfo = sanitizeSongInfo(input.songInfo)
+  task.quality = quality
+  task.requestedQuality = quality
+  task.status = 'exists'
+  task.progress = 100
+  task.total = 0
+  task.received = 0
+  task.speed = 0
+  task.errorMsg = ''
+  task.enableOnlyDownloadMode = !!input.enableOnlyDownloadMode
+  task.cacheLyric = input.cacheLyric !== false
+  task.embedLyric = input.embedLyric !== false
+  task.background = input.background === true
+  task.resolvedUrl = undefined
+  task.resolvedUrlAt = undefined
+  task.requestedSource = input.requestedSource
+  task.downloadSource = input.downloadSource
+  task.sourceName = input.sourceName
+  task.username = username
+  task.createdAt = now
+  task.updatedAt = now
+}
+
 export const enqueue = (username: string, inputs: QueueInput[]) => {
   if (inputs.length > 100) throw new Error('Too many tasks in one request')
   deduplicateTasksInMemory()
@@ -565,25 +611,9 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
         activeSongKey: undefined,
       })
     ))
+    const targetFolder = targetFolderForInput(input)
+    const targetExists = hasRequestedTarget(username, input, quality)
     if (existing) {
-      const targetFolder = input.enableOnlyDownloadMode === true ? 'music' : 'cache'
-      const hasTerminalTarget = terminalStatuses.has(existing.status) && (() => {
-        try {
-          const cached = fileCache.checkCache({ ...input.songInfo, quality, exactQuality: true }, username, false, { ignoreActiveProgress: true })
-          return cached.exists && !cached.isCollision && cached.folder === targetFolder
-        } catch {
-          return false
-        }
-      })()
-      if (terminalStatuses.has(existing.status) &&
-        existing.enableOnlyDownloadMode === (input.enableOnlyDownloadMode === true) &&
-        input.background === true &&
-        hasTerminalTarget) {
-        // A completed background cache request must stay terminal. Replaying
-        // the same URL should not start another download just because the
-        // player resolved it again from localStorage.
-        continue
-      }
       if (['waiting', 'downloading', 'tagging'].includes(existing.status)) {
         // Keep one queue record per song/quality (and therefore one public ID),
         // but remember a newly requested /music target even when the current
@@ -601,6 +631,21 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
           existing.resolvedUrl = input.resolvedUrl
           existing.resolvedUrlAt = Date.now()
         }
+        continue
+      }
+
+      if (targetExists) {
+        if (targetFolder === 'music') fileCache.removeDuplicateCacheForSong(input.songInfo, quality, username)
+        if (terminalStatuses.has(existing.status) &&
+          existing.enableOnlyDownloadMode === (input.enableOnlyDownloadMode === true) &&
+          input.background === true) {
+          // A completed background cache request must stay terminal. Replaying
+          // the same URL should not start another download just because the
+          // player resolved it again from localStorage.
+          continue
+        }
+        markTaskAsExisting(existing, username, input, quality)
+        added.push(existing)
         continue
       }
 
@@ -630,6 +675,31 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
       added.push(existing)
       continue
     }
+
+    if (targetExists) {
+      if (targetFolder === 'music') fileCache.removeDuplicateCacheForSong(input.songInfo, quality, username)
+      const now = Date.now()
+      const task: ServerDownloadTask = {
+        id, username,
+        songKey: fileCache.normalizeSongId(input.songInfo) + '_' + quality,
+        songInfo: sanitizeSongInfo(input.songInfo),
+        quality,
+        requestedQuality: quality,
+        status: 'exists', progress: 100, total: 0, received: 0, speed: 0, errorMsg: '',
+        enableOnlyDownloadMode: !!input.enableOnlyDownloadMode,
+        cacheLyric: input.cacheLyric !== false,
+        embedLyric: input.embedLyric !== false,
+        background: input.background === true,
+        requestedSource: input.requestedSource,
+        downloadSource: input.downloadSource,
+        sourceName: input.sourceName,
+        createdAt: now, updatedAt: now,
+      }
+      tasks.set(key, task)
+      added.push(task)
+      continue
+    }
+
     const now = Date.now()
     const task: ServerDownloadTask = {
       id, username,

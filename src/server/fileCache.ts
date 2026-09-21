@@ -1917,6 +1917,7 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
     const items = indexManager.getAll(normalizedUsername, folder, location)
     const item = items.find(i => i.filename === filename)
     if (item) indexManager.remove(normalizedUsername, item.id, folder, item.quality, location)
+    invalidateCacheListSync(normalizedUsername)
 
     // Cover cache is shared by filename. Preserve it while the same relative
     // file still exists in any other cache/download location.
@@ -2807,6 +2808,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                         sampleRate: inspection.sampleRate,
                         bitDepth: inspection.bitDepth,
                     }, folderType)
+                    invalidateCacheListSync(normalizedUsername)
 
                     let tagger: any
                     let metadataWritable = false
@@ -2856,6 +2858,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     const finalizedItem = indexManager.getAll(normalizedUsername, folderType)
                         .find(item => item.filename === finalBaseName + ext)
                     if (finalizedItem) reconcileCacheItemFromDisk(normalizedUsername, folderType, finalizedItem, finalPath)
+                    invalidateCacheListSync(normalizedUsername)
                     } catch (postProcessError: any) {
                         if (!signal?.aborted) {
                             console.warn(`[FileCache] Optional post-processing failed for ${path.basename(finalPath)}: ${postProcessError?.message || postProcessError}`)

@@ -7,6 +7,7 @@ import { songAlbum, songArtist, songDurationValue, songFormatValue, songImage, s
 import { formatBytes, formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { ViewFrame } from './views'
 import { useRequestResource } from './data/use_request'
+import { useRealtimePoll } from './data/use_realtime_poll'
 import { goBack } from './route_state'
 
 function extractSongs(payload: unknown): Song[] {
@@ -151,6 +152,16 @@ export function LeaderboardView() {
   return <ViewFrame title="排行榜" subtitle="查看热门音乐榜单"><section className="react-toolbar-card t-bg-panel"><div className="react-toolbar-field"><span>音源</span><SelectMenu label="音源" value={source} options={[{ value: 'wy', label: '网易云' }, { value: 'tx', label: 'QQ音乐' }]} onChange={value => { setSource(value); setPage(1) }} /></div><div className="react-toolbar-field"><span>榜单</span><SelectMenu label="榜单" value={selected} disabled={!boards.length} options={boardOptions.length ? boardOptions : [{ value: '', label: '暂无榜单', disabled: true }]} onChange={value => { setSelected(value); setPage(1) }} /></div></section><section className="react-content-card t-bg-panel">{error && <p className="react-error" role="alert">{error}</p>}{loading ? <Loading /> : <SongList songs={songs} empty="暂无排行榜歌曲" />}<div className="react-pagination react-pagination-bottom"><button type="button" aria-label="上一页" disabled={page <= 1 || loading} onClick={() => setPage(value => value - 1)}><Icon name="chevron-left" /></button><span>第 {page} 页</span><button type="button" aria-label="下一页" disabled={loading || songs.length < 20} onClick={() => setPage(value => value + 1)}><Icon name="chevron-right" /></button></div></section></ViewFrame>
 }
 
+function localCacheItemKey(item: CacheItem, fallbackUsername?: string | null): string {
+  return `${String(item.rawUsername || fallbackUsername || '_open')}:${String(item.folder)}:${String(item.filename)}`
+}
+
+function sameCacheItems(current: CacheItem[], next: CacheItem[]): boolean {
+  if (current.length !== next.length) return false
+  const fields: Array<keyof CacheItem> = ['rawUsername', 'folder', 'filename', 'mtime', 'size', 'quality', 'hasLyric', 'hasCover']
+  return current.every((item, index) => fields.every(field => item[field] === next[index]?.[field]))
+}
+
 export function LocalMusicView() {
   const userName = useAuthStore(state => state.userName)
   const [cacheItems, setCacheItems] = useState<CacheItem[]>([])
@@ -163,29 +174,43 @@ export function LocalMusicView() {
   const cacheController = useRef<AbortController | null>(null)
   const playSong = usePlaybackStore(state => state.playSong)
   const notify = usePlayerUiStore(state => state.notify)
-  const loadCache = async () => {
-    cacheController.current?.abort()
+  const loadCache = useCallback(async (options: { sync?: boolean; silent?: boolean } = {}) => {
+    const sync = options.sync !== false
+    const silent = options.silent === true
+    if (silent && cacheController.current) return
+    if (!silent) cacheController.current?.abort()
     const controller = new AbortController()
     cacheController.current = controller
-    setCacheLoading(true)
-    setCacheError('')
+    if (!silent) {
+      setCacheLoading(true)
+      setCacheError('')
+    }
     try {
-      await playerApi.cacheSync(userName || undefined, controller.signal).catch(() => undefined)
+      if (sync) await playerApi.cacheSync(userName || undefined, controller.signal).catch(() => undefined)
       const result = await playerApi.cacheList(userName || undefined, controller.signal)
       if (controller.signal.aborted) return
-      setCacheItems(result.data ?? [])
-      setSelected(new Set())
+      const nextItems = result.data ?? []
+      setCacheItems(current => sameCacheItems(current, nextItems) ? current : nextItems)
+      setSelected(current => {
+        const available = new Set(nextItems.map(item => localCacheItemKey(item, userName)))
+        const next = new Set([...current].filter(key => available.has(key)))
+        if (next.size === current.size && [...current].every(key => next.has(key))) return current
+        return next
+      })
     } catch (error) {
-      if (!controller.signal.aborted) setCacheError(error instanceof Error ? error.message : '本地音乐加载失败')
+      if (!controller.signal.aborted && !silent) setCacheError(error instanceof Error ? error.message : '本地音乐加载失败')
     } finally {
       if (cacheController.current === controller) {
         cacheController.current = null
-        setCacheLoading(false)
+        if (!silent) setCacheLoading(false)
       }
     }
-  }
-  useEffect(() => { void loadCache(); return () => cacheController.current?.abort() }, [userName])
-  const cacheKey = (item: CacheItem) => `${String(item.rawUsername || userName || '_open')}:${String(item.folder)}:${String(item.filename)}`
+  }, [userName])
+  useEffect(() => {
+    void loadCache({ sync: true })
+    return () => cacheController.current?.abort()
+  }, [loadCache])
+  useRealtimePoll({ enabled: true, intervalMs: 2500, refresh: () => loadCache({ sync: false, silent: true }) })
   const cacheFileUrl = (item: CacheItem) => {
     const params = new URLSearchParams({ folder: String(item.folder || 'cache') })
     const username = String(item.rawUsername || item.username || userName || '_open').trim()
@@ -219,9 +244,9 @@ export function LocalMusicView() {
     const needle = keyword.trim().toLocaleLowerCase()
     return cacheItems.filter(item => (cacheFilter === 'all' || item.folder === cacheFilter) && (!needle || `${item.name} ${item.singer} ${item.albumName} ${item.filename}`.toLocaleLowerCase().includes(needle)))
   }, [cacheFilter, cacheItems, keyword])
-  const toggleSelected = (item: CacheItem) => setSelected(current => { const next = new Set(current); const key = cacheKey(item); if (next.has(key)) next.delete(key); else next.add(key); return next })
+  const toggleSelected = (item: CacheItem) => setSelected(current => { const next = new Set(current); const key = localCacheItemKey(item, userName); if (next.has(key)) next.delete(key); else next.add(key); return next })
   const deleteSelected = async () => {
-    const items = visibleCacheItems.filter(item => selected.has(cacheKey(item))).map(item => ({ filename: String(item.filename), folder: String(item.folder), user: item.rawUsername }))
+    const items = visibleCacheItems.filter(item => selected.has(localCacheItemKey(item, userName))).map(item => ({ filename: String(item.filename), folder: String(item.folder), user: item.rawUsername }))
     if (!items.length) return
     try { await playerApi.cacheRemove(items, userName || undefined); notify(`已删除 ${items.length} 个本地文件`); setConfirmOpen(false); await loadCache() } catch (error) { notify(error instanceof Error ? error.message : '删除本地文件失败') }
   }
@@ -231,5 +256,5 @@ export function LocalMusicView() {
     if (typeof value === 'string' && value.includes(':')) return value
     return formatDuration(value)
   }
-  return <ViewFrame title="本地音乐" subtitle="管理服务器缓存与下载音乐"><section className="react-toolbar-card t-bg-panel react-local-toolbar"><div className="react-toolbar-field"><span>目录</span><SelectMenu label="本地音乐目录" value={cacheFilter} options={[{ value: 'all', label: '全部' }, { value: 'cache', label: '缓存' }, { value: 'music', label: '已下载' }]} onChange={value => setCacheFilter(value as typeof cacheFilter)} /></div><label className="react-global-search react-local-search"><Icon name="search" /><input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="搜索歌曲、歌手或文件名" aria-label="搜索本地音乐" /></label><Button onClick={() => void loadCache()} disabled={cacheLoading}><Icon name="rotate" />刷新</Button></section><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>服务器音乐 <small>{visibleCacheItems.length} 首</small></h2><p>缓存与明确下载的音乐共用现有服务器存储规则</p></div><div className="react-dialog-actions"><Button onClick={() => setSelected(new Set(visibleCacheItems.map(cacheKey)))} disabled={!visibleCacheItems.length}>全选</Button><Button onClick={() => setSelected(new Set())} disabled={!selected.size}>取消选择</Button><Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selected.size}>删除已选（{selected.size}）</Button></div></div>{cacheLoading ? <Loading label="正在扫描本地音乐…" /> : cacheError ? <p className="react-error" role="alert">{cacheError}</p> : visibleCacheItems.length ? <div className="react-song-table react-local-song-table"><div className="react-song-head is-selectable" aria-hidden="true"><span /><span>#</span><span>歌曲 / 歌手</span><span>专辑</span><span>时长</span><span>大小</span><span>格式</span><span /></div><ul className="react-song-list">{visibleCacheItems.map((item, index) => { const song = cacheSong(item); const key = cacheKey(item); const album = songAlbum(song); const sizeBytes = songSizeBytes(item.size ?? song); return <li className="react-song-row is-selectable react-local-cache-row" key={key}><span className="react-song-select"><input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelected(item)} aria-label={`选择 ${songTitle(song)}`} /></span><span className="react-song-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><button type="button" className="react-song-main" onClick={() => { void playerApi.cachePlayback({ filename: String(item.filename), folder: String(item.folder), user: item.rawUsername }); playSong(song, serverSongs, serverSongs.findIndex(candidate => songKey(candidate) === songKey(song))) }}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button><span className="react-song-album" title={album}>{album}</span><span className="react-song-duration">{cacheDuration(item, song)}</span><span className="react-song-size">{sizeBytes === undefined ? '—' : formatBytes(sizeBytes)}</span><span className="react-song-quality">{String(item.quality || songFormatValue(song) || '未知').toUpperCase()}</span><span className="react-song-actions"><a className="react-row-play" href={cacheFileUrl(item)} download={String(item.filename).split('/').pop()} aria-label={`下载 ${songTitle(song)}`}><Icon name="download" /></a></span></li> })}</ul></div> : <div className="react-empty"><Icon name="cloud-arrow-down" /><p>暂无服务器缓存或下载音乐</p></div>}<Modal open={confirmOpen} title="删除本地音乐" onClose={() => setConfirmOpen(false)}><p>确定删除选中的 {selected.size} 个服务器文件吗？该操作会同时清理关联歌词、封面与缓存索引。</p><div className="react-dialog-actions"><Button onClick={() => setConfirmOpen(false)}>取消</Button><Button variant="danger" onClick={() => void deleteSelected()}>确认删除</Button></div></Modal></section></ViewFrame>
+  return <ViewFrame title="本地音乐" subtitle="管理服务器缓存与下载音乐"><section className="react-toolbar-card t-bg-panel react-local-toolbar"><div className="react-toolbar-field"><span>目录</span><SelectMenu label="本地音乐目录" value={cacheFilter} options={[{ value: 'all', label: '全部' }, { value: 'cache', label: '缓存' }, { value: 'music', label: '已下载' }]} onChange={value => setCacheFilter(value as typeof cacheFilter)} /></div><label className="react-global-search react-local-search"><Icon name="search" /><input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="搜索歌曲、歌手或文件名" aria-label="搜索本地音乐" /></label><Button onClick={() => void loadCache({ sync: true })} disabled={cacheLoading}><Icon name="rotate" />刷新</Button></section><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>服务器音乐 <small>{visibleCacheItems.length} 首</small></h2><p>缓存与明确下载的音乐共用现有服务器存储规则</p></div><div className="react-dialog-actions"><Button onClick={() => setSelected(new Set(visibleCacheItems.map(item => localCacheItemKey(item, userName))))} disabled={!visibleCacheItems.length}>全选</Button><Button onClick={() => setSelected(new Set())} disabled={!selected.size}>取消选择</Button><Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selected.size}>删除已选（{selected.size}）</Button></div></div>{cacheLoading ? <Loading label="正在扫描本地音乐…" /> : cacheError ? <p className="react-error" role="alert">{cacheError}</p> : visibleCacheItems.length ? <div className="react-song-table react-local-song-table"><div className="react-song-head is-selectable" aria-hidden="true"><span /><span>#</span><span>歌曲 / 歌手</span><span>专辑</span><span>时长</span><span>大小</span><span>格式</span><span /></div><ul className="react-song-list">{visibleCacheItems.map((item, index) => { const song = cacheSong(item); const key = localCacheItemKey(item, userName); const album = songAlbum(song); const sizeBytes = songSizeBytes(item.size ?? song); return <li className="react-song-row is-selectable react-local-cache-row" key={key}><span className="react-song-select"><input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelected(item)} aria-label={`选择 ${songTitle(song)}`} /></span><span className="react-song-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><button type="button" className="react-song-main" onClick={() => { void playerApi.cachePlayback({ filename: String(item.filename), folder: String(item.folder), user: item.rawUsername }); playSong(song, serverSongs, serverSongs.findIndex(candidate => songKey(candidate) === songKey(song))) }}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button><span className="react-song-album" title={album}>{album}</span><span className="react-song-duration">{cacheDuration(item, song)}</span><span className="react-song-size">{sizeBytes === undefined ? '—' : formatBytes(sizeBytes)}</span><span className="react-song-quality">{String(item.quality || songFormatValue(song) || '未知').toUpperCase()}</span><span className="react-song-actions"><a className="react-row-play" href={cacheFileUrl(item)} download={String(item.filename).split('/').pop()} aria-label={`下载 ${songTitle(song)}`}><Icon name="download" /></a></span></li> })}</ul></div> : <div className="react-empty"><Icon name="cloud-arrow-down" /><p>暂无服务器缓存或下载音乐</p></div>}<Modal open={confirmOpen} title="删除本地音乐" onClose={() => setConfirmOpen(false)}><p>确定删除选中的 {selected.size} 个服务器文件吗？该操作会同时清理关联歌词、封面与缓存索引。</p><div className="react-dialog-actions"><Button onClick={() => setConfirmOpen(false)}>取消</Button><Button variant="danger" onClick={() => void deleteSelected()}>确认删除</Button></div></Modal></section></ViewFrame>
 }

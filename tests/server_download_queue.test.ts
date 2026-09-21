@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as fileCache from '@/server/fileCache'
+import { closeDb } from '@/database'
 import {
   deduplicateDownloadTasks,
   enqueue,
@@ -196,6 +197,49 @@ describe('Server download queue deduplication', () => {
     expect(retained[0]?.id).toBe('explicit')
   })
 
+  test('marks an existing music target complete without resolving a remote URL', async () => {
+    const previousLx = (global as any).lx
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-queue-existing-'))
+    const songInfo = { source: 'wy', songmid: 'already-downloaded', name: 'Already Downloaded', singer: 'Singer' }
+    const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
+      exists: true,
+      isCollision: false,
+      folder: 'music',
+      filename: 'already-downloaded.flac',
+      quality: 'flac',
+      path: '/tmp/already-downloaded.flac',
+    } as any)
+    const removeDuplicateCacheForSong = spyOn(fileCache, 'removeDuplicateCacheForSong').mockReturnValue(true)
+    let resolverCalls = 0
+
+    try {
+      ;(global as any).lx = { dataPath: path.join(root, 'data'), config: {} }
+      initialize(async () => {
+        resolverCalls++
+        return { url: 'https://example.com/already-downloaded.flac', quality: 'flac' }
+      })
+
+      const queued = enqueue('existing-download-user', [{
+        id: 'wy_already-downloaded_flac',
+        songInfo,
+        quality: 'flac',
+        enableOnlyDownloadMode: true,
+      }])
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(queued[0]).toMatchObject({ status: 'exists', progress: 100 })
+      expect(list('existing-download-user')[0]).toMatchObject({ status: 'exists', progress: 100 })
+      expect(resolverCalls).toBe(0)
+      expect(removeDuplicateCacheForSong).toHaveBeenCalledWith(songInfo, 'flac', 'existing-download-user')
+    } finally {
+      await new Promise(resolve => setTimeout(resolve, 220))
+      removeDuplicateCacheForSong.mockRestore()
+      checkCache.mockRestore()
+      ;(global as any).lx = previousLx
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+    }
+  })
+
   test('refreshes a browser-supplied URL once while retaining the requested cache identity', async () => {
     const previousLx = (global as any).lx
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-queue-retry-'))
@@ -245,8 +289,9 @@ describe('Server download queue deduplication', () => {
     } finally {
       await new Promise(resolve => setTimeout(resolve, 220))
       downloadAndCache.mockRestore()
+      closeDb()
       ;(global as any).lx = previousLx
-      fs.rmSync(root, { recursive: true, force: true })
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
     }
   })
 })
