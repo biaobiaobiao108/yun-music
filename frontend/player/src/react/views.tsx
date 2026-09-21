@@ -438,6 +438,15 @@ type ImmersiveFooterHost = 'normal' | 'immersive'
 
 export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterHost; onFooterHostChange: (host: ImmersiveFooterHost) => void; onClose: () => void }
 
+function lyricFocusClass(index: number, active: number): string {
+  if (active < 0) return 'is-idle'
+  const distance = Math.abs(index - active)
+  if (distance === 0) return 'is-active'
+  if (distance === 1) return 'is-adjacent'
+  if (distance <= 3) return 'is-near'
+  return 'is-distant'
+}
+
 export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
   const time = usePlaybackStore(state => (open ? state.currentTime : 0))
@@ -554,7 +563,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
           <div className="react-immersive-meta"><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button></div>
         </section>
         <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
-          {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={index === active ? 'is-active' : ''} aria-current={index === active ? 'true' : undefined} onClick={() => seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
+          {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {
+            const focusClass = lyricFocusClass(index, active)
+            return <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={focusClass} data-lyric-focus={focusClass.replace('is-', '')} aria-current={index === active ? 'true' : undefined} onClick={() => seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>
+          }) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
         </section>
       </div>
       {/* Keep the immersive footer mounted in the closed dialog. When the

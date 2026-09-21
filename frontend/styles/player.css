@@ -10435,3 +10435,87 @@ textarea:focus-visible {
         grid-template-columns: 2.2rem minmax(0, 1fr) 2.2rem 2.2rem 4rem;
     }
 }
+
+/* Reference-style lyric focus: the playing line stays crisp while nearby and
+   distant lines recede into the same visual rhythm as the artwork background. */
+.react-immersive-lyrics-list {
+    text-align: center;
+}
+
+.react-immersive-lyrics-list > button {
+    align-items: center;
+    color: color-mix(in srgb, var(--app-text) 34%, transparent) !important;
+    filter: blur(1.8px);
+    opacity: .34;
+    text-align: center;
+    transform: scale(.975);
+    transform-origin: center;
+    transition: color var(--app-motion-fast) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease;
+}
+
+.react-immersive-lyrics-list > button.is-idle {
+    color: color-mix(in srgb, var(--app-text) 58%, transparent) !important;
+    filter: none;
+    opacity: .62;
+    transform: none;
+}
+
+.react-immersive-lyrics-list > button.is-distant {
+    color: color-mix(in srgb, var(--app-text) 26%, transparent) !important;
+    filter: blur(2.2px);
+    opacity: .26;
+    transform: scale(.96);
+}
+
+.react-immersive-lyrics-list > button.is-near {
+    color: color-mix(in srgb, var(--app-text) 42%, transparent) !important;
+    filter: blur(1.15px);
+    opacity: .48;
+    transform: scale(.985);
+}
+
+.react-immersive-lyrics-list > button.is-adjacent {
+    color: color-mix(in srgb, var(--app-text) 62%, transparent) !important;
+    filter: blur(.45px);
+    opacity: .7;
+    transform: scale(.995);
+}
+
+.react-immersive-lyrics-list > button.is-active {
+    color: var(--app-text) !important;
+    filter: none;
+    opacity: 1;
+    font-size: var(--react-lyric-size, 1.25rem);
+    text-shadow: 0 .45rem 1.8rem color-mix(in srgb, var(--app-text) 20%, transparent);
+    transform: scale(1.015);
+}
+
+.react-immersive-lyrics-list > button small {
+    color: color-mix(in srgb, var(--app-text) 30%, transparent) !important;
+}
+
+.react-immersive-lyrics-list > button.is-active small {
+    color: color-mix(in srgb, var(--app-text) 58%, transparent) !important;
+}
+
+.react-immersive-lyrics-list > button:hover,
+.react-immersive-lyrics-list > button:focus-visible {
+    color: var(--app-text) !important;
+    filter: none;
+    opacity: .9;
+    transform: scale(1.005);
+}
+
+.react-immersive-lyrics-list > button.is-active:hover,
+.react-immersive-lyrics-list > button.is-active:focus-visible {
+    opacity: 1;
+    transform: scale(1.015);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-immersive-lyrics-list > button {
+        filter: none;
+        transition: none;
+        transform: none;
+    }
+}
