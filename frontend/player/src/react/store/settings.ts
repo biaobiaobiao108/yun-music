@@ -7,6 +7,7 @@ export type SettingsState = {
   settings: PlayerSettings
   setSetting: (key: string, value: unknown) => void
   hydrate: () => Promise<void>
+  reset: () => void
 }
 
 const REMOVED_SETTING_KEYS = ['showFooterVisualizer', 'enableSoundEffects', 'soundEffectsPreset', 'soundEffectsGain'] as const
@@ -44,6 +45,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     } catch {
       // Public mode can legitimately reject private settings.
     }
+  },
+  reset: () => {
+    const settings = sanitizeSettings(DEFAULT_SETTINGS)
+    set({ settings })
+    applyAppearance(settings)
+    usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
   },
 }))
 

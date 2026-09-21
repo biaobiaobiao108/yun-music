@@ -239,7 +239,7 @@ describe('cache list user scope', () => {
 
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toBe('image/png')
-      expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
+      expect(response.headers.get('cache-control')).toBe('private, no-store')
       expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('cover'))
       expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username)
     } finally {
@@ -359,7 +359,7 @@ test('cache file routes honor the requested folder and keep personal media priva
       headers: { cookie: `lx_user_session=${sessionId}` },
     }))
     expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(await response.text()).toBe('music-file')
 
     const etag = response.headers.get('etag')
@@ -434,7 +434,7 @@ test('cover routes forward the requested folder and return public cache headers 
       headers: { cookie: `lx_user_session=${sessionId}` },
     }))
     expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username, 'music')
 
     const deniedPublicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'))

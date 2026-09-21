@@ -26,6 +26,7 @@ export type MediaLibraryState = {
   loadedAt: number
   hydrate: (options?: { force?: boolean }) => Promise<void>
   toggle: (kind: 'artist' | 'album', item: Song) => Promise<boolean>
+  reset: () => void
   invalidate: () => void
 }
 
@@ -92,6 +93,13 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
       set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<MediaLibraryState, typeof key | 'error'>)
       throw error
     }
+  },
+  reset: () => {
+    mediaRequestId += 1
+    mediaController?.abort()
+    mediaController = null
+    invalidateRequestCache('media-library:')
+    set({ albums: [], artists: [], loading: false, refreshing: false, error: '', loadedAt: 0 })
   },
   invalidate: () => {
     mediaRequestId += 1

@@ -5,6 +5,7 @@ import { parseLyric } from '../frontend/player/src/react/api'
 import { sameSong, songKey, songListId } from '../frontend/player/src/react/types'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
 import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
+import { getSessionScope, scopedStorageKey, setSessionScope } from '../frontend/player/src/react/session'
 import { songEntityDetail, songEntityId, songEntityName } from '../frontend/player/src/react/song_details'
 
 const root = path.join(import.meta.dir, '..')
@@ -119,6 +120,20 @@ describe('React player module boundaries', () => {
     expect(new Set(normalized.map(item => songKey(item))).size).toBe(50)
   })
 
+  it('scopes browser state keys to the active user session', () => {
+    setSessionScope('alice')
+    const aliceHistoryKey = scopedStorageKey('play_history')
+    setSessionScope('bob')
+    const bobHistoryKey = scopedStorageKey('play_history')
+
+    expect(getSessionScope()).toBe('user:bob')
+    expect(bobHistoryKey).not.toBe(aliceHistoryKey)
+    expect(bobHistoryKey).toContain('bob')
+
+    setSessionScope(null)
+    expect(getSessionScope()).toBe('guest')
+  })
+
   it('keeps queue state and audio transition synchronized when removing songs', () => {
     let pauseCalls = 0
     connectAudioCommands({ play: () => undefined, pause: () => { pauseCalls += 1 }, seek: () => undefined, volume: () => undefined })
@@ -161,6 +176,7 @@ describe('React player module boundaries', () => {
     const assetCheck = read('scripts/check-frontend-assets.ts')
     const serviceWorker = read('public/music/sw.js')
     const css = read('frontend/styles/player.css')
+    const adminCss = read('frontend/styles/admin.css')
 
     expect(buildScript).not.toContain('vendor_bridge.ts')
     expect(buildScript).not.toContain('phase_vocoder.ts')
@@ -170,5 +186,9 @@ describe('React player module boundaries', () => {
     expect(serviceWorker).not.toContain('phase-vocoder.js')
     expect(css).toContain('transform: scale(1.025)')
     expect(css).not.toContain('transform: translateY(-3px)')
+    expect(css).not.toMatch(/transition:\s*all/)
+    expect(adminCss).not.toMatch(/transition:\s*all/)
+    expect(css).not.toMatch(/outline:\s*none/)
+    expect(adminCss).not.toMatch(/outline:\s*none/)
   })
 })

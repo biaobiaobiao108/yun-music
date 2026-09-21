@@ -11,6 +11,7 @@ import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAY
 import { emitPlaybackService } from './playback_service'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl, parseCachePlaybackUrl } from './media_url'
 import { PlayerFooterBar } from './player_footer'
+import { getSessionGeneration } from './session'
 
 const SongListView = lazy(() => import('./heavy_views').then(module => ({ default: module.SongListView })))
 const LeaderboardView = lazy(() => import('./heavy_views').then(module => ({ default: module.LeaderboardView })))
@@ -19,9 +20,20 @@ const LocalMusicView = lazy(() => import('./heavy_views').then(module => ({ defa
 const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
 const prefetchedUrls = new Map<string, { url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>()
 const pendingSongUrlRequests = new Map<string, Promise<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>>()
+let songUrlCacheGeneration = getSessionGeneration()
+
+function songUrlCacheKey(song: Song, quality: string): string {
+  const generation = getSessionGeneration()
+  if (generation !== songUrlCacheGeneration) {
+    prefetchedUrls.clear()
+    pendingSongUrlRequests.clear()
+    songUrlCacheGeneration = generation
+  }
+  return `${generation}:${songKey(song)}:${quality}`
+}
 
 function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boolean): Promise<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }> {
-  const key = `${songKey(song)}:${quality}`
+  const key = songUrlCacheKey(song, quality)
   const cached = prefetchedUrls.get(key)
   if (cached) return Promise.resolve(cached)
   const pending = pendingSongUrlRequests.get(key)
@@ -149,6 +161,14 @@ function AudioRuntime() {
   const prefetchTriggeredKey = useRef('')
   const playbackStatusKey = useRef('')
 
+  useEffect(() => {
+    recoveryAttempts.current.clear()
+    cacheQueued.current.clear()
+    prefetchTriggeredKey.current = ''
+    historyRecordedKey.current = ''
+    playbackStatusKey.current = ''
+  }, [userName])
+
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
     const duration = state.duration
@@ -161,7 +181,7 @@ function AudioRuntime() {
       : (state.currentIndex + 1) % state.queue.length
     const nextSong = state.queue[nextIndex]
     if (!nextSong || nextIndex === state.currentIndex || nextSong.url) return
-    const key = `${songKey(nextSong)}:${quality}`
+    const key = songUrlCacheKey(nextSong, quality)
     prefetchTriggeredKey.current = currentPlaybackKey
     if (prefetchedUrls.has(key) || pendingSongUrlRequests.has(key)) return
     void requestSongUrl(nextSong, quality, settings.enableAutoSwitchSource !== false).catch(() => undefined)
@@ -286,7 +306,7 @@ function AudioRuntime() {
     if (!currentSong.url) notifyPlayback('检查缓存')
     void (async () => {
       try {
-        const prefetchKey = `${songKey(currentSong)}:${quality}`
+        const prefetchKey = songUrlCacheKey(currentSong, quality)
         const result = typeof currentSong.url === 'string' && currentSong.url
           ? { url: normalizeCachePlaybackUrl(currentSong.url, userName), fromCache: true }
           : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false)

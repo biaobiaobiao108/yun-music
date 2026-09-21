@@ -80,6 +80,19 @@ function writeJsonFileAtomic(filePath: string, value: unknown): void {
     writeTextFileAtomic(filePath, JSON.stringify(value, null, 2))
 }
 
+function sanitizeSourceError(value: unknown): string | undefined {
+    if (typeof value !== 'string' || !value.trim()) return undefined
+    return value.replace(/https?:\/\/[^\s"'<>]+/gi, '[已隐藏远程地址]')
+}
+
+function sanitizeSourceForClient(source: Record<string, unknown>): Record<string, unknown> {
+    const { sourceUrl: _sourceUrl, ...safeSource } = source
+    const error = sanitizeSourceError(safeSource.error)
+    if (error) safeSource.error = error
+    else delete safeSource.error
+    return safeSource
+}
+
 // 验证脚本
 export async function handleValidate(ctx: HttpContext): Promise<Response> {
     try {
@@ -358,7 +371,6 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
                     supportedSources,
                     enabled: false,
                     uploadTime: new Date().toISOString(),
-                    sourceUrl: url,
                 })
                 writeJsonFileAtomic(metaPath, sources)
             } catch (error) {
@@ -371,8 +383,9 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
 
         return ctx.json({ success: true, filename: displayName, id, metadata, supportedSources, owner: targetOwner })
     } catch (err: any) {
-        console.error('[CustomSource] Import error:', err)
-        return ctx.json({ success: false, error: err.message }, 500)
+        const message = sanitizeSourceError(err?.message) || '远程音源导入失败'
+        console.error('[CustomSource] Import error:', message)
+        return ctx.json({ success: false, error: message }, 500)
     }
 }
 
@@ -429,13 +442,16 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
 
     // 补充运行时状态
     const enrichedSources = allSources.map((source: any) => {
+        const safeSource = sanitizeSourceForClient(source)
         // 合并运行时状态
-        const status = getApiStatus(source.owner, source.id)
+        const status = getApiStatus(String(safeSource.owner || ''), String(safeSource.id || ''))
         if (status) {
-            source.status = status.status
-            source.error = status.error
+            safeSource.status = status.status
+            const error = sanitizeSourceError(status.error)
+            if (error) safeSource.error = error
+            else delete safeSource.error
         }
-        return source
+        return safeSource
     })
 
     // ===== 自定义合并后的排序逻辑 =====
@@ -463,8 +479,10 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
             }
 
             // 同组内根据保存的绝对顺序排序
-            const indexA = idToIndex.has(a.id) ? idToIndex.get(a.id)! : 999999
-            const indexB = idToIndex.has(b.id) ? idToIndex.get(b.id)! : 999999
+            const sourceIdA = String(a.id || '')
+            const sourceIdB = String(b.id || '')
+            const indexA = idToIndex.has(sourceIdA) ? idToIndex.get(sourceIdA)! : 999999
+            const indexB = idToIndex.has(sourceIdB) ? idToIndex.get(sourceIdB)! : 999999
 
             if (indexA !== indexB) {
                 return indexA - indexB

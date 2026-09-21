@@ -1,8 +1,15 @@
 import { create } from 'zustand'
 import { playerApi, type PlayerConfig } from '../api'
 import { invalidateRequestCache } from '../data/request'
+import { setSessionScope } from '../session'
 import { writeString } from '../../../../shared/src/storage'
 import { browserStorage, initialUserName } from './shared'
+import { useCacheStore } from './cache'
+import { useLibraryStore } from './library'
+import { useMediaLibraryStore } from './media_library'
+import { usePlaybackStore } from './playback'
+import { useRecentStore } from './recent'
+import { useSettingsStore } from './settings'
 
 export type AuthState = {
   config: PlayerConfig | null
@@ -19,6 +26,25 @@ export type AuthState = {
   userLogout: () => Promise<void>
 }
 
+function resetUserScopedStores(): void {
+  usePlaybackStore.getState().reset()
+  useRecentStore.getState().reset()
+  useLibraryStore.getState().reset()
+  useMediaLibraryStore.getState().reset()
+  useCacheStore.getState().reset()
+  useSettingsStore.getState().reset()
+}
+
+function refreshUserScopedStores(): void {
+  useRecentStore.getState().hydrate()
+  usePlaybackStore.getState().hydrate()
+  void Promise.allSettled([
+    useSettingsStore.getState().hydrate(),
+    useLibraryStore.getState().hydrate({ force: true }),
+    useMediaLibraryStore.getState().hydrate({ force: true }),
+  ])
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   config: null,
   playerAuthRequired: false,
@@ -33,6 +59,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const config = await playerApi.config()
       const [playerSession, userSession] = await Promise.all([playerApi.verify(), playerApi.userVerify()])
       const authenticatedUserName = userSession.valid ? (userSession.username || get().userName) : null
+      setSessionScope(authenticatedUserName)
+      resetUserScopedStores()
       set({
         config,
         playerAuthRequired: Boolean(config['player.enableAuth']),
@@ -58,12 +86,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   userLogin: async (username, password) => {
     const result = await playerApi.userLogin(username, password)
     invalidateRequestCache()
+    setSessionScope(result.username)
+    resetUserScopedStores()
     writeString(browserStorage(), 'lx_user_name', result.username)
     set({ userName: result.username, userAuthenticated: true })
+    refreshUserScopedStores()
   },
   userLogout: async () => {
     await playerApi.userLogout()
     invalidateRequestCache()
+    setSessionScope(null)
+    resetUserScopedStores()
     writeString(browserStorage(), 'lx_user_name', '')
     set({ userName: null, userAuthenticated: false })
   },

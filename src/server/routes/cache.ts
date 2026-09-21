@@ -596,7 +596,7 @@ export const createCacheRouter = (): Router => {
     const rangeHeader = ctx.headers.get('range')
     const ifNoneMatch = ctx.headers.get('if-none-match')
     const ifModifiedSince = ctx.headers.get('if-modified-since')
-    const cacheControl = normalizedUsername === '_open' ? 'public, max-age=86400' : 'private, max-age=86400'
+    const cacheControl = normalizedUsername === '_open' ? 'public, max-age=86400' : 'private, no-store'
     const unsatisfiableRangeResponse = () => new Response(null, {
       status: 416,
       headers: {
@@ -838,7 +838,7 @@ export const createCacheRouter = (): Router => {
         status: 200,
         headers: {
           'Content-Type': cover.mime || 'image/jpeg',
-          'Cache-Control': username === '_open' ? 'public, max-age=86400' : 'private, max-age=86400',
+          'Cache-Control': username === '_open' ? 'public, max-age=86400' : 'private, no-store',
         },
       })
     }

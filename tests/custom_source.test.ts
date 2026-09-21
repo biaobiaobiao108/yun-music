@@ -181,6 +181,24 @@ describe('Custom Source Security and Isolation', () => {
     ])
   })
 
+  test('source lists never expose imported remote URLs from persisted metadata', async () => {
+    const router = createCustomSourceRouter()
+    const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
+    fs.mkdirSync(openDir, { recursive: true })
+    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{
+      id: 'imported.js',
+      name: 'Imported',
+      enabled: false,
+      sourceUrl: 'https://example.com/source.js?token=do-not-leak',
+    }]))
+
+    const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list'))
+    expect(response.status).toBe(200)
+    const body = await response.json() as Array<Record<string, unknown>>
+    expect(body[0]).not.toHaveProperty('sourceUrl')
+    expect(JSON.stringify(body)).not.toContain('do-not-leak')
+  })
+
   test('admin scope queries keep public and private source lists isolated', async () => {
     const router = createCustomSourceRouter()
     const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')

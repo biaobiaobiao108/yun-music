@@ -57,7 +57,6 @@ export type AdminCustomSource = {
   owner: CustomSourceOwner
   isPublic: boolean
   uploadTime?: string
-  sourceUrl?: string
   status?: string
   error?: string
 }
@@ -110,7 +109,6 @@ function normalizeCustomSource(value: unknown): AdminCustomSource | null {
     owner,
     isPublic: Boolean(record.isPublic) || owner === 'open',
     ...(firstText(record.uploadTime) ? { uploadTime: firstText(record.uploadTime) } : {}),
-    ...(firstText(record.sourceUrl) ? { sourceUrl: firstText(record.sourceUrl) } : {}),
     ...(firstText(record.status) ? { status: firstText(record.status) } : {}),
     ...(firstText(record.error) ? { error: firstText(record.error) } : {}),
   }

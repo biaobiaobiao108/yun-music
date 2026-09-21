@@ -137,6 +137,22 @@ describe('User snapshot permissions', () => {
       expect((await write('another-user', userHeaders)).status).toBe(401)
     }
   })
+
+  test('public sound effects can only be changed by an administrator', async () => {
+    const router = createUserRouter()
+    const write = (owner: string, headers: Record<string, string>) => router.handle(
+      new Request(`http://localhost/api/user/sound-effects?user=${owner}`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      })
+    )
+
+    expect((await write('_open', {})).status).toBe(403)
+    expect((await write('_open', userHeaders)).status).toBe(403)
+    expect((await write('_open', adminHeaders)).status).toBe(200)
+    expect((await write(username, userHeaders)).status).toBe(200)
+  })
 })
 
 describe('Deleted account credentials', () => {

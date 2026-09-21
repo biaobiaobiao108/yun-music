@@ -527,6 +527,9 @@ export const createUserRouter = (): Router => {
   router.post('/api/user/sound-effects', async (ctx) => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    if (username === '_open' && !verifyAdminAuth(ctx.request)) {
+      return ctx.fail(403, '权限不足：公开音效配置仅允许管理员修改')
+    }
     try {
       const body = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       const db = getDb()

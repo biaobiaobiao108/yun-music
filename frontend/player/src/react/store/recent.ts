@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { readJson, writeJson } from '../../../../shared/src/storage'
+import { scopedStorageKey } from '../session'
 import type { Song } from '../types'
 import { songKey } from '../types'
 
@@ -23,21 +24,22 @@ export function normalizePlayHistory(value: unknown): RecentSong[] {
 
 export function readPlayHistory(): RecentSong[] {
   const storage = typeof localStorage === 'undefined' ? null : localStorage
-  return normalizePlayHistory(readJson<unknown>(storage, 'play_history', []))
+  return normalizePlayHistory(readJson<unknown>(storage, scopedStorageKey('play_history'), []))
 }
 
 export function appendPlayHistory(song: Song, quality?: string): RecentSong[] {
   const next: RecentSong = { ...song, ...(quality ? { quality } : {}), playedAt: Date.now() }
   const history = normalizePlayHistory([next, ...readPlayHistory()])
   const storage = typeof localStorage === 'undefined' ? null : localStorage
-  writeJson(storage, 'play_history', history)
+  writeJson(storage, scopedStorageKey('play_history'), history)
   return history
 }
 
-export type RecentState = { items: RecentSong[]; hydrate: () => void; record: (song: Song, quality?: string) => void }
+export type RecentState = { items: RecentSong[]; hydrate: () => void; record: (song: Song, quality?: string) => void; reset: () => void }
 
 export const useRecentStore = create<RecentState>(set => ({
   items: [],
   hydrate: () => set({ items: readPlayHistory() }),
   record: (song, quality) => set({ items: appendPlayHistory(song, quality) }),
+  reset: () => set({ items: [] }),
 }))

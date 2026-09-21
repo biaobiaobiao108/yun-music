@@ -1,4 +1,5 @@
 import { resolveApiError } from '../../../../shared/src/http'
+import { getSessionGeneration } from '../session'
 
 export type RequestPolicy = {
   cacheKey?: string
@@ -93,16 +94,17 @@ function readCached<T>(key: string): T | undefined {
  */
 export async function requestJson<T>(input: RequestInfo | URL, init: PlayerRequestInit = {}): Promise<T> {
   const { cacheKey, cacheTtlMs = 0, force = false, fetcher = fetch, ...requestInit } = init
+  const requestCacheKey = cacheKey ? `${cacheKey}@${getSessionGeneration()}` : undefined
   if (requestInit.signal?.aborted) throw abortError()
-  const cached = !force && cacheKey ? readCached<T>(cacheKey) : undefined
+  const cached = !force && requestCacheKey ? readCached<T>(requestCacheKey) : undefined
   if (cached !== undefined) return cached
 
-  if (!force && cacheKey) {
-    const pending = inFlight.get(cacheKey)
+  if (!force && requestCacheKey) {
+    const pending = inFlight.get(requestCacheKey)
     if (pending) return joinPending<T>(pending, requestInit.signal ?? undefined)
   }
 
-  const requestController = cacheKey ? new AbortController() : null
+  const requestController = requestCacheKey ? new AbortController() : null
   const request = (async () => {
     const headers = new Headers(requestInit.headers)
     if (requestInit.body && !headers.has('Content-Type') && !(requestInit.body instanceof FormData)) {
@@ -128,12 +130,12 @@ export async function requestJson<T>(input: RequestInfo | URL, init: PlayerReque
     }
   })()
 
-  if (cacheKey) {
+  if (requestCacheKey) {
     const pending: PendingRequest = { promise: request, controller: requestController as AbortController, consumers: 0, settled: false }
-    inFlight.set(cacheKey, pending)
-    void request.then(value => cacheValue(cacheKey, value, cacheTtlMs), () => undefined).finally(() => {
+    inFlight.set(requestCacheKey, pending)
+    void request.then(value => cacheValue(requestCacheKey, value, cacheTtlMs), () => undefined).finally(() => {
       pending.settled = true
-      if (inFlight.get(cacheKey) === pending) inFlight.delete(cacheKey)
+      if (inFlight.get(requestCacheKey) === pending) inFlight.delete(requestCacheKey)
     })
     return joinPending<T>(pending, requestInit.signal ?? undefined)
   }

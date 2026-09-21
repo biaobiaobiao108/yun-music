@@ -1,4 +1,5 @@
 import { requestJson, type RequestPolicy } from './data/request'
+import { scopedStorageKey } from './session'
 import { readJson, writeJson } from '../../../shared/src/storage'
 import type { RuntimeConfig } from '../../../shared/src/runtime'
 import type { LyricLine, Song } from './types'
@@ -187,11 +188,11 @@ export function parseLyric(payload: Record<string, unknown>): LyricLine[] {
 
 export function readLegacySettings<T extends object>(defaults: T): T {
   const storage = typeof localStorage === 'undefined' ? null : localStorage
-  const stored = readJson<Record<string, unknown>>(storage, 'lx_settings', {})
+  const stored = readJson<Record<string, unknown>>(storage, scopedStorageKey('lx_settings'), {})
   return { ...defaults, ...stored } as T
 }
 
 export function persistLegacySettings(settings: object): void {
   const storage = typeof localStorage === 'undefined' ? null : localStorage
-  writeJson(storage, 'lx_settings', settings)
+  writeJson(storage, scopedStorageKey('lx_settings'), settings)
 }

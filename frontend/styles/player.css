@@ -673,7 +673,7 @@ html, body {
     border-color: var(--app-accent);
     background: var(--app-surface);
     box-shadow: 0 0 0 3px var(--app-accent-soft);
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .react-select-menu-trigger > span {
@@ -846,7 +846,7 @@ html, body {
 .react-artwork-play-button:focus-visible {
     background: var(--app-accent);
     color: #fff;
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .react-entity-card {
@@ -888,7 +888,7 @@ html, body {
 .react-entity-card .react-entity-favorite.is-active {
     background: var(--app-accent-soft);
     color: var(--app-accent);
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .react-detail-favorite {
@@ -911,7 +911,7 @@ html, body {
 .react-detail-favorite:focus-visible {
     border-color: var(--app-accent);
     color: var(--app-accent);
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .react-custom-source-list {
@@ -2187,7 +2187,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     background: transparent;
     color: inherit;
     text-align: center;
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .player-pagination-jump > span {
@@ -2318,7 +2318,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark .setting-tooltip-content {
@@ -2721,7 +2721,7 @@ aside {
     color: #4b5563;
     font-weight: 700;
     border-radius: 1rem;
-    transition: all 0.2s;
+    transition: color 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s, filter 0.2s;
     border: 1px solid transparent;
     font-size: 0.875rem;
     text-align: center;
@@ -3145,7 +3145,7 @@ aside {
     background-color: var(--bg-panel);
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, transform 0.2s ease, filter 0.2s ease;
 }
 
 .lm-filter-tag:hover, .lm-select:hover, .cs-trigger:hover {
@@ -3222,7 +3222,7 @@ aside {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 7px center;
-    outline: none;
+    outline: 1px solid transparent;
     line-height: 1.6;
     min-height: 26px;
 }
@@ -3316,7 +3316,7 @@ aside {
     border-radius: 8px;
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, transform 0.15s ease, filter 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -3518,7 +3518,7 @@ aside {
     border-radius: 50%;
     color: var(--text-muted, #6b7a72);
     opacity: 0.65;
-    transition: all 0.18s ease;
+    transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease, filter 0.18s ease;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -3549,7 +3549,7 @@ aside {
     background: transparent;
     border: none;
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease, filter 0.18s ease;
 }
 
 .lyric-offset-val:hover {
@@ -3751,7 +3751,7 @@ aside {
 /* ── 顶栏网易云胶囊搜索框与按钮 ── */
 .netease-search-capsule {
     background: color-mix(in srgb, var(--bg-item-hover) 85%, transparent);
-    transition: all 0.25s ease;
+    transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease, transform 0.25s ease, filter 0.25s ease;
 }
 
 .netease-search-capsule:focus-within {
@@ -3783,7 +3783,7 @@ aside {
     display: flex;
     align-items: center;
     gap: 10px;
-    transition: all 0.2s ease;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, transform 0.2s ease, filter 0.2s ease;
     color: var(--text-muted);
     min-inline-size: 0;
     box-sizing: border-box;
@@ -3849,7 +3849,7 @@ aside {
     align-items: center;
     justify-content: center;
     color: var(--text-muted);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), filter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
 }
 
@@ -7221,7 +7221,7 @@ textarea:focus-visible {
 .react-song-actions a:focus:not(:focus-visible),
 .react-player-footer button:focus:not(:focus-visible),
 .react-player-footer input:focus:not(:focus-visible) {
-    outline: none;
+    outline: 1px solid transparent;
     box-shadow: none;
 }
 
@@ -7959,7 +7959,7 @@ textarea:focus-visible {
 .react-song-actions-popover-list > button:focus-visible {
     background: var(--app-accent-soft);
     color: var(--app-accent);
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .react-song-actions-popover-list > button i {
@@ -8041,7 +8041,7 @@ textarea:focus-visible {
     border-color: color-mix(in srgb, var(--app-accent) 62%, var(--app-border));
     background: var(--app-accent-soft);
     color: var(--app-accent);
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .react-add-to-list-option > span {
@@ -8455,8 +8455,8 @@ textarea:focus-visible {
 
 /* React UI focus policy: quiet mouse focus, compact keyboard focus. */
 :where(button, a, input, select, textarea, [tabindex]):focus {
-    outline: none !important;
-    outline-offset: 0 !important;
+    outline: 1px solid transparent !important;
+    outline-offset: -1px !important;
     border-color: var(--app-border) !important;
 }
 
@@ -8465,8 +8465,8 @@ textarea:focus-visible {
 }
 
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
-    outline: none !important;
-    outline-offset: 0 !important;
+    outline: 1px solid var(--app-accent) !important;
+    outline-offset: -1px !important;
     border-color: var(--app-border) !important;
     box-shadow: inset 0 0 0 1px var(--app-accent) !important;
 }
@@ -8494,12 +8494,18 @@ textarea:focus-visible {
     }
 }
 
-:where(input, select, textarea):focus,
-:where(input, select, textarea):focus-visible {
-    outline: none !important;
-    outline-offset: 0 !important;
+:where(input, select, textarea):focus:not(:focus-visible) {
+    outline: 1px solid transparent !important;
+    outline-offset: -1px !important;
     border-color: var(--app-border) !important;
     box-shadow: none !important;
+}
+
+:where(input, select, textarea):focus-visible {
+    outline: 1px solid var(--app-accent) !important;
+    outline-offset: -1px !important;
+    border-color: var(--app-border) !important;
+    box-shadow: inset 0 0 0 1px var(--app-accent) !important;
 }
 
 /* Keep legacy focus rules from reintroducing outer frames in the React shell. */
@@ -8509,16 +8515,30 @@ textarea:focus-visible {
     box-shadow: none !important;
 }
 
-input:focus,
-select:focus,
-textarea:focus,
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) {
+    outline: 1px solid transparent !important;
+    outline-offset: -1px !important;
+    border-color: var(--app-border) !important;
+    box-shadow: none !important;
+}
+
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-    outline: none !important;
-    outline-offset: 0 !important;
+    outline: 1px solid var(--app-accent) !important;
+    outline-offset: -1px !important;
     border-color: var(--app-border) !important;
-    box-shadow: none !important;
+    box-shadow: inset 0 0 0 1px var(--app-accent) !important;
+}
+
+@media (forced-colors: active) {
+    :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+        outline: 1px solid Highlight !important;
+        outline-offset: -1px !important;
+        box-shadow: none !important;
+    }
 }
 
 /* Keep page-level search controls visually identical to the top-bar search. */
@@ -8785,7 +8805,7 @@ textarea:focus-visible {
     appearance: none;
     border: 0;
     border-radius: 999px;
-    outline: none;
+    outline: 1px solid transparent;
     background: linear-gradient(90deg, var(--app-accent) 0 var(--progress, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--progress, 0%) 100%);
     cursor: pointer;
 }
@@ -8888,7 +8908,7 @@ textarea:focus-visible {
 .react-volume-mute[aria-pressed="true"] {
     background: var(--app-accent-soft);
     color: var(--app-accent);
-    outline: none;
+    outline: 1px solid transparent;
 }
 
 .react-volume-popover .react-volume-range {
@@ -9007,12 +9027,14 @@ textarea:focus-visible {
 
 .react-player-footer#player-footer :is(.player-secondary-action, .react-song-menu-button, .react-volume-trigger):focus-visible,
 .react-player-footer#player-footer .react-volume-popover .react-volume-mute:focus-visible {
-    outline: none !important;
+    outline: 1px solid var(--app-accent) !important;
+    outline-offset: -1px !important;
     box-shadow: inset 0 -2px 0 var(--app-accent) !important;
 }
 
 .react-player-footer#player-footer .react-play-button:focus-visible {
-    outline: none;
+    outline: 1px solid var(--app-accent);
+    outline-offset: -1px;
     box-shadow: inset 0 -2px 0 var(--app-accent);
 }
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { readJson, readString, writeJson, writeString } from '../../../../shared/src/storage'
 import { subscribePlaybackService, type PlaybackServiceEvent } from '../playback_service'
+import { scopedStorageKey } from '../session'
 import type { PlayMode, Song } from '../types'
 import { songKey } from '../types'
 import { browserStorage } from './shared'
@@ -35,6 +36,7 @@ export type PlaybackState = {
   previous: () => void
   enqueue: (songs: Song[]) => void
   removeFromQueue: (index: number) => void
+  reset: () => void
   hydrate: () => void
 }
 
@@ -61,7 +63,7 @@ const initialVolume = (() => {
 })()
 
 function persistPlayback(state: Pick<PlaybackState, 'currentSong' | 'currentIndex' | 'currentTime' | 'queue' | 'mode' | 'quality'>): void {
-  writeJson(browserStorage(), 'lx_playback_state', {
+  writeJson(browserStorage(), scopedStorageKey('lx_playback_state'), {
     song: state.currentSong,
     index: state.currentIndex,
     time: state.currentTime,
@@ -196,8 +198,25 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     set({ queue, currentIndex, currentSong })
     persistPlayback({ ...state, queue, currentIndex, currentSong })
   },
+  reset: () => {
+    pauseCommand()
+    lastPlaybackPersistAt = 0
+    set({
+      queue: [],
+      currentIndex: -1,
+      currentSong: null,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+      mode: 'list',
+      quality: 'flac',
+      resolvedUrl: null,
+      resolving: false,
+      error: '',
+    })
+  },
   hydrate: () => {
-    const saved = readJson<{ song?: Song; index?: number; time?: number; playlist?: Song[]; playMode?: PlayMode; quality?: string }>(browserStorage(), 'lx_playback_state', {})
+    const saved = readJson<{ song?: Song; index?: number; time?: number; playlist?: Song[]; playMode?: PlayMode; quality?: string }>(browserStorage(), scopedStorageKey('lx_playback_state'), {})
     if (saved.playlist?.length) set({
       currentSong: saved.song ?? saved.playlist[saved.index ?? 0] ?? null,
       currentIndex: saved.index ?? 0,
