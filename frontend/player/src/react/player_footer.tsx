@@ -236,11 +236,6 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
         <button ref={immersive ? undefined : songMenuButtonRef} type="button" className={`player-secondary-action react-song-menu-button${immersive ? ' is-immersive-placeholder' : ''}`} aria-label="打开歌曲更多操作" aria-expanded={immersive ? false : songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={immersive || !isActive || !currentSong} tabIndex={immersive || !isActive ? -1 : undefined}><Icon name="ellipsis" /></button>
         <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
         <button type="button" id={!immersive && isActive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
-        {immersive && <div className="react-immersive-utility-actions">
-          <button type="button" className="player-secondary-action" aria-label="打开评论" onClick={openComments}><Icon name="comments" /></button>
-          <button type="button" className="player-secondary-action" aria-label="下载歌曲" onClick={() => void download()}><Icon name="download" /></button>
-          <button type="button" className="player-secondary-action" aria-label="设置睡眠定时器" onClick={openSleepTimer}><Icon name="moon" /></button>
-        </div>}
         <button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button>
         <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} onToggleMute={toggleMute} />
       </div>

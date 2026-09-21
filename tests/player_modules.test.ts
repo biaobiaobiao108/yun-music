@@ -72,6 +72,10 @@ describe('React player module boundaries', () => {
     expect(songEntityDetail(identified, 'artist')).toMatchObject({ kind: 'artist', id: '123', source: 'wy', name: 'Aimer' })
     expect(songEntityDetail(identified, 'album')).toMatchObject({ kind: 'album', id: 'album-9', source: 'wy', name: 'I beg you' })
 
+    const sourceShaped = { source: 'tx', singer: [{ mid: 'artist-mid', name: '歌手' }], album: { mid: 'album-mid', name: '专辑' }, name: '歌曲' }
+    expect(songEntityId(sourceShaped, 'artist')).toBe('artist-mid')
+    expect(songEntityId(sourceShaped, 'album')).toBe('album-mid')
+
     const withoutIds = { source: 'tx', songmid: 'song-2', singer: '没有 ID 的歌手', albumName: '没有 ID 的专辑', name: '测试歌曲' }
     expect(songEntityDetail(withoutIds, 'artist')).toBeNull()
     expect(songEntityDetail(withoutIds, 'album')).toBeNull()

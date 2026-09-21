@@ -569,7 +569,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     <div className="react-immersive-lyrics" style={immersiveStyle}>
       <header className="react-immersive-lyrics-header">
         <button type="button" className="react-immersive-nav-button" data-immersive-close aria-label="关闭沉浸式歌词" onClick={onClose}><Icon name="chevron-down" /></button>
-        <p className="react-immersive-header-label">正在播放</p>
         <button type="button" className="react-immersive-nav-button" aria-label="切换全屏" onClick={toggleFullscreen}><Icon name="expand" /></button>
       </header>
       <div className="react-immersive-lyrics-grid">

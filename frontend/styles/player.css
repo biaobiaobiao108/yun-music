@@ -9947,32 +9947,10 @@ textarea:focus-visible {
     pointer-events: none;
 }
 
-/* Keep the transport controls in the ordinary order. Immersive-only
-   utilities remain directly available in a small floating utility group above
-   the bar instead of widening the action column and shifting queue/volume. */
+/* Keep the transport controls in the ordinary order. Immersive lyrics use the
+   same compact transport surface without an extra floating utility strip. */
 .react-immersive-shared-footer#player-footer .react-footer-actions {
     position: relative;
-}
-
-.react-immersive-utility-actions {
-    position: absolute;
-    inset-inline-end: 0;
-    inset-block-end: calc(100% + .38rem);
-    display: inline-flex;
-    align-items: center;
-    gap: .08rem;
-    padding: .2rem;
-    border: 1px solid color-mix(in srgb, var(--app-border-strong) 68%, transparent);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--app-surface-solid) 28%, transparent);
-    box-shadow: 0 .7rem 1.6rem rgb(0 0 0 / 14%);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    backdrop-filter: blur(20px) saturate(1.2);
-}
-
-.react-immersive-utility-actions .player-secondary-action {
-    width: 1.9rem;
-    height: 1.9rem;
 }
 
 /* Dialogs must shrink their inner controls with the viewport. A content-box
@@ -10047,4 +10025,49 @@ textarea:focus-visible {
     .react-dialog-body {
         padding-inline: .9rem;
     }
+}
+
+/* Compact floating navigation: with the redundant brand/account rows gone,
+   the desktop sidebar should frame the navigation instead of filling the
+   entire shell row. Mobile keeps the drawer height supplied by its insets. */
+@media (min-width: 901px) {
+    #main-sidebar.react-sidebar {
+        align-self: start;
+        block-size: min(42rem, calc(100dvh - 2rem));
+        height: min(42rem, calc(100dvh - 2rem)) !important;
+        max-block-size: calc(100dvh - 2rem);
+        padding-block: .75rem;
+    }
+
+    .react-sidebar-nav > .react-sidebar-label:first-child {
+        margin-top: .05rem;
+    }
+}
+
+@media (max-width: 900px) {
+    #main-sidebar.react-sidebar {
+        block-size: auto;
+        max-block-size: none;
+    }
+}
+
+/* Lyrics remain scrollable by wheel, touch and keyboard, but the browser
+   scrollbar is intentionally not part of the visual composition. Both the
+   grid and its lyric column can become scroll owners at narrow breakpoints. */
+.react-immersive-lyrics-grid,
+.react-immersive-lyrics-list {
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+}
+
+.react-immersive-lyrics > .react-immersive-lyrics-grid {
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+}
+
+.react-immersive-lyrics-grid::-webkit-scrollbar,
+.react-immersive-lyrics-list::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
 }
