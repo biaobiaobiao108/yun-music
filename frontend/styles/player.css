@@ -1810,6 +1810,12 @@ body > .flex.flex-1.overflow-hidden.relative {
     border-left-width: 0 !important;
 }
 
+/* React drawers remain mounted while closed. Their translated shadow would
+   otherwise bleed back into the viewport from the right edge. */
+.react-player-drawer:not(.is-open) {
+    box-shadow: none !important;
+}
+
 /* 抽屉始终避让底部播放器，并在小屏幕上保持可用的触控宽度 */
 :root {
     --player-footer-offset: 0px;
