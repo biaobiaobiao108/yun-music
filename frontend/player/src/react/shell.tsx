@@ -265,6 +265,15 @@ function AudioRuntime() {
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       emitPlaybackService({ type: 'progress', currentTime, duration })
       prefetchNext()
+      if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && duration > 0) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: Math.max(0.1, duration),
+            playbackRate: audio.playbackRate || 1,
+            position: Math.min(currentTime, duration),
+          })
+        } catch { /* browser may reject transient media metadata */ }
+      }
     }
     const onLoaded = () => {
       const state = usePlaybackStore.getState()
@@ -457,8 +466,6 @@ export function PlayerShell() {
   const setImmersiveLyrics = usePlayerUiStore(state => state.setImmersiveLyrics)
   const closeAddToList = usePlayerUiStore(state => state.closeAddToList)
   const currentSong = usePlaybackStore(state => state.currentSong)
-  const currentTime = usePlaybackStore(state => state.currentTime)
-  const duration = usePlaybackStore(state => state.duration)
   const togglePlayback = usePlaybackStore(state => state.toggle)
   const seekPlayback = usePlaybackStore(state => state.seek)
   const toggleMute = usePlaybackStore(state => state.toggleMute)
@@ -489,14 +496,22 @@ export function PlayerShell() {
       }
       if (!keyboardShortcuts || editing || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === ' ' || event.key === 'Spacebar') { event.preventDefault(); togglePlayback() }
-      else if (event.key === 'ArrowLeft') { event.preventDefault(); seekPlayback(Math.max(0, currentTime - 5)) }
-      else if (event.key === 'ArrowRight') { event.preventDefault(); seekPlayback(Math.min(duration || Infinity, currentTime + 5)) }
+      else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        const time = usePlaybackStore.getState().currentTime
+        seekPlayback(Math.max(0, time - 5))
+      }
+      else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        const state = usePlaybackStore.getState()
+        seekPlayback(Math.min(state.duration || Infinity, state.currentTime + 5))
+      }
       else if (event.key.toLowerCase() === 'm') { event.preventDefault(); toggleMute() }
       else if (event.key.toLowerCase() === 'n') { event.preventDefault(); nextPlayback() }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [closeSidebar, currentTime, dialog, drawer, duration, immersiveLyrics, keyboardShortcuts, nextPlayback, seekPlayback, setDrawer, setImmersiveLyrics, sidebarOpen, toggleMute, togglePlayback])
+  }, [closeSidebar, dialog, drawer, immersiveLyrics, keyboardShortcuts, nextPlayback, seekPlayback, setDrawer, setImmersiveLyrics, sidebarOpen, toggleMute, togglePlayback])
   useEffect(() => {
     const initialRoute = parsePlayerHash(window.location.hash)
     const initialTab = initialRoute.tab
@@ -521,7 +536,6 @@ export function PlayerShell() {
     window.addEventListener('hashchange', onPop)
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
   }, [setTabFromHistory])
-  useEffect(() => { if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(duration)) { try { navigator.mediaSession.setPositionState({ duration: Math.max(0.1, duration), playbackRate: 1, position: Math.min(currentTime, duration) }) } catch { /* browser may reject transient media metadata */ } } }, [currentSong, currentTime, duration])
   return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveFooterHost !== 'normal'} /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><AddToListDialog open={dialog === 'addToList'} onClose={closeAddToList} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><ImmersiveLyricsView open={immersiveLyrics} footerHost={immersiveFooterHost} onFooterHostChange={setImmersiveFooterHost} onClose={() => setImmersiveLyrics(false)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
 }
 
