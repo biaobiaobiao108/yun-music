@@ -10027,14 +10027,13 @@ textarea:focus-visible {
     }
 }
 
-/* Compact floating navigation: with the redundant brand/account rows gone,
-   the desktop sidebar should frame the navigation instead of filling the
-   entire shell row. Mobile keeps the drawer height supplied by its insets. */
+/* Near-full-height floating navigation island: preserve a slim viewport
+   margin while keeping the mobile drawer height supplied by its insets. */
 @media (min-width: 901px) {
     #main-sidebar.react-sidebar {
         align-self: center;
-        block-size: min(42rem, calc(100dvh - 2rem));
-        height: min(42rem, calc(100dvh - 2rem)) !important;
+        block-size: calc(100dvh - 2rem);
+        height: calc(100dvh - 2rem) !important;
         max-block-size: calc(100dvh - 2rem);
         padding-block: .75rem;
     }
