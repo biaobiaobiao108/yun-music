@@ -155,4 +155,20 @@ describe('React player module boundaries', () => {
     expect(tokens).toContain('--app-sidebar-width')
     expect(tokens).toContain('[data-theme="violet"]')
   })
+
+  it('keeps the React-only build free of retired player bridges and jumpy artwork motion', () => {
+    const buildScript = read('scripts/build-frontend.ts')
+    const assetCheck = read('scripts/check-frontend-assets.ts')
+    const serviceWorker = read('public/music/sw.js')
+    const css = read('frontend/styles/player.css')
+
+    expect(buildScript).not.toContain('vendor_bridge.ts')
+    expect(buildScript).not.toContain('phase_vocoder.ts')
+    expect(assetCheck).toContain("'vendor-bridge.js'")
+    expect(assetCheck).toContain("'phase-vocoder.js'")
+    expect(serviceWorker).not.toContain('vendor-bridge.js')
+    expect(serviceWorker).not.toContain('phase-vocoder.js')
+    expect(css).toContain('transform: scale(1.025)')
+    expect(css).not.toContain('transform: translateY(-3px)')
+  })
 })

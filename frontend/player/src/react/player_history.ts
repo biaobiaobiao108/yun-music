@@ -1,4 +1,4 @@
-import { serializePlayerHash } from '../react/route_state';
+import { serializePlayerHash } from './route_state';
 
 export type PlayerHistoryMode = 'push' | 'replace' | 'restore' | 'none';
 
@@ -92,7 +92,7 @@ function samePayload(left: PlayerHistoryPayload | null, right: PlayerHistoryPayl
 
 function payloadUrl(payload: PlayerHistoryPayload): string | undefined {
     if (!payload.tabId) return undefined;
-    return serializePlayerHash({ tab: payload.tabId as import('../react/types').PlayerTab, listId: payload.listId });
+    return serializePlayerHash({ tab: payload.tabId as import('./types').PlayerTab, listId: payload.listId });
 }
 
 function isPlayerHistoryState(state: unknown): state is PlayerHistoryState {

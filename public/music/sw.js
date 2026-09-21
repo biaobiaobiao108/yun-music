@@ -1,6 +1,6 @@
 // Bump this whenever the React shell or its static contract changes so an
 // already-open player cannot keep serving a stale UI bundle indefinitely.
-const CACHE_NAME = 'yun-yin-web-react-v7';
+const CACHE_NAME = 'yun-yin-web-react-v8';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -11,10 +11,6 @@ const ASSETS_TO_CACHE = [
     // React 入口为哈希文件名，采用 Network First 动态加入缓存，
     // 避免把过期的入口固定写入安装清单。
     './css/tailwind.generated.css',
-    // 保留底层音频能力的静态资源
-    './js/vendor-bridge.js',
-    './js/wave.js',
-    './js/pitch-shifter/phase-vocoder.js',
     // 静态资源
     './assets/yun-yin.png',
 ];

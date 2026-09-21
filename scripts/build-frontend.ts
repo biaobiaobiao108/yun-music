@@ -20,8 +20,6 @@ async function build() {
   const adminHtmlSource = path.join(import.meta.dir, '../frontend/admin/index.html')
   const playerHtmlSource = path.join(import.meta.dir, '../frontend/player/index.html')
   const playerLoginSource = path.join(import.meta.dir, '../frontend/player/login.html')
-  const playerVendorEntry = path.join(import.meta.dir, '../frontend/player/src/vendor_bridge.ts')
-  const playerWorkletEntry = path.join(import.meta.dir, '../frontend/player/src/legacy/pitch_shifter/phase_vocoder.ts')
   const shouldMinify = process.env.NODE_ENV === 'production' || !isWatch
 
   const stylesProcess = Bun.spawn(['bun', 'run', 'scripts/build-styles.ts'], {
@@ -35,34 +33,15 @@ async function build() {
     return
   }
 
-  const vendorResult = await Bun.build({
-    entrypoints: [playerVendorEntry],
-    outdir: path.join(publicMusicRoot, 'js'),
-    naming: 'vendor-bridge.js',
-    format: 'iife',
-    minify: shouldMinify,
-    target: 'browser',
-    sourcemap: isWatch ? 'inline' : 'none',
-  })
-  if (!vendorResult.success) {
-    console.error('[Bun Bundler] Player vendor build failed:', vendorResult.logs)
-    if (!isWatch) process.exit(1)
-    return
-  }
-
-  const workletResult = await Bun.build({
-    entrypoints: [playerWorkletEntry],
-    outdir: path.join(publicMusicRoot, 'js/pitch-shifter'),
-    naming: 'phase-vocoder.js',
-    format: 'esm',
-    minify: shouldMinify,
-    target: 'browser',
-    sourcemap: isWatch ? 'inline' : 'none',
-  })
-  if (!workletResult.success) {
-    console.error('[Bun Bundler] Player audio worklet build failed:', workletResult.logs)
-    if (!isWatch) process.exit(1)
-    return
+  // These files belonged to the retired command-driven player. Remove stale
+  // local build output so a previous build cannot keep shipping dead runtime
+  // resources after the React-only migration.
+  for (const stalePath of [
+    path.join(publicMusicRoot, 'js/vendor-bridge.js'),
+    path.join(publicMusicRoot, 'js/wave.js'),
+    path.join(publicMusicRoot, 'js/pitch-shifter'),
+  ]) {
+    if (fs.existsSync(stalePath)) fs.rmSync(stalePath, { recursive: true, force: true })
   }
 
   // Remove only previous generated entry bundles; source HTML and data are never touched here.

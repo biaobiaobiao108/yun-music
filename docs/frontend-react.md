@@ -12,6 +12,8 @@
 - `frontend/styles/`：设计令牌、共享主题、播放器和后台样式源文件。
 - `scripts/build-frontend.ts`：构建 hash 入口、代码分割 chunk、Service Worker 引用和发布 HTML。
 
+迁移清理边界：当前发布链路只构建三个 React 入口（播放器、播放器登录页、管理后台）。旧命令式播放器入口、旧管理后台 feature 模块、播放器旧管理器、vendor bridge、频谱/音效/变调工作线程及其资源已移除；`player_history.ts` 已归档到 React 目录，因为它仍被当前导航状态使用。构建脚本会清理本地遗留的旧 bundle，资源检查会阻止这些文件重新进入 HTML、Service Worker 或懒加载引用。仍被共享 Markdown 服务使用的 `marked` 等依赖不会因“旧代码”标签误删。
+
 修改 `frontend/` 或 `frontend/styles/` 后必须运行：
 
 ```bash
@@ -75,7 +77,7 @@ React 继续兼容以下 hash 地址：
 
 收藏与自定义歌单使用同一组兼容路由：`#favorites` 固定表示“我喜欢的音乐”；自定义歌单使用 `#favorites?listId=<id>`，历史状态中的 `listId` 也会被恢复。侧栏只展示 `userList`，旧 `defaultList` 仍随歌单数据和快照保存，但不作为用户可见导航项。首页可以提供歌单快捷入口，但不会把自定义歌单嵌入收藏页。
 
-`frontend/player/src/react/route_state.ts` 只负责 hash 解析、路由序列化和 UI 路由意图；`frontend/player/src/features/player_history.ts` 只管理浏览器 History API 的序列号、方向和 payload。`PlayerShell` 把两者连接起来：UI store 发出 route intent，Shell 写入 History；popstate/hashchange 再把 payload 恢复到 UI store。详情状态包含页面、实体类型、来源、ID，并保留名称和封面作为返回时的即时展示数据。组件通过 `setTabFromHistory` 恢复界面，不直接拼接 URL。
+`frontend/player/src/react/route_state.ts` 只负责 hash 解析、路由序列化和 UI 路由意图；`frontend/player/src/react/player_history.ts` 只管理浏览器 History API 的序列号、方向和 payload。`PlayerShell` 把两者连接起来：UI store 发出 route intent，Shell 写入 History；popstate/hashchange 再把 payload 恢复到 UI store。详情状态包含页面、实体类型、来源、ID，并保留名称和封面作为返回时的即时展示数据。组件通过 `setTabFromHistory` 恢复界面，不直接拼接 URL。
 
 ## 存储与 API 兼容
 

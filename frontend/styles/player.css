@@ -2858,30 +2858,6 @@ aside {
     white-space: normal !important;
 }
 
-/* Theme-colored range inputs are shared by the sound-effects panel. */
-.lc-range-input {
-    accent-color: var(--c-500);
-}
-
-/* Sortable Styles (Direct Move Mode) */
-.sortable-ghost-solid {
-    opacity: 1 !important;
-    border: 2px solid var(--c-500) !important;
-    background: var(--c-50) !important;
-    box-shadow: inset 0 0 0 2px var(--c-100) !important;
-}
-
-.sortable-chosen-item {
-    opacity: 1 !important;
-    position: relative;
-    z-index: 10;
-}
-
-.sortable-drag-item {
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-
 .select-none {
     user-select: none !important;
     -webkit-user-select: none !important;
@@ -2965,41 +2941,6 @@ aside {
     .player-history-button:not(:disabled):active,
     .player-history-button:not(:disabled)[data-pressing="true"] {
         transform: none;
-    }
-}
-
-/* 歌词全屏沉浸极简底栏模式 */
-#player-footer.player-footer-immersive {
-    background-color: transparent !important;
-    -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
-    backdrop-filter: blur(24px) saturate(160%) !important;
-    border-color: rgba(255, 255, 255, 0.08) !important;
-    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.15) !important;
-}
-
-#player-footer.player-footer-immersive .player-footer-song-info {
-    opacity: 0.85;
-    transition: opacity 0.3s ease;
-}
-
-#player-footer.player-footer-immersive #player-cover {
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-}
-
-/* 沉浸模式下桌面端折叠次要按钮，仅保留音量与队列，让注意力聚焦于歌词 */
-@media (min-width: 1025px) {
-    #player-footer.player-footer-immersive #player-quality-control,
-    #player-footer.player-footer-immersive #btn-player-download,
-    #player-footer.player-footer-immersive #btn-sound-effects,
-    #player-footer.player-footer-immersive button[data-event-click-action="toggleCommentModal"] {
-        display: none !important;
-    }
-}
-
-/* 沉浸模式下在移动端隐藏收起按钮与多余信息，保留极致简洁 */
-@media (max-width: 1024px) {
-    #player-footer.player-footer-immersive .player-footer-collapse-button {
-        display: none !important;
     }
 }
 
@@ -3643,61 +3584,6 @@ aside {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     transition: opacity 0.2s ease;
     z-index: 10;
-}
-
-.netease-hover-play {
-    position: absolute;
-    right: 12px;
-    bottom: 12px;
-    width: 40px;
-    height: 40px;
-    border-radius: 9999px;
-    background: var(--c-500, #ec4141);
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 14px rgba(236, 65, 65, 0.5);
-    opacity: 0;
-    transform: translateY(6px) scale(0.9);
-    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    z-index: 10;
-}
-
-.group:hover .netease-hover-play {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-}
-
-.netease-hover-play:hover {
-    transform: scale(1.08) !important;
-    background: var(--c-600, #d73535);
-}
-
-/* ── 歌曲列表中正在播放的跳动音浪 (Animated Soundwave Bars) ── */
-.netease-soundwave {
-    display: inline-flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 14px;
-    width: 14px;
-}
-
-.netease-soundwave span {
-    width: 2px;
-    background: var(--c-500, #ec4141);
-    border-radius: 1px;
-    animation: netease-wave 1s ease-in-out infinite alternate;
-}
-
-.netease-soundwave span:nth-child(1) { height: 40%; animation-delay: 0.1s; }
-.netease-soundwave span:nth-child(2) { height: 100%; animation-delay: 0.3s; }
-.netease-soundwave span:nth-child(3) { height: 60%; animation-delay: 0.15s; }
-.netease-soundwave span:nth-child(4) { height: 80%; animation-delay: 0.4s; }
-
-@keyframes netease-wave {
-    0% { height: 20%; }
-    100% { height: 100%; }
 }
 
 /* ── 音质徽章 (SQ / Hi-Res) ── */
@@ -6604,7 +6490,8 @@ textarea:focus-visible {
     border-radius: .85rem;
     background: var(--app-surface-soft);
     box-shadow: 0 .65rem 1.5rem rgb(0 0 0 / 10%);
-    transition: transform var(--app-motion) ease, box-shadow var(--app-motion) ease;
+    transform: scale(1);
+    transition: transform var(--app-motion-fast) ease, box-shadow var(--app-motion-fast) ease;
 }
 
 .react-artwork-card.is-artist .react-artwork-button img {
@@ -6612,8 +6499,8 @@ textarea:focus-visible {
 }
 
 .react-artwork-button:hover img {
-    transform: translateY(-3px);
-    box-shadow: 0 1rem 2rem rgb(0 0 0 / 18%);
+    transform: scale(1.025);
+    box-shadow: 0 .8rem 1.7rem rgb(0 0 0 / 15%);
 }
 
 .react-artwork-button strong,
@@ -7234,6 +7121,10 @@ textarea:focus-visible {
     .react-sidebar,
     .react-sidebar-backdrop {
         transition: none;
+    }
+
+    .react-artwork-button img {
+        transform: scale(1);
     }
 }
 

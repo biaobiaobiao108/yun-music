@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { createPlayerHistoryController } from '../frontend/player/src/features/player_history'
+import { createPlayerHistoryController } from '../frontend/player/src/react/player_history'
 import { songAlbum, songArtist, songDurationValue, songFormatValue, songSizeBytes, songSizeValue, songTitle } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')

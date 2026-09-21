@@ -38,6 +38,9 @@ const deletedResourceNames = [
   'single_song_ops.js',
   'songlist_manager.js',
   'download_manager.js',
+  'vendor-bridge.js',
+  'wave.js',
+  'phase-vocoder.js',
 ];
 
 const forbiddenDomMigrationPatterns = [
@@ -200,10 +203,8 @@ const trackedFiles = collectTrackedFiles();
 const generatedFiles = [
   'public/app.js',
   'public/music/app.js',
-  'public/music/js/vendor-bridge.js',
   'public/music/js/songlist_manager.js',
   'public/music/js/download_manager.js',
-  'public/music/js/pitch-shifter/phase-vocoder.js',
   'public/music/login.js',
   'public/music/css/tailwind.generated.css',
 ];
