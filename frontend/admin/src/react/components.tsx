@@ -54,7 +54,7 @@ export function ErrorPanel({ message, onRetry }: { message: string; onRetry?: ()
   return <div className="admin-react-error" role="alert"><Icon name="triangle-exclamation" /><span>{message}</span>{onRetry && <Button onClick={onRetry}>重试</Button>}</div>
 }
 
-export function Modal({ open, title, onClose, children, labelledBy }: { open: boolean; title: string; onClose: () => void; children: ReactNode; labelledBy?: string }) {
+export function Modal({ open, title, onClose, children, labelledBy, className = '' }: { open: boolean; title: string; onClose: () => void; children: ReactNode; labelledBy?: string; className?: string }) {
   const ref = useRef<HTMLDialogElement>(null)
   const previousFocus = useRef<HTMLElement | null>(null)
   const generatedTitleId = useId()
@@ -74,7 +74,7 @@ export function Modal({ open, title, onClose, children, labelledBy }: { open: bo
       previousFocus.current = null
     }
   }, [open])
-  return <dialog ref={ref} className="admin-react-dialog" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose() }}>
+  return <dialog ref={ref} className={`admin-react-dialog ${className}`.trim()} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose() }}>
     <div className="admin-react-dialog-content">
       <header><h2 id={titleId}>{title}</h2><button type="button" className="admin-react-icon-button" aria-label="关闭" onClick={onClose}><Icon name="xmark" /></button></header>
       <div className="admin-react-dialog-body">{children}</div>

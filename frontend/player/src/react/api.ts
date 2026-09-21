@@ -21,7 +21,7 @@ export type UserPlaylist = Record<string, unknown> & {
   image?: string
 }
 export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: UserPlaylist[] }
-export type CacheTask = Record<string, unknown> & { id?: string; songKey?: string; status?: string; progress?: number; name?: string }
+export type CacheTask = Record<string, unknown> & { id?: string; songKey?: string; status?: string; progress?: number; name?: string; songInfo?: Song; quality?: string; requestedQuality?: string; total?: number; received?: number; errorMsg?: string }
 export type CacheStats = Record<string, unknown> & {
   cache?: { totalSize?: number; fileCount?: number }
   music?: { totalSize?: number; fileCount?: number }
@@ -114,7 +114,7 @@ export const playerApi = {
   cachePlayback: (item: { filename: string; folder?: string; location?: string; user?: string }) => requestJson('/api/music/cache/playback', { method: 'POST', body: JSON.stringify(item) }),
   cacheMove: (items: Array<{ filename: string; folder?: string; user?: string; rawUsername?: string; sourceUser?: string }>, targetFolder: 'cache' | 'music' = 'music') => requestJson<{ success?: boolean; successCount?: number; failCount?: number; moved?: unknown[] }>('/api/music/cache/move', { method: 'POST', body: JSON.stringify({ items, targetFolder }) }),
   queueTasks: (tasks: unknown[], concurrency?: number) => requestJson('/api/music/cache/queue', { method: 'POST', body: JSON.stringify({ tasks, concurrency }) }),
-  removeQueue: (id?: string, all?: boolean) => requestJson('/api/music/cache/queue/remove', { method: 'POST', body: JSON.stringify({ id, all }) }),
+  removeQueue: (id?: string, all?: boolean, completed?: boolean) => requestJson('/api/music/cache/queue/remove', { method: 'POST', body: JSON.stringify({ id, all, completed }) }),
   download: (songInfo: Song, url: string, quality: string) => requestJson('/api/music/cache/download', { method: 'POST', body: JSON.stringify({ songInfo, url, quality, enableOnlyDownloadMode: true, cacheLyric: true, embedLyric: true }) }),
 }
 

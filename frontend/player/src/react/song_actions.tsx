@@ -79,6 +79,11 @@ export function SongActionsPopover({ song, open, anchorRef, onClose, onAddToList
     action()
   }
 
+  // A native modal dialog is rendered in the browser's top layer. A portal
+  // mounted directly under body would stay behind the immersive lyrics dialog,
+  // so keep the popover in the active dialog when the footer is immersive.
+  const portalTarget = anchorRef.current?.closest('dialog') ?? document.body
+
   return createPortal(<div ref={panelRef} id="song-actions-popover" className="react-song-actions-popover" role="dialog" aria-label="歌曲更多操作" style={position ?? { visibility: 'hidden', top: 0, left: 0 }}>
     <div className="react-song-actions-popover-heading">歌曲操作</div>
     <div className="react-song-actions-popover-list">
@@ -89,5 +94,5 @@ export function SongActionsPopover({ song, open, anchorRef, onClose, onAddToList
       <button type="button" onClick={() => run(onDownload)}><Icon name="download" /><span>下载歌曲</span></button>
       <button type="button" onClick={() => run(onSleep)}><Icon name="moon" /><span>睡眠定时器</span></button>
     </div>
-  </div>, document.body)
+  </div>, portalTarget)
 }

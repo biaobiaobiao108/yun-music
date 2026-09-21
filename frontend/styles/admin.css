@@ -6353,3 +6353,91 @@ textarea:focus-visible {
         max-height: calc(100dvh - 1rem);
     }
 }
+
+/* Final theme boundary for native controls and dialogs. The legacy admin
+   layer still defines light glass variables, so every React surface must bind
+   its foreground and control colors to the shared appearance tokens here. */
+.admin-react-shell,
+.admin-react-login,
+.admin-react-loading-screen,
+.admin-react-dialog {
+    color-scheme: inherit;
+}
+
+.admin-react-dialog {
+    border: 1px solid var(--app-border) !important;
+    border-radius: var(--app-radius-lg) !important;
+    background: var(--app-surface-solid) !important;
+    color: var(--app-text) !important;
+    box-shadow: var(--app-shadow) !important;
+}
+
+.admin-react-dialog::backdrop {
+    background: color-mix(in srgb, var(--app-bg) 64%, rgb(0 0 0 / 58%)) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(1.08);
+    backdrop-filter: blur(8px) saturate(1.08);
+}
+
+.admin-react-dialog-content,
+.admin-react-dialog-content > header,
+.admin-react-dialog-body {
+    color: var(--app-text);
+}
+
+.admin-react-dialog-content > header {
+    border-bottom-color: var(--app-border) !important;
+}
+
+.admin-react-dialog-content > header h2 {
+    color: var(--app-text) !important;
+}
+
+.admin-react-shell :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    textarea,
+    select
+),
+.admin-react-dialog :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    textarea,
+    select
+) {
+    border-color: var(--app-border) !important;
+    background: var(--app-surface-solid) !important;
+    color: var(--app-text) !important;
+    caret-color: var(--app-accent);
+    -webkit-text-fill-color: var(--app-text) !important;
+}
+
+.admin-react-shell :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    textarea,
+    select
+)::placeholder,
+.admin-react-dialog :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    textarea,
+    select
+)::placeholder {
+    color: var(--app-text-dim) !important;
+    opacity: 1;
+    -webkit-text-fill-color: var(--app-text-dim) !important;
+}
+
+.admin-react-shell :where(input, textarea, select):focus-visible,
+.admin-react-dialog :where(input, textarea, select):focus-visible {
+    border-color: var(--app-accent) !important;
+    box-shadow: inset 0 0 0 1px var(--app-accent) !important;
+}
+
+.admin-react-shell :where(select) option,
+.admin-react-dialog :where(select) option {
+    background: var(--app-surface-solid);
+    color: var(--app-text);
+}
+
+.admin-react-shell :where(input):-webkit-autofill,
+.admin-react-dialog :where(input):-webkit-autofill {
+    -webkit-text-fill-color: var(--app-text) !important;
+    box-shadow: 0 0 0 1000px var(--app-surface-solid) inset !important;
+}

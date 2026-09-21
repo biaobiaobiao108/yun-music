@@ -9398,3 +9398,157 @@ textarea:focus-visible {
     border-radius: 0 !important;
     box-shadow: none !important;
 }
+
+/* The top bar is an unobtrusive pair of floating control capsules. It keeps
+   the normal grid row for content stability, but never paints a full-width
+   strip over the page. */
+.react-player-topbar {
+    position: relative;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-inline: .25rem;
+    pointer-events: none;
+}
+
+.react-player-topbar .react-history-controls,
+.react-player-topbar .react-topbar-actions {
+    display: inline-flex !important;
+    align-items: center;
+    gap: .12rem;
+    min-height: 2.72rem;
+    padding: .22rem;
+    pointer-events: auto;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent);
+    box-shadow: var(--app-shadow-soft);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.react-player-topbar .react-history-controls {
+    margin-inline-start: .55rem;
+}
+
+.react-player-topbar .react-topbar-actions {
+    margin-inline-end: .55rem;
+}
+
+.react-player-topbar .react-history-controls .react-icon-button,
+.react-player-topbar .react-topbar-actions .player-secondary-action {
+    width: 2.18rem;
+    min-width: 2.18rem;
+    height: 2.18rem;
+    min-height: 2.18rem;
+}
+
+.react-player-topbar .react-history-controls .react-icon-button:hover,
+.react-player-topbar .react-history-controls .react-icon-button:focus-visible,
+.react-player-topbar .react-topbar-actions .player-secondary-action:hover,
+.react-player-topbar .react-topbar-actions .player-secondary-action:focus-visible {
+    background: var(--app-surface-soft);
+}
+
+.react-player-topbar .react-user-chip,
+.react-player-topbar .react-secondary-button {
+    min-height: 2.18rem;
+    padding: .35rem .65rem;
+    border: 0;
+    background: transparent;
+    color: var(--app-text);
+}
+
+/* The immersive footer is the exact same transport surface. Only its
+   containing block changes so it remains centered over the content column. */
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+    display: grid !important;
+    grid-template-columns: auto minmax(16rem, 1fr) auto !important;
+    align-items: center;
+    gap: 1rem;
+    width: min(60rem, calc(100% - var(--app-sidebar-width, 17.5rem) - (var(--player-shell-gap, 1rem) * 5))) !important;
+    max-width: calc(100% - var(--app-sidebar-width, 17.5rem) - (var(--player-shell-gap, 1rem) * 5)) !important;
+    min-height: 4.05rem;
+    padding: .44rem .82rem;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 78%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--app-surface-solid) 58%, transparent) !important;
+    box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 24%);
+    -webkit-backdrop-filter: blur(28px) saturate(1.25);
+    backdrop-filter: blur(28px) saturate(1.25);
+}
+
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-controls {
+    grid-column: auto;
+    grid-row: auto;
+}
+
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-song-section {
+    grid-column: auto;
+    grid-row: auto;
+}
+
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-actions {
+    grid-column: auto;
+    grid-row: auto;
+    min-inline-size: 0;
+    padding: 0;
+    border: 0;
+}
+
+@media (max-width: 900px) {
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+        width: calc(100% - 1rem) !important;
+        max-width: calc(100% - 1rem) !important;
+        min-height: 3.72rem;
+        padding: .36rem .58rem;
+        gap: .42rem;
+    }
+
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-controls,
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-song-section,
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-actions {
+        grid-column: auto;
+        grid-row: auto;
+    }
+}
+
+@media (max-width: 720px) {
+    .react-player-topbar {
+        min-height: 4.2rem;
+        padding-inline: 0;
+    }
+
+    .react-player-topbar .react-history-controls {
+        margin-inline-start: .2rem;
+    }
+
+    .react-player-topbar .react-topbar-actions {
+        margin-inline-end: .2rem;
+    }
+
+    .react-player-topbar .react-user-chip,
+    .react-player-topbar .react-secondary-button {
+        display: inline-flex !important;
+        max-width: 7.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 560px) {
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+        width: calc(100% - .7rem) !important;
+        max-width: calc(100% - .7rem) !important;
+        padding-inline: .48rem;
+        gap: .18rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-player-topbar .react-history-controls,
+    .react-player-topbar .react-topbar-actions {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+}

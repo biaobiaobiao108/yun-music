@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Mous
 import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
-import { useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
+import { useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore } from './store'
 import { sameSong, songArtist, songImage, songTitle } from './types'
 import { buildCachePlaybackUrl, extractRemotePlaybackUrl, parseCachePlaybackUrl } from './media_url'
 
@@ -70,6 +70,7 @@ export function PlayerFooterBar({ variant = 'normal' }: { variant?: PlayerFooter
   const volume = usePlaybackStore(state => state.volume)
   const muted = usePlaybackStore(state => state.muted)
   const mode = usePlaybackStore(state => state.mode)
+  const quality = usePlaybackStore(state => state.quality)
   const resolvedUrl = usePlaybackStore(state => state.resolvedUrl)
   const toggle = usePlaybackStore(state => state.toggle)
   const next = usePlaybackStore(state => state.next)
@@ -86,6 +87,8 @@ export function PlayerFooterBar({ variant = 'normal' }: { variant?: PlayerFooter
   const openAddToList = usePlayerUiStore(state => state.openAddToList)
   const userName = useAuthStore(state => state.userName)
   const userAuthenticated = useAuthStore(state => state.userAuthenticated)
+  const preferredQuality = useSettingsStore(state => String(state.settings.preferredQuality || 'flac'))
+  const enableAutoSwitchSource = useSettingsStore(state => state.settings.enableAutoSwitchSource !== false)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const isLiked = useLibraryStore(state => Boolean(currentSong && (state.data.loveList ?? []).some(song => sameSong(song, currentSong))))
@@ -109,7 +112,6 @@ export function PlayerFooterBar({ variant = 'normal' }: { variant?: PlayerFooter
 
   const download = useCallback(async () => {
     if (!currentSong) return
-    if (immersive) setImmersiveLyrics(false)
     try {
       const currentReference = parseCachePlaybackUrl(currentSong.url) ?? parseCachePlaybackUrl(resolvedUrl)
       let cachedItem = currentReference ? {
@@ -156,12 +158,14 @@ export function PlayerFooterBar({ variant = 'normal' }: { variant?: PlayerFooter
       }
 
       const remoteUrl = extractRemotePlaybackUrl(resolvedUrl) ?? extractRemotePlaybackUrl(currentSong.url)
-      const result = remoteUrl ? { url: remoteUrl } : await playerApi.songUrl(currentSong, 'flac', undefined, true)
-      await playerApi.download(currentSong, result.url, 'flac')
-      notify('已加入下载队列，继续复用当前播放链接')
+      const result = remoteUrl && quality === preferredQuality
+        ? { url: remoteUrl }
+        : await playerApi.songUrl(currentSong, preferredQuality, undefined, enableAutoSwitchSource)
+      await playerApi.download(currentSong, result.url, preferredQuality)
+      notify(remoteUrl && quality === preferredQuality ? '已加入下载队列，继续复用当前播放链接' : `已加入下载队列，音质：${preferredQuality}`)
       setDrawer('download')
     } catch (error) { notify(error instanceof Error ? error.message : '下载失败') }
-  }, [currentSong, immersive, notify, resolvedUrl, setCurrentSongUrl, setDrawer, setImmersiveLyrics, userName])
+  }, [currentSong, enableAutoSwitchSource, notify, preferredQuality, quality, resolvedUrl, setCurrentSongUrl, setDrawer, userName])
 
   const toggleLike = useCallback(async () => {
     if (!currentSong) { notify('请选择歌曲后再收藏'); return }
@@ -182,17 +186,14 @@ export function PlayerFooterBar({ variant = 'normal' }: { variant?: PlayerFooter
   }, [currentSong, notify, openAddToList, userAuthenticated])
 
   const openComments = useCallback(() => {
-    if (immersive) setImmersiveLyrics(false)
     setDialog('comments')
-  }, [immersive, setDialog, setImmersiveLyrics])
+  }, [setDialog])
 
   const openSleepTimer = useCallback(() => {
-    if (immersive) setImmersiveLyrics(false)
     setDialog('sleep')
-  }, [immersive, setDialog, setImmersiveLyrics])
+  }, [setDialog])
 
   const openQueue = () => {
-    if (immersive) setImmersiveLyrics(false)
     setDrawer('queue')
   }
 

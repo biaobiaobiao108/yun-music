@@ -1,10 +1,10 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
-import { playerApi } from './api'
+import { playerApi, type CacheTask } from './api'
 import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
 import { AboutView, AddToListDialog, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchDetailView, SearchView, SettingsView, UserLoginDialog } from './views'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
-import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSearchStore, useSettingsStore, useSleepTimerStore } from './store'
-import { songAlbum, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
+import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
+import { songAlbum, songArtist, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from '../features/player_history'
 import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
@@ -111,25 +111,17 @@ function Sidebar() {
 function TopBar() {
   const tab = usePlayerUiStore(state => state.tab)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
-  const toggleSidebar = usePlayerUiStore(state => state.toggleSidebar)
-  const setTab = usePlayerUiStore(state => state.setTab)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const userName = useAuthStore(state => state.userName)
   const settings = useSettingsStore(state => state.settings)
   const setSetting = useSettingsStore(state => state.setSetting)
-  const query = useSearchStore(state => state.query)
-  const setQuery = useSearchStore(state => state.setQuery)
-  const search = useSearchStore(state => state.search)
   const userLists = useLibraryStore(selectUserLists)
-  const [searchInput, setSearchInput] = useState(query)
   const currentPlaylist = favoriteListId === 'love' ? null : userLists.find(list => String(list.id) === favoriteListId)
   const title = tab === 'favorites' && currentPlaylist ? currentPlaylist.name : ALL_NAV_ITEMS.find(item => item.id === tab)?.label ?? (tab === 'favorites' ? '收藏' : '云音')
-  useEffect(() => setSearchInput(query), [query])
   useEffect(() => { document.title = `${title} - 云音` }, [title])
-  const submit = (event: FormEvent) => { event.preventDefault(); const value = searchInput.trim(); setQuery(value); if (!value) return; setTab('search'); void search(value, 1) }
   const toggleTheme = () => { const next = settings.appearance === 'dark' ? 'light' : 'dark'; setSetting('appearance', next) }
-  return <header className="react-player-topbar"><button type="button" className="react-icon-button react-menu-button" aria-label="打开导航菜单" onClick={toggleSidebar}><Icon name="bars" /></button><div className="react-history-controls"><button type="button" className="react-icon-button" aria-label="后退" onClick={goBack}><Icon name="arrow-left" /></button><button type="button" className="react-icon-button" aria-label="前进" onClick={goForward}><Icon name="arrow-right" /></button></div><form className="react-global-search" onSubmit={submit}><Icon name="search" /><input value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="搜索歌曲/歌手/专辑/歌单" aria-label="全局搜索" /><button type="submit" aria-label="开始搜索"><Icon name="arrow-right" /></button></form><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="播放队列" onClick={() => setDrawer('queue')}><Icon name="list" /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
+  return <header className="react-player-topbar"><div className="react-history-controls" aria-label="页面历史"><button type="button" className="react-icon-button" aria-label="后退" onClick={goBack}><Icon name="arrow-left" /></button><button type="button" className="react-icon-button" aria-label="前进" onClick={goForward}><Icon name="arrow-right" /></button></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
 }
 
 function AudioRuntime() {
@@ -341,15 +333,43 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   return <Drawer open={open} title={`播放队列（${queue.length}）`} onClose={onClose} labelledBy="queue-title"><ol className="react-queue-list">{queue.map((song, index) => <li key={`${songKey(song)}-${index}`} className={index === currentIndex ? 'is-current' : ''}><button type="button" onClick={() => playSong(song, queue, index)}><span>{index + 1}</span><span><strong>{songTitle(song)}</strong><small>{String(song.singer || '')}</small></span></button><button type="button" aria-label={`移除 ${songTitle(song)}`} onClick={() => remove(index)}><Icon name="xmark" /></button></li>)}</ol>{!queue.length && <p className="react-empty-text">队列为空</p>}</Drawer>
 }
 
+function cacheTaskText(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
+}
+
+function cacheTaskName(task: CacheTask): string {
+  const songInfo = task.songInfo
+  const infoName = songInfo ? songTitle(songInfo) : ''
+  return cacheTaskText(task.name) || (infoName !== '未知歌曲' ? infoName : '') || cacheTaskText(task.songKey) || '下载任务'
+}
+
+function cacheTaskArtist(task: CacheTask): string {
+  const artist = task.songInfo ? songArtist(task.songInfo) : ''
+  return artist === '未知歌手' ? '' : artist
+}
+
+function cacheTaskStatus(status: unknown): string {
+  const labels: Record<string, string> = { waiting: '等待中', downloading: '下载中', tagging: '整理中', paused: '已暂停', finished: '已完成', exists: '已完成', error: '失败' }
+  const value = cacheTaskText(status)
+  return labels[value] || value || '等待中'
+}
+
 function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const tasks = useCacheStore(state => state.tasks)
   const stats = useCacheStore(state => state.stats)
   const load = useCacheStore(state => state.load)
   const remove = useCacheStore(state => state.remove)
+  const removeCompleted = useCacheStore(state => state.removeCompleted)
+  const notify = usePlayerUiStore(state => state.notify)
   useEffect(() => { if (open) void load() }, [load, open])
   const cacheSize = stats?.cacheSize ?? stats?.cache?.totalSize
   const musicSize = stats?.musicSize ?? stats?.music?.totalSize
-  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load()}><Icon name="rotate" />刷新</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); return <li key={`${id}-${index}`}><span><strong>{String(task.name || task.songKey || '下载任务')}</strong><small>{String(task.status || '等待中')}</small></span><button type="button" onClick={() => void remove(id)} aria-label="移除任务"><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
+  const completedCount = tasks.filter(task => ['finished', 'exists'].includes(cacheTaskText(task.status))).length
+  const clearCompleted = async () => {
+    if (!completedCount) return
+    try { await removeCompleted(); notify(`已清理 ${completedCount} 个已完成任务`) } catch (error) { notify(error instanceof Error ? error.message : '清理任务失败') }
+  }
+  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load()}><Icon name="rotate" />刷新</Button><Button onClick={() => void clearCompleted()} disabled={!completedCount}><Icon name="broom" />清理已完成{completedCount ? `（${completedCount}）` : ''}</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); const artist = cacheTaskArtist(task); return <li key={`${id}-${index}`}><span><strong>{cacheTaskName(task)}</strong><small>{artist ? `${artist} · ` : ''}{cacheTaskStatus(task.status)}</small></span><button type="button" onClick={() => void remove(id)} aria-label={`移除${cacheTaskName(task)}`}><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
 }
 
 function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -369,7 +389,7 @@ export function PlayerShell() {
   const detail = usePlayerUiStore(state => state.detail)
   const drawer = usePlayerUiStore(state => state.drawer)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
-  const closeOverlays = usePlayerUiStore(state => state.closeOverlays)
+  const closeSidebar = usePlayerUiStore(state => state.closeSidebar)
   const sidebarOpen = usePlayerUiStore(state => state.sidebarOpen)
   const setTabFromHistory = usePlayerUiStore(state => state.setTabFromHistory)
   const dialog = usePlayerUiStore(state => state.dialog)
@@ -398,10 +418,13 @@ export function PlayerShell() {
       const target = event.target as HTMLElement | null
       const editing = target?.matches('input, textarea, select, [contenteditable="true"]')
       if (event.key === 'Escape') {
-        if (immersiveLyrics || dialog || drawer || sidebarOpen) {
-          event.preventDefault()
-          closeOverlays()
-        }
+        // Native dialogs own Escape. In particular, comments may be opened on
+        // top of immersive lyrics and closing the comments dialog must not
+        // close the underlying lyrics surface as well.
+        if (dialog) return
+        if (drawer) { event.preventDefault(); setDrawer(null); return }
+        if (sidebarOpen) { event.preventDefault(); closeSidebar(); return }
+        if (immersiveLyrics) { event.preventDefault(); setImmersiveLyrics(false) }
         return
       }
       if (!keyboardShortcuts || editing || event.altKey || event.ctrlKey || event.metaKey) return
@@ -413,7 +436,7 @@ export function PlayerShell() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [closeOverlays, currentTime, dialog, drawer, duration, immersiveLyrics, keyboardShortcuts, nextPlayback, seekPlayback, sidebarOpen, toggleMute, togglePlayback])
+  }, [closeSidebar, currentTime, dialog, drawer, duration, immersiveLyrics, keyboardShortcuts, nextPlayback, seekPlayback, setDrawer, setImmersiveLyrics, sidebarOpen, toggleMute, togglePlayback])
   useEffect(() => {
     const initialRoute = parsePlayerHash(window.location.hash)
     const initialTab = initialRoute.tab

@@ -80,6 +80,9 @@ describe('React admin frontend', () => {
     expect(css).toContain('@media (max-width: 620px)')
     expect(css).toContain('React UI focus policy: quiet mouse focus, compact keyboard focus.')
     expect(css).toContain('box-shadow: inset 0 0 0 1px var(--app-accent) !important')
+    expect(css).toContain('.admin-react-dialog')
+    expect(css).toContain('background: var(--app-surface-solid) !important')
+    expect(css).toContain('color-scheme: inherit')
   })
 
   it('keeps the compact workspace toolbars and shared player search treatment', () => {

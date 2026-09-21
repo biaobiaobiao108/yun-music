@@ -12,6 +12,7 @@ export type CacheState = {
   load: (options?: { force?: boolean }) => Promise<void>
   enqueue: (song: Song, quality?: string, resolvedUrl?: string) => Promise<void>
   remove: (id: string) => Promise<void>
+  removeCompleted: () => Promise<void>
 }
 
 let cacheLoadController: AbortController | null = null
@@ -52,6 +53,10 @@ export const useCacheStore = create<CacheState>((set, get) => ({
   },
   remove: async id => {
     await playerApi.removeQueue(id)
+    await get().load({ force: true })
+  },
+  removeCompleted: async () => {
+    await playerApi.removeQueue(undefined, false, true)
     await get().load({ force: true })
   },
 }))
