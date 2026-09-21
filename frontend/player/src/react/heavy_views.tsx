@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { playerApi, type CacheItem } from './api'
-import { Button, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
+import { Button, DescriptionDisclosure, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
 import { selectUserLists, useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 import type { PlayerDetail, Song } from './types'
 import { songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songSizeValue, songTitle } from './types'
@@ -70,7 +70,7 @@ function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
       notify(next ? '歌单已收藏' : '已取消收藏歌单')
     } catch (cause) { notify(cause instanceof Error ? cause.message : '歌单收藏失败') }
   }
-  return <ViewFrame title={name} subtitle="歌单详情" hideHeader><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={goBack}><Icon name="arrow-left" />返回歌单广场</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h1>{name}</h1>{description && <p>{description}</p>}<small>{String(payload.source ?? detail.source).toUpperCase()} · {songs.length} 首歌曲</small><button type="button" className={`react-entity-favorite react-detail-favorite ${isCollected ? 'is-active' : ''}`} aria-label={isCollected ? '取消收藏歌单' : '收藏歌单'} aria-pressed={isCollected} onClick={() => void toggleCollected()}><Icon name="heart" />{isCollected ? '已收藏' : '收藏歌单'}</button></div></div></section><section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="歌单暂无歌曲" />}</section></ViewFrame>
+  return <ViewFrame title={name} subtitle="歌单详情" hideHeader><section className="react-detail-header t-bg-panel"><button type="button" className="react-secondary-button" onClick={goBack}><Icon name="arrow-left" />返回歌单广场</button><div className="react-detail-hero"><SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} /><div><h1>{name}</h1>{description && <DescriptionDisclosure text={description} />}<small>{String(payload.source ?? detail.source).toUpperCase()} · {songs.length} 首歌曲</small><button type="button" className={`react-entity-favorite react-detail-favorite ${isCollected ? 'is-active' : ''}`} aria-label={isCollected ? '取消收藏歌单' : '收藏歌单'} aria-pressed={isCollected} onClick={() => void toggleCollected()}><Icon name="heart" />{isCollected ? '已收藏' : '收藏歌单'}</button></div></div></section><section className="react-content-card t-bg-panel">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="歌单暂无歌曲" />}</section></ViewFrame>
 }
 
 function SongListGrid() {

@@ -208,12 +208,12 @@ function AudioRuntime() {
         const playbackUrl = playback?.url || currentSong.url || ''
         const cacheReference = parseCachePlaybackUrl(playbackUrl)
         const status = cacheReference?.folder === 'music'
-          ? { message: '已从下载目录播放', kind: 'success' as const, key: 'download' }
+          ? { message: '下载播放', kind: 'success' as const, key: 'download' }
           : cacheReference?.folder === 'cache'
-            ? { message: '已命中服务器缓存', kind: 'success' as const, key: 'cache' }
+            ? { message: '命中缓存', kind: 'success' as const, key: 'cache' }
             : playback?.fromCache
-              ? { message: '已使用本地播放文件', kind: 'success' as const, key: 'local' }
-              : { message: playback?.sourceName ? `在线播放 · ${playback.sourceName}` : '在线播放 · 自定义音源', kind: 'info' as const, key: 'online' }
+              ? { message: '本地播放', kind: 'success' as const, key: 'local' }
+              : { message: playback?.sourceName ? `在线播放 · ${playback.sourceName}` : '在线播放', kind: 'info' as const, key: 'online' }
         const statusKey = `${songId}:${quality}:${status.key}:${playback?.sourceName || ''}`
         if (playbackStatusKey.current !== statusKey) {
           playbackStatusKey.current = statusKey
@@ -285,7 +285,7 @@ function AudioRuntime() {
     if (!audio || !currentSong || !songId) return
     let cancelled = false
     setResolvedError('')
-    if (!currentSong.url) notifyPlayback('正在检查服务器缓存…')
+    if (!currentSong.url) notifyPlayback('检查缓存')
     void (async () => {
       try {
         const prefetchKey = `${songKey(currentSong)}:${quality}`
@@ -306,7 +306,7 @@ function AudioRuntime() {
         audio.src = buildPlaybackUrl(result.url, currentSong, settings)
         audio.load()
         if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
-          notifyPlayback(result.sourceName ? `正在连接 · ${result.sourceName}` : '正在连接在线音源…')
+          notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')
         }
         if (usePlaybackStore.getState().isPlaying) await audio.play()
       } catch (error) {

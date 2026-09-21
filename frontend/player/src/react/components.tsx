@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
 import { sameSong, songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songTitle } from './types'
@@ -210,6 +210,32 @@ export function ToastRegion() {
         ? 'circle-xmark'
         : 'circle-info'
   return <div ref={toastRef} className={`react-player-toast is-${notice.kind}`} role="status" aria-live="polite" popover="manual"><Icon name={icon} /><span>{notice.message}</span><button type="button" className="react-toast-close" aria-label="关闭提示" onClick={close}><Icon name="xmark" /></button></div>
+}
+
+/** Keep long entity introductions compact while leaving the complete text one click away. */
+export function DescriptionDisclosure({ text }: { text: string }) {
+  const value = text.trim()
+  const paragraphRef = useRef<HTMLParagraphElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [canExpand, setCanExpand] = useState(false)
+  const likelyLong = value.length > 96 || value.split(/\r?\n/).length > 3
+
+  useLayoutEffect(() => {
+    const paragraph = paragraphRef.current
+    if (!paragraph) return undefined
+    const measure = () => setCanExpand(likelyLong || paragraph.scrollHeight > paragraph.clientHeight + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(paragraph)
+    return () => observer.disconnect()
+  }, [likelyLong, value])
+
+  if (!value) return null
+  return <div className={`react-description-disclosure${expanded ? ' is-expanded' : ''}`}>
+    <p ref={paragraphRef} className={expanded ? undefined : 'is-collapsed'}>{value}</p>
+    {canExpand && <button type="button" className="react-description-toggle" aria-expanded={expanded} onClick={() => setExpanded(current => !current)}>{expanded ? '收起简介' : '展开简介'}<Icon name={expanded ? 'chevron-up' : 'chevron-down'} /></button>}
+  </div>
 }
 
 export function Loading({ label = '加载中…' }: { label?: string }) { return <div className="react-loading" role="status"><Icon name="spinner" /><span>{label}</span></div> }
