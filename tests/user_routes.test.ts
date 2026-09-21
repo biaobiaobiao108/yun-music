@@ -118,6 +118,26 @@ describe('User snapshot permissions', () => {
     expect(await read.json()).toEqual(savedData)
   })
 
+  test('persists an incremental favorite across a browser refresh', async () => {
+    const router = createUserRouter()
+    releaseUserSpace(username, true)
+    const song = { id: 'favorite-1', songmid: 'favorite-1', name: 'Favorite 1', singer: 'Singer 1', source: 'wy' }
+
+    const add = await router.handle(new Request('http://localhost/api/music/user/list/add', {
+      method: 'POST',
+      headers: { ...userHeaders, 'content-type': 'application/json' },
+      body: JSON.stringify({ listId: 'love', musicInfos: [song] }),
+    }))
+    expect(add.status).toBe(200)
+
+    // A refresh creates a new in-memory user space, so this verifies the
+    // actual favorite-button write path rather than only the full-save route.
+    releaseUserSpace(username, true)
+    const read = await router.handle(new Request('http://localhost/api/user/list', { headers: userHeaders }))
+    expect(read.status).toBe(200)
+    expect(await read.json()).toEqual({ defaultList: [], loveList: [song], userList: [] })
+  })
+
   test('bounds imported snapshot history and repairs latest metadata after deletion', async () => {
     const manager = getUserSpace(username).listManage
     for (let index = 0; index < 12; index++) {

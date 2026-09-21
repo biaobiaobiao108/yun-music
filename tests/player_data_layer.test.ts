@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import { ApiRequestError, clearRequestCache, invalidateRequestCache, requestJson } from '../frontend/player/src/react/data/request'
 import { parsePlayerHash, serializePlayerHash } from '../frontend/player/src/react/route_state'
+import { setSessionScope } from '../frontend/player/src/react/session'
+import { useAuthStore } from '../frontend/player/src/react/store/auth'
 import { useLibraryStore } from '../frontend/player/src/react/store/library'
 
 describe('React player data request lifecycle', () => {
@@ -114,6 +116,40 @@ describe('React player library persistence guard', () => {
       globalThis.fetch = originalFetch
       clearRequestCache()
       useLibraryStore.getState().reset()
+    }
+  })
+})
+
+describe('React player authentication lifecycle', () => {
+  it('does not run the initial session reset twice under StrictMode', async () => {
+    const originalFetch = globalThis.fetch
+    const calls: string[] = []
+    globalThis.fetch = (async input => {
+      const endpoint = String(input)
+      calls.push(endpoint)
+      await Promise.resolve()
+      if (endpoint === '/api/music/config') {
+        return new Response(JSON.stringify({ 'player.enableAuth': false }), { status: 200 })
+      }
+      if (endpoint === '/api/music/auth/verify') return new Response(JSON.stringify({ valid: true }), { status: 200 })
+      if (endpoint === '/api/user/auth/verify') {
+        return new Response(JSON.stringify({ valid: true, username: 'test-user' }), { status: 200 })
+      }
+      return new Response('{}', { status: 200 })
+    }) as typeof fetch
+
+    try {
+      useAuthStore.setState({ checking: true, error: '', userName: null, userAuthenticated: false })
+      const first = useAuthStore.getState().hydrate()
+      const second = useAuthStore.getState().hydrate()
+      expect(second).toBe(first)
+      await Promise.all([first, second])
+      expect(calls).toEqual(['/api/music/config', '/api/music/auth/verify', '/api/user/auth/verify'])
+      expect(useAuthStore.getState().userName).toBe('test-user')
+    } finally {
+      globalThis.fetch = originalFetch
+      setSessionScope(null)
+      useAuthStore.setState({ checking: true, error: '', userName: null, userAuthenticated: false })
     }
   })
 })

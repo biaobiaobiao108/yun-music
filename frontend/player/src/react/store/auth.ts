@@ -11,6 +11,11 @@ import { usePlaybackStore } from './playback'
 import { useRecentStore } from './recent'
 import { useSettingsStore } from './settings'
 
+// React StrictMode intentionally re-runs mount effects in development. Keep
+// the initial session check single-flight so a second effect cannot reset the
+// user-scoped stores after the first library hydration has completed.
+let authHydrationPromise: Promise<void> | null = null
+
 export type AuthState = {
   config: PlayerConfig | null
   playerAuthRequired: boolean
@@ -53,26 +58,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   userAuthenticated: false,
   checking: true,
   error: '',
-  hydrate: async () => {
-    set({ checking: true, error: '' })
-    try {
-      const config = await playerApi.config()
-      const [playerSession, userSession] = await Promise.all([playerApi.verify(), playerApi.userVerify()])
-      const authenticatedUserName = userSession.valid ? (userSession.username || get().userName) : null
-      setSessionScope(authenticatedUserName)
-      resetUserScopedStores()
-      set({
-        config,
-        playerAuthRequired: Boolean(config['player.enableAuth']),
-        playerAuthenticated: !config['player.enableAuth'] || playerSession.valid,
-        userAuthenticated: userSession.valid,
-        userName: authenticatedUserName,
-        checking: false,
-      })
-      writeString(browserStorage(), 'lx_user_name', authenticatedUserName || '')
-    } catch (error) {
-      set({ checking: false, error: error instanceof Error ? error.message : '初始化失败，请刷新重试' })
-    }
+  hydrate: () => {
+    if (authHydrationPromise) return authHydrationPromise
+
+    const promise = (async () => {
+      set({ checking: true, error: '' })
+      try {
+        const config = await playerApi.config()
+        const [playerSession, userSession] = await Promise.all([playerApi.verify(), playerApi.userVerify()])
+        const authenticatedUserName = userSession.valid ? (userSession.username || get().userName) : null
+        setSessionScope(authenticatedUserName)
+        resetUserScopedStores()
+        set({
+          config,
+          playerAuthRequired: Boolean(config['player.enableAuth']),
+          playerAuthenticated: !config['player.enableAuth'] || playerSession.valid,
+          userAuthenticated: userSession.valid,
+          userName: authenticatedUserName,
+          checking: false,
+        })
+        writeString(browserStorage(), 'lx_user_name', authenticatedUserName || '')
+      } catch (error) {
+        set({ checking: false, error: error instanceof Error ? error.message : '初始化失败，请刷新重试' })
+      }
+    })()
+
+    authHydrationPromise = promise
+    void promise.then(
+      () => { if (authHydrationPromise === promise) authHydrationPromise = null },
+      () => { if (authHydrationPromise === promise) authHydrationPromise = null },
+    )
+    return promise
   },
   login: async password => {
     await playerApi.login(password)
