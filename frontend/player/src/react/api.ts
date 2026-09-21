@@ -102,6 +102,7 @@ export const playerApi = {
   comments: (songInfo: Song, type: 'hot' | 'new', page = 1, limit = 20, signal?: AbortSignal) => requestJson<unknown>('/api/music/comment', { method: 'POST', body: JSON.stringify({ songInfo, type, page, limit }), signal }),
   cacheQueue: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<{ success?: boolean; data?: CacheTask[] }>('/api/music/cache/queue', { signal, ...policy }),
   cacheStats: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<{ success?: boolean; data?: CacheStats }>('/api/music/cache/stats', { signal, ...policy }),
+  cacheEventsUrl: (user?: string) => `/api/music/cache/events${user ? `?user=${encodeURIComponent(user)}` : ''}`,
   cacheList: (user?: string, signal?: AbortSignal) => requestJson<{ success?: boolean; data?: CacheItem[] }>(`/api/music/cache/list${user ? `?user=${encodeURIComponent(user)}` : ''}`, { signal }),
   cacheSync: (user?: string, signal?: AbortSignal) => requestJson(`/api/music/cache/sync${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST', signal }),
   cacheRemove: (items: Array<{ filename: string; folder?: string; user?: string }>, user?: string) => requestJson(`/api/music/cache/remove${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST', body: JSON.stringify({ items }) }),

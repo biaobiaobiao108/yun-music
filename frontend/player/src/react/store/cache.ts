@@ -10,6 +10,7 @@ export type CacheState = {
   error: string
   loadedAt: number
   load: (options?: { force?: boolean }) => Promise<void>
+  applyQueue: (tasks: CacheTask[]) => void
   enqueue: (song: Song, quality?: string, resolvedUrl?: string) => Promise<void>
   enqueueDownloads: (songs: Song[], quality?: string) => Promise<number>
   remove: (id: string) => Promise<void>
@@ -48,6 +49,7 @@ export const useCacheStore = create<CacheState>((set, get) => ({
       }
     }
   },
+  applyQueue: tasks => set({ tasks, loadedAt: Date.now(), error: '' }),
   enqueue: async (song, quality = 'flac', resolvedUrl) => {
     const key = songKey(song)
     await playerApi.queueTasks([{ id: key, songInfo: song, quality, ...(resolvedUrl ? { resolvedUrl } : {}) }])

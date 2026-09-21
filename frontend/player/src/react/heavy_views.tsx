@@ -8,6 +8,7 @@ import { formatBytes, formatDuration, safeImageUrl } from '../../../shared/src/r
 import { ViewFrame } from './views'
 import { useRequestResource } from './data/use_request'
 import { useRealtimePoll } from './data/use_realtime_poll'
+import { useCacheEvents } from './data/use_cache_events'
 import { goBack } from './route_state'
 
 function extractSongs(payload: unknown): Song[] {
@@ -174,11 +175,12 @@ export function LocalMusicView() {
   const cacheController = useRef<AbortController | null>(null)
   const playSong = usePlaybackStore(state => state.playSong)
   const notify = usePlayerUiStore(state => state.notify)
-  const loadCache = useCallback(async (options: { sync?: boolean; silent?: boolean } = {}) => {
+  const loadCache = useCallback(async (options: { sync?: boolean; silent?: boolean; restart?: boolean } = {}) => {
     const sync = options.sync !== false
     const silent = options.silent === true
-    if (silent && cacheController.current) return
-    if (!silent) cacheController.current?.abort()
+    const restart = options.restart === true
+    if (silent && cacheController.current && !restart) return
+    cacheController.current?.abort()
     const controller = new AbortController()
     cacheController.current = controller
     if (!silent) {
@@ -210,7 +212,12 @@ export function LocalMusicView() {
     void loadCache({ sync: true })
     return () => cacheController.current?.abort()
   }, [loadCache])
-  useRealtimePoll({ enabled: true, intervalMs: 2500, refresh: () => loadCache({ sync: false, silent: true }) })
+  const eventsConnected = useCacheEvents({
+    enabled: true,
+    user: userName || undefined,
+    onCache: () => { void loadCache({ sync: false, silent: true, restart: true }) },
+  })
+  useRealtimePoll({ enabled: !eventsConnected, intervalMs: 2500, refresh: () => loadCache({ sync: false, silent: true }) })
   const cacheFileUrl = (item: CacheItem) => {
     const params = new URLSearchParams({ folder: String(item.folder || 'cache') })
     const username = String(item.rawUsername || item.username || userName || '_open').trim()

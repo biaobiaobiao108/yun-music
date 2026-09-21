@@ -159,6 +159,61 @@ const resolveCacheTarget = (
   return { ok: true, username: verified }
 }
 
+const createCacheEventsStream = (username: string, request: Request): ReadableStream<Uint8Array> => {
+  const encoder = new TextEncoder()
+  let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
+  let closed = false
+  let heartbeat: ReturnType<typeof setInterval> | null = null
+  let cacheChangeTimer: ReturnType<typeof setTimeout> | null = null
+  let unsubscribeQueue = () => {}
+  let unsubscribeCache = () => {}
+
+  const close = () => {
+    if (closed) return
+    closed = true
+    if (heartbeat) clearInterval(heartbeat)
+    heartbeat = null
+    if (cacheChangeTimer) clearTimeout(cacheChangeTimer)
+    cacheChangeTimer = null
+    unsubscribeQueue()
+    unsubscribeCache()
+    request.signal.removeEventListener('abort', close)
+    try { streamController?.close() } catch { /* the browser may have cancelled first */ }
+  }
+
+  const send = (event: string, payload: unknown) => {
+    if (closed || !streamController) return
+    try {
+      streamController.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`))
+    } catch {
+      close()
+    }
+  }
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller
+      request.signal.addEventListener('abort', close, { once: true })
+      send('ready', { at: Date.now() })
+      unsubscribeQueue = serverDownloadQueue.subscribe(username, tasks => send('queue', { tasks, at: Date.now() }))
+      unsubscribeCache = fileCache.subscribeCacheChanges(changedUsername => {
+        if (changedUsername !== username || closed || cacheChangeTimer) return
+        cacheChangeTimer = setTimeout(() => {
+          cacheChangeTimer = null
+          send('cache', { at: Date.now() })
+        }, 100)
+        ;(cacheChangeTimer as any)?.unref?.()
+      })
+      heartbeat = setInterval(() => send('heartbeat', { at: Date.now() }), 15_000)
+      ;(heartbeat as any)?.unref?.()
+      if (request.signal.aborted) close()
+    },
+    cancel() {
+      close()
+    },
+  })
+}
+
 /** 注册本地音乐缓存、下载队列与文件分发路由 */
 export const createCacheRouter = (): Router => {
   const router = new Router()
@@ -318,7 +373,21 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  // 5. 服务端持久化下载队列
+  // 5. 服务端持久化下载队列与实时事件流
+  router.get('/api/music/cache/events', (ctx) => {
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    return new Response(createCacheEventsStream(username, ctx.request), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      },
+    })
+  })
+
   router.get('/api/music/cache/queue', (ctx) => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')

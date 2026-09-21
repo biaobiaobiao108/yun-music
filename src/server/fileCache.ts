@@ -58,6 +58,8 @@ const cacheListSyncState = new NativeLruCache<string, { lastSync: number, pendin
     max: 2048,
     ttl: 10 * 60 * 1000,
 })
+type CacheChangeListener = (username: string) => void
+const cacheChangeListeners = new Set<CacheChangeListener>()
 
 const getCacheLocations = () => [
     currentCacheLocation,
@@ -657,6 +659,15 @@ const invalidateCacheListSync = (username?: string) => {
     for (const location of [CACHE_ROOTS.ROOT, CACHE_ROOTS.DATA]) {
         cacheListSyncState.delete(`${location}:${normalizedUsername}`)
     }
+    for (const listener of cacheChangeListeners) {
+        try { listener(normalizedUsername) } catch { /* a disconnected event stream must not affect cache writes */ }
+    }
+}
+
+/** Subscribe to physical cache/index changes for live player synchronization. */
+export const subscribeCacheChanges = (listener: CacheChangeListener): (() => void) => {
+    cacheChangeListeners.add(listener)
+    return () => cacheChangeListeners.delete(listener)
 }
 
 const reconcileCacheItemFromDisk = (

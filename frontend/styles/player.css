@@ -1256,6 +1256,7 @@ html, body {
 .react-queue-list li > button:first-child > span:last-child, .react-task-list li > span { display: grid; gap: .2rem; }
 .react-queue-list strong, .react-task-list strong, .react-queue-list small, .react-task-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .react-queue-list small, .react-task-list small { color: var(--text-muted); font-size: .74rem; }
+.react-task-progress { display: block; width: 100%; height: .32rem; margin-top: .2rem; accent-color: var(--c-500); }
 .react-queue-list li > button:last-child, .react-task-list li > button { width: 2rem; height: 2rem; border: 0; background: transparent; color: var(--text-dim); cursor: pointer; }
 .react-cache-stats { display: grid; grid-template-columns: repeat(2,1fr); gap: .5rem; }
 .react-cache-stats div { padding: .75rem; border-radius: .65rem; background: color-mix(in srgb, var(--c-500) 9%, transparent); }

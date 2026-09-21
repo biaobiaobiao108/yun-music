@@ -93,6 +93,26 @@ describe('cache list user scope', () => {
     }
   })
 
+  test('opens an authenticated live cache event stream', async () => {
+    const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/events', {
+      headers: { cookie: `lx_user_session=${sessionId}` },
+    }))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('text/event-stream')
+    const reader = response.body?.getReader()
+    expect(reader).toBeTruthy()
+    const first = await reader!.read()
+    expect(first.done).toBe(false)
+    expect(new TextDecoder().decode(first.value)).toContain('event: ready')
+    await reader!.cancel()
+  })
+
+  test('rejects anonymous live cache event streams', async () => {
+    const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/events'))
+    expect(response.status).toBe(401)
+  })
+
   test('rejects non-admin from querying cache list for user=all', async () => {
     const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=all', {
       headers: { cookie: `lx_user_session=${sessionId}` },

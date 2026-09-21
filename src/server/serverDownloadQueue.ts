@@ -376,6 +376,63 @@ const getPublicTask = (task: ServerDownloadTask) => {
   }
 }
 
+type PublicDownloadTask = ReturnType<typeof getPublicTask>
+type QueueListener = (tasks: PublicDownloadTask[]) => void
+const queueListeners = new Map<string, Set<QueueListener>>()
+const queueSnapshots = new Map<string, string>()
+let queueBroadcastTimer: ReturnType<typeof setTimeout> | null = null
+const QUEUE_BROADCAST_INTERVAL = 250
+
+const notifyQueueListeners = (username: string): void => {
+  const listeners = queueListeners.get(username)
+  if (!listeners?.size) return
+
+  const snapshot = list(username)
+  const serialized = JSON.stringify(snapshot)
+  if (queueSnapshots.get(username) === serialized) return
+  queueSnapshots.set(username, serialized)
+  for (const listener of listeners) {
+    try { listener(snapshot) } catch { /* one disconnected client must not stop the others */ }
+  }
+}
+
+const broadcastQueueSnapshots = (): void => {
+  queueBroadcastTimer = null
+  for (const username of queueListeners.keys()) notifyQueueListeners(username)
+  if (queueListeners.size > 0) scheduleQueueBroadcast()
+}
+
+const scheduleQueueBroadcast = (): void => {
+  if (queueBroadcastTimer || queueListeners.size === 0) return
+  queueBroadcastTimer = setTimeout(broadcastQueueSnapshots, QUEUE_BROADCAST_INTERVAL)
+  ;(queueBroadcastTimer as any)?.unref?.()
+}
+
+/** Subscribe to live queue snapshots for one authenticated user. */
+export const subscribe = (username: string, listener: QueueListener): (() => void) => {
+  const listeners = queueListeners.get(username) || new Set<QueueListener>()
+  listeners.add(listener)
+  queueListeners.set(username, listeners)
+
+  const snapshot = list(username)
+  queueSnapshots.set(username, JSON.stringify(snapshot))
+  try { listener(snapshot) } catch { /* the stream may have closed during setup */ }
+  scheduleQueueBroadcast()
+
+  return () => {
+    const current = queueListeners.get(username)
+    if (!current) return
+    current.delete(listener)
+    if (current.size > 0) return
+    queueListeners.delete(username)
+    queueSnapshots.delete(username)
+    if (queueListeners.size === 0 && queueBroadcastTimer) {
+      clearTimeout(queueBroadcastTimer)
+      queueBroadcastTimer = null
+    }
+  }
+}
+
 const runTask = async (task: ServerDownloadTask) => {
   if (!resolver || task.status !== 'waiting') return
   const key = taskMapKey(task.username, task.id)
@@ -393,6 +450,7 @@ const runTask = async (task: ServerDownloadTask) => {
   task.errorMsg = ''
   task.updatedAt = Date.now()
   scheduleSave()
+  notifyQueueListeners(task.username)
 
   try {
     const suppliedUrl = task.resolvedUrl && task.resolvedUrlAt && Date.now() - task.resolvedUrlAt <= RESOLVED_URL_TTL
@@ -488,6 +546,7 @@ const runTask = async (task: ServerDownloadTask) => {
     controllers.delete(key)
     task.updatedAt = Date.now()
     scheduleSave()
+    notifyQueueListeners(task.username)
     void processQueue()
   }
 }
@@ -723,6 +782,7 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
     added.push(task)
   }
   saveNow()
+  notifyQueueListeners(username)
   void processQueue()
   return added.map(task => getPublicTask(task))
 }
@@ -794,6 +854,7 @@ export const pause = (username: string, id?: string) => {
     controllers.get(taskMapKey(username, task.id))?.abort()
   }
   saveNow()
+  notifyQueueListeners(username)
 }
 
 export const pauseBySongKey = (username: string, songKey: string) => {
@@ -809,6 +870,7 @@ export const pauseBySongKey = (username: string, songKey: string) => {
     controllers.get(taskMapKey(username, task.id))?.abort()
   }
   saveNow()
+  notifyQueueListeners(username)
 }
 
 export const resume = (username: string, id?: string) => {
@@ -826,6 +888,7 @@ export const resume = (username: string, id?: string) => {
     task.updatedAt = Date.now()
   }
   saveNow()
+  notifyQueueListeners(username)
   void processQueue()
 }
 
@@ -838,5 +901,6 @@ export const remove = (username: string, options: { id?: string; all?: boolean; 
     tasks.delete(key)
   }
   saveNow()
+  notifyQueueListeners(username)
   void processQueue()
 }

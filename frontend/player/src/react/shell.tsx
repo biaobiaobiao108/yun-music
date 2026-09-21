@@ -13,6 +13,7 @@ import { buildPlaybackUrl, normalizeCachePlaybackUrl, parseCachePlaybackUrl } fr
 import { PlayerFooterBar } from './player_footer'
 import { getSessionGeneration } from './session'
 import { useRealtimePoll } from './data/use_realtime_poll'
+import { useCacheEvents } from './data/use_cache_events'
 
 const SongListView = lazy(() => import('./heavy_views').then(module => ({ default: module.SongListView })))
 const LeaderboardView = lazy(() => import('./heavy_views').then(module => ({ default: module.LeaderboardView })))
@@ -399,14 +400,27 @@ function cacheTaskStatus(status: unknown): string {
   return labels[value] || value || '等待中'
 }
 
+function cacheTaskProgress(task: CacheTask): number | null {
+  const value = Number(task.progress)
+  if (!Number.isFinite(value)) return null
+  return Math.min(100, Math.max(0, Math.round(value)))
+}
+
 function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const tasks = useCacheStore(state => state.tasks)
   const stats = useCacheStore(state => state.stats)
   const load = useCacheStore(state => state.load)
+  const applyQueue = useCacheStore(state => state.applyQueue)
   const remove = useCacheStore(state => state.remove)
   const removeCompleted = useCacheStore(state => state.removeCompleted)
   const notify = usePlayerUiStore(state => state.notify)
-  useRealtimePoll({ enabled: open, intervalMs: 1800, refresh: () => load({ force: true }) })
+  const eventsConnected = useCacheEvents({
+    enabled: open,
+    onQueue: applyQueue,
+    onCache: () => { void load({ force: true }) },
+  })
+  useEffect(() => { if (open) void load({ force: true }) }, [load, open])
+  useRealtimePoll({ enabled: open && !eventsConnected, intervalMs: 1800, refresh: () => load({ force: true }) })
   const cacheSize = stats?.cacheSize ?? stats?.cache?.totalSize
   const musicSize = stats?.musicSize ?? stats?.music?.totalSize
   const completedCount = tasks.filter(task => ['finished', 'exists'].includes(cacheTaskText(task.status))).length
@@ -414,7 +428,7 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
     if (!completedCount) return
     try { await removeCompleted(); notify(`已清理 ${completedCount} 个已完成任务`) } catch (error) { notify(error instanceof Error ? error.message : '清理任务失败') }
   }
-  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load({ force: true })}><Icon name="rotate" />刷新</Button><Button onClick={() => void clearCompleted()} disabled={!completedCount}><Icon name="broom" />清理已完成{completedCount ? `（${completedCount}）` : ''}</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); const artist = cacheTaskArtist(task); return <li key={`${id}-${index}`}><span><strong>{cacheTaskName(task)}</strong><small>{artist ? `${artist} · ` : ''}{cacheTaskStatus(task.status)}</small></span><button type="button" onClick={() => void remove(id)} aria-label={`移除${cacheTaskName(task)}`}><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
+  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load({ force: true })}><Icon name="rotate" />刷新</Button><Button onClick={() => void clearCompleted()} disabled={!completedCount}><Icon name="broom" />清理已完成{completedCount ? `（${completedCount}）` : ''}</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); const artist = cacheTaskArtist(task); const progress = cacheTaskProgress(task); const status = cacheTaskStatus(task.status); return <li key={`${id}-${index}`}><span><strong>{cacheTaskName(task)}</strong><small>{artist ? `${artist} · ` : ''}{status}{progress === null ? '' : ` · ${progress}%`}</small>{progress !== null && <progress className="react-task-progress" max="100" value={progress} aria-label={`${cacheTaskName(task)}下载进度`}>{progress}%</progress>}</span><button type="button" onClick={() => void remove(id)} aria-label={`移除${cacheTaskName(task)}`}><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
 }
 
 function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
