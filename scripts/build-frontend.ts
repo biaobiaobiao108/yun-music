@@ -65,6 +65,9 @@ async function build() {
     },
     minify: shouldMinify,
     target: 'browser',
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(shouldMinify ? 'production' : 'development'),
+    },
     sourcemap: isWatch ? 'inline' : 'none',
   })
   if (!adminResult.success) {
@@ -101,6 +104,9 @@ async function build() {
     splitting: true,
     minify: shouldMinify,
     target: 'browser',
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(shouldMinify ? 'production' : 'development'),
+    },
     sourcemap: isWatch ? 'inline' : 'none',
   })
   if (!playerResult.success) {
@@ -124,6 +130,9 @@ async function build() {
     format: 'esm',
     minify: shouldMinify,
     target: 'browser',
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(shouldMinify ? 'production' : 'development'),
+    },
     sourcemap: isWatch ? 'inline' : 'none',
   })
   if (!loginResult.success) {
