@@ -6367,6 +6367,40 @@ textarea:focus-visible {
     transition: filter var(--app-motion) ease, box-shadow var(--app-motion) ease;
 }
 
+.react-home-shortcut-surface {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.react-home-shortcut-surface::before {
+    content: '';
+    position: absolute;
+    inset: -42%;
+    background:
+        radial-gradient(circle at 22% 38%, rgb(255 255 255 / 22%) 0 7%, transparent 29%),
+        radial-gradient(circle at 78% 68%, rgb(255 255 255 / 14%) 0 8%, transparent 30%);
+    opacity: .58;
+    transform: translate3d(-3%, -2%, 0) scale(1);
+    animation: react-home-shortcut-drift 18s ease-in-out infinite alternate;
+    animation-delay: var(--react-home-shortcut-delay, 0s);
+}
+
+@keyframes react-home-shortcut-drift {
+    from {
+        opacity: .48;
+        transform: translate3d(-3%, -2%, 0) scale(1);
+    }
+
+    to {
+        opacity: .7;
+        transform: translate3d(3%, 2%, 0) scale(1.05);
+    }
+}
+
 .react-home-shortcut::after {
     content: '';
     position: absolute;
@@ -6390,9 +6424,9 @@ textarea:focus-visible {
     transform: translate3d(-.25rem, .2rem, 0) scale(1.05);
 }
 
-.react-home-shortcut.is-recent { background: linear-gradient(135deg, #237d67, #76bea8); }
-.react-home-shortcut.is-library { background: linear-gradient(135deg, #4656a9, #8b96ef); }
-.react-home-shortcut.is-playlist { background: linear-gradient(135deg, #6c5a89, #bfa9cf); }
+.react-home-shortcut.is-recent { --react-home-shortcut-delay: -4s; background: linear-gradient(135deg, #237d67, #76bea8); }
+.react-home-shortcut.is-library { --react-home-shortcut-delay: -9s; background: linear-gradient(135deg, #4656a9, #8b96ef); }
+.react-home-shortcut.is-playlist { --react-home-shortcut-delay: -14s; background: linear-gradient(135deg, #6c5a89, #bfa9cf); }
 
 .react-home-shortcut-icon {
     position: relative;
@@ -6406,7 +6440,7 @@ textarea:focus-visible {
     font-size: 1.2rem;
 }
 
-.react-home-shortcut > span:nth-child(2) {
+.react-home-shortcut-copy {
     position: relative;
     z-index: 1;
     display: grid;
@@ -8125,34 +8159,29 @@ textarea:focus-visible {
     border: 0;
 }
 
-.react-playlist-icon-picker legend {
-    padding: 0;
-    color: var(--app-text-muted);
-    font-size: .82rem;
-}
-
 .react-playlist-icon-options {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: .5rem;
+    grid-template-columns: repeat(8, minmax(2rem, 1fr));
+    gap: .15rem;
+    max-width: 20rem;
+    margin: 0 auto;
 }
 
 .react-playlist-icon-option {
     position: relative;
     display: grid;
     place-items: center;
-    gap: .35rem;
-    min-height: 4.15rem;
-    padding: .55rem .35rem;
-    border: 1px solid var(--app-border);
-    border-radius: .75rem;
-    background: var(--app-surface-soft);
+    width: 2.6rem;
+    height: 2.6rem;
+    padding: .2rem;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
     color: var(--app-text-muted);
     cursor: pointer;
     font: inherit;
-    font-size: .72rem;
     text-align: center;
-    transition: background-color var(--app-motion-fast) ease, border-color var(--app-motion-fast) ease, color var(--app-motion-fast) ease;
+    transition: color var(--app-motion-fast) ease;
 }
 
 .react-playlist-icon-option input {
@@ -8165,23 +8194,38 @@ textarea:focus-visible {
 .react-playlist-icon-option-visual {
     display: grid;
     place-items: center;
-    width: 1.8rem;
-    height: 1.8rem;
+    width: 2rem;
+    height: 2rem;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+    background: transparent;
     color: currentColor;
     font-size: .9rem;
+    transition: background-color var(--app-motion-fast) ease, color var(--app-motion-fast) ease, transform var(--app-motion-fast) ease;
 }
 
 .react-playlist-icon-option.is-selected,
 .react-playlist-icon-option:hover {
-    border-color: color-mix(in srgb, var(--app-accent) 62%, var(--app-border));
-    background: var(--app-accent-soft);
     color: var(--app-accent);
+}
+
+.react-playlist-icon-option.is-selected .react-playlist-icon-option-visual,
+.react-playlist-icon-option:hover .react-playlist-icon-option-visual {
+    background: var(--app-accent-soft);
+}
+
+.react-playlist-icon-option.is-selected .react-playlist-icon-option-visual {
+    transform: scale(1.06);
 }
 
 .react-playlist-icon-option input:focus-visible + .react-playlist-icon-option-visual {
     box-shadow: inset 0 0 0 1px var(--app-accent);
+}
+
+@media (max-width: 420px) {
+    .react-playlist-icon-options {
+        grid-template-columns: repeat(4, minmax(2rem, 1fr));
+        max-width: 12rem;
+    }
 }
 
 @media (max-width: 900px) {
@@ -8453,6 +8497,8 @@ textarea:focus-visible {
     .react-home-playlist,
     .react-home-shortcut-arrow,
     .react-home-shortcut::after,
+    .react-playlist-icon-option,
+    .react-playlist-icon-option-visual,
     .react-playlist-card img,
     .react-entity-card img,
     .react-detail-tabs > button,
@@ -8472,9 +8518,15 @@ textarea:focus-visible {
     .react-home-playlist:focus-visible,
     .react-home-shortcut-arrow,
     .react-home-shortcut::after,
+    .react-playlist-icon-option-visual,
     .react-entity-card button:active,
     .react-playlist-card button:active,
     .react-home-playlist:active {
+        transform: none;
+    }
+
+    .react-home-shortcut-surface::before {
+        animation: none;
         transform: none;
     }
 }

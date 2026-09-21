@@ -33,7 +33,7 @@ function ArtworkCard({ song, kind, onOpen, onPlay }: { song: Song; kind?: 'artis
 }
 
 function Shortcut({ icon, title, subtitle, className, onClick }: { icon: string; title: string; subtitle: string; className: string; onClick: () => void }) {
-  return <button type="button" className={`react-home-shortcut ${className}`} onClick={onClick}><span className="react-home-shortcut-icon"><Icon name={icon} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><span className="react-home-shortcut-arrow" aria-hidden="true"><Icon name="arrow-right" /></span></button>
+  return <button type="button" className={`react-home-shortcut ${className}`} onClick={onClick}><span className="react-home-shortcut-surface" aria-hidden="true" /><span className="react-home-shortcut-icon"><Icon name={icon} /></span><span className="react-home-shortcut-copy"><strong>{title}</strong><small>{subtitle}</small></span><span className="react-home-shortcut-arrow" aria-hidden="true"><Icon name="arrow-right" /></span></button>
 }
 
 export function HomeView() {
