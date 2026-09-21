@@ -179,7 +179,7 @@ function DataSongRow({ row, position, selected, canDelete, onSelect, onDelete }:
   return <tr className="admin-data-song-row">
     <td className="admin-data-check-cell">{canDelete && <input type="checkbox" aria-label={`选择 ${title}`} checked={selected} onChange={event => onSelect(event.target.checked)} />}</td>
     <td className="admin-data-index-cell">{String(position + 1).padStart(2, '0')}</td>
-    <th scope="row" className="admin-data-song-cell"><img src={songCover(song)} width="44" height="44" loading="lazy" decoding="async" alt="" /><span><strong title={title}>{title}</strong><small title={singer}>{singer}</small></span></th>
+    <th scope="row" className="admin-data-song-cell"><div className="admin-data-song-content"><img src={songCover(song)} width="44" height="44" loading="lazy" decoding="async" alt="" /><span><strong title={title}>{title}</strong><small title={singer}>{singer}</small></span></div></th>
     <td className="admin-data-album-cell" title={songAlbum(song)}>{songAlbum(song)}</td>
     <td className="admin-data-source-cell" title={row.sourceName}>{row.sourceName}</td>
     <td className="admin-data-meta-cell">{songDuration(song)}</td>

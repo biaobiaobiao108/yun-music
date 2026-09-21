@@ -25,7 +25,7 @@ function StorageSongRow({ item, index, selected, playing, onSelect, onPreview, o
   return <tr className={playing ? 'is-playing' : ''}>
     <td className="admin-storage-check"><input type="checkbox" aria-label={`选择${name}`} checked={selected} onChange={event => onSelect(event.target.checked)} /></td>
     <td className="admin-storage-index">{String(index + 1).padStart(2, '0')}</td>
-    <th scope="row" className="admin-data-song-cell"><img src={storageCover(item)} width="44" height="44" loading="lazy" decoding="async" alt="" /><span><strong title={name}>{name}</strong><small title={String(item.singer ?? '未知歌手')}>{String(item.singer ?? '未知歌手')}</small></span></th>
+    <th scope="row" className="admin-data-song-cell"><div className="admin-data-song-content"><img src={storageCover(item)} width="44" height="44" loading="lazy" decoding="async" alt="" /><span><strong title={name}>{name}</strong><small title={String(item.singer ?? '未知歌手')}>{String(item.singer ?? '未知歌手')}</small></span></div></th>
     <td>{String(item.source ?? '—')}</td>
     <td>{formatBytes(item.size)}</td>
     <td>{String(item.username ?? item.rawUsername ?? '公共空间')}</td>

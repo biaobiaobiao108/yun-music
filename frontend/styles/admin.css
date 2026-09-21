@@ -6921,3 +6921,111 @@ textarea:focus-visible {
         grid-column: auto;
     }
 }
+
+/* Keep song cells as real table cells. The artwork/text layout belongs to an
+   inner flex wrapper; making the <th> itself flex shrinks the title track to
+   its min-content width in fixed tables. */
+.admin-react-shell .admin-data-table .admin-data-song-cell,
+.admin-react-shell .admin-storage-table .admin-data-song-cell {
+    display: table-cell !important;
+    width: auto;
+    min-width: 0;
+    vertical-align: middle;
+}
+
+.admin-react-shell .admin-data-song-content {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: .55rem;
+}
+
+.admin-react-shell .admin-data-song-content img {
+    flex: 0 0 2.35rem;
+    width: 2.35rem;
+    height: 2.35rem;
+}
+
+.admin-react-shell .admin-data-song-content > span {
+    display: grid;
+    min-width: 0;
+    gap: .18rem;
+}
+
+.admin-react-shell .admin-data-song-content strong {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.admin-data-panel .admin-data-table thead th:nth-child(3),
+.admin-data-panel .admin-data-table tbody th:nth-child(3) { width: 36%; }
+.admin-data-panel .admin-data-table thead th:nth-child(4),
+.admin-data-panel .admin-data-table tbody td:nth-child(4) { width: 16%; }
+.admin-data-panel .admin-data-table thead th:nth-child(5),
+.admin-data-panel .admin-data-table tbody td:nth-child(5) { width: 11%; }
+
+/* Search fields own their capsule. The toolbar is only a layout row, so its
+   background cannot cover the input border or make the placeholder look like
+   a separate rectangle. */
+.admin-react-shell .admin-data-toolbar,
+.admin-react-shell .admin-storage-toolbar {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.admin-react-shell .admin-data-toolbar .admin-data-search,
+.admin-react-shell .admin-storage-toolbar .admin-data-search {
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    height: 2.75rem;
+    padding: 0 .85rem;
+    border: 1px solid var(--app-border) !important;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent) !important;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+    color: var(--app-text-muted);
+}
+
+.admin-react-shell .admin-data-toolbar .admin-data-search:focus-within,
+.admin-react-shell .admin-storage-toolbar .admin-data-search:focus-within {
+    border-color: color-mix(in srgb, var(--app-accent) 60%, var(--app-border)) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 42%, transparent);
+}
+
+.admin-react-shell .admin-data-toolbar .admin-data-search input,
+.admin-react-shell .admin-storage-toolbar .admin-data-search input {
+    min-height: 2.25rem;
+    border: 0 !important;
+    border-radius: 0;
+    outline: 0;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    color: var(--app-text);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.admin-react-shell .admin-data-toolbar .admin-data-search input::placeholder,
+.admin-react-shell .admin-storage-toolbar .admin-data-search input::placeholder {
+    background: transparent;
+    color: var(--app-text-dim);
+    opacity: 1;
+    -webkit-text-fill-color: var(--app-text-dim);
+}
+
+@media (max-width: 680px) {
+    .admin-data-panel .admin-data-table thead th:nth-child(3),
+    .admin-data-panel .admin-data-table tbody th:nth-child(3) { width: 48%; }
+    .admin-data-panel .admin-data-table thead th:nth-child(4),
+    .admin-data-panel .admin-data-table tbody td:nth-child(4) { width: 20%; }
+    .admin-data-panel .admin-data-table thead th:nth-child(5),
+    .admin-data-panel .admin-data-table tbody td:nth-child(5) { width: 0; }
+}

@@ -10184,3 +10184,50 @@ textarea:focus-visible {
         grid-row: 2;
     }
 }
+
+/* The server library does not expose a favorite action. Keep the table at
+   eight tracks so the remaining metadata has room to breathe. */
+.react-local-song-table .react-song-head.is-selectable,
+.react-local-song-table .react-local-cache-row {
+    grid-template-columns: 1.75rem 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 4.5rem 5.5rem 4.2rem 3.5rem;
+}
+
+/* Keep the library search as one capsule; the input and placeholder never
+   paint their own rectangle over the capsule border. */
+.react-local-toolbar .react-local-search.react-global-search {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    overflow: clip;
+    border: 1px solid var(--app-border) !important;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent) !important;
+    background-clip: padding-box;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.react-local-toolbar .react-local-search.react-global-search input {
+    min-width: 0;
+    border: 0 !important;
+    border-radius: 0;
+    outline: 0;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.react-local-toolbar .react-local-search.react-global-search input::placeholder {
+    background: transparent;
+    color: var(--app-text-dim);
+    opacity: 1;
+    -webkit-text-fill-color: var(--app-text-dim);
+}
+
+@media (max-width: 760px) {
+    .react-local-song-table .react-local-cache-row {
+        grid-template-columns: 1.7rem 2.2rem minmax(0, 1fr) 4rem 2.2rem;
+    }
+}
