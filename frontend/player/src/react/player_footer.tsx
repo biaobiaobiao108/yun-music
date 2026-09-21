@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Mous
 import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
-import { useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore } from './store'
+import { isSongInLoveList, useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore } from './store'
 import { sameSong, songArtist, songImage, songTitle } from './types'
 import { buildCachePlaybackUrl, extractRemotePlaybackUrl, parseCachePlaybackUrl } from './media_url'
 
@@ -120,7 +120,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   const enableAutoSwitchSource = useSettingsStore(state => state.settings.enableAutoSwitchSource !== false)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
-  const isLiked = useLibraryStore(state => Boolean(currentSong && (state.data.loveList ?? []).some(song => sameSong(song, currentSong))))
+  const isLiked = useLibraryStore(state => isSongInLoveList(state, currentSong))
   const [songMenuOpen, setSongMenuOpen] = useState(false)
   const songMenuButtonRef = useRef<HTMLButtonElement>(null)
   const modeLabel = mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'

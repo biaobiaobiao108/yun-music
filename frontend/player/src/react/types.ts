@@ -193,6 +193,48 @@ export function sameSong(left: Song | null | undefined, right: Song | null | und
   return !leftSource || !rightSource || leftSource === rightSource
 }
 
+/**
+ * 为一组歌曲构建快速索引 Set，支持与 sameSong 语义一致的 O(1) 匹配
+ */
+export function buildSongMatchSet(songs: Iterable<Song | null | undefined>): Set<string> {
+  const set = new Set<string>()
+  for (const song of songs) {
+    if (!song) continue
+    const key = songKey(song)
+    if (key) set.add(`key:${key}`)
+    const id = songListId(song)
+    if (id) {
+      set.add(`id_any:${id}`)
+      const source = String(song.source || '').trim()
+      if (source) {
+        set.add(`id:${source}:${id}`)
+      } else {
+        set.add(`id:*:${id}`)
+      }
+    }
+  }
+  return set
+}
+
+/**
+ * 在歌曲匹配 Set 中以 O(1) 复杂度判定是否包含指定歌曲
+ */
+export function songMatchSetHas(set: Set<string>, song: Song | null | undefined): boolean {
+  if (!song || !set.size) return false
+  const key = songKey(song)
+  if (key && set.has(`key:${key}`)) return true
+  const id = songListId(song)
+  if (id) {
+    const source = String(song.source || '').trim()
+    if (source) {
+      if (set.has(`id:${source}:${id}`) || set.has(`id:*:${id}`)) return true
+    } else {
+      if (set.has(`id_any:${id}`)) return true
+    }
+  }
+  return false
+}
+
 /** Ensure list mutations always send the persisted id field when possible. */
 export function normalizeSongForList(song: Song): Song {
   const id = songListId(song)

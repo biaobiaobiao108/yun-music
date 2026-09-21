@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { playerApi, type PlaylistIconKey, type UserListData, type UserPlaylist } from '../api'
 import { invalidateRequestCache, isAbortError } from '../data/request'
-import { normalizeSongForList, sameSong, songListId, songKey, type Song } from '../types'
+import { buildSongMatchSet, normalizeSongForList, sameSong, songListId, songKey, songMatchSetHas, type Song } from '../types'
 
 let libraryController: AbortController | null = null
 let libraryRequestId = 0
@@ -161,3 +161,21 @@ export function playlistSongs(list: UserPlaylist | undefined): Song[] {
 export function playlistContainsSong(list: UserPlaylist | undefined, song: Song): boolean {
   return Boolean(list?.list?.some(item => sameSong(item, song)))
 }
+
+let cachedLoveListRef: Song[] | null = null
+let cachedLoveMatchSet: Set<string> = new Set()
+
+export function selectLoveMatchSet(state: LibraryState): Set<string> {
+  const loveList = state.data.loveList ?? []
+  if (loveList === cachedLoveListRef) {
+    return cachedLoveMatchSet
+  }
+  cachedLoveListRef = loveList
+  cachedLoveMatchSet = buildSongMatchSet(loveList)
+  return cachedLoveMatchSet
+}
+
+export function isSongInLoveList(state: LibraryState, song: Song | null | undefined): boolean {
+  return songMatchSetHas(selectLoveMatchSet(state), song)
+}
+

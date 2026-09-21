@@ -3,7 +3,7 @@ import { playerApi, PLAYLIST_ICON_OPTIONS, playlistIcon, type CommentItem, type 
 import { Button, DescriptionDisclosure, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
 import { consumeImmersiveLyricsTrigger, PlayerFooterBar } from './player_footer'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
-import { mediaLibraryItemKey, selectLoveList, selectUserLists, useAuthStore, useCacheStore, useCommentStore, useLibraryStore, useLyricStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useSearchStore, useSettingsStore } from './store'
+import { isSongInLoveList, mediaLibraryItemKey, selectLoveList, selectUserLists, useAuthStore, useCacheStore, useCommentStore, useLibraryStore, useLyricStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useSearchStore, useSettingsStore } from './store'
 import type { PlayerDetail, PlayerTab, Song } from './types'
 import { sameSong, songArtist, songImage, songKey, songTitle } from './types'
 import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runtime'
@@ -447,7 +447,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
   const settings = useSettingsStore(state => state.settings)
-  const loveSongs = useLibraryStore(selectLoveList)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const notify = usePlayerUiStore(state => state.notify)
@@ -535,7 +534,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     if (document.fullscreenElement) void document.exitFullscreen()
     else void document.documentElement.requestFullscreen?.()
   }
-  const isLiked = Boolean(song && loveSongs.some(item => sameSong(item, song)))
+  const isLiked = useLibraryStore(state => isSongInLoveList(state, song))
   const toggleLike = async () => {
     if (!song) return
     try {

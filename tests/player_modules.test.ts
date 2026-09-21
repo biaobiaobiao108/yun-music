@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
-import { sameSong, songKey, songListId } from '../frontend/player/src/react/types'
+import { buildSongMatchSet, sameSong, songKey, songListId, songMatchSetHas } from '../frontend/player/src/react/types'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
 import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
 import { getSessionScope, scopedStorageKey, setSessionScope } from '../frontend/player/src/react/session'
@@ -53,6 +53,14 @@ describe('React player module boundaries', () => {
     expect(songListId({ songmid: 12345 })).toBe('12345')
     expect(sameSong({ source: 'wy', id: 12345 }, { source: 'wy', songmid: '12345' })).toBe(true)
     expect(sameSong({ source: 'wy', id: 12345 }, { source: 'tx', songmid: '12345' })).toBe(false)
+    const matchSet = buildSongMatchSet([
+      { source: 'wy', id: 12345 },
+      { source: '', id: 'legacy_only' },
+    ])
+    expect(songMatchSetHas(matchSet, { source: 'wy', songmid: '12345' })).toBe(true)
+    expect(songMatchSetHas(matchSet, { source: 'tx', songmid: '12345' })).toBe(false)
+    expect(songMatchSetHas(matchSet, { source: 'wy', id: 'legacy_only' })).toBe(true)
+    expect(songMatchSetHas(matchSet, { source: 'other', id: 'not_found' })).toBe(false)
     const lines = parseLyric({ lyric: '[00:01.20]第一句\n[00:03.50]第二句', tlyric: '[00:01.20]translation' })
     expect(lines).toEqual([
       { time: 1.2, text: '第一句', translation: 'translation' },

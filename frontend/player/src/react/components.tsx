@@ -1,8 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
-import { sameSong, songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songTitle } from './types'
-import { useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
+import { songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songTitle } from './types'
+import { isSongInLoveList, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 
 export function Icon({ name }: { name: string }) { return <i className={`fas fa-${name}`} aria-hidden="true" /> }
 
@@ -124,7 +124,7 @@ export function SongRow({ song, index, list, listId = 'love', compact = false, s
   const enqueue = usePlaybackStore(state => state.enqueue)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
-  const isLoved = useLibraryStore(state => (state.data.loveList ?? []).some(item => sameSong(item, song)))
+  const isLoved = useLibraryStore(state => isSongInLoveList(state, song))
   const notify = usePlayerUiStore(state => state.notify)
   const toggleFavorite = () => {
     const operation = isLoved ? removeSong('love', song) : addSong('love', song)
