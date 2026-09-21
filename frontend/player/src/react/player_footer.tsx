@@ -64,14 +64,38 @@ function VolumeControl({ volume, muted, onVolumeChange, onToggleMute, active = t
   </div>
 }
 
+function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
+  const currentTime = usePlaybackStore(state => state.currentTime)
+  const duration = usePlaybackStore(state => state.duration)
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0
+  const safeCurrentTime = Number.isFinite(currentTime) && currentTime > 0 ? Math.min(currentTime, safeDuration) : 0
+  const progressPercent = safeDuration > 0 ? Math.min(100, Math.max(0, (safeCurrentTime / safeDuration) * 100)) : 0
+  const progressStyle = { '--progress': `${progressPercent}%` } as CSSProperties
+
+  return (
+    <div className="react-progress-row">
+      <span className="react-progress-time"><Time value={safeCurrentTime} /></span>
+      <input
+        style={progressStyle}
+        type="range"
+        min="0"
+        max={safeDuration}
+        step="0.1"
+        value={safeCurrentTime}
+        onChange={event => seek(Number(event.target.value))}
+        aria-label="播放进度"
+      />
+      <span className="react-progress-time"><Time value={safeDuration} /></span>
+    </div>
+  )
+}
+
 export type PlayerFooterVariant = 'normal' | 'immersive'
 
 export function PlayerFooterBar({ variant = 'normal', isActive = true }: { variant?: PlayerFooterVariant; isActive?: boolean }) {
   const immersive = variant === 'immersive'
   const currentSong = usePlaybackStore(state => state.currentSong)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
-  const currentTime = usePlaybackStore(state => state.currentTime)
-  const duration = usePlaybackStore(state => state.duration)
   const volume = usePlaybackStore(state => state.volume)
   const muted = usePlaybackStore(state => state.muted)
   const mode = usePlaybackStore(state => state.mode)
@@ -99,10 +123,6 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   const isLiked = useLibraryStore(state => Boolean(currentSong && (state.data.loveList ?? []).some(song => sameSong(song, currentSong))))
   const [songMenuOpen, setSongMenuOpen] = useState(false)
   const songMenuButtonRef = useRef<HTMLButtonElement>(null)
-  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0
-  const safeCurrentTime = Number.isFinite(currentTime) && currentTime > 0 ? Math.min(currentTime, safeDuration) : 0
-  const progressPercent = safeDuration > 0 ? Math.min(100, Math.max(0, safeCurrentTime / safeDuration * 100)) : 0
-  const progressStyle = { '--progress': `${progressPercent}%` } as CSSProperties
   const modeLabel = mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'
   const footerId = isActive ? 'player-footer' : immersive ? 'player-footer-immersive-hidden' : 'player-footer-normal-hidden'
   const volumePopoverId = isActive ? 'player-volume-popover' : `${footerId}-volume-popover`
@@ -232,7 +252,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
             <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
           </div>
         </div>
-        <div className="react-progress-row"><span className="react-progress-time"><Time value={safeCurrentTime} /></span><input style={progressStyle} type="range" min="0" max={safeDuration} step="0.1" value={safeCurrentTime} onChange={event => seek(Number(event.target.value))} aria-label="播放进度" /><span className="react-progress-time"><Time value={safeDuration} /></span></div>
+        <PlayerProgressRow seek={seek} />
       </div>
       <div className="react-footer-actions">
         <button ref={immersive ? undefined : songMenuButtonRef} type="button" className={`player-secondary-action react-song-menu-button${immersive ? ' is-immersive-placeholder' : ''}`} aria-label="打开歌曲更多操作" aria-expanded={immersive ? false : songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={immersive || !isActive || !currentSong} tabIndex={immersive || !isActive ? -1 : undefined}><Icon name="ellipsis" /></button>

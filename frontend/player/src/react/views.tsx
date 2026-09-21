@@ -440,7 +440,7 @@ export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterH
 
 export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
-  const time = usePlaybackStore(state => state.currentTime)
+  const time = usePlaybackStore(state => (open ? state.currentTime : 0))
   const seek = usePlaybackStore(state => state.seek)
   const lines = useLyricStore(state => state.lines)
   const loading = useLyricStore(state => state.loading)
@@ -457,7 +457,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [isClosing, setIsClosing] = useState(false)
   useEffect(() => { if (open) void load(song) }, [load, open, song])
-  const active = useMemo(() => lines.reduce((result, line, index) => line.time <= time ? index : result, -1), [lines, time])
+  const active = useMemo(() => (open ? lines.reduce((result, line, index) => line.time <= time ? index : result, -1) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
     const dialog = dialogRef.current
     if (!dialog) return
