@@ -9,7 +9,7 @@ import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from '../features/player_history'
 import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
 import { emitPlaybackService } from './playback_service'
-import { buildPlaybackUrl, normalizeCachePlaybackUrl } from './media_url'
+import { buildPlaybackUrl, normalizeCachePlaybackUrl, parseCachePlaybackUrl } from './media_url'
 import { PlayerFooterBar } from './player_footer'
 
 const SongListView = lazy(() => import('./heavy_views').then(module => ({ default: module.SongListView })))
@@ -141,13 +141,15 @@ function AudioRuntime() {
   const userName = useAuthStore(state => state.userName)
   const [resolvedError, setResolvedError] = useState('')
   const notify = usePlayerUiStore(state => state.notify)
+  const notifyPlayback = usePlayerUiStore(state => state.notifyPlayback)
   const songId = currentSong ? songKey(currentSong) : ''
   const recoveryAttempts = useRef(new Set<string>())
   const cacheQueued = useRef(new Set<string>())
   const historyRecordedKey = useRef('')
   const resolvedSongKey = useRef('')
-  const resolvedPlayback = useRef<{ songKey: string; quality: string; url: string; fromCache: boolean } | null>(null)
+  const resolvedPlayback = useRef<{ songKey: string; quality: string; url: string; fromCache: boolean; sourceName?: string } | null>(null)
   const prefetchTriggeredKey = useRef('')
+  const playbackStatusKey = useRef('')
 
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
@@ -169,6 +171,7 @@ function AudioRuntime() {
 
   useEffect(() => {
     historyRecordedKey.current = ''
+    playbackStatusKey.current = ''
   }, [quality, songId])
 
   useEffect(() => {
@@ -200,6 +203,23 @@ function AudioRuntime() {
     audio.volume = volume
     const onPlay = () => {
       emitPlaybackService({ type: 'play' })
+      if (currentSong) {
+        const playback = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current : null
+        const playbackUrl = playback?.url || currentSong.url || ''
+        const cacheReference = parseCachePlaybackUrl(playbackUrl)
+        const status = cacheReference?.folder === 'music'
+          ? { message: '已从下载目录播放', kind: 'success' as const, key: 'download' }
+          : cacheReference?.folder === 'cache'
+            ? { message: '已命中服务器缓存', kind: 'success' as const, key: 'cache' }
+            : playback?.fromCache
+              ? { message: '已使用本地播放文件', kind: 'success' as const, key: 'local' }
+              : { message: playback?.sourceName ? `在线播放 · ${playback.sourceName}` : '在线播放 · 自定义音源', kind: 'info' as const, key: 'online' }
+        const statusKey = `${songId}:${quality}:${status.key}:${playback?.sourceName || ''}`
+        if (playbackStatusKey.current !== statusKey) {
+          playbackStatusKey.current = statusKey
+          notifyPlayback(status.message, status.kind)
+        }
+      }
       const historyKey = `${songId}:${quality}`
       if (currentSong && historyRecordedKey.current !== historyKey) {
         historyRecordedKey.current = historyKey
@@ -258,13 +278,14 @@ function AudioRuntime() {
     }
     audio.addEventListener('play', onPlay); audio.addEventListener('pause', onPause); audio.addEventListener('timeupdate', onTime); audio.addEventListener('loadedmetadata', onLoaded); audio.addEventListener('ended', onEnded); audio.addEventListener('error', onError)
     return () => { audio.removeEventListener('play', onPlay); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
-  }, [currentSong, enqueueCache, notify, quality, recordRecent, settings, setPlaying, setQuality, songId, volume])
+  }, [currentSong, enqueueCache, notify, notifyPlayback, quality, recordRecent, settings, setPlaying, setQuality, songId, volume])
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !currentSong || !songId) return
     let cancelled = false
     setResolvedError('')
+    if (!currentSong.url) notifyPlayback('正在检查服务器缓存…')
     void (async () => {
       try {
         const prefetchKey = `${songKey(currentSong)}:${quality}`
@@ -278,11 +299,15 @@ function AudioRuntime() {
           quality,
           url: result.url,
           fromCache: Boolean(result.fromCache) || /\/api\/music\/cache\/file\//.test(result.url),
+          sourceName: result.sourceName,
         }
         setResolvedUrl(result.url)
         resolvedSongKey.current = songId
         audio.src = buildPlaybackUrl(result.url, currentSong, settings)
         audio.load()
+        if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
+          notifyPlayback(result.sourceName ? `正在连接 · ${result.sourceName}` : '正在连接在线音源…')
+        }
         if (usePlaybackStore.getState().isPlaying) await audio.play()
       } catch (error) {
         if (cancelled) return
@@ -300,7 +325,7 @@ function AudioRuntime() {
       if (playbackUrl && usePlaybackStore.getState().resolvedUrl === playbackUrl) setResolvedUrl(null)
       audio.pause(); audio.removeAttribute('src'); audio.load()
     }
-  }, [currentSong, notify, quality, setPlaying, setResolvedUrl, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
+  }, [currentSong, notify, notifyPlayback, quality, setPlaying, setResolvedUrl, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
 
   useEffect(() => {
     const audio = audioRef.current

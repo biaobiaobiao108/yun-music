@@ -1277,7 +1277,43 @@ html, body {
 .react-like-button.is-active { color: var(--c-600); }
 .react-like-button span { font-size: .72rem; }
 .react-volume-range { width: 5rem; }
-.react-player-toast { position: fixed; right: 1.2rem; bottom: 6.4rem; z-index: 300; max-width: min(360px, calc(100vw - 2rem)); padding: .75rem .9rem; border-radius: .65rem; color: #fff; background: rgba(15,23,42,.9); box-shadow: var(--shadow-main); }
+.react-player-toast {
+    position: fixed;
+    inset: auto max(1rem, env(safe-area-inset-right, 0px)) calc(6.4rem + env(safe-area-inset-bottom, 0px)) auto;
+    z-index: 300;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .6rem;
+    inline-size: min(360px, calc(100dvw - 2rem));
+    max-inline-size: calc(100dvw - 2rem);
+    margin: 0;
+    padding: .72rem .72rem .72rem .85rem;
+    border: 1px solid color-mix(in srgb, var(--border-main) 82%, var(--c-500) 18%);
+    border-radius: .85rem;
+    color: var(--text-main);
+    background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+    box-shadow: var(--shadow-main);
+    backdrop-filter: blur(16px) saturate(125%);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+    transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease;
+}
+.react-player-toast[popover] { inset: auto max(1rem, env(safe-area-inset-right, 0px)) calc(6.4rem + env(safe-area-inset-bottom, 0px)) auto; }
+.react-player-toast > .fas { color: var(--c-600); }
+.react-player-toast > span { min-inline-size: 0; overflow-wrap: anywhere; font-size: .82rem; line-height: 1.4; }
+.react-toast-close { display: inline-grid; place-items: center; inline-size: 1.75rem; block-size: 1.75rem; padding: 0; border: 0; border-radius: .5rem; background: transparent; color: var(--text-dim); cursor: pointer; }
+.react-toast-close:hover { background: color-mix(in srgb, var(--c-500) 10%, transparent); color: var(--text-main); }
+.react-toast-close:focus-visible { box-shadow: inset 0 0 0 1px var(--c-500); }
+.react-player-toast.is-success { border-color: color-mix(in srgb, var(--c-500) 42%, var(--border-main)); }
+.react-player-toast.is-warning { border-color: color-mix(in srgb, var(--c-500) 28%, var(--border-main)); }
+.react-player-toast::backdrop { background: transparent; }
+@media (max-width: 720px) {
+    .react-player-toast,
+    .react-player-toast[popover] { inset-inline: .75rem auto; inline-size: min(360px, calc(100dvw - 1.5rem)); max-inline-size: calc(100dvw - 1.5rem); bottom: calc(7rem + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .react-player-toast { transition: none; }
+}
 .react-player-loading, .react-player-auth-page, .react-player-login-page { min-height: 100dvh; display: grid; place-items: center; background: var(--bg-main); color: var(--text-main); }
 .react-player-auth-card, .react-player-login-card { width: min(420px, calc(100% - 2rem)); padding: 2.2rem; border: 1px solid var(--border-main); border-radius: 1.4rem; background: var(--bg-panel); box-shadow: var(--shadow-main); text-align: center; }
 .react-player-auth-card img, .react-player-login-card img { border-radius: 1rem; box-shadow: 0 8px 20px color-mix(in srgb, var(--c-500) 20%, transparent); }

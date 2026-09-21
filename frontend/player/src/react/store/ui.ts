@@ -3,6 +3,14 @@ import { emitPlayerNavigation } from '../route_state'
 import type { DrawerName, PlayerDetail, PlayerTab, Song } from '../types'
 
 export type DialogName = 'login' | 'userLogin' | 'createList' | 'addToList' | 'sleep' | 'lyrics' | 'comments' | null
+export type PlayerNoticeKind = 'info' | 'success' | 'warning' | 'error'
+
+export type PlayerNotice = {
+  id: number
+  message: string
+  kind: PlayerNoticeKind
+  durationMs: number
+}
 
 export type UiState = {
   tab: PlayerTab
@@ -13,7 +21,7 @@ export type UiState = {
   dialog: DialogName
   playlistSong: Song | null
   immersiveLyrics: boolean
-  notice: string
+  notice: PlayerNotice | null
   setTab: (tab: PlayerTab) => void
   setDetail: (detail: PlayerDetail | null) => void
   openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void
@@ -29,7 +37,14 @@ export type UiState = {
   closeOverlays: () => void
   setImmersiveLyrics: (open: boolean) => void
   notify: (notice: string) => void
+  notifyPlayback: (notice: string, kind?: PlayerNoticeKind) => void
   clearNotice: () => void
+}
+
+let noticeId = 0
+
+function createNotice(message: string, kind: PlayerNoticeKind, durationMs: number): PlayerNotice {
+  return { id: ++noticeId, message, kind, durationMs }
 }
 
 export const usePlayerUiStore = create<UiState>((set, get) => ({
@@ -41,7 +56,7 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   dialog: null,
   playlistSong: null,
   immersiveLyrics: false,
-  notice: '',
+  notice: null,
   setTab: tab => {
     const state = get()
     const listId = tab === 'favorites' ? 'love' : undefined
@@ -79,8 +94,9 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   closeAddToList: () => set({ playlistSong: null, dialog: null }),
   closeOverlays: () => set({ immersiveLyrics: false, dialog: null, drawer: null, sidebarOpen: false, playlistSong: null }),
   setImmersiveLyrics: open => set({ immersiveLyrics: open }),
-  notify: notice => set({ notice }),
-  clearNotice: () => set({ notice: '' }),
+  notify: notice => set({ notice: createNotice(notice, 'info', 3600) }),
+  notifyPlayback: (notice, kind = 'info') => set({ notice: createNotice(notice, kind, 3200) }),
+  clearNotice: () => set({ notice: null }),
 }))
 
 export const getPlayerUiActions = () => usePlayerUiStore.getState()
