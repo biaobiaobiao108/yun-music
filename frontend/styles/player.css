@@ -9543,7 +9543,7 @@ textarea:focus-visible {
 }
 
 .react-player-topbar .react-topbar-actions {
-    inset-inline-end: .55rem;
+    inset-inline-end: 1.25rem;
 }
 
 #player-main-content.react-player-content {
