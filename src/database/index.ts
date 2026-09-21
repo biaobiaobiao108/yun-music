@@ -5,14 +5,6 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
 let activeDbPath: string | null = null
-const stmtCache = new Map<string, any>()
-
-const clearStatementCache = (): void => {
-  for (const statement of stmtCache.values()) {
-    try { statement.finalize?.() } catch { }
-  }
-  stmtCache.clear()
-}
 
 export const getDbPath = (): string => {
   const dataPath = global.lx?.dataPath ?? path.join(process.cwd(), 'data')
@@ -140,21 +132,7 @@ export const initDatabase = (customDbPath?: string): Database => {
 
   dbInstance = db
   activeDbPath = dbPath
-  clearStatementCache()
   return db
-}
-
-/**
- * 获取或缓存已预编译的 SQLite Statement，避免高频调用时的重复 SQL 词法解析与编译开销
- */
-export const getDbStatement = <T = any, Params extends any[] = any[]>(sql: string): any => {
-  const db = getDb()
-  let stmt = stmtCache.get(sql)
-  if (!stmt) {
-    stmt = (db as any).prepare(sql)
-    stmtCache.set(sql, stmt)
-  }
-  return stmt
 }
 
 export const getDb = (): Database => {
@@ -166,7 +144,6 @@ export const getDb = (): Database => {
 
 export const closeDb = (): void => {
   if (dbInstance) {
-    clearStatementCache()
     dbInstance.close()
     dbInstance = null
   }
@@ -225,9 +202,7 @@ export const getDatabaseStorageStats = (): DatabaseStorageStats => {
 export const vacuumDatabase = (): { before: DatabaseStorageStats; after: DatabaseStorageStats; reclaimedBytes: number } => {
   try { getDb().run('PRAGMA wal_checkpoint(TRUNCATE)') } catch { }
   const before = getDatabaseStorageStats()
-  clearStatementCache()
   getDb().run('VACUUM')
-  clearStatementCache()
   try { getDb().run('PRAGMA wal_checkpoint(TRUNCATE)') } catch { }
   const after = getDatabaseStorageStats()
   return { before, after, reclaimedBytes: Math.max(0, before.totalBytes - after.totalBytes) }
@@ -302,7 +277,6 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
       target.run('DELETE FROM user_sessions')
       target.run('DELETE FROM player_sessions')
     })()
-    clearStatementCache()
   } finally {
     source.close()
   }
