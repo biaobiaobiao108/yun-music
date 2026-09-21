@@ -6,6 +6,7 @@ declare namespace LX {
       // list: LX.Music.MusicInfo[]
       source?: LX.OnlineSource
       sourceListId?: string
+      icon?: string
       // position?: number
       locationUpdateTime: number | null
     }

@@ -100,7 +100,7 @@ describe('User snapshot permissions', () => {
     const savedData = {
       defaultList: [],
       loveList: [song],
-      userList: [{ id: 'playlist-1', name: '我的歌单', list: [song] }],
+      userList: [{ id: 'playlist-1', name: '我的歌单', icon: 'cloud-rain', list: [song] }],
     }
 
     const save = await router.handle(new Request('http://localhost/api/user/list', {

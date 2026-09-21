@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { playerApi, type CommentItem, type SearchType, type UserPlaylist } from './api'
+import { playerApi, PLAYLIST_ICON_OPTIONS, playlistIcon, type CommentItem, type PlaylistIconKey, type SearchType, type UserPlaylist } from './api'
 import { Button, DescriptionDisclosure, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
 import { consumeImmersiveLyricsTrigger, PlayerFooterBar } from './player_footer'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
@@ -619,8 +619,10 @@ export function CreateListDialog({ open, onClose }: { open: boolean; onClose: ()
   const pendingSong = usePlayerUiStore(state => state.playlistSong)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const [name, setName] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); if (!name.trim()) return; try { const created = await createList(name.trim()); setName(''); if (pendingSong) setDialog('addToList'); else { onClose(); openFavoriteList(String(created.id)) }; notify('歌单已创建') } catch (error) { notify(error instanceof Error ? error.message : '创建歌单失败') } }
-  return <Modal open={open} title="新建歌单" onClose={onClose}><form className="react-dialog-form" onSubmit={submit}><label htmlFor="new-list-name">歌单名称</label><input id="new-list-name" value={name} onChange={event => setName(event.target.value)} required maxLength={80} /><Button variant="primary" type="submit">创建</Button></form></Modal>
+  const [icon, setIcon] = useState<PlaylistIconKey>('music')
+  useEffect(() => { if (open) { setName(''); setIcon('music') } }, [open])
+  const submit = async (event: FormEvent) => { event.preventDefault(); if (!name.trim()) return; try { const created = await createList(name.trim(), icon); setName(''); setIcon('music'); if (pendingSong) setDialog('addToList'); else { onClose(); openFavoriteList(String(created.id)) }; notify('歌单已创建') } catch (error) { notify(error instanceof Error ? error.message : '创建歌单失败') } }
+  return <Modal open={open} title="新建歌单" onClose={onClose}><form className="react-dialog-form" onSubmit={submit}><label htmlFor="new-list-name">歌单名称</label><input id="new-list-name" value={name} onChange={event => setName(event.target.value)} required maxLength={80} /><fieldset className="react-playlist-icon-picker"><legend>选择歌单氛围</legend><div className="react-playlist-icon-options" role="radiogroup" aria-label="选择歌单图标">{PLAYLIST_ICON_OPTIONS.map(option => <label className={`react-playlist-icon-option ${icon === option.key ? 'is-selected' : ''}`} key={option.key}><input type="radio" name="playlist-icon" value={option.key} checked={icon === option.key} onChange={() => setIcon(option.key)} /><span className="react-playlist-icon-option-visual"><Icon name={option.key} /></span><span>{option.label}</span></label>)}</div></fieldset><Button variant="primary" type="submit">创建</Button></form></Modal>
 }
 
 export function AddToListDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -632,8 +634,8 @@ export function AddToListDialog({ open, onClose }: { open: boolean; onClose: () 
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const lists = useMemo(() => [
-    { id: 'love', name: '我的收藏', songs: loveSongs },
-    ...userLists.map(list => ({ id: String(list.id), name: list.name, songs: list.list ?? [] })),
+    { id: 'love', name: '我的收藏', icon: 'heart', songs: loveSongs },
+    ...userLists.map(list => ({ id: String(list.id), name: list.name, icon: playlistIcon(list.icon), songs: list.list ?? [] })),
   ], [loveSongs, userLists])
   const toggleList = async (list: { id: string; name: string; songs: Song[] }) => {
     if (!song) return
@@ -643,5 +645,5 @@ export function AddToListDialog({ open, onClose }: { open: boolean; onClose: () 
       else { await addSong(list.id, song); notify(`已添加到“${list.name}”`) }
     } catch (error) { notify(error instanceof Error ? error.message : '歌单操作失败') }
   }
-  return <Modal open={open} title="添加到歌单" onClose={onClose}><div className="react-add-to-list-dialog">{song && <p className="react-add-to-list-song"><SafeImage src={songImage(song)} width="44" height="44" alt="" /><span><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></p>}<div className="react-add-to-list-options">{lists.map((list, index) => { const included = Boolean(song && list.songs.some(item => sameSong(item, song))); return <button type="button" key={`${list.id}-${index}`} className={`react-add-to-list-option ${included ? 'is-included' : ''}`} aria-pressed={included} onClick={() => void toggleList(list)}><span><Icon name={list.id === 'love' ? 'heart' : 'music'} /><strong>{list.name}</strong><small>{list.songs.length} 首歌曲</small></span><Icon name={included ? 'check' : 'plus'} /></button> })}<Button type="button" className="react-add-to-list-create" onClick={() => setDialog('createList')}><Icon name="plus" />新建歌单</Button></div>{!song && <p className="react-empty-text">当前没有正在播放的歌曲</p>}</div></Modal>
+  return <Modal open={open} title="添加到歌单" onClose={onClose}><div className="react-add-to-list-dialog">{song && <p className="react-add-to-list-song"><SafeImage src={songImage(song)} width="44" height="44" alt="" /><span><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></p>}<div className="react-add-to-list-options">{lists.map((list, index) => { const included = Boolean(song && list.songs.some(item => sameSong(item, song))); return <button type="button" key={`${list.id}-${index}`} className={`react-add-to-list-option ${included ? 'is-included' : ''}`} aria-pressed={included} onClick={() => void toggleList(list)}><span><Icon name={list.icon} /><strong>{list.name}</strong><small>{list.songs.length} 首歌曲</small></span><Icon name={included ? 'check' : 'plus'} /></button> })}<Button type="button" className="react-add-to-list-create" onClick={() => setDialog('createList')}><Icon name="plus" />新建歌单</Button></div>{!song && <p className="react-empty-text">当前没有正在播放的歌曲</p>}</div></Modal>
 }

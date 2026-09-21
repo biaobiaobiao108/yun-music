@@ -72,6 +72,7 @@ export class ListDataManage {
     id,
     source,
     sourceListId,
+    icon,
     locationUpdateTime,
   }: LX.List.UserListInfo, position: number) => {
     if (position < 0 || position >= this.userLists.length) {
@@ -80,6 +81,7 @@ export class ListDataManage {
         id,
         source,
         sourceListId,
+        icon,
         locationUpdateTime,
       })
     } else {
@@ -88,6 +90,7 @@ export class ListDataManage {
         id,
         source,
         sourceListId,
+        icon,
         locationUpdateTime,
       })
     }
@@ -98,6 +101,7 @@ export class ListDataManage {
     id,
     source,
     sourceListId,
+    icon,
     // meta,
     locationUpdateTime,
   }: LX.List.UserListInfo & { meta?: { id?: string } }) => {
@@ -115,6 +119,7 @@ export class ListDataManage {
         targetList.name = name
         targetList.source = source
         targetList.sourceListId = sourceListId
+        if (icon !== undefined) targetList.icon = icon
         targetList.locationUpdateTime = locationUpdateTime
         break
     }
@@ -170,11 +175,12 @@ export class ListDataManage {
     return updatedListIds
   }
 
-  userListCreate = async ({ name, id, source, sourceListId, position, locationUpdateTime }: {
+  userListCreate = async ({ name, id, source, sourceListId, icon, position, locationUpdateTime }: {
     name: string
     id: string
     source?: LX.OnlineSource
     sourceListId?: string
+    icon?: string
     position: number
     locationUpdateTime: number | null
   }) => {
@@ -185,6 +191,7 @@ export class ListDataManage {
       id,
       source,
       sourceListId,
+      icon,
       locationUpdateTime,
     }
     this.createUserList(newList, position)

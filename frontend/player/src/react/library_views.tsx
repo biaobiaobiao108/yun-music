@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { playerApi } from './api'
+import { playerApi, playlistIcon } from './api'
 import { Button, Icon, Loading, SafeImage, SelectMenu, SongList } from './components'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { selectLoveList, selectUserLists, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore } from './store'
@@ -24,7 +24,7 @@ function ArtworkCard({ song, kind, onOpen, onPlay }: { song: Song; kind?: 'artis
   const subtitle = kind === 'artist' ? String(song.songCount ?? song.count ?? '歌手') : String(song.singer || song.artist || '专辑')
   return <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''}`}>
     <button type="button" className="react-artwork-button" onClick={onOpen ?? onPlay}>
-      <span className="react-artwork-cover"><SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} /></span>
+      <span className={`react-artwork-cover ${kind === 'artist' ? 'is-artist' : ''}`}><SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} /></span>
       <strong title={title}>{title}</strong>
       <small>{subtitle}</small>
     </button>
@@ -33,7 +33,7 @@ function ArtworkCard({ song, kind, onOpen, onPlay }: { song: Song; kind?: 'artis
 }
 
 function Shortcut({ icon, title, subtitle, className, onClick }: { icon: string; title: string; subtitle: string; className: string; onClick: () => void }) {
-  return <button type="button" className={`react-home-shortcut ${className}`} onClick={onClick}><span className="react-home-shortcut-icon"><Icon name={icon} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><Icon name="arrow-right" /></button>
+  return <button type="button" className={`react-home-shortcut ${className}`} onClick={onClick}><span className="react-home-shortcut-icon"><Icon name={icon} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><span className="react-home-shortcut-arrow" aria-hidden="true"><Icon name="arrow-right" /></span></button>
 }
 
 export function HomeView() {
@@ -65,7 +65,7 @@ export function HomeView() {
       <Shortcut icon="list" title="歌单广场" subtitle={`${playlistCount} 个我的歌单`} className="is-playlist" onClick={() => setTab('songlist')} />
     </div>
     <section className="react-home-section"><div className="react-home-section-heading"><div><p className="react-eyebrow">最近听过</p><h2>最近播放</h2></div><button type="button" className="react-text-button" onClick={() => setTab('recent')}>查看全部 <Icon name="arrow-right" /></button></div>{recentAlbums.length ? <div className="react-artwork-grid react-home-rail">{recentAlbums.map(song => <ArtworkCard key={songKey(song)} song={song} onPlay={() => playSong(song, recent, recentQueueIndex(song))} />)}</div> : <div className="react-home-empty"><Icon name="clock" /><p>播放歌曲后，这里会显示你的最近播放</p><button type="button" className="react-text-button" onClick={() => setTab('search')}>去搜索音乐</button></div>}</section>
-    <section className="react-home-section"><div className="react-home-section-heading"><div><p className="react-eyebrow">你的收藏</p><h2>我的歌单</h2></div><button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 新建歌单</button></div>{visibleUserLists.length ? <div className="react-playlist-grid react-home-playlists">{visibleUserLists.map((list, index) => { const first = list.list?.[0]; return <button type="button" className="react-home-playlist" key={`${list.id}-${index}`} onClick={() => openFavoriteList(String(list.id))}><SafeImage src={songImage(first)} width="112" height="112" loading="lazy" alt="" /><span><strong>{list.name}</strong><small>{list.list?.length ?? 0} 首歌曲</small></span><Icon name="arrow-right" /></button> })}</div> : <div className="react-home-empty"><Icon name="list" /><p>还没有自定义歌单</p><button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 创建歌单</button></div>}</section>
+    <section className="react-home-section"><div className="react-home-section-heading"><div><p className="react-eyebrow">你的收藏</p><h2>我的歌单</h2></div><button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 新建歌单</button></div>{visibleUserLists.length ? <div className="react-playlist-grid react-home-playlists">{visibleUserLists.map((list, index) => { const first = list.list?.[0]; const showIcon = Boolean(list.icon) || !first; return <button type="button" className="react-home-playlist" key={`${list.id}-${index}`} onClick={() => openFavoriteList(String(list.id))}><span className={`react-home-playlist-media ${showIcon ? 'is-icon' : ''}`}>{showIcon ? <Icon name={playlistIcon(list.icon)} /> : <SafeImage src={songImage(first)} width="112" height="112" loading="lazy" alt="" />}</span><span><strong>{list.name}</strong><small>{list.list?.length ?? 0} 首歌曲</small></span><Icon name="arrow-right" /></button> })}</div> : <div className="react-home-empty"><Icon name="list" /><p>还没有自定义歌单</p><button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 创建歌单</button></div>}</section>
   </section></ViewFrame>
 }
 

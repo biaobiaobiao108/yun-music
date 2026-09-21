@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { playerApi, type UserListData, type UserPlaylist } from '../api'
+import { playerApi, type PlaylistIconKey, type UserListData, type UserPlaylist } from '../api'
 import { invalidateRequestCache, isAbortError } from '../data/request'
 import { normalizeSongForList, sameSong, songListId, songKey, type Song } from '../types'
 
@@ -16,7 +16,7 @@ export type LibraryState = {
   addSong: (listId: string, song: Song) => Promise<void>
   removeSong: (listId: string, song: Song) => Promise<void>
   removeSongs: (listId: string, songs: Song[]) => Promise<void>
-  createList: (name: string) => Promise<UserPlaylist>
+  createList: (name: string, icon?: PlaylistIconKey) => Promise<UserPlaylist>
   toggleRemotePlaylist: (detail: { id: string; source: string; name: string; image?: string }, songs: Song[]) => Promise<boolean>
   renameList: (listId: string, name: string) => Promise<void>
   deleteList: (listId: string) => Promise<void>
@@ -85,11 +85,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
   },
-  createList: async name => {
+  createList: async (name, icon = 'music') => {
     const data = await ensureLibraryHydrated(get)
     const list: UserPlaylist = {
       id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       name,
+      icon,
       list: [],
     }
     await playerApi.saveListData({ ...data, userList: [...(data.userList ?? []), list] })

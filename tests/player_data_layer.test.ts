@@ -106,10 +106,10 @@ describe('React player library persistence guard', () => {
       loadedAt: 0,
     })
     try {
-      await useLibraryStore.getState().createList('新歌单')
+      await useLibraryStore.getState().createList('新歌单', 'cloud-rain')
       expect(saved).toMatchObject({
         loveList: existing.loveList,
-        userList: [existing.userList[0], { name: '新歌单', list: [] }],
+        userList: [existing.userList[0], { name: '新歌单', icon: 'cloud-rain', list: [] }],
       })
       expect(getCount).toBe(2)
     } finally {

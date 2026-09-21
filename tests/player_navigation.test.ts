@@ -221,6 +221,28 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain('默认列表')
   })
 
+  it('keeps homepage shortcut motion restrained and persists custom playlist icons', () => {
+    const api = read('frontend/player/src/react/api.ts')
+    const libraryViews = read('frontend/player/src/react/library_views.tsx')
+    const views = read('frontend/player/src/react/views.tsx')
+    const shell = read('frontend/player/src/react/shell.tsx')
+    const css = read('frontend/styles/player.css')
+    const listTypes = read('src/types/list.d.ts')
+    const listManage = read('src/modules/list/listDataManage.ts')
+    expect(api).toContain('export type PlaylistIconKey')
+    for (const icon of ['music', 'heart', 'moon', 'sun', 'cloud-rain', 'fire', 'leaf', 'bolt']) expect(api).toContain(`key: '${icon}'`)
+    expect(libraryViews).toContain('react-home-shortcut-arrow')
+    expect(libraryViews).toContain('react-artwork-cover ${kind === \'artist\' ? \'is-artist\' : \'\'}')
+    expect(views).toContain('type="radio"')
+    expect(views).toContain('createList(name.trim(), icon)')
+    expect(shell).toContain('playlistIcon(list.icon)')
+    expect(css).toContain('border: 1px solid transparent;')
+    expect(css).toContain('.react-home-shortcut:hover .react-home-shortcut-arrow')
+    expect(css).toContain('overflow: hidden;')
+    expect(listTypes).toContain('icon?: string')
+    expect(listManage).toContain('if (icon !== undefined) targetList.icon = icon')
+  })
+
   it('supports single or multi-selection downloads for favorites and custom playlists', () => {
     const api = read('frontend/player/src/react/api.ts')
     const cacheStore = read('frontend/player/src/react/store/cache.ts')

@@ -6357,14 +6357,14 @@ textarea:focus-visible {
     min-height: 9rem;
     padding: 1.1rem;
     overflow: hidden;
-    border: 1px solid rgb(255 255 255 / 9%);
+    border: 1px solid transparent;
     border-radius: var(--app-radius-lg);
     background: linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 65%, #17131f), color-mix(in srgb, var(--app-accent) 20%, var(--app-surface-solid)));
     color: white;
     cursor: pointer;
     text-align: left;
     box-shadow: var(--app-shadow-soft);
-    transition: transform var(--app-motion) ease, filter var(--app-motion) ease;
+    transition: filter var(--app-motion) ease, box-shadow var(--app-motion) ease;
 }
 
 .react-home-shortcut::after {
@@ -6376,11 +6376,18 @@ textarea:focus-visible {
     top: -3rem;
     border-radius: 50%;
     background: rgb(255 255 255 / 13%);
+    pointer-events: none;
+    transform: translate3d(0, 0, 0) scale(1);
+    transition: transform var(--app-motion) cubic-bezier(.22, 1, .36, 1);
 }
 
 .react-home-shortcut:hover {
     filter: brightness(1.08);
-    transform: translateY(-2px);
+}
+
+.react-home-shortcut:hover::after,
+.react-home-shortcut:focus-visible::after {
+    transform: translate3d(-.25rem, .2rem, 0) scale(1.05);
 }
 
 .react-home-shortcut.is-recent { background: linear-gradient(135deg, #237d67, #76bea8); }
@@ -6415,12 +6422,25 @@ textarea:focus-visible {
     color: rgb(255 255 255 / 74%);
 }
 
-.react-home-shortcut > i {
+.react-home-shortcut-arrow {
     position: relative;
     z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 1.1rem;
+    min-width: 1.1rem;
     margin-left: auto;
     align-self: center;
-    opacity: .72;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-.3rem);
+    transition: opacity var(--app-motion-fast) ease, transform var(--app-motion-fast) cubic-bezier(.22, 1, .36, 1);
+}
+
+.react-home-shortcut:hover .react-home-shortcut-arrow,
+.react-home-shortcut:focus-visible .react-home-shortcut-arrow {
+    opacity: .92;
+    transform: translateX(0);
 }
 
 .react-home-section {
@@ -6551,15 +6571,31 @@ textarea:focus-visible {
     background: var(--app-surface-soft);
 }
 
-.react-home-playlist img {
+.react-home-playlist-media {
+    display: grid;
+    place-items: center;
     width: 3.6rem;
     height: 3.6rem;
     flex: 0 0 auto;
-    object-fit: cover;
     border-radius: .6rem;
+    background: var(--app-surface-soft);
+    color: var(--app-accent);
+    font-size: 1.15rem;
+    overflow: hidden;
 }
 
-.react-home-playlist span {
+.react-home-playlist-media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.react-home-playlist-media.is-icon {
+    background: var(--app-accent-soft);
+}
+
+.react-home-playlist > span:not(.react-home-playlist-media) {
     display: grid;
     gap: .25rem;
     min-width: 0;
@@ -8080,6 +8116,74 @@ textarea:focus-visible {
     border-style: dashed !important;
 }
 
+.react-playlist-icon-picker {
+    display: grid;
+    gap: .5rem;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.react-playlist-icon-picker legend {
+    padding: 0;
+    color: var(--app-text-muted);
+    font-size: .82rem;
+}
+
+.react-playlist-icon-options {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .5rem;
+}
+
+.react-playlist-icon-option {
+    position: relative;
+    display: grid;
+    place-items: center;
+    gap: .35rem;
+    min-height: 4.15rem;
+    padding: .55rem .35rem;
+    border: 1px solid var(--app-border);
+    border-radius: .75rem;
+    background: var(--app-surface-soft);
+    color: var(--app-text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: .72rem;
+    text-align: center;
+    transition: background-color var(--app-motion-fast) ease, border-color var(--app-motion-fast) ease, color var(--app-motion-fast) ease;
+}
+
+.react-playlist-icon-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.react-playlist-icon-option-visual {
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+    color: currentColor;
+    font-size: .9rem;
+}
+
+.react-playlist-icon-option.is-selected,
+.react-playlist-icon-option:hover {
+    border-color: color-mix(in srgb, var(--app-accent) 62%, var(--app-border));
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+}
+
+.react-playlist-icon-option input:focus-visible + .react-playlist-icon-option-visual {
+    box-shadow: inset 0 0 0 1px var(--app-accent);
+}
+
 @media (max-width: 900px) {
     .react-player-footer#player-footer {
         bottom: .6rem !important;
@@ -8272,7 +8376,6 @@ textarea:focus-visible {
 
 .react-entity-card button,
 .react-playlist-card button,
-.react-home-shortcut,
 .react-home-playlist {
     transition: transform var(--app-motion) cubic-bezier(.22, 1, .36, 1),
         border-color var(--app-motion-fast) ease,
@@ -8293,7 +8396,6 @@ textarea:focus-visible {
 
 .react-entity-card button:active,
 .react-playlist-card button:active,
-.react-home-shortcut:active,
 .react-home-playlist:active {
     transform: translate3d(0, -.03rem, 0) scale(.995);
 }
@@ -8349,6 +8451,8 @@ textarea:focus-visible {
     .react-playlist-card button,
     .react-home-shortcut,
     .react-home-playlist,
+    .react-home-shortcut-arrow,
+    .react-home-shortcut::after,
     .react-playlist-card img,
     .react-entity-card img,
     .react-detail-tabs > button,
@@ -8366,9 +8470,10 @@ textarea:focus-visible {
     .react-playlist-card button:focus-visible,
     .react-home-playlist:hover,
     .react-home-playlist:focus-visible,
+    .react-home-shortcut-arrow,
+    .react-home-shortcut::after,
     .react-entity-card button:active,
     .react-playlist-card button:active,
-    .react-home-shortcut:active,
     .react-home-playlist:active {
         transform: none;
     }
@@ -8417,9 +8522,20 @@ textarea:focus-visible {
     display: block;
     width: 100%;
     aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: .85rem;
 }
 
-.react-artwork-cover img { width: 100%; height: 100%; }
+.react-artwork-cover.is-artist {
+    border-radius: 50%;
+}
+
+.react-artwork-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
 
 .react-artwork-play-button {
     position: absolute;

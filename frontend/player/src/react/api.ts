@@ -10,12 +10,31 @@ export type PlayerConfig = RuntimeConfig & {
   'user.enablePublicFavorites'?: boolean
 }
 export type SearchType = 'song' | 'singer' | 'album' | 'playlist'
+export const PLAYLIST_ICON_OPTIONS = [
+  { key: 'music', label: '通用' },
+  { key: 'heart', label: '心动' },
+  { key: 'moon', label: '夜晚' },
+  { key: 'sun', label: '晴朗' },
+  { key: 'cloud-rain', label: '雨天' },
+  { key: 'fire', label: '热烈' },
+  { key: 'leaf', label: '放松' },
+  { key: 'bolt', label: '能量' },
+] as const
+export type PlaylistIconKey = typeof PLAYLIST_ICON_OPTIONS[number]['key']
+
+const playlistIconKeys = new Set<PlaylistIconKey>(PLAYLIST_ICON_OPTIONS.map(option => option.key))
+
+export function playlistIcon(value: unknown): PlaylistIconKey {
+  return typeof value === 'string' && playlistIconKeys.has(value as PlaylistIconKey) ? value as PlaylistIconKey : 'music'
+}
+
 export type UserPlaylist = Record<string, unknown> & {
   id: string | number
   name: string
   list?: Song[]
   source?: string
   sourceListId?: string | number
+  icon?: PlaylistIconKey
   img?: string
   pic?: string
   picUrl?: string
