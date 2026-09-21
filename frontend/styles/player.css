@@ -5910,6 +5910,7 @@ textarea:focus-visible {
     height: 100dvh;
     min-height: 0;
     padding: 1rem;
+    padding-inline-end: max(.25rem, env(safe-area-inset-right, 0px));
     overflow: hidden;
     background:
         radial-gradient(circle at 78% -10%, color-mix(in srgb, var(--app-accent) 9%, transparent), transparent 30rem),
@@ -6954,6 +6955,7 @@ textarea:focus-visible {
     .react-player-shell {
         display: block !important;
         padding: .55rem;
+        padding-inline-end: max(.25rem, env(safe-area-inset-right, 0px));
     }
 
     .react-sidebar {
