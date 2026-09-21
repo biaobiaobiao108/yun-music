@@ -9552,3 +9552,371 @@ textarea:focus-visible {
         backdrop-filter: none;
     }
 }
+
+/* Final layout pass: the top controls float above the open page canvas. The
+   header no longer reserves or paints a full-width strip, while the content
+   keeps a small safe area so the capsules never cover the first heading. */
+.react-player-main {
+    display: block !important;
+    overflow: hidden;
+}
+
+.react-player-topbar {
+    position: absolute !important;
+    z-index: 60;
+    inset-block-start: 0;
+    inset-inline: 0;
+    display: block !important;
+    width: 100%;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    pointer-events: none;
+}
+
+.react-player-topbar .react-history-controls,
+.react-player-topbar .react-topbar-actions {
+    position: absolute;
+    inset-block-start: .85rem;
+    margin: 0 !important;
+}
+
+.react-player-topbar .react-history-controls {
+    inset-inline-start: .55rem;
+}
+
+.react-player-topbar .react-topbar-actions {
+    inset-inline-end: .55rem;
+}
+
+#player-main-content.react-player-content {
+    box-sizing: border-box;
+    height: 100%;
+    padding-block-start: 4.65rem;
+}
+
+/* Recent playback is a single horizontal rail. It can scroll sideways on
+   narrow screens, but never grows a second row or shifts the page height. */
+.react-home-rail {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 1.05rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+}
+
+.react-home-rail::-webkit-scrollbar {
+    display: none;
+}
+
+.react-home-rail > .react-artwork-card {
+    flex: 0 0 clamp(8.8rem, calc((100% - 5.25rem) / 6), 12rem);
+}
+
+/* The normal and immersive bars share these geometry tokens. Only the
+   containing block and the immersive song-menu visibility differ, so opening
+   lyrics does not resize the cover, progress track, or transport controls. */
+.react-player-footer#player-footer {
+    --react-footer-glass-alpha: 48%;
+    --react-footer-height: 4.7rem;
+    --react-footer-padding-block: .62rem;
+    --react-footer-padding-inline: .95rem;
+    --react-footer-gap: 1rem;
+    box-sizing: border-box;
+    min-height: var(--react-footer-height);
+    padding: var(--react-footer-padding-block) var(--react-footer-padding-inline);
+    gap: var(--react-footer-gap);
+    background: color-mix(in srgb, var(--app-surface-solid) var(--react-footer-glass-alpha), transparent) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.25);
+    backdrop-filter: blur(28px) saturate(1.25);
+}
+
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+    min-height: var(--react-footer-height);
+    padding: var(--react-footer-padding-block) var(--react-footer-padding-inline);
+    gap: var(--react-footer-gap);
+    background: color-mix(in srgb, var(--app-surface-solid) var(--react-footer-glass-alpha), transparent) !important;
+}
+
+.react-player-footer#player-footer .react-footer-cover-button,
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-cover-button {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Keep immersive entry and exit quiet. Opacity is the only animated property
+   on the dialog, so the shared footer remains geometrically stable. */
+@keyframes react-immersive-dialog-exit {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes react-immersive-backdrop-exit {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.react-immersive-lyrics-dialog[open]:not(.is-closing) {
+    animation: react-immersive-dialog-enter 260ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.react-immersive-lyrics-dialog.is-closing {
+    animation: react-immersive-dialog-exit 220ms ease-in both;
+}
+
+.react-immersive-lyrics-dialog.is-closing::backdrop {
+    animation: react-immersive-backdrop-exit 220ms ease-in both;
+}
+
+/* Settings account surface */
+.react-account-card {
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+}
+
+.react-account-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.react-account-heading h2 {
+    margin: .18rem 0 .3rem;
+}
+
+.react-account-heading p:last-child {
+    margin: 0;
+    color: var(--app-text-muted);
+    font-size: .78rem;
+    line-height: 1.5;
+}
+
+.react-account-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .38rem;
+    flex: 0 0 auto;
+    min-height: 2rem;
+    padding: .35rem .62rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: var(--app-surface-soft);
+    color: var(--app-text-muted);
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.react-account-badge.is-active {
+    border-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+}
+
+.react-account-state {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-width: 0;
+    padding: .78rem .85rem;
+    border: 1px solid var(--app-border);
+    border-radius: .9rem;
+    background: color-mix(in srgb, var(--app-surface-soft) 76%, transparent);
+}
+
+.react-account-state > i {
+    flex: 0 0 auto;
+    color: var(--app-accent);
+    font-size: 1.25rem;
+}
+
+.react-account-copy {
+    display: grid;
+    min-width: 0;
+    gap: .16rem;
+    flex: 1;
+}
+
+.react-account-copy strong,
+.react-account-copy span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-account-copy strong {
+    color: var(--app-text);
+    font-size: .88rem;
+}
+
+.react-account-copy span {
+    color: var(--app-text-muted);
+    font-size: .74rem;
+}
+
+.react-account-form {
+    gap: .72rem;
+    padding: .85rem;
+    border: 1px solid var(--app-border);
+    border-radius: .9rem;
+    background: color-mix(in srgb, var(--app-surface-soft) 64%, transparent);
+}
+
+/* Custom source forms */
+.react-source-forms {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+    margin-top: 1rem;
+    padding: .8rem 0 0;
+    border-top: 1px solid var(--app-border);
+}
+
+.react-source-form {
+    display: grid;
+    gap: .48rem;
+    min-width: 0;
+    padding: .85rem;
+    border: 1px solid var(--app-border);
+    border-radius: .9rem;
+    background: color-mix(in srgb, var(--app-surface-soft) 68%, transparent);
+}
+
+.react-source-form-copy {
+    display: grid;
+    gap: .18rem;
+    min-width: 0;
+}
+
+.react-source-form-copy strong {
+    color: var(--app-text);
+    font-size: .84rem;
+}
+
+.react-source-form-copy small {
+    color: var(--app-text-muted);
+    font-size: .72rem;
+    line-height: 1.45;
+}
+
+.react-source-form > label {
+    color: var(--app-text-muted);
+    font-size: .72rem;
+}
+
+.react-source-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+}
+
+.react-source-input-row input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.45rem;
+    padding: .5rem .65rem;
+    border: 1px solid var(--app-border);
+    border-radius: .68rem;
+    background: var(--app-bg);
+    color: var(--app-text);
+    font: inherit;
+    font-size: .78rem;
+}
+
+.react-source-input-row input:focus-visible {
+    border-color: var(--app-accent);
+    outline: 1px solid var(--app-accent);
+    outline-offset: -1px;
+}
+
+.react-source-input-row input[type="file"] {
+    padding: .28rem;
+}
+
+.react-source-input-row input[type="file"]::file-selector-button {
+    margin-inline-end: .45rem;
+    padding: .35rem .55rem;
+    border: 1px solid var(--app-border);
+    border-radius: .5rem;
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+    font: inherit;
+    font-size: .72rem;
+    cursor: pointer;
+}
+
+.react-source-input-row .react-player-button {
+    min-height: 2.45rem;
+    padding-inline: .82rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    #player-main-content.react-player-content {
+        padding-block-start: 4.45rem;
+    }
+
+    .react-player-footer#player-footer,
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+        --react-footer-height: 3.72rem;
+        --react-footer-padding-block: .36rem;
+        --react-footer-padding-inline: .58rem;
+        --react-footer-gap: .42rem;
+    }
+
+    .react-player-footer#player-footer .react-footer-cover-button,
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-cover-button {
+        width: 2.38rem;
+        height: 2.38rem;
+    }
+}
+
+@media (max-width: 560px) {
+    #player-main-content.react-player-content {
+        padding-block-start: 4.2rem;
+    }
+
+    .react-player-footer#player-footer,
+    .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+        --react-footer-padding-inline: .38rem;
+        --react-footer-gap: .18rem;
+    }
+
+    .react-source-forms {
+        grid-template-columns: 1fr;
+    }
+
+    .react-account-heading {
+        align-items: flex-start;
+    }
+
+    .react-account-state {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .react-account-state .react-player-button {
+        margin-inline-start: 2rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-immersive-lyrics-dialog[open]:not(.is-closing),
+    .react-immersive-lyrics-dialog.is-closing,
+    .react-immersive-lyrics-dialog.is-closing::backdrop {
+        animation: none;
+    }
+}

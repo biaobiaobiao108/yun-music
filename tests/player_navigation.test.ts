@@ -272,6 +272,31 @@ describe('React player navigation and state restoration', () => {
     expect(css).not.toMatch(/(?:react-)?vinyl|visualizer|频谱/i)
   })
 
+  it('keeps the floating topbar, recent rail and immersive footer geometry stable', () => {
+    const views = read('frontend/player/src/react/views.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(css).toContain('.react-player-main {\n    display: block !important;')
+    expect(css).toContain('height: 0 !important;\n    min-height: 0 !important;')
+    expect(css).toContain('.react-home-rail {\n    display: flex;\n    flex-wrap: nowrap;')
+    expect(css).toContain('--react-footer-glass-alpha: 48%;')
+    expect(css).toContain('react-immersive-dialog-exit')
+    expect(css).toContain('.react-immersive-lyrics-dialog.is-closing')
+    expect(views).toContain('const closeTimer = useRef<number | null>(null)')
+    expect(views).toContain('className={`react-immersive-lyrics-dialog ${isClosing ? \'is-closing\' : \'\'}`}')
+  })
+
+  it('uses the shared settings account and source form surfaces', () => {
+    const views = read('frontend/player/src/react/views.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(views).toContain('react-account-card')
+    expect(views).toContain('react-account-badge')
+    expect(views).toContain('react-source-form')
+    expect(views).toContain('react-source-input-row')
+    expect(css).toContain('.react-account-state {\n    display: flex;')
+    expect(css).toContain('.react-source-input-row {')
+    expect(css).toContain('::file-selector-button')
+  })
+
   it('keeps the main player surface open instead of wrapping it in a card', () => {
     const css = read('frontend/styles/player.css')
     expect(css).toContain('#player-main-content.react-player-content {')
