@@ -9626,7 +9626,7 @@ textarea:focus-visible {
    containing block and the immersive song-menu visibility differ, so opening
    lyrics does not resize the cover, progress track, or transport controls. */
 .react-player-footer#player-footer {
-    --react-footer-glass-alpha: 48%;
+    --react-footer-glass-alpha: 32%;
     --react-footer-height: 4.7rem;
     --react-footer-padding-block: .62rem;
     --react-footer-padding-inline: .95rem;
@@ -9918,5 +9918,133 @@ textarea:focus-visible {
     .react-immersive-lyrics-dialog.is-closing,
     .react-immersive-lyrics-dialog.is-closing::backdrop {
         animation: none;
+    }
+}
+
+/* Shared footer lifecycle: both hosts stay mounted so entering lyrics never
+   replaces the transport surface during a paint. The inactive host keeps its
+   geometry out of sight and out of the interaction tree. */
+.react-player-footer.is-inactive {
+    position: absolute !important;
+    inset: auto !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: none !important;
+}
+
+/* Immersive mode reserves the ordinary menu slot even though the menu itself
+   is intentionally unavailable there. Keeping the slot prevents the mode,
+   like, queue and volume controls from shifting when the dialog opens. */
+.react-player-footer#player-footer .react-song-menu-button.is-immersive-placeholder {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* Keep the transport controls in the ordinary order. Immersive-only
+   utilities remain directly available in a small floating utility group above
+   the bar instead of widening the action column and shifting queue/volume. */
+.react-immersive-shared-footer#player-footer .react-footer-actions {
+    position: relative;
+}
+
+.react-immersive-utility-actions {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block-end: calc(100% + .38rem);
+    display: inline-flex;
+    align-items: center;
+    gap: .08rem;
+    padding: .2rem;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 68%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-surface-solid) 28%, transparent);
+    box-shadow: 0 .7rem 1.6rem rgb(0 0 0 / 14%);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    backdrop-filter: blur(20px) saturate(1.2);
+}
+
+.react-immersive-utility-actions .player-secondary-action {
+    width: 1.9rem;
+    height: 1.9rem;
+}
+
+/* Dialogs must shrink their inner controls with the viewport. A content-box
+   input with width:100% plus padding is the source of the old login-modal
+   horizontal scrollbar. Keep vertical scrolling, clip only the inline axis,
+   and let long error text wrap instead of widening the overlay. */
+.react-dialog {
+    box-sizing: border-box;
+    inline-size: min(35rem, calc(100vw - 2rem));
+    max-inline-size: calc(100vw - 2rem);
+    max-block-size: calc(100dvh - 2rem);
+    overflow-x: clip;
+}
+
+.react-dialog-content,
+.react-dialog-content > header,
+.react-dialog-body,
+.react-dialog-form,
+.react-dialog-form label,
+.react-dialog-actions {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+.react-dialog-content {
+    overflow-x: clip;
+}
+
+.react-dialog-content > header h2 {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-dialog-body {
+    overflow-x: clip;
+    overflow-y: auto;
+}
+
+.react-dialog-form input,
+.react-dialog-form select,
+.react-dialog-form textarea,
+.react-dialog-actions > * {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+.react-dialog-form input,
+.react-dialog-form select,
+.react-dialog-form textarea {
+    inline-size: 100%;
+}
+
+.react-dialog .react-error,
+.react-dialog p,
+.react-dialog small {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+    .react-dialog {
+        inline-size: calc(100vw - 1rem);
+        max-inline-size: calc(100vw - 1rem);
+        max-block-size: calc(100dvh - 1rem);
+    }
+
+    .react-dialog-content > header,
+    .react-dialog-body {
+        padding-inline: .9rem;
     }
 }

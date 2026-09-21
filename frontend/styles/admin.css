@@ -6441,3 +6441,58 @@ textarea:focus-visible {
     -webkit-text-fill-color: var(--app-text) !important;
     box-shadow: 0 0 0 1000px var(--app-surface-solid) inset !important;
 }
+
+/* Keep every admin dialog inside the viewport. Without border-box, a
+   width:100% form control plus padding can make the login/user dialog wider
+   than its own body and introduce a horizontal scrollbar. */
+.admin-react-dialog {
+    box-sizing: border-box;
+    inline-size: min(30rem, calc(100vw - 2rem));
+    max-inline-size: calc(100vw - 2rem);
+    overflow-x: clip;
+}
+
+.admin-react-dialog-content,
+.admin-react-dialog-content > header,
+.admin-react-dialog-body,
+.admin-react-dialog-actions {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+.admin-react-dialog-content {
+    overflow-x: clip;
+}
+
+.admin-react-dialog-content > header h2 {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-react-dialog-body {
+    overflow-x: clip;
+    overflow-y: auto;
+}
+
+.admin-react-dialog :where(input, textarea, select),
+.admin-react-dialog-actions > * {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+.admin-react-dialog :where(input, textarea, select) {
+    inline-size: 100%;
+}
+
+@media (max-width: 620px) {
+    .admin-react-dialog {
+        inline-size: calc(100vw - 1rem);
+        max-inline-size: calc(100vw - 1rem);
+        max-block-size: calc(100dvh - 1rem);
+    }
+}

@@ -83,6 +83,8 @@ describe('React admin frontend', () => {
     expect(css).toContain('.admin-react-dialog')
     expect(css).toContain('background: var(--app-surface-solid) !important')
     expect(css).toContain('color-scheme: inherit')
+    expect(css).toContain('inline-size: min(30rem, calc(100vw - 2rem));')
+    expect(css).toContain('overflow-x: clip;')
   })
 
   it('keeps the compact workspace toolbars and shared player search treatment', () => {

@@ -456,7 +456,11 @@ export function AboutView() {
 
 export function ViewFrame({ title, subtitle, actions, hideHeader = false, children }: { title: string; subtitle?: string; actions?: React.ReactNode; hideHeader?: boolean; children: React.ReactNode }) { return <section id={`view-${title}`} className={`player-main-view react-view ${hideHeader ? 'react-view-no-header' : ''}`} aria-label={hideHeader ? title : undefined}>{!hideHeader && <header className="react-view-header"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{actions}</header>}{children}</section> }
 
-export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose: () => void }) {
+type ImmersiveFooterHost = 'normal' | 'immersive'
+
+export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterHost; onFooterHostChange: (host: ImmersiveFooterHost) => void; onClose: () => void }
+
+export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
   const time = usePlaybackStore(state => state.currentTime)
   const seek = usePlaybackStore(state => state.seek)
@@ -492,8 +496,9 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
     else if (document.querySelector('.react-player-main > #player-footer .react-footer-cover-button')) restoreFallback()
     else window.requestAnimationFrame(restoreFallback)
     lastFocus.current = null
+    onFooterHostChange('normal')
     setIsClosing(false)
-  }, [])
+  }, [onFooterHostChange])
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
@@ -515,9 +520,11 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
       lastFocus.current = consumeImmersiveLyricsTrigger() ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
       syncFooterPosition()
       dialog.showModal()
+      onFooterHostChange('immersive')
       dialog.querySelector<HTMLButtonElement>('[data-immersive-close]')?.focus()
     } else if (open) {
       syncFooterPosition()
+      onFooterHostChange('immersive')
     } else if (dialog.open && !isClosing) {
       setIsClosing(true)
       closeTimer.current = window.setTimeout(finishClose, 220)
@@ -527,11 +534,12 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
       return () => window.removeEventListener('resize', syncFooterPosition)
     }
     return undefined
-  }, [finishClose, isClosing, open])
+  }, [finishClose, isClosing, onFooterHostChange, open])
   useEffect(() => () => {
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
     if (dialogRef.current?.open) dialogRef.current.close()
-  }, [])
+    onFooterHostChange('normal')
+  }, [onFooterHostChange])
   useEffect(() => {
     if (active < 0) return
     const line = lineRefs.current[active]
@@ -573,13 +581,16 @@ export function ImmersiveLyricsView({ open, onClose }: { open: boolean; onClose:
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={index === active ? 'is-active' : ''} aria-current={index === active ? 'true' : undefined} onClick={() => seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
         </section>
       </div>
-      {open && <PlayerFooterBar variant="immersive" />}
+      {/* Keep the immersive footer mounted in the closed dialog. When the
+          dialog opens only its active id/visibility changes, so the cover,
+          progress track and controls never get rebuilt during the transition. */}
+      <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
     </div>
   </dialog>
 }
 
-export function LyricsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return <ImmersiveLyricsView open={open} onClose={onClose} />
+export function LyricsDialog(props: ImmersiveLyricsProps) {
+  return <ImmersiveLyricsView {...props} />
 }
 
 function CommentItemView({ item, nested = false }: { item: CommentItem; nested?: boolean }) {
