@@ -93,6 +93,31 @@ describe('User snapshot permissions', () => {
     expect((await router.handle(snapshotRequest('upload', 'another_user', userHeaders))).status).toBe(403)
   })
 
+  test('does not lose the first favorite or playlist write during user-space initialization', async () => {
+    const router = createUserRouter()
+    releaseUserSpace(username, true)
+    const song = { id: 'song-1', songmid: 'song-1', name: 'Song 1', singer: 'Singer 1', source: 'wy' }
+    const savedData = {
+      defaultList: [],
+      loveList: [song],
+      userList: [{ id: 'playlist-1', name: '我的歌单', list: [song] }],
+    }
+
+    const save = await router.handle(new Request('http://localhost/api/user/list', {
+      method: 'POST',
+      headers: { ...userHeaders, 'content-type': 'application/json' },
+      body: JSON.stringify(savedData),
+    }))
+    expect(save.status).toBe(200)
+
+    // Force the next read through a newly-created in-memory user space, as a
+    // browser refresh does after the previous request has completed.
+    releaseUserSpace(username, true)
+    const read = await router.handle(new Request('http://localhost/api/user/list', { headers: userHeaders }))
+    expect(read.status).toBe(200)
+    expect(await read.json()).toEqual(savedData)
+  })
+
   test('bounds imported snapshot history and repairs latest metadata after deletion', async () => {
     const manager = getUserSpace(username).listManage
     for (let index = 0; index < 12; index++) {

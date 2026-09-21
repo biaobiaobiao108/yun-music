@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { ApiRequestError, clearRequestCache, invalidateRequestCache, requestJson } from '../frontend/player/src/react/data/request'
 import { parsePlayerHash, serializePlayerHash } from '../frontend/player/src/react/route_state'
+import { useLibraryStore } from '../frontend/player/src/react/store/library'
 
 describe('React player data request lifecycle', () => {
   it('deduplicates concurrent reads and serves a short-lived cache', async () => {
@@ -71,5 +72,48 @@ describe('React player URL state boundary', () => {
     expect(parsePlayerHash('#%E0%A4%A')).toEqual({ tab: 'home', listId: 'love' })
     expect(serializePlayerHash({ tab: 'favorites', listId: 'playlist 1' })).toBe('#favorites?listId=playlist%201')
     expect(serializePlayerHash({ tab: 'favorites', listId: 'love' })).toBe('#favorites')
+  })
+})
+
+describe('React player library persistence guard', () => {
+  it('hydrates before a full playlist save can overwrite existing lists', async () => {
+    clearRequestCache()
+    const originalFetch = globalThis.fetch
+    const existing = {
+      defaultList: [],
+      loveList: [{ id: 'song-1', name: '已收藏歌曲', singer: '歌手', source: 'wy' }],
+      userList: [{ id: 'old-list', name: '旧歌单', list: [] }],
+    }
+    let getCount = 0
+    let saved: Record<string, unknown> | undefined
+    globalThis.fetch = (async (_input, init) => {
+      if (String(init?.method || 'GET').toUpperCase() === 'POST') {
+        saved = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>
+        return new Response(JSON.stringify({ success: true }), { status: 200 })
+      }
+      getCount += 1
+      const payload = getCount > 1 && saved ? saved : existing
+      return new Response(JSON.stringify(payload), { status: 200 })
+    }) as typeof fetch
+
+    useLibraryStore.setState({
+      data: { defaultList: [], loveList: [], userList: [] },
+      loading: true,
+      refreshing: false,
+      error: '',
+      loadedAt: 0,
+    })
+    try {
+      await useLibraryStore.getState().createList('新歌单')
+      expect(saved).toMatchObject({
+        loveList: existing.loveList,
+        userList: [existing.userList[0], { name: '新歌单', list: [] }],
+      })
+      expect(getCount).toBe(2)
+    } finally {
+      globalThis.fetch = originalFetch
+      clearRequestCache()
+      useLibraryStore.getState().reset()
+    }
   })
 })

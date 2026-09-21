@@ -30,6 +30,9 @@ export class ListDataManage {
     })
   }
   restore = async (listData: LX.List.ListData) => {
+    // Wait for the asynchronous snapshot load. Otherwise the initializer can
+    // finish after this mutation and overwrite it with the old snapshot.
+    await this.initPromise
     this.allMusicList.clear()
     this.userLists = []
 
@@ -135,6 +138,7 @@ export class ListDataManage {
 
 
   listDataOverwrite = async ({ defaultList, loveList, userList, tempList }: MakeOptional<LX.List.ListDataFull, 'tempList'>): Promise<string[]> => {
+    await this.initPromise
     const updatedListIds: string[] = []
     const newUserIds: string[] = []
     const newUserListInfos = userList.map(({ list, ...listInfo }) => {
@@ -174,6 +178,7 @@ export class ListDataManage {
     position: number
     locationUpdateTime: number | null
   }) => {
+    await this.initPromise
     if (this.userLists.some(item => item.id == id)) return
     const newList: LX.List.UserListInfo = {
       name,
@@ -186,6 +191,7 @@ export class ListDataManage {
   }
 
   userListsRemove = async (ids: string[]) => {
+    await this.initPromise
     const changedIds = []
     for (const id of ids) {
       this.removeUserList(id)
@@ -200,12 +206,14 @@ export class ListDataManage {
   }
 
   userListsUpdate = async (listInfos: LX.List.UserListInfo[]) => {
+    await this.initPromise
     for (const info of listInfos) {
       this.updateList(info)
     }
   }
 
   userListsUpdatePosition = async (position: number, ids: string[]) => {
+    await this.initPromise
     const newUserLists = [...this.userLists]
 
     // console.log(position, ids)
@@ -233,11 +241,13 @@ export class ListDataManage {
    * @param listId
    */
   getListMusics = async (listId: string): Promise<LX.Music.MusicInfo[]> => {
+    await this.initPromise
     if (!listId || !this.allMusicList.has(listId)) return []
     return this.allMusicList.get(listId) as LX.Music.MusicInfo[]
   }
 
   listMusicOverwrite = async (listId: string, musicInfos: LX.Music.MusicInfo[]): Promise<string[]> => {
+    await this.initPromise
     this.setMusicList(listId, musicInfos)
     return [listId]
   }
@@ -291,6 +301,7 @@ export class ListDataManage {
   }
 
   listMusicUpdateInfo = async (musicInfos: LX.List.ListActionMusicUpdate): Promise<string[]> => {
+    await this.initPromise
     const updateListIds = new Set<string>()
     for (const { id, musicInfo } of musicInfos) {
       const targetList = await this.getListMusics(id)
@@ -314,6 +325,7 @@ export class ListDataManage {
 
 
   listMusicUpdatePosition = async (listId: string, position: number, ids: string[]): Promise<string[]> => {
+    await this.initPromise
     let targetList = await this.getListMusics(listId)
 
     // const infos = Array(ids.length)
@@ -347,6 +359,7 @@ export class ListDataManage {
 
 
   listMusicClear = async (ids: string[]): Promise<string[]> => {
+    await this.initPromise
     const changedIds: string[] = []
     for (const id of ids) {
       const list = await this.getListMusics(id)

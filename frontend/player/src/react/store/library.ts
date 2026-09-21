@@ -26,6 +26,18 @@ export type LibraryState = {
 
 const emptyData: UserListData = { defaultList: [], loveList: [], userList: [] }
 
+const ensureLibraryHydrated = async (
+  get: () => LibraryState,
+): Promise<UserListData> => {
+  const current = get()
+  if (current.loadedAt === 0 || current.loading) {
+    await current.hydrate({ force: true })
+  }
+  const next = get()
+  if (next.loadedAt === 0) throw new Error(next.error || '歌单数据尚未加载完成，请稍后重试')
+  return next.data
+}
+
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   // Keep the initial state loading so a direct #favorites?listId=… route is
   // not mistaken for a deleted playlist before the first hydration finishes.
@@ -74,7 +86,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     await get().hydrate({ force: true })
   },
   createList: async name => {
-    const data = get().data
+    const data = await ensureLibraryHydrated(get)
     const list: UserPlaylist = {
       id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       name,
@@ -86,7 +98,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     return list
   },
   toggleRemotePlaylist: async (detail, songs) => {
-    const data = get().data
+    const data = await ensureLibraryHydrated(get)
     const source = String(detail.source || '').trim() || 'wy'
     const sourceListId = String(detail.id)
     const existing = (data.userList ?? []).find(list => String(list.source || '') === source && String(list.sourceListId ?? '') === sourceListId)
@@ -110,14 +122,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     return true
   },
   renameList: async (listId, name) => {
-    const data = get().data
+    const data = await ensureLibraryHydrated(get)
     const userList = (data.userList ?? []).map(list => String(list.id) === String(listId) ? { ...list, name } : list)
     await playerApi.saveListData({ ...data, userList })
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
   },
   deleteList: async listId => {
-    const data = get().data
+    const data = await ensureLibraryHydrated(get)
     await playerApi.saveListData({ ...data, userList: (data.userList ?? []).filter(list => String(list.id) !== String(listId)) })
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
