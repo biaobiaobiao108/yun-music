@@ -6587,25 +6587,71 @@ textarea:focus-visible {
 }
 
 .react-home-playlist {
+    position: relative;
     display: flex;
     align-items: center;
     gap: .75rem;
     min-width: 0;
     padding: .65rem;
-    border: 1px solid var(--app-border);
+    overflow: hidden;
+    border: 1px solid transparent;
     border-radius: var(--app-radius-md);
-    background: var(--app-surface);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--app-accent) 10%, var(--app-surface)), color-mix(in srgb, var(--app-accent) 3%, var(--app-surface)));
     color: var(--app-text);
     cursor: pointer;
     text-align: left;
+    box-shadow: var(--app-shadow-soft);
+    transition: filter var(--app-motion) ease, box-shadow var(--app-motion) ease;
 }
 
-.react-home-playlist:hover {
-    border-color: var(--app-border-strong);
-    background: var(--app-surface-soft);
+.react-home-playlist-surface {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.react-home-playlist-surface::before {
+    content: '';
+    position: absolute;
+    inset: -48%;
+    background:
+        radial-gradient(circle at 20% 32%, color-mix(in srgb, var(--app-accent) 26%, transparent) 0 8%, transparent 34%),
+        radial-gradient(circle at 82% 68%, color-mix(in srgb, var(--app-accent) 18%, transparent) 0 8%, transparent 30%);
+    opacity: .48;
+    transform: translate3d(-2%, -1%, 0) scale(1);
+    animation: react-home-playlist-drift 20s ease-in-out infinite alternate;
+    animation-delay: var(--react-home-playlist-delay, 0s);
+}
+
+@keyframes react-home-playlist-drift {
+    from {
+        opacity: .36;
+        transform: translate3d(-2%, -1%, 0) scale(1);
+    }
+
+    to {
+        opacity: .58;
+        transform: translate3d(2%, 1%, 0) scale(1.04);
+    }
+}
+
+.react-home-playlist:nth-child(2) { --react-home-playlist-delay: -5s; }
+.react-home-playlist:nth-child(3) { --react-home-playlist-delay: -10s; }
+.react-home-playlist:nth-child(4) { --react-home-playlist-delay: -15s; }
+.react-home-playlist:nth-child(5) { --react-home-playlist-delay: -8s; }
+.react-home-playlist:nth-child(6) { --react-home-playlist-delay: -13s; }
+
+.react-home-playlist:hover,
+.react-home-playlist:focus-visible {
+    filter: brightness(1.045);
 }
 
 .react-home-playlist-media {
+    position: relative;
+    z-index: 1;
     display: grid;
     place-items: center;
     width: 3.6rem;
@@ -6629,7 +6675,9 @@ textarea:focus-visible {
     background: var(--app-accent-soft);
 }
 
-.react-home-playlist > span:not(.react-home-playlist-media) {
+.react-home-playlist-copy {
+    position: relative;
+    z-index: 1;
     display: grid;
     gap: .25rem;
     min-width: 0;
@@ -6646,9 +6694,23 @@ textarea:focus-visible {
     color: var(--app-text-muted);
 }
 
-.react-home-playlist > i {
+.react-home-playlist-arrow {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
     margin-left: auto;
-    color: var(--app-text-dim);
+    color: var(--app-text-muted);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-.25rem);
+    transition: opacity var(--app-motion-fast) ease, transform var(--app-motion-fast) cubic-bezier(.22, 1, .36, 1);
+}
+
+.react-home-playlist:hover .react-home-playlist-arrow,
+.react-home-playlist:focus-visible .react-home-playlist-arrow {
+    opacity: .92;
+    transform: translateX(0);
 }
 
 .react-home-empty,
@@ -8419,8 +8481,7 @@ textarea:focus-visible {
 }
 
 .react-entity-card button,
-.react-playlist-card button,
-.react-home-playlist {
+.react-playlist-card button {
     transition: transform var(--app-motion) cubic-bezier(.22, 1, .36, 1),
         border-color var(--app-motion-fast) ease,
         background-color var(--app-motion-fast) ease,
@@ -8431,16 +8492,13 @@ textarea:focus-visible {
 .react-entity-card button:hover,
 .react-entity-card button:focus-visible,
 .react-playlist-card button:hover,
-.react-playlist-card button:focus-visible,
-.react-home-playlist:hover,
-.react-home-playlist:focus-visible {
+.react-playlist-card button:focus-visible {
     transform: translate3d(0, -.16rem, 0);
     box-shadow: var(--app-shadow-soft);
 }
 
 .react-entity-card button:active,
-.react-playlist-card button:active,
-.react-home-playlist:active {
+.react-playlist-card button:active {
     transform: translate3d(0, -.03rem, 0) scale(.995);
 }
 
@@ -8495,6 +8553,7 @@ textarea:focus-visible {
     .react-playlist-card button,
     .react-home-shortcut,
     .react-home-playlist,
+    .react-home-playlist-arrow,
     .react-home-shortcut-arrow,
     .react-home-shortcut::after,
     .react-playlist-icon-option,
@@ -8516,6 +8575,7 @@ textarea:focus-visible {
     .react-playlist-card button:focus-visible,
     .react-home-playlist:hover,
     .react-home-playlist:focus-visible,
+    .react-home-playlist-arrow,
     .react-home-shortcut-arrow,
     .react-home-shortcut::after,
     .react-playlist-icon-option-visual,
@@ -8526,6 +8586,11 @@ textarea:focus-visible {
     }
 
     .react-home-shortcut-surface::before {
+        animation: none;
+        transform: none;
+    }
+
+    .react-home-playlist-surface::before {
         animation: none;
         transform: none;
     }
