@@ -28,22 +28,6 @@ function checkProjectAgreement(): void {
     document.body.style.overflow = 'hidden';
 }
 
-function readAgreementInAbout(): void {
-    if (typeof (window as any).switchTab === 'function') {
-        (window as any).switchTab('about');
-        setTimeout(() => {
-            const about = document.getElementById('view-about');
-            const header = [...(about?.querySelectorAll('h2') || [])].find(element => element.textContent?.includes('项目协议'));
-            header?.scrollIntoView({ behavior: 'smooth' });
-            if (!header && about) about.scrollTo({ top: about.scrollHeight, behavior: 'smooth' });
-        }, 500);
-    }
-    if (innerWidth <= 1024 && typeof (window as any).toggleSidebar === 'function') {
-        const sidebar = document.getElementById('main-sidebar');
-        if (sidebar && !sidebar.classList.contains('-translate-x-full')) (window as any).toggleSidebar();
-    }
-}
-
 function acceptProjectAgreement(): void {
     localStorage.setItem('lx_agreement_accepted', 'true');
     const modal = document.getElementById('project-agreement-modal');
@@ -52,9 +36,8 @@ function acceptProjectAgreement(): void {
     setTimeout(() => {
         modal.classList.add('hidden');
         document.body.style.overflow = '';
-        readAgreementInAbout();
     }, 300);
 }
 
-Object.assign(window, { checkProjectAgreement, acceptProjectAgreement, readAgreementInAbout });
+Object.assign(window, { checkProjectAgreement, acceptProjectAgreement });
 document.addEventListener('DOMContentLoaded', checkProjectAgreement);

@@ -193,7 +193,7 @@ function DataListNavigation({ lists, activeId, onChange }: { lists: DataList[]; 
   return <aside className="admin-data-nav" aria-label="数据列表">
     <div className="admin-data-nav-heading"><span>列表</span><small>{lists.length} 个</small></div>
     <div className="admin-data-nav-items">
-      {lists.map(list => <button type="button" key={list.id} className={`admin-data-nav-item ${activeId === list.id ? 'is-active' : ''}`} aria-current={activeId === list.id ? 'page' : undefined} onClick={() => onChange(list.id)}><span className="admin-data-nav-icon"><Icon name={list.kind === 'love' ? 'heart' : list.kind === 'user' ? 'list-music' : list.kind === 'default' ? 'clock-rotate-left' : 'music'} /></span><span className="admin-data-nav-copy"><strong>{list.name}</strong><small>{list.count} 首歌曲</small></span></button>)}
+      {lists.map((list, index) => <button type="button" key={`${list.id}-${index}`} className={`admin-data-nav-item ${activeId === list.id ? 'is-active' : ''}`} aria-current={activeId === list.id ? 'page' : undefined} onClick={() => onChange(list.id)}><span className="admin-data-nav-icon"><Icon name={list.kind === 'love' ? 'heart' : list.kind === 'user' ? 'list-music' : list.kind === 'default' ? 'clock-rotate-left' : 'music'} /></span><span className="admin-data-nav-copy"><strong>{list.name}</strong><small>{list.count} 首歌曲</small></span></button>)}
     </div>
   </aside>
 }

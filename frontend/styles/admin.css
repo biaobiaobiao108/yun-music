@@ -1562,7 +1562,7 @@ select.form-input option:checked {
 .admin-react-config-form .admin-react-form-actions { grid-column: 1 / -1; }
 .admin-react-check { display: flex !important; align-items: center; gap: .5rem; padding: .65rem .75rem; border: 1px solid var(--glass-border); border-radius: .6rem; }
 .admin-react-form-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .5rem; }
-.admin-react-log-view, .admin-react-about { min-height: 360px; max-height: 65vh; overflow: auto; padding: 1rem; border-radius: .7rem; background: rgba(16,24,20,.92); color: #d2f4de; white-space: pre-wrap; word-break: break-word; font: .8rem/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.admin-react-log-view { min-height: 360px; max-height: 65vh; overflow: auto; padding: 1rem; border-radius: .7rem; background: rgba(16,24,20,.92); color: #d2f4de; white-space: pre-wrap; word-break: break-word; font: .8rem/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .admin-react-upload-form { display: flex; align-items: center; gap: .5rem; }
 .admin-react-upload-form input[type=file] { max-width: 220px; }
 .admin-react-dialog { width: min(480px, calc(100% - 2rem)); padding: 0; border: 0; border-radius: 1rem; background: var(--glass-bg); color: var(--text-primary); box-shadow: var(--shadow-xl); }
@@ -5248,10 +5248,12 @@ textarea:focus-visible {
 
 .admin-react-shell .admin-react-panel-header h2 {
     min-width: 0;
+    flex: 0 0 auto;
     margin: 0;
     color: var(--app-text);
     font-size: 1rem;
     font-weight: 760;
+    white-space: nowrap;
     letter-spacing: -.015em;
 }
 
@@ -6639,4 +6641,283 @@ textarea:focus-visible {
     .admin-react-toast,
     .admin-custom-source-table tbody tr { transition: none; }
     .admin-react-toast { transform: none; }
+}
+
+/* Keep every React-admin scroll owner visually consistent with the player.
+   The content remains scrollable; only the chrome is reduced to the same
+   narrow overlay thumb used by the player. */
+.admin-react-shell,
+.admin-react-shell *,
+.admin-react-dialog,
+.admin-react-dialog * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--app-text) 24%, transparent) transparent;
+}
+
+.admin-react-shell::-webkit-scrollbar,
+.admin-react-shell *::-webkit-scrollbar,
+.admin-react-dialog::-webkit-scrollbar,
+.admin-react-dialog *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.admin-react-shell::-webkit-scrollbar-track,
+.admin-react-shell *::-webkit-scrollbar-track,
+.admin-react-dialog::-webkit-scrollbar-track,
+.admin-react-dialog *::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.admin-react-shell::-webkit-scrollbar-thumb,
+.admin-react-shell *::-webkit-scrollbar-thumb,
+.admin-react-dialog::-webkit-scrollbar-thumb,
+.admin-react-dialog *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--app-text) 24%, transparent);
+}
+
+.admin-react-shell::-webkit-scrollbar-thumb:hover,
+.admin-react-shell *::-webkit-scrollbar-thumb:hover,
+.admin-react-dialog::-webkit-scrollbar-thumb:hover,
+.admin-react-dialog *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--app-accent) 62%, transparent);
+}
+
+.admin-react-shell .sidebar-nav {
+    -ms-overflow-style: auto;
+    scrollbar-width: thin;
+}
+
+.admin-react-shell .sidebar-nav::-webkit-scrollbar {
+    display: block;
+}
+
+/* The data workspace stays inside the available column. Auxiliary metadata
+   yields at narrow widths instead of forcing the entire page sideways. */
+.admin-data-panel .admin-data-workspace {
+    grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
+    gap: .7rem;
+}
+
+.admin-data-panel .admin-data-detail,
+.admin-data-panel .admin-data-table-wrap {
+    min-width: 0;
+}
+
+.admin-data-panel .admin-data-table-wrap {
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.admin-data-panel .admin-data-table {
+    width: 100%;
+    min-width: 0 !important;
+    table-layout: fixed;
+}
+
+.admin-data-panel .admin-data-table th,
+.admin-data-panel .admin-data-table td {
+    min-width: 0;
+    padding: .48rem .4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-data-panel .admin-data-table thead th:nth-child(1),
+.admin-data-panel .admin-data-table tbody td:nth-child(1) { width: 3%; }
+.admin-data-panel .admin-data-table thead th:nth-child(2),
+.admin-data-panel .admin-data-table tbody td:nth-child(2) { width: 5%; }
+.admin-data-panel .admin-data-table thead th:nth-child(3),
+.admin-data-panel .admin-data-table tbody th:nth-child(3) { width: 30%; }
+.admin-data-panel .admin-data-table thead th:nth-child(4),
+.admin-data-panel .admin-data-table tbody td:nth-child(4) { width: 18%; }
+.admin-data-panel .admin-data-table thead th:nth-child(5),
+.admin-data-panel .admin-data-table tbody td:nth-child(5) { width: 14%; }
+.admin-data-panel .admin-data-table thead th:nth-child(6),
+.admin-data-panel .admin-data-table tbody td:nth-child(6) { width: 7%; }
+.admin-data-panel .admin-data-table thead th:nth-child(7),
+.admin-data-panel .admin-data-table tbody td:nth-child(7) { width: 8%; }
+.admin-data-panel .admin-data-table thead th:nth-child(8),
+.admin-data-panel .admin-data-table tbody td:nth-child(8) { width: 7%; }
+.admin-data-panel .admin-data-table thead th:nth-child(9),
+.admin-data-panel .admin-data-table tbody td:nth-child(9) { width: 8%; }
+
+.admin-data-panel .admin-data-table .admin-data-song-cell {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: .5rem;
+    white-space: normal;
+}
+
+.admin-data-panel .admin-data-table .admin-data-song-cell img {
+    flex: 0 0 2.35rem;
+    width: 2.35rem;
+    height: 2.35rem;
+}
+
+.admin-data-panel .admin-data-table .admin-data-song-cell span {
+    min-width: 0;
+}
+
+.admin-data-panel .admin-data-table .admin-data-song-cell strong,
+.admin-data-panel .admin-data-table .admin-data-song-cell small {
+    max-width: 100%;
+}
+
+.admin-data-panel .admin-data-table .admin-react-row-actions {
+    display: table-cell;
+    text-align: center;
+}
+
+.admin-data-panel .admin-data-table .admin-react-button-compact {
+    width: 2rem;
+    min-width: 2rem;
+    padding-inline: 0;
+}
+
+/* Snapshot actions share one grid, so the user selector, file pickers and
+   destructive actions line up without oversized header rows. */
+.admin-snapshot-toolbar {
+    display: grid;
+    grid-template-columns: minmax(8rem, .7fr) minmax(13rem, 1.2fr) auto minmax(13rem, 1.2fr) auto;
+    align-items: center;
+    width: 100%;
+    gap: .45rem;
+}
+
+.admin-snapshot-user-field,
+.admin-snapshot-upload {
+    min-width: 0;
+}
+
+.admin-snapshot-user-field {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+}
+
+.admin-snapshot-user-field .admin-react-select {
+    min-width: 0;
+}
+
+.admin-snapshot-upload {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .4rem;
+}
+
+.admin-snapshot-action {
+    white-space: nowrap;
+}
+
+.admin-react-file-picker {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+    min-height: 2.5rem;
+    padding: .45rem .65rem;
+    overflow: hidden;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface-solid);
+    color: var(--app-text-muted);
+    cursor: pointer;
+    font-size: .76rem;
+}
+
+.admin-react-file-picker:hover,
+.admin-react-file-picker:focus-within {
+    border-color: var(--app-accent);
+    color: var(--app-text);
+}
+
+.admin-react-file-picker > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-react-file-picker > .fas {
+    flex: 0 0 auto;
+    color: var(--app-accent);
+}
+
+.admin-react-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+@media (max-width: 1080px) {
+    .admin-snapshot-toolbar {
+        grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 1.4fr) auto;
+    }
+
+    .admin-snapshot-toolbar > .admin-snapshot-upload:nth-of-type(2) {
+        grid-column: 1 / span 2;
+    }
+}
+
+@media (max-width: 820px) {
+    .admin-data-panel .admin-data-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-data-panel .admin-data-detail {
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .admin-snapshot-toolbar {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .admin-snapshot-user-field,
+    .admin-snapshot-upload,
+    .admin-snapshot-action {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 680px) {
+    .admin-data-panel .admin-data-table th:nth-child(5),
+    .admin-data-panel .admin-data-table td:nth-child(5),
+    .admin-data-panel .admin-data-table th:nth-child(7),
+    .admin-data-panel .admin-data-table td:nth-child(7),
+    .admin-data-panel .admin-data-table th:nth-child(8),
+    .admin-data-panel .admin-data-table td:nth-child(8) {
+        display: none;
+    }
+
+    .admin-data-panel .admin-data-table thead th:nth-child(3),
+    .admin-data-panel .admin-data-table tbody th:nth-child(3) { width: 43%; }
+    .admin-data-panel .admin-data-table thead th:nth-child(4),
+    .admin-data-panel .admin-data-table tbody td:nth-child(4) { width: 25%; }
+    .admin-data-panel .admin-data-table thead th:nth-child(6),
+    .admin-data-panel .admin-data-table tbody td:nth-child(6) { width: 10%; }
+    .admin-data-panel .admin-data-table thead th:nth-child(9),
+    .admin-data-panel .admin-data-table tbody td:nth-child(9) { width: 9%; }
+
+    .admin-snapshot-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-snapshot-user-field,
+    .admin-snapshot-upload,
+    .admin-snapshot-action {
+        grid-column: auto;
+    }
 }

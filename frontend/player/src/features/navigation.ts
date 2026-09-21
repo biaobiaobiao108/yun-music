@@ -9,8 +9,8 @@ import {
 } from './view_transitions';
 import type { PlayerHistoryMode, PlayerHistoryPayload } from './player_history';
 
-export const PLAYER_VIEW_ORDER = ['search', 'songlist', 'leaderboard', 'localmusic', 'favorites', 'settings', 'about'];
-export const PLAYER_MAIN_VIEW_SELECTOR = '#view-search, #view-songlist, #view-leaderboard, #view-localmusic, #view-favorites, #view-settings, #view-about';
+export const PLAYER_VIEW_ORDER = ['search', 'songlist', 'leaderboard', 'localmusic', 'favorites', 'settings'];
+export const PLAYER_MAIN_VIEW_SELECTOR = '#view-search, #view-songlist, #view-leaderboard, #view-localmusic, #view-favorites, #view-settings';
 export const PLAYER_VIEW_MOTION_DURATION = 320;
 
 export type NavigationOptions = {
@@ -85,7 +85,6 @@ export type NavigationContext = {
     ensureLeaderboardLoaded: () => Promise<void>;
     ensureLocalMusicLoaded: () => Promise<void>;
     showError: (msg: string) => void;
-    loadAboutContent: () => void;
     toggleBatchMode?: () => void;
     clearPendingTimeouts?: () => void;
 };
@@ -244,12 +243,6 @@ export function createTabSwitcher(context: NavigationContext) {
         if (tabId === 'settings') {
             const pageTitle = document.getElementById('page-title');
             if (pageTitle) pageTitle.innerText = '设置';
-        }
-
-        if (tabId === 'about') {
-            const pageTitle = document.getElementById('page-title');
-            if (pageTitle) pageTitle.innerText = '关于';
-            context.loadAboutContent();
         }
 
         if ((window as any).batchMode && typeof context.toggleBatchMode === 'function') {

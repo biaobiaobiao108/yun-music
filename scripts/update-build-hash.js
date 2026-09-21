@@ -32,9 +32,9 @@ async function getDirectoryHash(dir, exclude = [], extensions = []) {
 
 const targetDir = path.resolve(__dirname, '../');
 
-// We exclude config.js/about.md itself to avoid infinite hash changes when injecting the hash.
+// We exclude config.js itself to avoid infinite hash changes when injecting the hash.
 // Also ignore logs, data, server (dist), node_modules, .git.
-const publicHash = await getDirectoryHash(path.join(targetDir, 'public'), ['js/config.js', 'about.md', 'music/about.md', 'music/bin'], []);
+const publicHash = await getDirectoryHash(path.join(targetDir, 'public'), ['js/config.js', 'music/bin'], []);
 const srcHash = await getDirectoryHash(path.join(targetDir, 'src'), [], []);
 
 const finalHash = new Bun.CryptoHasher('md5').update(publicHash + srcHash).digest('hex').substring(0, 7);

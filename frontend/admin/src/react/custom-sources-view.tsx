@@ -151,7 +151,7 @@ export function CustomSourcesView() {
         </form>
         <form className="admin-custom-source-form" onSubmit={uploadSource}>
           <div><strong>上传脚本</strong><small>选择 .js 或 .json 文件，目标为{ownerLabel(sourceOwner)}</small></div>
-          <div className="admin-custom-source-input-row"><input type="file" accept=".js,.json,application/javascript,application/json" onChange={event => setFile(event.target.files?.[0] ?? null)} aria-label="选择音源脚本" /><Button variant="primary" type="submit" disabled={!file || action === 'upload'}>{action === 'upload' ? '上传中…' : '上传'}</Button></div>
+          <div className="admin-custom-source-input-row"><label className="admin-react-file-picker"><Icon name="file-code" /><span title={file?.name}>{file?.name ?? '选择脚本文件'}</span><input className="admin-react-file-input" type="file" accept=".js,.json,application/javascript,application/json" onChange={event => setFile(event.target.files?.[0] ?? null)} aria-label="选择音源脚本" /></label><Button variant="primary" type="submit" disabled={!file || action === 'upload'}>{action === 'upload' ? '上传中…' : '上传'}</Button></div>
         </form>
       </div>
     </Panel>

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { adminApi, login, logout, verifySession, type AdminConfig, type AdminCustomSource, type AdminData, type AdminStatus, type AdminUser, type CustomSourceOwner, type Snapshot, type StorageItem } from './api'
 
-export type AdminView = 'dashboard' | 'users' | 'storage' | 'data' | 'config' | 'logs' | 'snapshots' | 'sources' | 'about'
+export type AdminView = 'dashboard' | 'users' | 'storage' | 'data' | 'config' | 'logs' | 'snapshots' | 'sources'
 
 type AdminState = {
   authenticated: boolean

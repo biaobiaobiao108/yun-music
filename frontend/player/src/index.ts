@@ -12,14 +12,12 @@ import { initAccessibleOverlays } from './accessible_overlays';
 import {
     ensureLeaderboardLoaded,
     ensureLocalMusicLoaded,
-    ensureMarkedLoaded,
     ensureSoundEffectsLoaded,
     ensureVisualizerLoaded,
     toggleSoundEffects,
 } from './player_runtime';
 import {
     escapeHtmlText,
-    renderSafeMarkdown,
     safeImageUrl,
     safeInlineJson,
     safeInlineString,
@@ -1328,7 +1326,6 @@ const switchTab = createTabSwitcher({
     ensureLeaderboardLoaded: () => ensureLeaderboardLoaded(),
     ensureLocalMusicLoaded: () => ensureLocalMusicLoaded(),
     showError: (msg) => showError(msg),
-    loadAboutContent: () => loadAboutContent(),
     toggleBatchMode: () => toggleBatchMode(),
     clearPendingTimeouts: () => {
         if (toggleLyricsBtnTimeout) clearTimeout(toggleLyricsBtnTimeout);
@@ -1358,31 +1355,6 @@ function exitListSecondaryModes() {
         }
     }
     if (window.libraryBatchMode) clearLibraryBatchContext();
-}
-
-// Load About Content
-async function loadAboutContent() {
-    const aboutContainer = document.getElementById('about-content');
-    if (!aboutContainer) return;
-
-    try {
-        const response = await fetch('/music/about.md');
-        if (!response.ok) throw new Error('Failed to load about.md');
-        const text = await response.text();
-
-        // Render Markdown. The parser is only needed when the About tab is opened.
-        await ensureMarkedLoaded().catch(() => undefined);
-        if ((window as any).marked) {
-            // Replace the build hash placeholder; application version is intentionally not shown in the UI.
-            const buildHash = (window.CONFIG && window.CONFIG.buildHash) || 'unknown';
-            const content = text.replace(/{{buildHash}}/g, buildHash);
-            renderSafeMarkdown(aboutContainer, content);
-        } else aboutContainer.innerText = text;
-        aboutContainer.classList.remove('animate-pulse');
-    } catch (e) {
-        console.error('Failed to load about content:', e);
-        aboutContainer.innerHTML = '<p class="text-red-500">加载关于页面失败，请稍后重试。</p>';
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

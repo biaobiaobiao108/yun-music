@@ -1,5 +1,4 @@
 import type { AdminFeatureContext } from '../types';
-import { renderSafeMarkdown } from '../utils';
 
 export function initShellFeature(context: AdminFeatureContext) {
     const app = context.app;
@@ -324,8 +323,7 @@ export function initShellFeature(context: AdminFeatureContext) {
             data: '数据查看',
             config: '系统配置',
             logs: '系统日志',
-            snapshots: '快照管理',
-            about: '关于'
+            snapshots: '快照管理'
         };
         document.getElementById('page-title').textContent = titles[viewName] || viewName;
 
@@ -354,9 +352,6 @@ export function initShellFeature(context: AdminFeatureContext) {
             case 'snapshots':
                 app.loadSnapshots();
                 break;
-            case 'about':
-                app.loadAbout();
-                break;
             case 'music':
                 window.location.href = (window.CONFIG && window.CONFIG['player.path']) || '/music';
                 return;
@@ -375,25 +370,6 @@ export function initShellFeature(context: AdminFeatureContext) {
             case 'edit-config':
                 app.switchView('config');
                 break;
-        }
-    }
-
-    async function loadAbout() {
-        const container = document.getElementById('about-content');
-        if (!container) return;
-
-        try {
-            const response = await fetch('/about.md');
-            if (!response.ok) throw new Error('Failed to load about.md');
-            const text = await response.text();
-
-            // Replace the build hash placeholder; application version is intentionally not shown in the UI.
-            const buildHash = (window.CONFIG && window.CONFIG.buildHash) || 'unknown';
-            const content = text.replace(/{{buildHash}}/g, buildHash);
-            renderSafeMarkdown(container, content);
-        } catch (e) {
-            console.error('Failed to load about content:', e);
-            container.innerHTML = '<p style="color: var(--accent-error); text-align: center;">加载关于页面失败</p>';
         }
     }
 
@@ -417,7 +393,6 @@ export function initShellFeature(context: AdminFeatureContext) {
         showApp,
         switchView,
         handleQuickAction,
-        loadAbout,
         initPlayerLink,
         closeModal,
     };

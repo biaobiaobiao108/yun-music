@@ -539,8 +539,7 @@ html, body {
     #view-leaderboard,
     #view-favorites,
     #view-localmusic,
-    #view-settings,
-    #view-about {
+    #view-settings {
         min-inline-size: 0;
         max-inline-size: 100%;
     }
@@ -1230,7 +1229,6 @@ html, body {
 .react-audio-settings output { color: var(--c-600); font-variant-numeric: tabular-nums; }
 .react-account-state { display: grid; justify-items: start; gap: .7rem; color: var(--text-muted); }
 .react-account-state > i { color: var(--c-500); font-size: 2rem; }
-.react-about-content { max-width: 80ch; white-space: pre-wrap; line-height: 1.75; color: var(--text-muted); font: inherit; }
 .react-dialog { width: min(560px, calc(100% - 2rem)); max-height: min(720px, calc(100dvh - 2rem)); padding: 0; border: 0; border-radius: 1rem; background: var(--bg-panel); color: var(--text-main); box-shadow: 0 24px 80px rgba(0,0,0,.3); }
 .react-dialog::backdrop { background: rgba(15,23,42,.58); backdrop-filter: blur(4px); }
 .react-dialog-content > header, .react-drawer-header { display: flex; align-items: center; justify-content: space-between; gap: .7rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--border-main); }
@@ -2618,8 +2616,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     #view-songlist,
     #view-leaderboard,
     #view-localmusic,
-    #view-settings,
-    #view-about {
+    #view-settings {
         view-transition-name: player-view;
     }
 
@@ -10107,4 +10104,83 @@ textarea:focus-visible {
     display: none;
     width: 0;
     height: 0;
+}
+
+/* The sidebar is a scroll owner, but its scrollbar is intentionally invisible
+   so the floating navigation island stays visually quiet. Long playlists now
+   expand into the nav flow instead of creating a second clipped scroll area. */
+#main-sidebar.react-sidebar .react-sidebar-nav {
+    overflow-y: auto;
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+}
+
+#main-sidebar.react-sidebar .react-sidebar-nav::-webkit-scrollbar,
+#main-sidebar.react-sidebar .react-sidebar-playlists::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+#main-sidebar.react-sidebar .react-sidebar-playlists {
+    max-block-size: none;
+    overflow: visible;
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+}
+
+/* Keep the local-library search as one stable top-bar-style control. The
+   directory selector and refresh action occupy their own tracks, so the
+   search never gets squeezed into an uneven middle fragment. */
+.react-local-toolbar {
+    display: grid;
+    grid-template-columns: minmax(9rem, auto) minmax(14rem, 1fr) auto;
+    align-items: end;
+    gap: .65rem;
+}
+
+.react-local-toolbar .react-toolbar-field,
+.react-local-toolbar .react-local-search,
+.react-local-toolbar > .react-player-button {
+    min-width: 0;
+}
+
+.react-local-toolbar .react-local-search.react-global-search {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    align-self: end;
+}
+
+.react-local-toolbar > .react-player-button {
+    min-height: 2.75rem;
+    white-space: nowrap;
+}
+
+.react-header-selection-count {
+    align-self: center;
+    color: var(--app-text-muted);
+    font-size: .76rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+    .react-local-toolbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .react-local-toolbar .react-local-search.react-global-search {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    .react-local-toolbar .react-toolbar-field {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .react-local-toolbar > .react-player-button {
+        grid-column: 2;
+        grid-row: 2;
+    }
 }

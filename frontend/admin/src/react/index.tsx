@@ -4,7 +4,7 @@ import { runtimeConfig } from '../../../shared/src/runtime'
 import { applyThemePreferences, readThemePreferences, updateThemePreferences, type Appearance } from '../../../shared/src/theme'
 import { Button, Icon, Loading } from './components'
 import { useAdminStore, type AdminView } from './store'
-import { AboutView, ConfigView, DashboardView, DataView, LogsView, SnapshotsView, StorageView, UsersView } from './views'
+import { ConfigView, DashboardView, DataView, LogsView, SnapshotsView, StorageView, UsersView } from './views'
 import { CustomSourcesView } from './custom-sources-view'
 
 const NAV_ITEMS: { id: AdminView; label: string; icon: string }[] = [
@@ -16,7 +16,6 @@ const NAV_ITEMS: { id: AdminView; label: string; icon: string }[] = [
   { id: 'logs', label: '系统日志', icon: 'file-lines' },
   { id: 'snapshots', label: '快照管理', icon: 'clock-rotate-left' },
   { id: 'sources', label: '自定义源', icon: 'plug' },
-  { id: 'about', label: '关于', icon: 'circle-info' },
 ]
 
 function LoginGate() {
@@ -38,7 +37,6 @@ function viewFor(view: AdminView) {
     case 'logs': return <LogsView />
     case 'snapshots': return <SnapshotsView />
     case 'sources': return <CustomSourcesView />
-    case 'about': return <AboutView />
     default: return <DashboardView />
   }
 }

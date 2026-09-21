@@ -68,7 +68,6 @@ export interface AdminApp {
     showApp: AdminMethod;
     switchView: AdminMethod;
     handleQuickAction: AdminMethod;
-    loadAbout: AdminMethod;
     initPlayerLink: AdminMethod;
     closeModal: AdminMethod;
     loadDashboard: AdminMethod;

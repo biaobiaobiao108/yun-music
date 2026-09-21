@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
 import { playerApi, type CacheTask } from './api'
 import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
-import { AboutView, AddToListDialog, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchDetailView, SearchView, SettingsView, UserLoginDialog } from './views'
+import { AddToListDialog, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchDetailView, SearchView, SettingsView, UserLoginDialog } from './views'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
 import { songAlbum, songArtist, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
@@ -52,7 +52,6 @@ const MORE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'songlist', label: '歌单广场', icon: 'list' },
   { id: 'leaderboard', label: '排行榜', icon: 'chart-line' },
   { id: 'settings', label: '设置', icon: 'gear' },
-  { id: 'about', label: '关于', icon: 'circle-info' },
 ]
 
 const ALL_NAV_ITEMS = [...NAV_ITEMS, ...MORE_NAV_ITEMS, { id: 'localmusic' as PlayerTab, label: '本地音乐', icon: 'folder-open' }]
@@ -71,7 +70,6 @@ function PlayerView({ tab, detail }: { tab: PlayerTab; detail: PlayerDetail | nu
       case 'library': return <LocalMusicView />
       case 'localmusic': return <LocalMusicView />
       case 'settings': return <SettingsView />
-      case 'about': return <AboutView />
       default: return <SearchView detail={detail?.page === 'search-detail' ? detail : null} />
     }
   })()
@@ -104,7 +102,7 @@ function Sidebar() {
   const sidebarOpen = usePlayerUiStore(state => state.sidebarOpen)
   const closeSidebar = usePlayerUiStore(state => state.closeSidebar)
   const userLists = useLibraryStore(selectUserLists)
-  return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><nav className="react-sidebar-nav"><p className="react-sidebar-label">我的空间</p>{NAV_ITEMS.map(item => { const isActive = item.id === 'favorites' ? tab === 'favorites' && favoriteListId === 'love' : tab === item.id; return <button type="button" key={item.id} className={`netease-nav-item ${isActive ? 'active-tab' : ''}`} aria-current={isActive ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button> })}<div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">歌单</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map(list => { const id = String(list.id); const isActive = tab === 'favorites' && favoriteListId === id; return <button type="button" className={`react-sidebar-playlist ${isActive ? 'is-active' : ''}`} aria-current={isActive ? 'page' : undefined} key={id} onClick={() => openFavoriteList(id)}><Icon name="music" /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button> })}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">更多功能</p>{MORE_NAV_ITEMS.map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav></aside></>
+  return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><nav className="react-sidebar-nav"><p className="react-sidebar-label">我的空间</p>{NAV_ITEMS.map(item => { const isActive = item.id === 'favorites' ? tab === 'favorites' && favoriteListId === 'love' : tab === item.id; return <button type="button" key={item.id} className={`netease-nav-item ${isActive ? 'active-tab' : ''}`} aria-current={isActive ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button> })}<div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">歌单</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map((list, index) => { const id = String(list.id); const isActive = tab === 'favorites' && favoriteListId === id; return <button type="button" className={`react-sidebar-playlist ${isActive ? 'is-active' : ''}`} aria-current={isActive ? 'page' : undefined} key={`${id}-${index}`} onClick={() => openFavoriteList(id)}><Icon name="music" /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button> })}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">更多功能</p>{MORE_NAV_ITEMS.map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav></aside></>
 }
 
 function TopBar() {

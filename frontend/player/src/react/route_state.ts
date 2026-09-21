@@ -4,7 +4,7 @@ export type PlayerNavigation = { tab: PlayerTab; detail: PlayerDetail | null; li
 
 export const VALID_PLAYER_TABS: PlayerTab[] = [
   'home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library',
-  'search', 'songlist', 'leaderboard', 'localmusic', 'settings', 'about',
+  'search', 'songlist', 'leaderboard', 'localmusic', 'settings',
 ]
 
 export function parsePlayerHash(hash: string): { tab: PlayerTab; listId: string } {

@@ -71,7 +71,7 @@ export function HomeView() {
 
 export function RecentView() {
   const recent = useRecentStore(state => state.items)
-  return <ViewFrame title="最近" subtitle="最近真正开始播放的歌曲"><section className="react-content-card t-bg-panel react-recent-view"><div className="react-section-heading"><div><h2>播放历史</h2><p>保留最近 50 首歌曲</p></div></div><SongList songs={recent} empty="还没有播放历史，去搜索一首歌吧" /></section></ViewFrame>
+  return <ViewFrame title="最近" subtitle="最近真正开始播放的歌曲"><section className="react-content-card t-bg-panel react-recent-view"><SongList songs={recent} empty="还没有播放历史，去搜索一首歌吧" /></section></ViewFrame>
 }
 
 function MediaGrid({ kind }: { kind: 'album' | 'artist' }) {

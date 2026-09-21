@@ -72,9 +72,6 @@ export function initShortcutsFeature(context: ShortcutsFeatureContext) {
             case 'Digit5':
                 if (e.altKey) context.switchTab('settings');
                 break;
-            case 'Digit6':
-                if (e.altKey) context.switchTab('about');
-                break;
             case 'KeyF':
                 context.updateSetting('showFooterVisualizer', !settings.showFooterVisualizer);
                 break;

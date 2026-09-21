@@ -160,7 +160,7 @@ export function songFormatValue(song: Song | null | undefined): unknown {
     ?? data.format ?? data.type ?? data.ext ?? data.quality
 }
 
-export type PlayerTab = 'home' | 'favorites' | 'recent' | 'albums' | 'artists' | 'genres' | 'library' | 'search' | 'songlist' | 'leaderboard' | 'localmusic' | 'settings' | 'about'
+export type PlayerTab = 'home' | 'favorites' | 'recent' | 'albums' | 'artists' | 'genres' | 'library' | 'search' | 'songlist' | 'leaderboard' | 'localmusic' | 'settings'
 export type PlayerDetail = { page: 'search-detail' | 'songlist-detail'; kind: 'artist' | 'album' | 'playlist'; id: string; source: string; name?: string; image?: string }
 export type PlayMode = 'list' | 'single' | 'random'
 export type DrawerName = 'queue' | 'cache' | 'download' | null
