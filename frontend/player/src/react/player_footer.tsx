@@ -143,7 +143,9 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
             if (item.songInfo && sameSong(item.songInfo, currentSong)) return true
             return String(item.songmid ?? '') !== '' && String(item.songmid ?? '') === String(currentSong.songmid ?? currentSong.id ?? '') && String(item.source || '') === String(currentSong.source || '')
           })
-          const match = matches.find(item => String(item.folder) === 'music') ?? matches.find(item => String(item.folder) === 'cache')
+          // Prefer a private cache entry when both folders contain the same
+          // song so the server can finish the move and clean old duplicates.
+          const match = matches.find(item => String(item.folder) === 'cache') ?? matches.find(item => String(item.folder) === 'music')
           if (match) cachedItem = { filename: String(match.filename), folder: String(match.folder || 'cache') as 'cache' | 'music', username: String(match.rawUsername || match.username || userName || '_open').trim() || '_open' }
         } catch {
           // A cache index read is an optimization. The already-resolved source

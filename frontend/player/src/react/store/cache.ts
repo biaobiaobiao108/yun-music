@@ -11,6 +11,7 @@ export type CacheState = {
   loadedAt: number
   load: (options?: { force?: boolean }) => Promise<void>
   enqueue: (song: Song, quality?: string, resolvedUrl?: string) => Promise<void>
+  enqueueDownloads: (songs: Song[], quality?: string) => Promise<number>
   remove: (id: string) => Promise<void>
   removeCompleted: () => Promise<void>
   reset: () => void
@@ -51,6 +52,33 @@ export const useCacheStore = create<CacheState>((set, get) => ({
     const key = songKey(song)
     await playerApi.queueTasks([{ id: key, songInfo: song, quality, ...(resolvedUrl ? { resolvedUrl } : {}) }])
     await get().load({ force: true })
+  },
+  enqueueDownloads: async (songs, quality = 'flac') => {
+    const uniqueSongs: Song[] = []
+    const seen = new Set<string>()
+    for (const song of songs) {
+      const key = songKey(song)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      uniqueSongs.push(song)
+    }
+    if (!uniqueSongs.length) return 0
+
+    // The server accepts at most 100 tasks per request. Chunking keeps large
+    // custom playlists supported while preserving one deduplicated queue.
+    for (let offset = 0; offset < uniqueSongs.length; offset += 100) {
+      const tasks = uniqueSongs.slice(offset, offset + 100).map(song => ({
+        id: songKey(song),
+        songInfo: song,
+        quality,
+        enableOnlyDownloadMode: true,
+        cacheLyric: true,
+        embedLyric: true,
+      }))
+      await playerApi.queueTasks(tasks)
+    }
+    await get().load({ force: true })
+    return uniqueSongs.length
   },
   remove: async id => {
     await playerApi.removeQueue(id)

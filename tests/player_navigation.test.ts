@@ -221,6 +221,22 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain('默认列表')
   })
 
+  it('supports single or multi-selection downloads for favorites and custom playlists', () => {
+    const api = read('frontend/player/src/react/api.ts')
+    const cacheStore = read('frontend/player/src/react/store/cache.ts')
+    const views = read('frontend/player/src/react/views.tsx')
+    const components = read('frontend/player/src/react/components.tsx')
+    expect(api).toContain("enableOnlyDownloadMode: true")
+    expect(cacheStore).toContain('enqueueDownloads: (songs: Song[], quality?: string) => Promise<number>')
+    expect(cacheStore).toContain('for (let offset = 0; offset < uniqueSongs.length; offset += 100)')
+    expect(cacheStore).toContain('enableOnlyDownloadMode: true')
+    expect(views).toContain('const downloadBatch = async () =>')
+    expect(views).toContain('批量下载')
+    expect(views).toContain('enqueueDownloads(selectedListSongs, preferredQuality)')
+    expect(components).toContain('checked={selected}')
+    expect(components).toContain('aria-label={`选择 ${songTitle(song)}`}')
+  })
+
   it('renders one visible heading for playlist pages while retaining the browser title', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
     const views = read('frontend/player/src/react/views.tsx')

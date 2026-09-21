@@ -797,6 +797,100 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('should move a private cache into the download folder without duplicating audio', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-move-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'move-user'
+      const cacheDir = fileCache.getCacheDir(username, false)
+      const cacheFile = path.join(cacheDir, 'move-song.mp3')
+      fs.writeFileSync(cacheFile, Buffer.from('private-audio'))
+      const stats = fs.statSync(cacheFile)
+      fileCache.indexManager.update(username, {
+        id: 'wy_move-song',
+        songmid: 'move-song',
+        name: 'Move Song',
+        singer: 'Move Singer',
+        albumName: 'Move Album',
+        source: 'wy',
+        quality: '128k',
+        filename: 'move-song.mp3',
+        folder: 'cache',
+        mtime: stats.mtimeMs,
+        size: stats.size,
+        ext: 'mp3',
+      }, 'cache')
+
+      await fileCache.downloadAndCache({
+        id: 'move-song',
+        songmid: 'move-song',
+        name: 'Move Song',
+        singer: 'Move Singer',
+        albumName: 'Move Album',
+        source: 'wy',
+      }, 'https://example.com/move-song.mp3', '128k', username, undefined, true)
+
+      expect(fs.existsSync(cacheFile)).toBe(false)
+      expect(fs.existsSync(path.join(fileCache.getCacheDir(username, true), 'move-song.mp3'))).toBe(true)
+      expect(fileCache.indexManager.get(username, 'wy_move-song', 'cache', '128k', true, fileCache.CACHE_ROOTS.DATA)).toBeUndefined()
+      expect(fileCache.indexManager.get(username, 'wy_move-song', 'music', '128k', true, fileCache.CACHE_ROOTS.DATA)?.folder).toBe('music')
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('should clean an old private cache duplicate when the download already exists', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-deduplicate-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'deduplicate-user'
+      const cacheDir = fileCache.getCacheDir(username, false)
+      const musicDir = fileCache.getCacheDir(username, true)
+      const filename = 'same-song.mp3'
+      fs.writeFileSync(path.join(cacheDir, filename), Buffer.from('old-cache'))
+      fs.writeFileSync(path.join(musicDir, filename), Buffer.from('downloaded'))
+      const cacheStats = fs.statSync(path.join(cacheDir, filename))
+      const musicStats = fs.statSync(path.join(musicDir, filename))
+      const item = {
+        id: 'wy_same-song', songmid: 'same-song', name: 'Same Song', singer: 'Same Singer',
+        albumName: 'Same Album', source: 'wy', quality: 'flac', filename, ext: 'mp3',
+        folder: 'cache' as const, mtime: cacheStats.mtimeMs, size: cacheStats.size,
+      }
+      fileCache.indexManager.update(username, item, 'cache')
+      fileCache.indexManager.update(username, { ...item, folder: 'music', mtime: musicStats.mtimeMs, size: musicStats.size }, 'music')
+
+      const result = await fileCache.switchFolder([filename], username, 'music')
+
+      expect(result.successCount).toBe(1)
+      expect(fs.existsSync(path.join(cacheDir, filename))).toBe(false)
+      expect(fs.readFileSync(path.join(musicDir, filename), 'utf8')).toBe('downloaded')
+      expect(fileCache.indexManager.get(username, 'wy_same-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.DATA)).toBeUndefined()
+      expect(fileCache.indexManager.get(username, 'wy_same-song', 'music', 'flac', true, fileCache.CACHE_ROOTS.DATA)?.folder).toBe('music')
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should clean up only cache directory and preserve music directory when limit exceeded', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-cleanup-'))
     const previousLx = (global as any).lx

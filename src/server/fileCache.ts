@@ -1983,6 +1983,8 @@ type CacheCheckOptions = {
     // progress reporting. Callers that already have a user-scoped task state
     // can opt out of using it as a cache availability gate.
     ignoreActiveProgress?: boolean
+    /** Prefer a target folder when both cache and music contain the song. */
+    preferredFolder?: CacheFolder
 }
 
 export const checkCache = (songInfo: any, username?: string, isLyricCheck: boolean = false, options: CacheCheckOptions = {}) => {
@@ -2000,7 +2002,9 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
             // 1. Search by exact ID and Quality (Primary Check)
             // exactQuality=true 时：精确匹配，不允许 fallback 到不同音质
             const useExact = !!songInfo.exactQuality
-            const folderTypes: Array<'cache' | 'music'> = ['cache', 'music']
+            const folderTypes: Array<'cache' | 'music'> = options.preferredFolder
+                ? [options.preferredFolder, options.preferredFolder === 'cache' ? 'music' : 'cache']
+                : ['cache', 'music']
             for (const location of getCacheLocations()) {
                 for (const folder of folderTypes) {
                     for (const candidateId of ids) {
@@ -2509,7 +2513,12 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
 
     // This worker is already serialized by the user-scoped download queue;
     // do not let another user's process-global progress hide a valid target.
-    const result = checkCache({ ...songInfo, quality, exactQuality: true }, username, false, { ignoreActiveProgress: true })
+    const result = checkCache(
+        { ...songInfo, quality, exactQuality: true },
+        username,
+        false,
+        { ignoreActiveProgress: true, preferredFolder: isOnlyDownload ? 'music' : undefined },
+    )
     if (result.exists && !result.isCollision) {
         const targetFolder: 'cache' | 'music' = isOnlyDownload ? 'music' : 'cache'
         if (result.folder === targetFolder && result.path) {
@@ -2527,6 +2536,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     result.location,
                 )
             })
+            if (isOnlyDownload) removeDuplicateCacheForSong(songInfo, quality || result.quality, username)
             console.log(`[FileCache] Song already exists in ${targetFolder}, skipping download: ${result.filename}`)
             // 通知前端轮询：目标目录文件已存在，视为立即完成
             setCacheProgress(songKey, { progress: 100, status: 'exists' })
@@ -2534,93 +2544,38 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
         }
 
         if (isOnlyDownload && result.folder === 'cache' && result.path) {
-            const sourcePath = result.path
-            return await withCachePostProcess(signal, 'copy cache', async () => {
-            const requestedOrCachedQuality = quality || result.quality || 'unknown'
-            const inspection = inspectAudioFile(sourcePath, requestedOrCachedQuality)
-            const actualQuality = inspection.quality || requestedOrCachedQuality
-            const sourceExt = path.extname(result.filename || sourcePath) || '.mp3'
-            const ext = inspection.extension || sourceExt
-            const finalBaseName = getFileName(songInfo, actualQuality, isOnlyDownload, username)
-            const finalPath = path.join(dir, finalBaseName + ext)
-            if (!fs.existsSync(finalPath)) {
-                fs.copyFileSync(sourcePath, finalPath)
+            if (signal?.aborted) throw new Error('Aborted')
+            const promoted = await promoteCachedSongToMusic(songInfo, quality || result.quality, username)
+            if (promoted.successCount < 1) throw new Error('缓存文件尚未准备好，请稍后再试')
+
+            const musicResult = checkCache(
+                { ...songInfo, quality: quality || result.quality, exactQuality: true },
+                username,
+                false,
+                { ignoreActiveProgress: true, preferredFolder: 'music' },
+            )
+            const musicPath = musicResult.exists && !musicResult.isCollision ? musicResult.path : undefined
+            if (musicPath) {
+                await withCachePostProcess(signal, 'promote cache', async () => {
+                    await ensureCachedLyrics(songInfo, quality || musicResult.quality || result.quality, username, true, musicPath, 'music', shouldCacheLyric, shouldEmbedLyric)
+                    const normalizedUsername = normalizeCacheUsername(username)
+                    const existing = indexManager.getAll(normalizedUsername, 'music')
+                        .find(item => item.filename === musicResult.filename)
+                    if (existing) reconcileCacheItemFromDisk(
+                        normalizedUsername,
+                        'music',
+                        existing,
+                        musicPath,
+                        undefined,
+                        musicResult.location,
+                    )
+                })
             }
-
-            const metadata = extractSongMetadata(songInfo)
-            const id = metadata.id || String(songInfo.id || songInfo.songmid)
-            const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
-            const cachedItem = getIndexItemByFilename(result.filename, normalizedUsername)
-            const actualDownloadSource = cachedItem?.downloadSource || downloadSource
-            const actualSourceName = cachedItem?.sourceName || sourceName
-            const stat = fs.statSync(finalPath)
-            let hasCover = false
-            let hasEmbedLyric = false
-            let metadataWritable = false
-            const audioContainer = inspection.audioContainer
-            let tagger: any
-            try {
-                tagger = new (getMusicTagNative().MusicTagger)()
-                tagger.loadPath(finalPath)
-                hasCover = hasValidEmbeddedCover(tagger.pictures)
-                const lyricsInTag = tagger.lyrics
-                hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
-                metadataWritable = true
-            } catch (e) { }
-            finally {
-                try { tagger?.dispose() } catch { }
-            }
-
-            let coverType: CacheItem['coverType'] = hasCover ? 'embedded' : 'none'
-            if (!hasCover) {
-                const sourceCover = await getCacheCover(result.filename, normalizedUsername)
-                if (sourceCover?.data?.length && writeCoverCache(path.basename(finalPath), normalizedUsername, sourceCover.data, sourceCover.mime, stat)) {
-                    hasCover = true
-                    coverType = 'cached'
-                } else if (hasUsableRemoteCover(metadata.img)) {
-                    hasCover = true
-                    coverType = 'remote'
-                }
-            }
-
-            let lyricFilename: string | undefined
-            const sourceLyricPath = sourcePath.substring(0, sourcePath.length - sourceExt.length) + '.lrc'
-            if (shouldCacheLyric && fs.existsSync(sourceLyricPath)) {
-                const targetLyricPath = path.join(dir, finalBaseName + '.lrc')
-                fs.copyFileSync(sourceLyricPath, targetLyricPath)
-                lyricFilename = path.basename(targetLyricPath)
-            }
-
-            indexManager.update(normalizedUsername, {
-                id, songmid: id, name: metadata.name, singer: metadata.singer,
-                albumName: metadata.albumName, albumId: metadata.albumId, img: metadata.img,
-                interval: metadata.interval, source: metadata.source, requestedSource,
-                downloadSource: actualDownloadSource, sourceName: actualSourceName,
-                quality: actualQuality, filename: path.basename(finalPath),
-                folder: 'music', mtime: Date.now(), size: stat.size,
-                lyricFilename,
-                ext: ext.replace('.', ''),
-                hasCover,
-                coverType,
-                hasLyric: !!lyricFilename,
-                hasEmbedLyric,
-                audioContainer,
-                bitrate: inspection.bitrate,
-                sampleRate: inspection.sampleRate,
-                bitDepth: inspection.bitDepth,
-                metadataWritable,
-                metadataError: metadataWritable ? undefined : getMetadataUnsupportedMessage(audioContainer)
-            }, 'music')
-
-            await ensureCachedLyrics(songInfo, actualQuality, username, true, finalPath, 'music', shouldCacheLyric, shouldEmbedLyric)
-            const finalizedItem = indexManager.getAll(normalizedUsername, 'music')
-                .find(item => item.filename === path.basename(finalPath))
-            if (finalizedItem) reconcileCacheItemFromDisk(normalizedUsername, 'music', finalizedItem, finalPath)
-
-            console.log(`[FileCache] Copied cached song to music folder: ${path.basename(finalPath)}`)
-            setCacheProgress(songKey, { progress: 100, status: 'finished', total: stat.size, received: stat.size })
+            if (isOnlyDownload) removeDuplicateCacheForSong(songInfo, quality || musicResult.quality, username)
+            const stat = musicPath ? fs.statSync(musicPath) : undefined
+            console.log(`[FileCache] Promoted cached song to music folder: ${musicResult.filename || result.filename}`)
+            setCacheProgress(songKey, { progress: 100, status: 'finished', total: stat?.size || 0, received: stat?.size || 0 })
             return Promise.resolve()
-            })
         }
 
         console.log(`[FileCache] Song already exists in ${result.folder}, skipping download: ${result.filename}`)
@@ -3554,6 +3509,23 @@ export const switchFolder = async (filenames: string[], username: string | undef
 
                 // Check collision in target folder
                 if (fs.existsSync(targetPath)) {
+                    const targetItem = indexManager.getAll(normalizedUsername, targetFolder, sourceLocation)
+                        .find(entry => entry.filename === filename)
+                    const sameIndexedSong = targetItem &&
+                        targetItem.quality === item.quality &&
+                        (targetItem.id === item.id || normalizeSongId(targetItem) === normalizeSongId(item))
+                    if (sameIndexedSong) {
+                        // Older versions copied cache -> music. Once the
+                        // target is verified as the same song/quality, keep
+                        // the durable download and remove only the duplicate
+                        // private cache entry.
+                        const removedDuplicate = removeCacheFile(filename, normalizedUsername, sourceFolder, sourceLocation)
+                        if (removedDuplicate.deleted) {
+                            successCount++
+                            moved.push({ filename, from: sourceFolder, to: targetFolder })
+                            continue
+                        }
+                    }
                     console.log(`[FileCache] Move conflict: ${filename} already exists in ${targetFolder}, skipping.`)
                     failCount++
                     continue
@@ -3668,6 +3640,51 @@ export const promoteCacheFile = async (filename: string, sourceUsername: string 
     }
 
     return { successCount: 0, failCount: 1, moved: [] }
+}
+
+/**
+ * Promote the best matching cache entry for a song into the user's download
+ * folder. Private entries are moved; the shared _open cache is copied so one
+ * user's download cannot remove a file that another user may still play.
+ */
+export const promoteCachedSongToMusic = async (songInfo: any, quality: string | undefined, username: string | undefined) => {
+    const result = checkCache(
+        { ...songInfo, quality, exactQuality: true },
+        username,
+        false,
+        { ignoreActiveProgress: true, preferredFolder: 'music' },
+    )
+    if (!result.exists || result.isCollision || !result.filename) return { successCount: 0, failCount: 1, moved: [] }
+    if (result.folder === 'music') return { successCount: 1, failCount: 0, moved: [] }
+
+    const normalizedTarget = normalizeCacheUsername(username)
+    const sourceUsername = result.foundIn || normalizedTarget
+    if (sourceUsername === normalizedTarget) {
+        return switchFolder([result.filename], normalizedTarget, 'music')
+    }
+    return promoteCacheFile(result.filename, sourceUsername, normalizedTarget)
+}
+
+/** Remove a stale private cache copy after a durable music file is confirmed. */
+export const removeDuplicateCacheForSong = (songInfo: any, quality: string | undefined, username: string | undefined) => {
+    const normalizedUsername = normalizeCacheUsername(username)
+    const musicResult = checkCache(
+        { ...songInfo, quality, exactQuality: true },
+        username,
+        false,
+        { ignoreActiveProgress: true, preferredFolder: 'music' },
+    )
+    if (!musicResult.exists || musicResult.isCollision || musicResult.folder !== 'music') return false
+
+    const cacheResult = checkCache(
+        { ...songInfo, quality, exactQuality: true },
+        username,
+        false,
+        { ignoreActiveProgress: true, preferredFolder: 'cache' },
+    )
+    if (!cacheResult.exists || cacheResult.isCollision || cacheResult.folder !== 'cache' || !cacheResult.filename) return false
+    if (cacheResult.foundIn !== normalizedUsername) return false
+    return removeCacheFile(cacheResult.filename, normalizedUsername, 'cache', cacheResult.location).deleted
 }
 
 export const switchBaseLocation = async (filenames: string[], username: string | undefined) => {
