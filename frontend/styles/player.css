@@ -10153,3 +10153,47 @@ textarea:focus-visible {
         grid-template-columns: 1.7rem 2.2rem minmax(0, 1fr) 4rem 2.2rem;
     }
 }
+
+/* Batch selection uses the row highlight as its visible state. Keep the
+   native checkbox in the accessibility tree for keyboard and assistive
+   technology users, but remove its visual column from playlist rows. */
+.react-playlist-page .react-song-head.is-selectable > span:first-child {
+    display: none;
+}
+
+.react-playlist-page .react-song-row.is-selectable > .react-song-select {
+    display: contents;
+}
+
+.react-playlist-page .react-song-row.is-selectable > .react-song-select > input {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.react-playlist-page .react-song-head.is-selectable,
+.react-playlist-page .react-song-row.is-selectable {
+    grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem 5.5rem 4.2rem 3.5rem;
+}
+
+.react-playlist-page .react-song-table--without-file-metadata .react-song-head.is-selectable,
+.react-playlist-page .react-song-table--without-file-metadata .react-song-row.is-selectable {
+    grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem minmax(3.5rem, max-content);
+}
+
+.react-playlist-page .react-song-row.is-selectable:has(.react-song-select > input:focus-visible) {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+}
+
+@media (max-width: 760px) {
+    .react-playlist-page .react-song-row.is-selectable {
+        grid-template-columns: 2.2rem minmax(0, 1fr) 2.2rem 2.2rem 4rem;
+    }
+}

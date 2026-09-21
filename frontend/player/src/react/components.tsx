@@ -133,10 +133,17 @@ export function SongRow({ song, index, list, listId = 'love', compact = false, s
   const removeFromPlaylist = () => {
     void removeSong(listId, song).then(() => notify('已从歌单移除')).catch(error => notify(error instanceof Error ? error.message : '操作失败'))
   }
+  const handleMainClick = () => {
+    if (onSelect) {
+      onSelect(song)
+      return
+    }
+    playSong(song, list, index)
+  }
   return <li className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''}`}>
     {onSelect && <span className="react-song-select"><input type="checkbox" checked={selected} onChange={() => onSelect(song)} aria-label={`选择 ${songTitle(song)}`} /></span>}
     <span className="react-song-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-    <button type="button" className="react-song-main" onClick={() => playSong(song, list, index)}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button>
+    <button type="button" className="react-song-main" aria-pressed={onSelect ? selected : undefined} onClick={handleMainClick}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button>
     <span className="react-song-album" title={songAlbum(song)}>{songAlbum(song)}</span>
     <button type="button" className={`react-song-favorite ${isLoved ? 'is-loved' : ''}`} title={isLoved ? '取消收藏' : '收藏'} aria-label={`${isLoved ? '取消收藏' : '收藏'} ${songTitle(song)}`} aria-pressed={isLoved} onClick={toggleFavorite}><Icon name="heart" /></button>
     <span className="react-song-duration">{songDuration(song)}</span>
