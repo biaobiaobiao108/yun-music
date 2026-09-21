@@ -43,6 +43,7 @@ import { initLibraryFeature } from './features/library';
 import { initAuthFeature } from './features/auth';
 import { initSettingsFeature } from './features/settings';
 import { initSongUrlFeature } from './features/song_url';
+import { fetchPlayerCustomSources } from './features/source_catalog';
 import { initLyricFeature } from './features/lyrics';
 import { initSearchFeature } from './features/search';
 import { initPlaybackFeature, type PlaybackState } from './features/playback';
@@ -274,49 +275,10 @@ function refreshComments(...args: any[]) { return callCommentsFeature('refreshCo
 function fetchComments(...args: any[]) { return callCommentsFeature('fetchComments', args); }
 function toggleSongInList(...args: any[]) { return callCommentsFeature('toggleSongInList', args); }
 
-function loadCustomSourcesFeature() {
-    return loadPlayerFeature(
-        'custom-sources',
-        () => import('./features/custom_sources').then(({ initCustomSourcesFeature }) => initCustomSourcesFeature({
-            getUserAuthHeaders: getPlayerUserAuthHeaders,
-            getCurrentListData: () => currentListData,
-            getSettings: () => settings,
-            isUserLoggedIn: isPlayerUserLoggedIn,
-            isAdminSessionActive: () => adminSessionActive,
-            handleAdminAuth,
-            updateSetting,
-            createMarqueeHtml: (text, className) => createMarqueeHtml(text, className),
-            applyMarqueeChecks: () => applyMarqueeChecks(),
-            escapeHtmlText,
-            showInput,
-            showSelect,
-            showSuccess,
-            showInfo,
-            showError,
-        })),
-        '正在加载自定义音源管理...'
-    );
+function fetchCustomSources() {
+    const username = currentListData?.username || userName || 'default';
+    return fetchPlayerCustomSources(username, getPlayerUserAuthHeaders());
 }
-
-function callCustomSourcesFeature(name: string, args: any[] = []) {
-    return loadCustomSourcesFeature().then((feature) => {
-        const handler = (feature as any)[name];
-        return typeof handler === 'function' ? handler(...args) : undefined;
-    });
-}
-
-function loadCustomSources(...args: any[]) { return callCustomSourcesFeature('loadCustomSources', args); }
-function fetchCustomSources(...args: any[]) { return callCustomSourcesFeature('fetchCustomSources', args); }
-function renderCustomSources(...args: any[]) { return callCustomSourcesFeature('renderCustomSources', args); }
-function handleFileUpload(...args: any[]) { return callCustomSourcesFeature('handleFileUpload', args); }
-function handleUrlImport(...args: any[]) { return callCustomSourcesFeature('handleUrlImport', args); }
-function openCustomSourceModal(...args: any[]) { return callCustomSourcesFeature('openCustomSourceModal', args); }
-function closeCustomSourceModal(...args: any[]) { return callCustomSourcesFeature('closeCustomSourceModal', args); }
-function switchCustomSourceMode(...args: any[]) { return callCustomSourcesFeature('switchCustomSourceMode', args); }
-function toggleSource(...args: any[]) { return callCustomSourcesFeature('toggleSource', args); }
-function deleteSource(...args: any[]) { return callCustomSourcesFeature('deleteSource', args); }
-function reloadSource(...args: any[]) { return callCustomSourcesFeature('reloadSource', args); }
-function togglePublicSourcesSetting(...args: any[]) { return callCustomSourcesFeature('togglePublicSourcesSetting', args); }
 
 const playlistModalFeature = initPlaylistModalFeature({
     getCurrentPlayingSong: () => currentPlayingSong,
@@ -1366,7 +1328,6 @@ const switchTab = createTabSwitcher({
     ensureLeaderboardLoaded: () => ensureLeaderboardLoaded(),
     ensureLocalMusicLoaded: () => ensureLocalMusicLoaded(),
     showError: (msg) => showError(msg),
-    loadCustomSources: () => loadCustomSources(),
     loadAboutContent: () => loadAboutContent(),
     toggleBatchMode: () => toggleBatchMode(),
     clearPendingTimeouts: () => {
@@ -1710,8 +1671,6 @@ async function handleAdminLogin() {
         showSuccess('管理员已登录');
         updateAdminUI();
         syncSettingsUI();
-        if (typeof renderCustomSources === 'function') renderCustomSources();
-
         // 未登录用户账号时：管理员应载入 _open 公开列表并对其操作
         if (!isUserLoggedIn()) {
             const loaded = await fetchPublicListData();
@@ -1759,13 +1718,11 @@ window.handleAdminLogout = handleAdminLogout;
 // 更新管理员相关 UI 元素
 function updateAdminUI() {
     const isAdmin = adminSessionActive;
-    const isPublic = !currentListData?.username || currentListData?.username === 'default';
 
-    // 自定义源部分的标签和按钮
+    // 管理员会话仅用于后台能力；播放器不再提供自定义源管理入口。
     const adminTag = document.getElementById('settings-admin-tag');
     const loginBtn = document.getElementById('btn-admin-login');
     const logoutBtn = document.getElementById('btn-admin-logout');
-    const scopeTag = document.getElementById('settings-source-scope-tag');
 
     if (adminTag) adminTag.classList.toggle('hidden', !isAdmin);
     if (logoutBtn) logoutBtn.classList.toggle('hidden', !isAdmin);
@@ -1773,19 +1730,6 @@ function updateAdminUI() {
         // 只要未登录管理员，就显示「管理员登录」按钮
         loginBtn.classList.toggle('hidden', isAdmin);
     }
-    const manageBtn = document.getElementById('btn-custom-source-manage');
-    if (manageBtn) {
-        const isPublicRestrictionEnabled = !!window.lx_config?.['user.enablePublicRestriction'];
-        const isUser = userSessionActive;
-        // 如果开启了公开限制，且既不是管理员也不是登录用户，则隐藏管理入口（或之后显示锁定界面）
-        // 这里根据用户要求，只要登录了就不隐藏
-        const isRestricted = isPublicRestrictionEnabled && !isAdmin && !isUser;
-        manageBtn.classList.toggle('hidden', isRestricted);
-    }
-    if (scopeTag) {
-        scopeTag.classList.toggle('hidden', !isPublic);
-    }
-
 }
 
 const serverCacheRequests = new Set<string>();
@@ -2696,7 +2640,7 @@ async function updateSetting(key, value) {
     if (SETTINGS_UI_MAP[key]?.normalize) {
         value = SETTINGS_UI_MAP[key].normalize(value);
     }
-    const restrictedKeys = ['serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'preferredQuality', 'enablePublicSources'];
+    const restrictedKeys = ['serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'preferredQuality'];
     const isPublic = !isUserLoggedIn() || currentListData?.username === '_open' || currentListData?.username === 'default' || window.isViewingPublicFavorites;
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
     const enableLoginCacheRestriction = window.lx_config?.['user.enableLoginCacheRestriction'];
@@ -2772,10 +2716,6 @@ async function updateSetting(key, value) {
         applyPlayerBackground(value);
     }
 
-    if (key === 'enablePublicSources') {
-        if (typeof updateSourceScopeUI === 'function') updateSourceScopeUI();
-        if (typeof renderCustomSources === 'function') renderCustomSources();
-    }
 }
 //缓存设置
 // 核心设置项映射表: [key]: { id: 'element-id', type: 'checkbox|value|custom', action: (val) => { ... } }
@@ -2921,7 +2861,6 @@ const SETTINGS_UI_MAP = {
         }
     },
     customProxyUrl: { id: 'custom-proxy-url-input', type: 'value' },
-    enablePublicSources: { id: 'toggle-public-sources', type: 'checkbox' },
     preferredQuality: {
         id: 'quality-select',
         type: 'value',
@@ -2944,7 +2883,7 @@ function syncSettingsUI(key = null, value = null) {
     const enablePublicRestriction = window.lx_config?.['user.enablePublicRestriction'];
     const enableLoginCacheRestriction = window.lx_config?.['user.enableLoginCacheRestriction'];
     const isAdmin = adminSessionActive;
-    const restrictedKeys = ['serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'preferredQuality', 'enablePublicSources'];
+    const restrictedKeys = ['serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency', 'preferredQuality'];
 
     const updateItem = (itemKey, itemValue, isSingle) => {
         const config = SETTINGS_UI_MAP[itemKey];
@@ -4272,12 +4211,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 0. Load settings first
     loadSettings();
 
-    // Checkbox State
-    const pubToggle = document.getElementById('toggle-public-sources');
-    if (pubToggle) {
-        pubToggle.checked = settings.enablePublicSources !== false;
-    }
-
     // [新增] 恢复音量设置
     try {
         const savedVolume = localStorage.getItem('lx_volume');
@@ -4435,30 +4368,11 @@ window.handleFavoritesClick = handleFavoritesClick;
 // 导出函数到 window (ES Module 需要显式暴露)
 // ========================================
 
-// Custom Source functions
-window.openCustomSourceModal = openCustomSourceModal;
-window.closeCustomSourceModal = closeCustomSourceModal;
-window.switchCustomSourceMode = switchCustomSourceMode;
-window.handleFileUpload = handleFileUpload;
-window.handleUrlImport = handleUrlImport;
-
 // Playlist Modal functions
 window.openPlaylistAddModal = openPlaylistAddModal;
 window.closePlaylistAddModal = closePlaylistAddModal;
 window.toggleSongInList = toggleSongInList;
 
-
-// 新版函数名
-window.toggleSource = toggleSource;
-window.deleteSource = deleteSource;
-window.reloadSource = reloadSource;
-
-// 兼容旧版函数名 (Alias)
-window.toggleCustomSource = toggleSource;
-window.deleteCustomSource = deleteSource;
-window.importFromUrl = handleUrlImport;
-
-window.togglePublicSourcesSetting = togglePublicSourcesSetting;
 
 // Core functions
 window.switchTab = switchTab;
@@ -4711,9 +4625,6 @@ window.addEventListener('resize', () => {
 // ========== 页面初始化 ==========
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[Init] 页面加载完成');
-
-    // 预加载自定义源数据，确保设置界面和模态框打开时有数据
-    loadCustomSources();
 
     // [优化] 此处不再立即调用 showInitialSearchState()，移至下方的 setTimeout 中
 

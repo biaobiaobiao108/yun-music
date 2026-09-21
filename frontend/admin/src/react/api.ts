@@ -43,6 +43,24 @@ export type AdminStatus = {
 export type AdminConfig = Record<string, unknown> & { serverName?: string; playerPath?: string }
 export type StorageItem = Record<string, unknown> & { id?: string; filename?: string; rawUsername?: string; name?: string; singer?: string; albumName?: string; size?: number; folder?: 'cache' | 'music'; mtime?: number }
 export type Snapshot = Record<string, unknown> & { id?: string; time?: number; size?: number; name?: string }
+export type CustomSourceOwner = 'open' | string
+export type AdminCustomSource = {
+  id: string
+  name?: string
+  version?: string
+  author?: string
+  description?: string
+  homepage?: string
+  size?: number
+  supportedSources?: string[]
+  enabled: boolean
+  owner: CustomSourceOwner
+  isPublic: boolean
+  uploadTime?: string
+  sourceUrl?: string
+  status?: string
+  error?: string
+}
 
 type UnknownRecord = Record<string, unknown>
 
@@ -68,6 +86,41 @@ function arrayValue(value: unknown): unknown[] {
     if (Array.isArray(record[key])) return record[key] as unknown[]
   }
   return []
+}
+
+function normalizeCustomSource(value: unknown): AdminCustomSource | null {
+  const record = asRecord(value)
+  if (!record) return null
+  const id = firstText(record.id)
+  if (!id) return null
+  const owner = firstText(record.owner) || 'open'
+  const supportedSources = Array.isArray(record.supportedSources)
+    ? record.supportedSources.map(item => String(item)).filter(Boolean)
+    : []
+  return {
+    id,
+    ...(firstText(record.name) ? { name: firstText(record.name) } : {}),
+    ...(firstText(record.version) ? { version: firstText(record.version) } : {}),
+    ...(firstText(record.author) ? { author: firstText(record.author) } : {}),
+    ...(firstText(record.description) ? { description: firstText(record.description) } : {}),
+    ...(firstText(record.homepage) ? { homepage: firstText(record.homepage) } : {}),
+    ...(record.size !== undefined ? { size: Number(record.size) || 0 } : {}),
+    supportedSources,
+    enabled: Boolean(record.enabled),
+    owner,
+    isPublic: Boolean(record.isPublic) || owner === 'open',
+    ...(firstText(record.uploadTime) ? { uploadTime: firstText(record.uploadTime) } : {}),
+    ...(firstText(record.sourceUrl) ? { sourceUrl: firstText(record.sourceUrl) } : {}),
+    ...(firstText(record.status) ? { status: firstText(record.status) } : {}),
+    ...(firstText(record.error) ? { error: firstText(record.error) } : {}),
+  }
+}
+
+export function normalizeAdminCustomSources(payload: unknown): AdminCustomSource[] {
+  const values = Array.isArray(payload)
+    ? payload
+    : arrayValue(asRecord(payload)?.data ?? payload)
+  return values.map(normalizeCustomSource).filter((value): value is AdminCustomSource => Boolean(value))
 }
 
 function qualitySize(record: UnknownRecord, preferredQuality: unknown): unknown {
@@ -198,7 +251,7 @@ export async function verifySession(): Promise<AdminStatus> {
 
 export const adminApi = {
   status: () => adminRequest<AdminStatus>('/api/status'),
-  users: () => adminRequest<AdminUser[]>('/api/users'),
+  users: (signal?: AbortSignal) => adminRequest<AdminUser[]>('/api/users', { signal }),
   userData: async (user: string) => normalizeAdminData(await adminRequest<unknown>(`/api/data?user=${encodeURIComponent(user)}`)),
   config: () => adminRequest<AdminConfig>('/api/config'),
   saveConfig: (config: Record<string, unknown>) => adminRequest<{ success: boolean; warning?: string }>('/api/config', { method: 'POST', body: JSON.stringify(config) }),
@@ -226,6 +279,13 @@ export const adminApi = {
   vacuum: () => adminRequest('/api/admin/database/vacuum', { method: 'POST' }),
   backup: () => requestBlob('/api/backup/download'),
   restoreBackup: (file: File) => { const form = new FormData(); form.append('backup', file); return adminRequest('/api/backup/upload', { method: 'POST', body: form }) },
+  customSources: async (owner: CustomSourceOwner = 'open', signal?: AbortSignal) => normalizeAdminCustomSources(await adminRequest<unknown>(`/api/custom-source/list?username=${encodeURIComponent(owner)}`, { signal })),
+  uploadCustomSource: (filename: string, content: string, type: string, owner: CustomSourceOwner) => adminRequest('/api/custom-source/upload', { method: 'POST', body: JSON.stringify({ filename, content, type, username: owner }) }),
+  importCustomSource: (url: string, filename: string | undefined, owner: CustomSourceOwner) => adminRequest('/api/custom-source/import', { method: 'POST', body: JSON.stringify({ url, filename, username: owner }) }),
+  toggleCustomSource: (id: string, enabled: boolean, owner: CustomSourceOwner) => adminRequest('/api/custom-source/toggle', { method: 'POST', body: JSON.stringify({ id, enabled, username: owner }) }),
+  deleteCustomSource: (id: string, owner: CustomSourceOwner) => adminRequest('/api/custom-source/delete', { method: 'POST', body: JSON.stringify({ id, sourceOwner: owner }) }),
+  reorderCustomSources: (owner: CustomSourceOwner, sourceIds: string[]) => adminRequest('/api/custom-source/reorder', { method: 'POST', body: JSON.stringify({ username: owner, sourceIds }) }),
+  assignCustomSource: (id: string, fromOwner: CustomSourceOwner, toOwner: CustomSourceOwner) => adminRequest('/api/custom-source/assign', { method: 'POST', body: JSON.stringify({ id, fromOwner, toOwner }) }),
 }
 
 export function playerUrl(config: RuntimeConfig): string {

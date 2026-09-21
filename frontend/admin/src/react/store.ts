@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { adminApi, login, logout, verifySession, type AdminConfig, type AdminData, type AdminStatus, type AdminUser, type Snapshot, type StorageItem } from './api'
+import { adminApi, login, logout, verifySession, type AdminConfig, type AdminCustomSource, type AdminData, type AdminStatus, type AdminUser, type CustomSourceOwner, type Snapshot, type StorageItem } from './api'
 
-export type AdminView = 'dashboard' | 'users' | 'storage' | 'data' | 'config' | 'logs' | 'snapshots' | 'about'
+export type AdminView = 'dashboard' | 'users' | 'storage' | 'data' | 'config' | 'logs' | 'snapshots' | 'sources' | 'about'
 
 type AdminState = {
   authenticated: boolean
@@ -16,6 +16,8 @@ type AdminState = {
   storage: StorageItem[]
   storageFolder: 'cache' | 'music'
   snapshots: Snapshot[]
+  sourceOwner: CustomSourceOwner
+  sources: AdminCustomSource[]
   logs: string[]
   logType: 'app' | 'access' | 'login' | 'error'
   error: string
@@ -27,6 +29,7 @@ type AdminState = {
   setSelectedUser: (user: string) => void
   setLogType: (type: 'app' | 'access' | 'login' | 'error') => void
   setStorageFolder: (folder: 'cache' | 'music') => void
+  setSourceOwner: (owner: CustomSourceOwner) => void
   loadView: (view?: AdminView) => Promise<void>
   notify: (message: string) => void
   clearToast: () => void
@@ -37,6 +40,11 @@ function messageOf(error: unknown): string {
 }
 
 let loadSequence = 0
+let activeLoadController: AbortController | null = null
+
+function isAbortError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError')
+}
 
 export const useAdminStore = create<AdminState>((set, get) => ({
   authenticated: false,
@@ -51,6 +59,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   storage: [],
   storageFolder: 'cache',
   snapshots: [],
+  sourceOwner: 'open',
+  sources: [],
   logs: [],
   logType: 'app',
   error: '',
@@ -83,7 +93,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   signOut: async () => {
     await logout()
     loadSequence += 1
-    set({ authenticated: false, checking: false, busy: false, users: [], selectedUser: '', status: null, config: null, data: null, storage: [], snapshots: [], logs: [], error: '', toast: '' })
+    activeLoadController?.abort()
+    activeLoadController = null
+    set({ authenticated: false, checking: false, busy: false, users: [], selectedUser: '', status: null, config: null, data: null, storage: [], snapshots: [], sources: [], logs: [], error: '', toast: '' })
   },
   setView: (view) => {
     set({ view, error: '' })
@@ -104,17 +116,25 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     if (get().view === 'logs') void get().loadView('logs')
   },
   setStorageFolder: (storageFolder) => set({ storageFolder }),
+  setSourceOwner: (sourceOwner) => {
+    set({ sourceOwner, sources: [], error: '' })
+    if (get().view === 'sources') void get().loadView('sources')
+  },
   loadView: async (requestedView) => {
     const view = requestedView ?? get().view
     const sequence = ++loadSequence
+    activeLoadController?.abort()
+    const controller = new AbortController()
+    activeLoadController = controller
+    const { signal } = controller
     set({ busy: true, error: '' })
     try {
       if (view === 'dashboard') {
-        const [status, users] = await Promise.all([adminApi.status(), adminApi.users()])
+        const [status, users] = await Promise.all([adminApi.status(), adminApi.users(signal)])
         if (sequence !== loadSequence) return
         set({ status, users })
       } else if (view === 'users') {
-        const users = await adminApi.users()
+        const users = await adminApi.users(signal)
         if (sequence !== loadSequence) return
         set({ users })
       } else if (view === 'data') {
@@ -144,13 +164,23 @@ export const useAdminStore = create<AdminState>((set, get) => ({
           if (sequence !== loadSequence) return
           set({ selectedUser: user, snapshots })
         } else if (sequence === loadSequence) set({ snapshots: [] })
+      } else if (view === 'sources') {
+        const owner = get().sourceOwner
+        const usersPromise = get().users.length ? Promise.resolve(get().users) : adminApi.users(signal)
+        const [users, sources] = await Promise.all([usersPromise, adminApi.customSources(owner, signal)])
+        if (sequence !== loadSequence) return
+        set({ users, sources })
       }
     } catch (error) {
       if (sequence !== loadSequence) return
+      if (isAbortError(error)) return
       const message = messageOf(error)
       set({ error: message, ...(message.includes('登录') ? { authenticated: false } : {}) })
     } finally {
-      if (sequence === loadSequence) set({ busy: false })
+      if (sequence === loadSequence) {
+        activeLoadController = null
+        set({ busy: false })
+      }
     }
   },
   notify: (toast) => set({ toast }),

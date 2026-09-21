@@ -85,7 +85,6 @@ export type NavigationContext = {
     ensureLeaderboardLoaded: () => Promise<void>;
     ensureLocalMusicLoaded: () => Promise<void>;
     showError: (msg: string) => void;
-    loadCustomSources?: () => void;
     loadAboutContent: () => void;
     toggleBatchMode?: () => void;
     clearPendingTimeouts?: () => void;
@@ -245,9 +244,6 @@ export function createTabSwitcher(context: NavigationContext) {
         if (tabId === 'settings') {
             const pageTitle = document.getElementById('page-title');
             if (pageTitle) pageTitle.innerText = '设置';
-            if (typeof context.loadCustomSources === 'function') {
-                context.loadCustomSources();
-            }
         }
 
         if (tabId === 'about') {

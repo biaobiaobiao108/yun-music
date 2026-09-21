@@ -869,7 +869,7 @@ export async function callUserApiGetMusicUrl(
     supportedCount = candidates.length
 
     if (supportedCount === 0) {
-        const errMsg = `未找到支持 ${source} 平台的自定义源，请在设置中添加或启用相关源`
+        const errMsg = `未找到支持 ${source} 平台的自定义源，请联系管理员配置或启用相关源`
         if (onProgress) await onProgress({ name: '系统', status: 'fail', message: errMsg })
         throw new Error(errMsg)
     }

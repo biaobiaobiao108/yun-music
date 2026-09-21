@@ -7,20 +7,23 @@ import * as customSourceHandlers from '../customSourceHandlers'
 export const createCustomSourceRouter = (): Router => {
   const router = new Router()
 
-  // 1. 源脚本校验（公共源必须管理员鉴权，私有源必须匹配当前用户）
+  // 1. 源脚本校验（自定义源现在统一由管理员管理）
   router.post('/api/custom-source/validate', (ctx) => {
     return customSourceHandlers.handleValidate(ctx)
   })
 
-  // 通用中间件：若启用了公开受限模式，管理操作必须登录或管理员鉴权
+  // 自定义源的写入、校验和状态管理均属于后台管理能力。列表查询仍然
+  // 保留给播放器使用，以便服务端按当前用户返回公共/专属源。
   router.use('/api/custom-source/*', async (ctx, next) => {
-    if (ctx.pathname === '/api/custom-source/validate') return await next()
+    if (ctx.pathname !== '/api/custom-source/list' && !verifyAdminAuth(ctx.request)) {
+      return ctx.json({ success: false, error: '管理员权限不足：自定义源仅允许管理员管理。' }, 403)
+    }
     const config = (global.lx?.config ?? {}) as any
     if (config['user.enablePublicRestriction']) {
       const isAdmin = verifyAdminAuth(ctx.request)
       const user = verifyUserAuth(ctx)
-      if (!isAdmin && !user) {
-        return ctx.json({ success: false, error: '当前系统已开启访问限制，管理操作请登录后重试。' }, 403)
+      if (ctx.pathname === '/api/custom-source/list' && !isAdmin && !user) {
+        return ctx.json({ success: false, error: '当前系统已开启访问限制，请登录后重试。' }, 403)
       }
     }
     return await next()
@@ -41,7 +44,11 @@ export const createCustomSourceRouter = (): Router => {
     const isAdmin = verifyAdminAuth(ctx.request)
     const currentUser = verifyUserAuth(ctx)
     let username = 'default'
-    if (requested && requested !== 'default' && requested !== 'open' && requested !== '_open') {
+    if (requested === 'open' || requested === '_open') {
+      // 管理后台按作用域查询公共源时必须只返回公共源，即使请求同时
+      // 携带了播放器用户会话，也不能把账户专属源混入当前作用域。
+      username = 'default'
+    } else if (requested && requested !== 'default') {
       if (!isAdmin && currentUser !== requested) return ctx.json({ success: false, error: '无权查看其他用户的自定义源' }, 403)
       username = requested
     } else if (currentUser) {
@@ -63,6 +70,11 @@ export const createCustomSourceRouter = (): Router => {
   // 6. 重排序
   router.post('/api/custom-source/reorder', (ctx) => {
     return customSourceHandlers.handleReorder(ctx)
+  })
+
+  // 7. 管理员在公共源和账户专属源之间转移归属
+  router.post('/api/custom-source/assign', (ctx) => {
+    return customSourceHandlers.handleAssign(ctx)
   })
 
   return router

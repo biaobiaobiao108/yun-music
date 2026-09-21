@@ -34,7 +34,7 @@ describe('Custom Source Security and Isolation', () => {
     } catch { }
   })
 
-  test('handleReorder by a regular user does not tamper with public source metadata', async () => {
+  test('custom source mutations require admin and admin reorder does not tamper with public metadata', async () => {
     const router = createCustomSourceRouter()
     const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
     fs.mkdirSync(openDir, { recursive: true })
@@ -50,7 +50,7 @@ describe('Custom Source Security and Isolation', () => {
     const sessionId = 'user_session_token_123'
     userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
 
-    // 普通用户拖拽重排序，传入 reversed order
+    // 普通用户不能再写入排序文件，且请求应在文件操作前被拒绝。
     const req = new Request('http://localhost:9527/api/custom-source/reorder', {
       method: 'POST',
       headers: {
@@ -64,10 +64,26 @@ describe('Custom Source Security and Isolation', () => {
     })
 
     const res = await router.handle(req)
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(403)
+    expect((await res.json()).error).toContain('管理员权限不足')
 
-    // 用户自己的 order.json 应该已保存
     const userOrderPath = path.join(tempRoot, 'data', 'users', 'source', 'normal_user', 'order.json')
+    expect(fs.existsSync(userOrderPath)).toBe(false)
+
+    // 管理员可以管理账户专属作用域。
+    const adminReq = new Request('http://localhost:9527/api/custom-source/reorder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+      },
+      body: JSON.stringify({
+        username: 'normal_user',
+        sourceIds: ['source_b.js', 'source_a.js'],
+      }),
+    })
+    const adminRes = await router.handle(adminReq)
+    expect(adminRes.status).toBe(200)
     expect(fs.existsSync(userOrderPath)).toBe(true)
     expect(JSON.parse(fs.readFileSync(userOrderPath, 'utf-8'))).toEqual(['source_b.js', 'source_a.js'])
 
@@ -82,7 +98,7 @@ describe('Custom Source Security and Isolation', () => {
   test('handleImport rejects unauthorized user before initiating external network download', async () => {
     const router = createCustomSourceRouter()
 
-    // 未登录用户请求 import 公共源（必须要求管理员身份）
+    // 未登录用户请求 import 公共源时，必须在下载前直接拒绝。
     const req = new Request('http://localhost:9527/api/custom-source/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -93,8 +109,7 @@ describe('Custom Source Security and Isolation', () => {
     })
 
     const res = await router.handle(req)
-    // 应该在下载前就直接返回 500 或 400，并明确提示权限不足，而不是发起下载
-    expect(res.status).toBeGreaterThanOrEqual(400)
+    expect(res.status).toBe(403)
     const json = await res.json()
     expect(json.success).toBe(false)
     expect(json.error).toContain('管理员权限不足')
@@ -144,6 +159,50 @@ describe('Custom Source Security and Isolation', () => {
     expect(json.error).toContain('当前系统已开启访问限制')
   })
 
+  test('player list keeps public enabled state and includes assigned private sources', async () => {
+    const router = createCustomSourceRouter()
+    const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
+    const userDir = path.join(tempRoot, 'data', 'users', 'source', 'normal_user')
+    fs.mkdirSync(openDir, { recursive: true })
+    fs.mkdirSync(userDir, { recursive: true })
+    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: 'public.js', name: 'Public', enabled: true }]))
+    fs.writeFileSync(path.join(openDir, 'states.json'), JSON.stringify({ 'public.js': { enabled: false } }))
+    fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]))
+
+    const sessionId = 'source-list-user-session'
+    userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
+    const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list?username=normal_user', {
+      headers: { cookie: `${USER_SESSION_COOKIE_NAME}=${sessionId}` },
+    }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([
+      { id: 'public.js', name: 'Public', enabled: true, owner: 'open', isPublic: true },
+      { id: 'private.js', name: 'Private', enabled: true, owner: 'normal_user', isPublic: false },
+    ])
+  })
+
+  test('admin scope queries keep public and private source lists isolated', async () => {
+    const router = createCustomSourceRouter()
+    const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
+    const userDir = path.join(tempRoot, 'data', 'users', 'source', 'normal_user')
+    fs.mkdirSync(openDir, { recursive: true })
+    fs.mkdirSync(userDir, { recursive: true })
+    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: 'public.js', name: 'Public', enabled: true }]))
+    fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]))
+
+    const userSession = 'admin-scope-user-session'
+    userSessions.set(userSession, { username: 'normal_user', createdAt: Date.now() })
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}; ${USER_SESSION_COOKIE_NAME}=${userSession}`
+    const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list?username=open', {
+      headers: { cookie },
+    }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([
+      { id: 'public.js', name: 'Public', enabled: true, owner: 'open', isPublic: true },
+    ])
+  })
+
   test('handleDelete removes the explicitly requested owner when public and private IDs overlap', async () => {
     const router = createCustomSourceRouter()
     const sourceId = 'shared-source.js'
@@ -164,14 +223,11 @@ describe('Custom Source Security and Isolation', () => {
     fs.writeFileSync(path.join(userDir, 'order.json'), JSON.stringify([sourceId]))
     fs.writeFileSync(path.join(userDir, 'states.json'), JSON.stringify({ [sourceId]: { enabled: true } }))
 
-    const sessionId = 'delete-source-user-session'
-    userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
-
     const privateDelete = await router.handle(new Request('http://localhost:9527/api/custom-source/delete', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        cookie: `${USER_SESSION_COOKIE_NAME}=${sessionId}`,
+        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
       },
       body: JSON.stringify({
         username: 'normal_user',
@@ -223,6 +279,80 @@ describe('Custom Source Security and Isolation', () => {
     expect(await publicDelete.json()).toEqual({ success: true, id: sourceId, owner: 'open' })
     expect(fs.existsSync(path.join(openDir, sourceId))).toBe(false)
     expect(JSON.parse(fs.readFileSync(path.join(openDir, 'sources.json'), 'utf-8'))).toEqual([])
+  })
+
+  test('admin can move a source between scopes and rejects target collisions', async () => {
+    const router = createCustomSourceRouter()
+    const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const sourceId = 'movable-source.js'
+    const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
+    const userDir = path.join(tempRoot, 'data', 'users', 'source', 'normal_user')
+    const script = `
+      lx.on('request', () => null)
+      lx.send('inited', { status: true, sources: { wy: 'wy' } })
+    `
+    fs.mkdirSync(openDir, { recursive: true })
+    fs.mkdirSync(userDir, { recursive: true })
+    fs.writeFileSync(path.join(openDir, sourceId), script)
+    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: sourceId, name: 'Movable', enabled: false }]))
+    fs.writeFileSync(path.join(openDir, 'order.json'), JSON.stringify([sourceId]))
+    fs.writeFileSync(path.join(openDir, 'states.json'), JSON.stringify({ [sourceId]: { enabled: true } }))
+
+    const moved = await router.handle(new Request('http://localhost:9527/api/custom-source/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({ id: sourceId, fromOwner: 'open', toOwner: 'normal_user' }),
+    }))
+    expect(moved.status).toBe(200)
+    expect(await moved.json()).toMatchObject({ success: true, id: sourceId, fromOwner: 'open', toOwner: 'normal_user' })
+    expect(fs.existsSync(path.join(openDir, sourceId))).toBe(false)
+    expect(fs.existsSync(path.join(userDir, sourceId))).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(openDir, 'sources.json'), 'utf-8'))).toEqual([])
+    expect(JSON.parse(fs.readFileSync(path.join(userDir, 'sources.json'), 'utf-8'))).toHaveLength(1)
+    expect(JSON.parse(fs.readFileSync(path.join(openDir, 'states.json'), 'utf-8'))).toEqual({})
+
+    const collisionId = 'collision-source.js'
+    fs.writeFileSync(path.join(userDir, collisionId), script)
+    fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([
+      ...JSON.parse(fs.readFileSync(path.join(userDir, 'sources.json'), 'utf-8')),
+      { id: collisionId, name: 'Collision', enabled: false },
+    ]))
+    fs.writeFileSync(path.join(openDir, collisionId), script)
+    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: collisionId, name: 'Collision source', enabled: false }]))
+
+    const collision = await router.handle(new Request('http://localhost:9527/api/custom-source/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({ id: collisionId, fromOwner: 'open', toOwner: 'normal_user' }),
+    }))
+    expect(collision.status).toBe(500)
+    expect(await collision.text()).toContain('目标作用域已存在同名音源')
+    expect(fs.existsSync(path.join(openDir, collisionId))).toBe(true)
+  })
+
+  test('all custom source write endpoints reject a regular user before touching files', async () => {
+    const router = createCustomSourceRouter()
+    const sessionId = 'regular-source-write-session'
+    userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
+    const cookie = `${USER_SESSION_COOKIE_NAME}=${sessionId}`
+    const requests = [
+      ['/api/custom-source/validate', { script: 'lx.send("inited", { sources: {} })', username: 'normal_user' }],
+      ['/api/custom-source/upload', { filename: 'blocked.js', content: 'blocked', username: 'normal_user' }],
+      ['/api/custom-source/toggle', { id: 'blocked.js', enabled: true, username: 'normal_user' }],
+      ['/api/custom-source/delete', { id: 'blocked.js', sourceOwner: 'normal_user' }],
+      ['/api/custom-source/reorder', { username: 'normal_user', sourceIds: [] }],
+      ['/api/custom-source/assign', { id: 'blocked.js', fromOwner: 'open', toOwner: 'normal_user' }],
+    ] as const
+
+    for (const [pathname, body] of requests) {
+      const response = await router.handle(new Request(`http://localhost:9527${pathname}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie },
+        body: JSON.stringify(body),
+      }))
+      expect(response.status).toBe(403)
+      expect((await response.json()).error).toContain('管理员权限不足')
+    }
   })
 
   test('sandbox lx.request dispatches request via native fetch and delivers parsed JSON', async () => {

@@ -94,8 +94,8 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   closeAddToList: () => set({ playlistSong: null, dialog: null }),
   closeOverlays: () => set({ immersiveLyrics: false, dialog: null, drawer: null, sidebarOpen: false, playlistSong: null }),
   setImmersiveLyrics: open => set({ immersiveLyrics: open }),
-  notify: notice => set({ notice: createNotice(notice, 'info', 3600) }),
-  notifyPlayback: (notice, kind = 'info') => set({ notice: createNotice(notice, kind, 3200) }),
+  notify: notice => set({ notice: createNotice(notice, 'info', 2000) }),
+  notifyPlayback: (notice, kind = 'info') => set({ notice: createNotice(notice, kind, kind === 'error' ? 2200 : 1600) }),
   clearNotice: () => set({ notice: null }),
 }))
 

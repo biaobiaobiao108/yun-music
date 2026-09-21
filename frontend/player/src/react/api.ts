@@ -49,7 +49,6 @@ export type CacheItem = Record<string, unknown> & {
   songInfo?: Song
 }
 export type CommentItem = Record<string, unknown> & { userName?: string; text?: string; time?: number | string; timeStr?: string; likedCount?: number; location?: string; avatar?: string; reply?: CommentItem[] }
-export type CustomSource = Record<string, unknown> & { id: string; name?: string; version?: string; enabled?: boolean; owner?: string; isPublic?: boolean; status?: string; error?: string }
 
 export const playerApi = {
   config: () => requestJson<PlayerConfig>('/api/music/config'),
@@ -100,11 +99,6 @@ export const playerApi = {
   },
   leaderboard: (source: string, boardId: string, page = 1, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<unknown>(`/api/music/leaderboard/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(boardId)}&page=${page}`, { signal, ...policy }),
   comments: (songInfo: Song, type: 'hot' | 'new', page = 1, limit = 20, signal?: AbortSignal) => requestJson<unknown>('/api/music/comment', { method: 'POST', body: JSON.stringify({ songInfo, type, page, limit }), signal }),
-  customSources: (username?: string) => requestJson<CustomSource[]>(`/api/custom-source/list${username ? `?username=${encodeURIComponent(username)}` : ''}`),
-  toggleCustomSource: (id: string, enabled: boolean, username?: string) => requestJson('/api/custom-source/toggle', { method: 'POST', body: JSON.stringify({ id, enabled, username }) }),
-  deleteCustomSource: (id: string, owner?: string) => requestJson('/api/custom-source/delete', { method: 'POST', body: JSON.stringify({ id, sourceOwner: owner }) }),
-  importCustomSource: (url: string, filename?: string, username?: string) => requestJson('/api/custom-source/import', { method: 'POST', body: JSON.stringify({ url, filename, username }) }),
-  uploadCustomSource: (filename: string, content: string, type: string, username?: string) => requestJson('/api/custom-source/upload', { method: 'POST', body: JSON.stringify({ filename, content, type, username }) }),
   cacheQueue: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<{ success?: boolean; data?: CacheTask[] }>('/api/music/cache/queue', { signal, ...policy }),
   cacheStats: (signal?: AbortSignal, policy?: RequestPolicy) => requestJson<{ success?: boolean; data?: CacheStats }>('/api/music/cache/stats', { signal, ...policy }),
   cacheList: (user?: string, signal?: AbortSignal) => requestJson<{ success?: boolean; data?: CacheItem[] }>(`/api/music/cache/list${user ? `?user=${encodeURIComponent(user)}` : ''}`, { signal }),

@@ -300,16 +300,15 @@ describe('React player navigation and state restoration', () => {
     expect(views).toContain('className={`react-immersive-lyrics-dialog ${isClosing ? \'is-closing\' : \'\'}`}')
   })
 
-  it('uses the shared settings account and source form surfaces', () => {
+  it('uses the shared settings account and keeps source management in the admin app', () => {
     const views = read('frontend/player/src/react/views.tsx')
     const css = read('frontend/styles/player.css')
     expect(views).toContain('react-account-card')
     expect(views).toContain('react-account-badge')
-    expect(views).toContain('react-source-form')
-    expect(views).toContain('react-source-input-row')
+    expect(views).toContain('自定义音源由管理员在管理后台配置')
+    expect(views).not.toContain('react-source-form')
+    expect(views).not.toContain('openCustomSourceModal')
     expect(css).toContain('.react-account-state {\n    display: flex;')
-    expect(css).toContain('.react-source-input-row {')
-    expect(css).toContain('::file-selector-button')
   })
 
   it('keeps the main player surface open instead of wrapping it in a card', () => {

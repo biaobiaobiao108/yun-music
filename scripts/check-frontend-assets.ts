@@ -46,6 +46,18 @@ const forbiddenDomMigrationPatterns = [
   /<script[^>]+>[^<]*(?:onclick|onchange|onsubmit)\s*=/is,
 ];
 
+// These names belong to the retired player-side custom-source manager. The
+// React player may read `/api/custom-source/list`, but upload/import/delete
+// controls must only be reachable from the admin bundle.
+const forbiddenPlayerSourceManagementPatterns = [
+  /openCustomSourceModal/i,
+  /btn-custom-source-manage/i,
+  /上传自定义源/i,
+  /导入远程音源/i,
+  /删除自定义源/i,
+  /custom-source-modal/i,
+];
+
 function readText(path: string): string {
   return readFileSync(join(repoRoot, path), 'utf8');
 }
@@ -170,6 +182,17 @@ for (const reference of collectLazyReferences()) {
   checkedReferences.add(publicPath);
   if (!existsSync(publicPath)) {
     missing.push(`frontend -> ${reference}`);
+  }
+}
+
+for (const file of ['public/music/index.html']) {
+  for (const reference of collectHtmlReferences(file)) {
+    const publicPath = toPublicPath(file, reference);
+    if (!publicPath || !publicPath.endsWith('.js') || !existsSync(publicPath)) continue;
+    const content = readFileSync(publicPath, 'utf8');
+    for (const pattern of forbiddenPlayerSourceManagementPatterns) {
+      if (pattern.test(content)) deletedReferences.push(`${file} -> published player bundle contains ${pattern}`);
+    }
   }
 }
 

@@ -478,14 +478,10 @@ async function runRecoveryFlow(error) {
 
         consecutivePlaybackFailures++;
 
-        // 音源缺失属于配置问题而非单曲问题：给出常驻引导而不是一闪而过的提示。
+        // 音源缺失属于配置问题而非单曲问题，播放器不再提供用户侧管理入口。
         if (isPlatformNotSupported && !noSourceHintShown) {
             noSourceHintShown = true;
-            showError('未找到可用的自定义音源，无法解析该平台的歌曲。请在设置中添加或启用对应平台的音源。', {
-                actionLabel: '去设置音源',
-                onAction: () => (window as any).openCustomSourceModal?.(),
-                duration: 0,
-            });
+            showError('未找到可用的自定义音源，无法解析该平台的歌曲。请联系管理员配置或启用对应音源。');
         }
 
         // 硬性兜底：连续失败过多说明当前歌单整体不可播，停止自动跳过。

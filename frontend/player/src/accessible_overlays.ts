@@ -62,7 +62,6 @@ const overlayCloseActions: Record<string, () => void> = {
     'external-list-modal': () => (window as any).closeExternalListModal?.(),
     'qq-input-modal': () => getSongListManager()?.closeQQInputModal(),
     'user-playlist-modal': () => getSongListManager()?.closeUserPlaylistModal(),
-    'custom-source-modal': () => (window as any).closeCustomSourceModal?.(),
     'playlist-add-modal': () => (window as any).closePlaylistAddModal?.(),
     'subpath-select-modal': () => (window as any).LocalMusicManager?.closeSubPathModal?.(),
     'sleep-timer-modal': () => (window as any).closeSleepTimerModal?.(),

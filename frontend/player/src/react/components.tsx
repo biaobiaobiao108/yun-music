@@ -186,22 +186,20 @@ export function Drawer({ open, title, onClose, children, labelledBy }: { open: b
 export function ToastRegion() {
   const notice = usePlayerUiStore(state => state.notice)
   const clear = usePlayerUiStore(state => state.clearNotice)
-  const toastRef = useRef<HTMLDivElement>(null)
+  const [phase, setPhase] = useState<'entering' | 'visible' | 'leaving'>('entering')
   useEffect(() => {
-    const toast = toastRef.current
-    if (!notice || !toast) return undefined
-    try { toast.showPopover?.() } catch { /* Older browsers use the fixed-position fallback. */ }
-    const timer = window.setTimeout(() => {
-      try { toast.hidePopover?.() } catch { /* The React unmount is sufficient for the fallback. */ }
-      clear()
-    }, notice.durationMs)
-    return () => window.clearTimeout(timer)
-  }, [clear, notice])
+    if (!notice) return undefined
+    setPhase('entering')
+    const frame = window.requestAnimationFrame(() => setPhase('visible'))
+    const leaveTimer = window.setTimeout(() => setPhase('leaving'), Math.max(0, notice.durationMs - 120))
+    const clearTimer = window.setTimeout(clear, notice.durationMs)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(leaveTimer)
+      window.clearTimeout(clearTimer)
+    }
+  }, [clear, notice?.id])
   if (!notice) return null
-  const close = () => {
-    try { toastRef.current?.hidePopover?.() } catch { /* The React unmount closes the fixed fallback. */ }
-    clear()
-  }
   const icon = notice.kind === 'success'
     ? 'circle-check'
     : notice.kind === 'warning'
@@ -209,7 +207,7 @@ export function ToastRegion() {
       : notice.kind === 'error'
         ? 'circle-xmark'
         : 'circle-info'
-  return <div ref={toastRef} className={`react-player-toast is-${notice.kind}`} role="status" aria-live="polite" popover="manual"><Icon name={icon} /><span>{notice.message}</span><button type="button" className="react-toast-close" aria-label="关闭提示" onClick={close}><Icon name="xmark" /></button></div>
+  return <div className={`react-player-toast is-${phase}`} role="status" aria-live="polite"><Icon name={icon} /><span>{notice.message}</span></div>
 }
 
 /** Keep long entity introductions compact while leaving the complete text one click away. */

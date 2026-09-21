@@ -83,6 +83,7 @@ function writeJsonFileAtomic(filePath: string, value: unknown): void {
 // 验证脚本
 export async function handleValidate(ctx: HttpContext): Promise<Response> {
     try {
+        requireAdmin(ctx)
         const body = await readBody(ctx)
         const { script, username } = JSON.parse(body)
 
@@ -203,6 +204,7 @@ function generateId(name?: string, fallbackFilename?: string): string {
 // 上传脚本
 export async function handleUpload(ctx: HttpContext): Promise<Response> {
     try {
+        requireAdmin(ctx)
         const body = await readBody(ctx)
         const { filename, content, username } = JSON.parse(body)
 
@@ -266,6 +268,7 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
 // 从远程URL导入脚本
 export async function handleImport(ctx: HttpContext): Promise<Response> {
     try {
+        requireAdmin(ctx)
         const body = await readBody(ctx)
         const { url, filename, username } = JSON.parse(body)
 
@@ -396,17 +399,9 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
     }
 
     // 2. 读取 User 源 (如果有)
-    let userStates: Record<string, any> = {}
     if (username && username !== 'default') {
         const userSourcesDir = getSourceDir(username)
         const userMetaPath = path.join(userSourcesDir, 'sources.json')
-        const userStatesPath = path.join(userSourcesDir, 'states.json')
-
-        if (fs.existsSync(userStatesPath)) {
-            try {
-                userStates = JSON.parse(fs.readFileSync(userStatesPath, 'utf-8'))
-            } catch (e) { }
-        }
 
         if (fs.existsSync(userMetaPath)) {
             try {
@@ -426,9 +421,6 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
 
     openSources.forEach((s: any) => {
         if (!userSourceIds.has(s.id)) {
-            if (userStates[s.id] && typeof userStates[s.id].enabled === 'boolean') {
-                s.enabled = userStates[s.id].enabled
-            }
             allSources.push(s)
         }
     })
@@ -496,6 +488,7 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
 // 启用/禁用
 export async function handleToggle(ctx: HttpContext): Promise<Response> {
     try {
+        requireAdmin(ctx)
         const body = await readBody(ctx)
         const { id, sourceId, enabled, username } = JSON.parse(body)
         const targetId = id || sourceId
@@ -519,7 +512,6 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
 
         let target: any = null
         let sources: any[] = []
-        let isPublicSourceToggle = false
 
         if (!fs.existsSync(sourcesDir)) {
             fs.mkdirSync(sourcesDir, { recursive: true })
@@ -530,47 +522,16 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
             target = sources.find((s: any) => s.id === targetId)
         }
 
-        if (!target && targetOwner !== 'open') {
-            // 尝试看看是否是普通用户在切换公共源
-            const openSourcesDir = getSourceDir('open')
-            const openMetaPath = path.join(openSourcesDir, 'sources.json')
-            if (fs.existsSync(openMetaPath)) {
-                const openSources = JSON.parse(fs.readFileSync(openMetaPath, 'utf-8'))
-                const openTarget = openSources.find((s: any) => s.id === targetId)
-                if (openTarget) {
-                    target = openTarget
-                    isPublicSourceToggle = true
-                }
-            }
-        }
-
         if (!target) {
             throw new Error('源不存在')
         }
 
-        // 核心安全逻辑：
-        // 1. 如果正在执行的是公共源个人状态切换 (isPublicSourceToggle === true)
-        //    则只需在 server.ts 层面保证用户已登录即可，不需要额外的管理员密码。
-        // 2. 如果正在修改的是全局公共源 (targetOwner === 'open')
-        //    则必须校验管理员密码。
+        // 公共源和账户专属源都由管理员统一维护，播放器用户不能再通过
+        // 历史 states.json 逻辑覆盖公共源的启用状态。
         if (targetOwner === 'open') {
             if (!verifyAdminAuth(ctx.request)) {
                 return ctx.json({ success: false, error: '权限不足：管理全局公开自定义源需要验证管理员身份。' }, 403)
             }
-        }
-
-        if (isPublicSourceToggle) {
-            // 普通用户独立记录公开源的开启/关闭状态，不修改公开源属性
-            const userStatesPath = path.join(sourcesDir, 'states.json')
-            let states: any = {}
-            if (fs.existsSync(userStatesPath)) {
-                try { states = JSON.parse(fs.readFileSync(userStatesPath, 'utf-8')) } catch (e) { }
-            }
-            if (!states[targetId]) states[targetId] = {}
-            states[targetId].enabled = enabled !== undefined ? enabled : !(states[targetId].enabled ?? target.enabled)
-            writeJsonFileAtomic(userStatesPath, states)
-
-            return ctx.json({ success: true, enabled: states[targetId].enabled })
         }
 
         target.enabled = enabled !== undefined ? enabled : !target.enabled
@@ -589,6 +550,7 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
 // 拖拽排序，更新 sources.json 中源的顺序
 export async function handleReorder(ctx: HttpContext): Promise<Response> {
     try {
+        requireAdmin(ctx)
         const body = await readBody(ctx)
         const { username, sourceIds } = JSON.parse(body)
 
@@ -649,6 +611,7 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
 // 删除
 export async function handleDelete(ctx: HttpContext): Promise<Response> {
     try {
+        requireAdmin(ctx)
         const body = await readBody(ctx)
         const { id, sourceId, username, owner, sourceOwner } = JSON.parse(body)
         const targetId = id || sourceId
@@ -756,6 +719,121 @@ export async function handleDelete(ctx: HttpContext): Promise<Response> {
         })
     } catch (err: any) {
         console.error('[CustomSource] Delete error:', err)
+        return ctx.text(err.message, 500)
+    }
+}
+
+function restoreFile(filePath: string, original: string | null): void {
+    if (original === null) {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+        return
+    }
+    writeTextFileAtomic(filePath, original)
+}
+
+function readOptionalText(filePath: string): string | null {
+    return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null
+}
+
+function removeSourceFromOrder(orderPath: string, sourceId: string): void {
+    if (!fs.existsSync(orderPath)) return
+    const order = JSON.parse(fs.readFileSync(orderPath, 'utf-8'))
+    if (!Array.isArray(order)) throw new Error('源排序数据格式无效')
+    writeJsonFileAtomic(orderPath, order.filter(id => id !== sourceId))
+}
+
+/** 将一个音源在管理员指定的两个作用域之间安全转移。 */
+export async function handleAssign(ctx: HttpContext): Promise<Response> {
+    try {
+        requireAdmin(ctx)
+        const body = await readBody(ctx)
+        const { id, sourceId, fromOwner, toOwner } = JSON.parse(body)
+        const targetId = id || sourceId
+        assertSafePathSegment(targetId, 'source id')
+        const sourceOwner = getRequestedOwner(ctx, fromOwner)
+        const destinationOwner = getRequestedOwner(ctx, toOwner)
+        if (sourceOwner === destinationOwner) throw new Error('源已经属于该作用域')
+
+        return await withSourceMutationLocks([sourceOwner, destinationOwner], async () => {
+            const sourceDir = getSourceDir(sourceOwner)
+            const destinationDir = getSourceDir(destinationOwner)
+            const sourceMetaPath = path.join(sourceDir, 'sources.json')
+            const destinationMetaPath = path.join(destinationDir, 'sources.json')
+            const sourceOrderPath = path.join(sourceDir, 'order.json')
+            const destinationOrderPath = path.join(destinationDir, 'order.json')
+            const sourceStatesPath = path.join(sourceDir, 'states.json')
+            const destinationStatesPath = path.join(destinationDir, 'states.json')
+            const sourceScriptPath = path.join(sourceDir, targetId)
+            const destinationScriptPath = path.join(destinationDir, targetId)
+
+            if (!fs.existsSync(sourceMetaPath) || !fs.existsSync(sourceScriptPath)) throw new Error('源不存在')
+            const sourceEntries = JSON.parse(fs.readFileSync(sourceMetaPath, 'utf-8'))
+            if (!Array.isArray(sourceEntries)) throw new Error('源元数据格式无效')
+            const sourceEntry = sourceEntries.find((entry: any) => entry?.id === targetId)
+            if (!sourceEntry) throw new Error('源不存在')
+
+            const destinationEntries = fs.existsSync(destinationMetaPath)
+                ? JSON.parse(fs.readFileSync(destinationMetaPath, 'utf-8'))
+                : []
+            if (!Array.isArray(destinationEntries)) throw new Error('目标源元数据格式无效')
+            if (destinationEntries.some((entry: any) => entry?.id === targetId) || fs.existsSync(destinationScriptPath)) {
+                throw new Error('目标作用域已存在同名音源')
+            }
+
+            fs.mkdirSync(destinationDir, { recursive: true })
+            const originals = new Map<string, string | null>([
+                [sourceMetaPath, readOptionalText(sourceMetaPath)],
+                [destinationMetaPath, readOptionalText(destinationMetaPath)],
+                [sourceOrderPath, readOptionalText(sourceOrderPath)],
+                [destinationOrderPath, readOptionalText(destinationOrderPath)],
+                [sourceStatesPath, readOptionalText(sourceStatesPath)],
+                [destinationStatesPath, readOptionalText(destinationStatesPath)],
+                [sourceScriptPath, readOptionalText(sourceScriptPath)],
+                [destinationScriptPath, readOptionalText(destinationScriptPath)],
+            ])
+
+            try {
+                fs.copyFileSync(sourceScriptPath, destinationScriptPath)
+                writeJsonFileAtomic(destinationMetaPath, [...destinationEntries, { ...sourceEntry }])
+                writeJsonFileAtomic(sourceMetaPath, sourceEntries.filter((entry: any) => entry?.id !== targetId))
+
+                const destinationOrder = fs.existsSync(destinationOrderPath)
+                    ? JSON.parse(fs.readFileSync(destinationOrderPath, 'utf-8'))
+                    : []
+                if (Array.isArray(destinationOrder)) {
+                    writeJsonFileAtomic(destinationOrderPath, [...destinationOrder.filter(id => id !== targetId), targetId])
+                }
+                removeSourceFromOrder(sourceOrderPath, targetId)
+
+                for (const statesPath of [sourceStatesPath, destinationStatesPath]) {
+                    if (!fs.existsSync(statesPath)) continue
+                    try {
+                        const states = JSON.parse(fs.readFileSync(statesPath, 'utf-8'))
+                        if (states && typeof states === 'object' && !Array.isArray(states)) {
+                            delete states[targetId]
+                            writeJsonFileAtomic(statesPath, states)
+                        }
+                    } catch (error: any) {
+                        throw new Error(`清理音源状态失败：${error?.message || error}`)
+                    }
+                }
+                fs.unlinkSync(sourceScriptPath)
+            } catch (error) {
+                for (const [filePath, original] of originals) restoreFile(filePath, original)
+                throw error
+            }
+
+            try {
+                await Promise.all([initUserApis(sourceOwner), initUserApis(destinationOwner)])
+            } catch (error) {
+                for (const [filePath, original] of originals) restoreFile(filePath, original)
+                await Promise.allSettled([initUserApis(sourceOwner), initUserApis(destinationOwner)])
+                throw error
+            }
+            return ctx.json({ success: true, id: targetId, fromOwner: sourceOwner, toOwner: destinationOwner })
+        })
+    } catch (err: any) {
+        console.error('[CustomSource] Assign error:', err)
         return ctx.text(err.message, 500)
     }
 }

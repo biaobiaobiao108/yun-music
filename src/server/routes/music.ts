@@ -494,11 +494,11 @@ export const createMusicRouter = (): Router => {
           attempts = userApiError.attempts || []
         }
       } else {
-        void pushProgress({ name: '系统', status: 'fail', message: `未找到支持 ${source} 平台的自定义源，请在「设置 → 自定义源」中添加或启用相关音源` })
+          void pushProgress({ name: '系统', status: 'fail', message: `未找到支持 ${source} 平台的自定义源，请联系管理员配置或启用对应音源` })
       }
 
       if (!result) {
-        const errMsg = customSourceError || `未找到支持 ${source} 平台的自定义源，请在「设置 → 自定义源」中添加或启用相关音源`
+        const errMsg = customSourceError || `未找到支持 ${source} 平台的自定义源，请联系管理员配置或启用对应音源`
         const err: any = new Error(errMsg)
         err.attempts = attempts
         // 音源缺失或解析失败都属于用户可自行修复的问题，用 422 而非 500
