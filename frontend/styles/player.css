@@ -10032,7 +10032,7 @@ textarea:focus-visible {
    entire shell row. Mobile keeps the drawer height supplied by its insets. */
 @media (min-width: 901px) {
     #main-sidebar.react-sidebar {
-        align-self: start;
+        align-self: center;
         block-size: min(42rem, calc(100dvh - 2rem));
         height: min(42rem, calc(100dvh - 2rem)) !important;
         max-block-size: calc(100dvh - 2rem);
