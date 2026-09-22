@@ -70,6 +70,14 @@ const getActiveLoginFailures = (ip: string, now: number): number[] => {
 
 export const isLoginRateLimited = (ip: string): boolean => {
   const now = Date.now()
+  try {
+    const row = getDb().query<{ count: number }, [string, number]>(
+      'SELECT COUNT(*) AS count FROM login_failures WHERE ip = ? AND failed_at > ?'
+    ).get(ip, now - LOGIN_WINDOW_MS)
+    return Number(row?.count || 0) >= MAX_LOGIN_FAILURES
+  } catch {
+    // Keep a bounded in-memory fallback for database recovery/startup errors.
+  }
   pruneLoginFailures(now)
   const failures = getActiveLoginFailures(ip, now)
   return failures.length >= MAX_LOGIN_FAILURES
@@ -77,6 +85,14 @@ export const isLoginRateLimited = (ip: string): boolean => {
 
 export const recordLoginFailure = (ip: string): void => {
   const now = Date.now()
+  try {
+    const db = getDb()
+    db.run('INSERT INTO login_failures (ip, failed_at) VALUES (?, ?)', [ip, now])
+    db.run('DELETE FROM login_failures WHERE failed_at <= ?', [now - LOGIN_WINDOW_MS])
+    return
+  } catch {
+    // Keep a bounded in-memory fallback for database recovery/startup errors.
+  }
   pruneLoginFailures(now)
   const failures = getActiveLoginFailures(ip, now)
   failures.push(now)
@@ -86,12 +102,13 @@ export const recordLoginFailure = (ip: string): void => {
 
 export const clearLoginFailures = (ip: string): void => {
   loginFailures.delete(ip)
+  try { getDb().run('DELETE FROM login_failures WHERE ip = ?', [ip]) } catch { }
 }
 
 const playerSessions = new Map<string, { createdAt: number }>()
 const adminSessions = new Map<string, number>()
 const MAX_SESSIONS = 10_000
-const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000
+export const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000
 const SESSION_PRUNE_INTERVAL_MS = 60 * 1000
 
 const hashSession = (sessionId: string): string => new Bun.CryptoHasher('sha256').update(sessionId).digest('hex')
@@ -101,6 +118,8 @@ const prunePersistedSessions = (now = Date.now()): void => {
     const db = getDb()
     db.run('DELETE FROM player_sessions WHERE created_at <= ?', [now - PLAYER_SESSION_TTL])
     db.run('DELETE FROM user_sessions WHERE created_at <= ?', [now - USER_SESSION_TTL])
+    db.run('DELETE FROM admin_sessions WHERE expires_at <= ?', [now])
+    db.run('DELETE FROM login_failures WHERE failed_at <= ?', [now - LOGIN_WINDOW_MS])
   } catch (error) {
     console.error('[Auth] 会话清理失败:', error instanceof Error ? error.message : 'unknown error')
   }
@@ -164,6 +183,7 @@ const pruneAdminSessions = (now = Date.now()): void => {
     for (const [sessionId, expiresAt] of adminSessions) {
       if (expiresAt <= now) adminSessions.delete(sessionId)
     }
+    try { getDb().run('DELETE FROM admin_sessions WHERE expires_at <= ?', [now]) } catch { }
   }
   while (adminSessions.size > MAX_SESSIONS) adminSessions.delete(adminSessions.keys().next().value!)
 }
@@ -171,21 +191,37 @@ const pruneAdminSessions = (now = Date.now()): void => {
 export const createAdminSession = (): string => {
   pruneAdminSessions()
   const sessionId = crypto.randomBytes(32).toString('hex')
-  adminSessions.set(sessionId, Date.now() + ADMIN_SESSION_TTL)
+  const expiresAt = Date.now() + ADMIN_SESSION_TTL
+  adminSessions.set(sessionId, expiresAt)
+  try {
+    getDb().run('INSERT OR REPLACE INTO admin_sessions (session_hash, expires_at) VALUES (?, ?)', [hashSession(sessionId), expiresAt])
+  } catch (error) {
+    console.error('[Auth] 管理员会话持久化失败:', error instanceof Error ? error.message : 'unknown error')
+  }
   return sessionId
 }
 
 export const removeAdminSession = (sessionId: string): void => {
   adminSessions.delete(sessionId)
+  try { getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)]) } catch { }
 }
 
 export const checkAdminSession = (source: HeaderSource): boolean => {
   pruneAdminSessions()
   const sessionId = getCookieValue(source, ADMIN_SESSION_COOKIE_NAME)
   if (!sessionId) return false
-  const expiresAt = adminSessions.get(sessionId)
+  let expiresAt = adminSessions.get(sessionId)
+  if (!expiresAt) {
+    const persisted = getDb().query<{ expires_at: number }, [string]>(
+      'SELECT expires_at FROM admin_sessions WHERE session_hash = ?'
+    ).get(hashSession(sessionId))
+    if (persisted) {
+      expiresAt = Number(persisted.expires_at)
+      adminSessions.set(sessionId, expiresAt)
+    }
+  }
   if (!expiresAt || expiresAt <= Date.now()) {
-    adminSessions.delete(sessionId)
+    removeAdminSession(sessionId)
     return false
   }
   return true

@@ -5,6 +5,7 @@ import {
   createAdminSession,
   removeAdminSession,
   ADMIN_SESSION_COOKIE_NAME,
+  ADMIN_SESSION_TTL,
   checkPlayerAuthSession,
   createPlayerSession,
   removePlayerSession,
@@ -125,6 +126,28 @@ const loginRateLimitedResponse = (ctx: HttpContext): Response => ctx.fail(429, '
 
 const configuredUsers = (): LX.Config['users'] => global.lx.config.users ?? []
 
+const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
+  try {
+    const ip = ctx.remoteAddress || 'unknown'
+    if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
+    const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
+    if (typeof password !== 'string' || password.length > 1024) {
+      return ctx.fail(400, '密码格式错误')
+    }
+    if (!safeStringEqual(password, global.lx.config['frontend.password'])) {
+      recordLoginFailure(ip)
+      loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
+      return ctx.fail(401, '管理员密码错误')
+    }
+    clearLoginFailures(ip)
+    const sessionId = createAdminSession()
+    loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
+    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, ADMIN_SESSION_TTL / 1000, ctx.isSecure) })
+  } catch {
+    return ctx.fail(400, '请求格式错误，请刷新页面后重试')
+  }
+}
+
 /** 注册 Web 播放器、后台和 Web 用户认证路由。 */
 export const createAuthRouter = (): Router => {
   const router = new Router()
@@ -140,49 +163,8 @@ export const createAuthRouter = (): Router => {
     }, 200, { 'Cache-Control': 'no-cache' })
   })
 
-  router.post('/api/admin/verify', async (ctx) => {
-    try {
-      const ip = ctx.remoteAddress || 'unknown'
-      if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
-      const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
-      if (typeof password !== 'string' || password.length > 1024) {
-        return ctx.fail(400, '密码格式错误')
-      }
-      if (!safeStringEqual(password, global.lx.config['frontend.password'])) {
-        recordLoginFailure(ip)
-        loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
-        return ctx.fail(401, '管理员密码错误')
-      }
-      clearLoginFailures(ip)
-      const sessionId = createAdminSession()
-      loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.isSecure) })
-    } catch {
-      return ctx.fail(400, '请求格式错误，请刷新页面后重试')
-    }
-  })
-
-  router.post('/api/login', async (ctx) => {
-    try {
-      const ip = ctx.remoteAddress || 'unknown'
-      if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
-      const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
-      if (typeof password !== 'string' || password.length > 1024) {
-        return ctx.fail(400, '密码格式错误')
-      }
-      if (!safeStringEqual(password, global.lx.config['frontend.password'])) {
-        recordLoginFailure(ip)
-        loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
-        return ctx.fail(401, '管理员密码错误')
-      }
-      clearLoginFailures(ip)
-      const sessionId = createAdminSession()
-      loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, 8 * 60 * 60, ctx.isSecure) })
-    } catch {
-      return ctx.fail(400, '请求格式错误，请刷新页面后重试')
-    }
-  })
+  router.post('/api/admin/verify', handleAdminLogin)
+  router.post('/api/login', handleAdminLogin)
 
   router.post('/api/logout', (ctx) => {
     const sessionId = ctx.cookies[ADMIN_SESSION_COOKIE_NAME]

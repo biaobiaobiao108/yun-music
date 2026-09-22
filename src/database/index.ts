@@ -5,6 +5,7 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
 let activeDbPath: string | null = null
+const DATABASE_VERSION = 4
 
 export const getDbPath = (): string => {
   const dataPath = global.lx?.dataPath ?? path.join(process.cwd(), 'data')
@@ -24,7 +25,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
   ).all().map(row => row.name)
   const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
-  if (currentVersion !== 0 && currentVersion !== 3) {
+  if (currentVersion !== 0 && currentVersion !== 3 && currentVersion !== DATABASE_VERSION) {
     db.close()
     throw new Error('数据库版本不兼容，请先执行 bun run reset:instance')
   }
@@ -36,6 +37,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   // 启用 WAL 模式和外键支持
   db.run('PRAGMA journal_mode = WAL;')
   db.run('PRAGMA synchronous = NORMAL;')
+  db.run('PRAGMA busy_timeout = 5000;')
   db.run('PRAGMA foreign_keys = ON;')
 
   // 1. 系统元信息表
@@ -113,7 +115,25 @@ export const initDatabase = (customDbPath?: string): Database => {
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_player_sessions_created_at ON player_sessions(created_at);')
 
-  // 8. 缓存与下载元数据索引表
+  // 8. 管理后台会话：持久化哈希后支持多实例/重启恢复，明文会话 ID 不落盘
+  db.run(`
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      session_hash TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL
+    );
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);')
+
+  // 9. 登录失败记录：按 IP 共享限流状态，避免多实例各自计数
+  db.run(`
+    CREATE TABLE IF NOT EXISTS login_failures (
+      ip TEXT NOT NULL,
+      failed_at INTEGER NOT NULL
+    );
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_login_failures_lookup ON login_failures(ip, failed_at);')
+
+  // 10. 缓存与下载元数据索引表
   db.run(`
     CREATE TABLE IF NOT EXISTS cache_index (
       location TEXT NOT NULL,
@@ -123,12 +143,48 @@ export const initDatabase = (customDbPath?: string): Database => {
       quality TEXT NOT NULL,
       data TEXT NOT NULL,
       updated_at INTEGER NOT NULL,
+      audio_size INTEGER NOT NULL DEFAULT 0,
+      lyric_size INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (location, user_name, folder, song_id, quality)
     );
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_cache_query ON cache_index(location, user_name, folder, song_id);')
 
-  db.run('PRAGMA user_version = 3')
+  // v3 -> v4: keep frequently aggregated file sizes outside the JSON blob.
+  // The JSON remains the compatibility source for the complete CacheItem.
+  if (currentVersion === 3) {
+    const columns = db.query<{ name: string }, []>('PRAGMA table_info(cache_index)').all().map(column => column.name)
+    if (!columns.includes('audio_size')) db.run('ALTER TABLE cache_index ADD COLUMN audio_size INTEGER NOT NULL DEFAULT 0')
+    if (!columns.includes('lyric_size')) db.run('ALTER TABLE cache_index ADD COLUMN lyric_size INTEGER NOT NULL DEFAULT 0')
+
+    const rows = db.query<{ rowid: number; data: string }, []>('SELECT rowid, data FROM cache_index').all()
+    const update = db.prepare('UPDATE cache_index SET audio_size = ?, lyric_size = ? WHERE rowid = ?')
+    try {
+      db.transaction(() => {
+        for (const row of rows) {
+          let audioSize = 0
+          let lyricSize = 0
+          try {
+            const item = JSON.parse(row.data) as { size?: unknown; lyricSize?: unknown }
+            const parsedAudioSize = Number(item.size)
+            const parsedLyricSize = Number(item.lyricSize)
+            audioSize = Number.isFinite(parsedAudioSize) && parsedAudioSize > 0 ? Math.trunc(parsedAudioSize) : 0
+            lyricSize = Number.isFinite(parsedLyricSize) && parsedLyricSize > 0 ? Math.trunc(parsedLyricSize) : 0
+          } catch {
+            // Leave invalid historical rows at zero; the background cache
+            // reconciliation will repair them from the physical files.
+          }
+          update.run(audioSize, lyricSize, row.rowid)
+        }
+      })()
+    } finally {
+      update.finalize()
+    }
+  }
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_cache_stats ON cache_index(user_name, folder, location, audio_size, lyric_size);')
+
+  db.run(`PRAGMA user_version = ${DATABASE_VERSION}`)
 
   dbInstance = db
   activeDbPath = dbPath
@@ -217,7 +273,7 @@ export const createDatabaseSnapshot = (destination: string): void => {
 export const restoreDatabaseSnapshot = (sourcePath: string): void => {
   const source = new Database(sourcePath, { readonly: true })
   const target = getDb()
-  const tables = ['system_info', 'users', 'snapshots', 'snapshot_meta', 'user_settings', 'player_sessions', 'user_sessions', 'cache_index']
+  const tables = ['system_info', 'users', 'snapshots', 'snapshot_meta', 'user_settings', 'player_sessions', 'user_sessions', 'admin_sessions', 'login_failures', 'cache_index']
   try {
     source.run('PRAGMA trusted_schema = OFF')
     const check = source.query<{ quick_check: string }, []>('PRAGMA quick_check').get()
@@ -276,6 +332,8 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
       // Sessions from a historical backup must not revive logged-out credentials.
       target.run('DELETE FROM user_sessions')
       target.run('DELETE FROM player_sessions')
+      target.run('DELETE FROM admin_sessions')
+      target.run('DELETE FROM login_failures')
     })()
   } finally {
     source.close()
