@@ -4,15 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>云音</title>
-  <script>
-    (() => {
-      const pathname = window.location.pathname
-      const baseHref = pathname.endsWith('/') ? pathname : `${pathname}/`
-      const base = document.createElement('base')
-      base.href = baseHref
-      document.head.prepend(base)
-    })()
-  </script>
+  <script src="/js/page-runtime.js"></script>
   <script src="/js/config.js"></script>
   <link rel="icon" href="/music/assets/yun-yin.png" type="image/png">
   <link rel="apple-touch-icon" href="/music/assets/yun-yin.png">
@@ -20,11 +12,6 @@
   <link rel="stylesheet" href="css/theme_variables.css">
   <link rel="stylesheet" href="css/tailwind.generated.css?v=7">
   <link rel="stylesheet" href="assets/fontawesome/css/solid-subset.min.css">
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => undefined))
-    }
-  </script>
 </head>
 <body class="t-bg-main h-screen h-dvh flex flex-col overflow-hidden t-text-main font-sans">
   <a href="#player-main-content" class="skip-link">跳转到主要内容</a>

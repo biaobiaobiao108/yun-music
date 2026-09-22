@@ -63,7 +63,7 @@ export const securityHeadersMiddleware: Middleware = async (ctx, next) => {
     "media-src 'self' blob: https:",
     "connect-src 'self' https: wss:",
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self'",
   ].join('; '))
 
   return new Response(response.body, {

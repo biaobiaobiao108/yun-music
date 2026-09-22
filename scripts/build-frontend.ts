@@ -20,6 +20,8 @@ async function build() {
   const adminHtmlSource = path.join(import.meta.dir, '../frontend/admin/index.html')
   const playerHtmlSource = path.join(import.meta.dir, '../frontend/player/index.html')
   const playerLoginSource = path.join(import.meta.dir, '../frontend/player/login.html')
+  const pageRuntimeSource = path.join(import.meta.dir, '../frontend/shared/src/page-runtime.js')
+  const pageRuntimeTarget = path.join(publicRoot, 'js/page-runtime.js')
   const shouldMinify = process.env.NODE_ENV === 'production' || !isWatch
 
   const stylesProcess = Bun.spawn(['bun', 'run', 'scripts/build-styles.ts'], {
@@ -43,6 +45,8 @@ async function build() {
     if (!isWatch) process.exit(1)
     return
   }
+  fs.mkdirSync(path.dirname(pageRuntimeTarget), { recursive: true })
+  fs.copyFileSync(pageRuntimeSource, pageRuntimeTarget)
 
   // These files belonged to the retired command-driven player. Remove stale
   // local build output so a previous build cannot keep shipping dead runtime
