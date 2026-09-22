@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { adminApi, type AdminCustomSource, type CustomSourceOwner } from './api'
 import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Modal, Panel, SelectMenu } from './components'
-import { ViewFrame } from './views'
+import { ViewFrame } from './view_frame'
 import { useAdminStore } from './store'
 import { formatBytes, formatDate } from '../../../shared/src/runtime'
 

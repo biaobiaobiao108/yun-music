@@ -3,6 +3,7 @@ import { adminApi, type AdminStatus, type AdminUser, type Snapshot } from './api
 import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Modal, Panel, SelectMenu, StatCard, formatUptime } from './components'
 import { useAdminStore, type AdminView } from './store'
 import { formatBytes, formatDate } from '../../../shared/src/runtime'
+import { ViewFrame } from './view_frame'
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
@@ -62,10 +63,6 @@ export function DashboardView() {
       </div>
     </>}
   </ViewFrame>
-}
-
-export function ViewFrame({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return <section className="view active admin-react-view"><header className="view-header"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div></header>{children}</section>
 }
 
 export function UsersView() {
