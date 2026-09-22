@@ -48,7 +48,7 @@ async function build() {
   const pageRuntimeTarget = path.join(publicRoot, 'js/page-runtime.js')
   const shouldMinify = process.env.NODE_ENV === 'production' || !isWatch
 
-  const stylesProcess = Bun.spawn(['bun', 'run', 'scripts/build-styles.ts'], {
+  const stylesProcess = Bun.spawn(['bun', 'scripts/build-styles.ts'], {
     stdout: 'inherit',
     stderr: 'inherit',
   })
@@ -59,7 +59,7 @@ async function build() {
     return
   }
 
-  const iconSubsetProcess = Bun.spawn(['bun', 'run', path.join(import.meta.dir, 'build-fontawesome-subset.ts')], {
+  const iconSubsetProcess = Bun.spawn(['bun', path.join(import.meta.dir, 'build-fontawesome-subset.ts')], {
     stdout: 'inherit',
     stderr: 'inherit',
   })
@@ -186,7 +186,7 @@ async function build() {
   const loginSize = (fs.statSync(loginOutput.path).size / 1024).toFixed(1)
   console.log(`[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminFileName} ${adminSize}KB, player: ${playerFileName} ${playerSize}KB, login: ${loginFileName} ${loginSize}KB, minified: ${shouldMinify})`)
 
-  const updateHashProcess = Bun.spawn(['bun', 'run', path.join(import.meta.dir, 'update-build-hash.js')], {
+  const updateHashProcess = Bun.spawn(['bun', path.join(import.meta.dir, 'update-build-hash.js')], {
     stdout: 'inherit',
     stderr: 'inherit',
   })

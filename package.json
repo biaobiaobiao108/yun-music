@@ -5,8 +5,8 @@
   "scripts": {
     "prestart": "bun run scripts/download-binary.js && bun run scripts/update-build-hash.js",
     "start": "bun run src/index.ts",
-    "predev": "bun run scripts/update-build-hash.js",
-    "dev": "bun run scripts/dev.ts",
+    "predev": "bun scripts/update-build-hash.js",
+    "dev": "bun scripts/dev.ts",
     "dev:server": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir ./server --target bun --packages=external",
     "build:frontend": "bun run scripts/build-frontend.ts",
