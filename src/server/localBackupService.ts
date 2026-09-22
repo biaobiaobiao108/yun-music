@@ -280,7 +280,9 @@ const createBackupConfig = (): string => {
   const config: Record<string, any> = { ...(global.lx.config || {}), users: [] }
   // Backups may be copied outside the host; never package reusable secrets.
   delete config['frontend.password']
+  delete config['frontend.passwordHash']
   delete config['player.password']
+  delete config['player.passwordHash']
   const proxyAddress = config['proxy.all.address']
   if (typeof proxyAddress === 'string' && proxyAddress) {
     try {

@@ -249,19 +249,48 @@ export const createCacheRouter = (): Router => {
     try {
       const { location, namingPattern } = await ctx.bodyJson<{ location?: string; namingPattern?: string }>()
       let updated = false
+      const config = global.lx.config
+      const previousLocation = fileCache.getCacheLocation()
+      const previousNamingPattern = fileCache.getNamingPattern()
+      const previousConfiguredLocation = config?.serverCacheLocation
 
-      if (location && location !== fileCache.getCacheLocation()) {
+      if (location !== undefined) {
+        if (location !== fileCache.CACHE_ROOTS.DATA && location !== fileCache.CACHE_ROOTS.ROOT) {
+          return ctx.fail(422, '缓存位置必须是 data 或 root')
+        }
+      }
+
+      if (location && (location !== previousLocation || config?.serverCacheLocation !== location)) {
         fileCache.setCacheLocation(location)
+        if (config) config.serverCacheLocation = location
         updated = true
       }
 
-      if (namingPattern) {
+      if (namingPattern !== undefined) {
+        if (namingPattern !== fileCache.CACHE_NAMING_PATTERNS.SIMPLE && namingPattern !== fileCache.CACHE_NAMING_PATTERNS.STANDARD) {
+          return ctx.fail(422, '缓存命名规则无效')
+        }
         const normalizedNamingPattern = fileCache.setNamingPattern(namingPattern)
-        if (global.lx.config) global.lx.config['cache.namingPattern'] = normalizedNamingPattern
-        updated = true
+        if (config && config['cache.namingPattern'] !== normalizedNamingPattern) {
+          config['cache.namingPattern'] = normalizedNamingPattern
+          updated = true
+        }
       }
 
       if (updated) {
+        try {
+          if (global.lx.saveConfig) await global.lx.saveConfig()
+        } catch (error) {
+          fileCache.setCacheLocation(previousLocation)
+          fileCache.setNamingPattern(previousNamingPattern)
+          if (config) {
+            if (previousConfiguredLocation === undefined) delete config.serverCacheLocation
+            else config.serverCacheLocation = previousConfiguredLocation
+            if (previousNamingPattern === undefined) delete config['cache.namingPattern']
+            else config['cache.namingPattern'] = previousNamingPattern
+          }
+          throw error
+        }
         return ctx.json({ success: true })
       }
       return ctx.json({ success: true, message: '配置未发生变化' })

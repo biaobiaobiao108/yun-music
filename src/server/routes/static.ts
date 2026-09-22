@@ -109,8 +109,6 @@ export const createStaticRouter = (): Router => {
       maxSnapshotNum: config.maxSnapshotNum,
       'list.addMusicLocationType': config['list.addMusicLocationType'],
       'player.enableAuth': config['player.enableAuth'] || false,
-      port: config.port,
-      bindIP: config.bindIP,
       'admin.path': config['admin.path'] ?? '',
       'player.path': config['player.path'] ?? '/music',
     }

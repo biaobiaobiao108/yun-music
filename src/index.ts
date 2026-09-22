@@ -14,18 +14,41 @@ import { checkAndCreateDirSync } from './utils'
 import { assertSafePathSegment } from './utils/pathSecurity'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses } from './server/core/context'
 import { parseConfigFile } from './utils/configLoader'
+import { hashPassword, isPasswordHash } from './utils/passwordHash'
 
 // Declare Env Params Type
 type ENV_PARAMS_Type = typeof ENV_PARAMS
 type ENV_PARAMS_Value_Type = ENV_PARAMS_Type[number]
 
 
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err)
-})
-process.on('unhandledRejection', (reason, p) => {
-  console.error('Unhandled Rejection at:', p, 'reason:', reason)
-})
+let fatalShutdown: (() => Promise<void>) | null = null
+let fatalShutdownStarted = false
+
+const formatFatalError = (error: unknown): string => {
+  if (error instanceof Error) return error.stack || error.message
+  return String(error)
+}
+
+const handleFatalProcessError = (kind: string, error: unknown): void => {
+  if (fatalShutdownStarted) return
+  fatalShutdownStarted = true
+  console.error(`[Fatal] ${kind}: ${formatFatalError(error)}`)
+  void (async () => {
+    try {
+      await fatalShutdown?.()
+    } catch (shutdownError) {
+      console.error(`[Fatal] shutdown failed: ${formatFatalError(shutdownError)}`)
+    } finally {
+      process.exit(1)
+    }
+  })()
+}
+
+// Continuing after an uncaught exception can leave SQLite, file writes, or
+// download queues in a partially-mutated state. Exit after best-effort cleanup
+// so Docker/systemd can restart a known-good process.
+process.on('uncaughtException', (err) => handleFatalProcessError('uncaught exception', err))
+process.on('unhandledRejection', (reason) => handleFatalProcessError('unhandled rejection', reason))
 
 let envParams: Partial<Record<Exclude<ENV_PARAMS_Value_Type, 'LX_USER_'>, string>> = {}
 let envUsers: LX.User[] = []
@@ -71,10 +94,26 @@ const dataPath = envParams.DATA_PATH ?? path.join(__dirname, '../data')
 const saveConfigToFile = async () => {
   const configPath = process.env.CONFIG_PATH || path.join(dataPath, 'config.js')
   const configForFile: Record<string, any> = { ...global.lx.config, users: [] }
+  for (const [plainKey, hashKey] of [
+    ['frontend.password', 'frontend.passwordHash'],
+    ['player.password', 'player.passwordHash'],
+  ] as const) {
+    const plainPassword = configForFile[plainKey]
+    const existingHash = configForFile[hashKey]
+    if (existingHash && !isPasswordHash(existingHash)) {
+      throw new Error(`${hashKey} 格式无效`)
+    }
+    if (!isPasswordHash(existingHash) && typeof plainPassword === 'string' && plainPassword.trim()) {
+      configForFile[hashKey] = hashPassword(plainPassword)
+    }
+    // Never persist legacy/runtime plaintext credentials.
+    delete configForFile[plainKey]
+    if (!isPasswordHash(configForFile[hashKey])) delete configForFile[hashKey]
+  }
   // Environment-managed secrets must not be copied into the bind-mounted
   // config file. They will be applied again during the next startup.
-  if (Object.prototype.hasOwnProperty.call(process.env, 'FRONTEND_PASSWORD')) delete configForFile['frontend.password']
-  if (Object.prototype.hasOwnProperty.call(process.env, 'WEBPLAYER_PASSWORD')) delete configForFile['player.password']
+  if (Object.prototype.hasOwnProperty.call(process.env, 'FRONTEND_PASSWORD')) delete configForFile['frontend.passwordHash']
+  if (Object.prototype.hasOwnProperty.call(process.env, 'WEBPLAYER_PASSWORD')) delete configForFile['player.passwordHash']
   if (Object.prototype.hasOwnProperty.call(process.env, 'PROXY_ALL_ADDRESS')) delete configForFile['proxy.all.address']
   const content = `module.exports = ${JSON.stringify(configForFile, null, 2)}\n`
   try {
@@ -143,6 +182,18 @@ const margeConfig = (p: string) => {
     // @ts-expect-error
     if (config[key] !== undefined) newConfig[key] = config[key]
   }
+  for (const [plainKey, hashKey] of [
+    ['frontend.password', 'frontend.passwordHash'],
+    ['player.password', 'player.passwordHash'],
+  ] as const) {
+    if (Object.prototype.hasOwnProperty.call(config, hashKey)) {
+      newConfig[hashKey] = config[hashKey]
+      delete newConfig[plainKey]
+    } else if (Object.prototype.hasOwnProperty.call(config, plainKey)) {
+      newConfig[plainKey] = config[plainKey]
+      delete newConfig[hashKey]
+    }
+  }
 
   console.log('Load config: ' + p)
   if (newConfig.users.length) {
@@ -191,6 +242,7 @@ if (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
 }
 if (envParams.FRONTEND_PASSWORD) {
   global.lx.config['frontend.password'] = envParams.FRONTEND_PASSWORD
+  delete global.lx.config['frontend.passwordHash']
 }
 if (envParams.USER_ENABLE_PATH) {
   global.lx.config['user.enablePath'] = envParams.USER_ENABLE_PATH === 'true'
@@ -210,6 +262,7 @@ if (envParams.ENABLE_WEBPLAYER_AUTH) {
 }
 if (envParams.WEBPLAYER_PASSWORD) {
   global.lx.config['player.password'] = envParams.WEBPLAYER_PASSWORD
+  delete global.lx.config['player.passwordHash']
 }
 if (envParams.DISABLE_TELEMETRY) {
   global.lx.config.disableTelemetry = envParams.DISABLE_TELEMETRY === 'true'
@@ -319,6 +372,36 @@ const checkUserConfig = (users: LX.Config['users']) => {
   }
 }
 
+const normalizeConfiguredPassword = (plainKey: 'frontend.password' | 'player.password', hashKey: 'frontend.passwordHash' | 'player.passwordHash', label: string, required: boolean): void => {
+  const config = global.lx.config as unknown as Record<string, unknown>
+  const configuredHash = config[hashKey]
+  if (configuredHash !== undefined && configuredHash !== '' && !isPasswordHash(configuredHash)) {
+    throw new Error(`${hashKey} 格式无效`)
+  }
+  if (isPasswordHash(configuredHash)) {
+    delete config[plainKey]
+    return
+  }
+
+  const password = config[plainKey]
+  if (typeof password !== 'string') {
+    if (required) throw new Error(`${label}必须配置`)
+    delete config[plainKey]
+    delete config[hashKey]
+    return
+  }
+  if (password.length > 1024) throw new Error(`${label}长度不能超过 1024 个字符`)
+  if (!password.trim()) {
+    if (required) throw new Error(`${label}必须配置`)
+    delete config[plainKey]
+    delete config[hashKey]
+    return
+  }
+  if (password === '123456') throw new Error(`${label}不能使用示例密码`)
+  config[hashKey] = hashPassword(password)
+  delete config[plainKey]
+}
+
 try {
   global.lx.config['proxy.trustedAddresses'] = normalizeTrustedProxyAddresses(global.lx.config['proxy.trustedAddresses'])
 } catch (error: any) {
@@ -333,16 +416,11 @@ checkAndCreateDir(global.lx.dataPath)
 checkAndCreateDir(global.lx.userPath)
 
 checkUserConfig(global.lx.config.users)
-
-const frontendPassword = global.lx.config['frontend.password']
-if (typeof frontendPassword !== 'string' || frontendPassword.length > 1024 || frontendPassword.trim() === '' || frontendPassword === '123456') {
-  exit('frontend.password must be explicitly configured and must not use the example password')
-}
-if (global.lx.config['player.enableAuth']) {
-  const playerPassword = global.lx.config['player.password']
-  if (typeof playerPassword !== 'string' || playerPassword.length > 1024 || playerPassword.trim() === '' || playerPassword === '123456') {
-    exit('player.password must be explicitly configured when player authentication is enabled')
-  }
+try {
+  normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
+  normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
+} catch (error) {
+  exit(error instanceof Error ? error.message : String(error))
 }
 
 console.log(`Users:
@@ -389,6 +467,13 @@ initializeUsersFromDatabase(global.lx.config.users)
 
 // 初始化 Web 服务
 const { startServer, stopServer } = await import('@/server')
+fatalShutdown = async () => {
+  try {
+    await stopServer()
+  } finally {
+    closeDb()
+  }
+}
 
 // [新增] 确保数据目录下的 _open 及 _open/library 目录存在 (用于公共受限资源 & 公开收藏)
 const openDir = path.join(global.lx.userPath, '_open')
@@ -421,11 +506,21 @@ if (fs.existsSync(rootConfigPath)) {
         lastConfigHash = currentHash
 
         console.log('Detected external config.js change, hot-reloading...')
-        try {
-          margeConfig(rootConfigPath)
-        } catch (e) {
-          console.error('Hot-reload config.js failed:', e)
-        }
+        const previousConfig = { ...global.lx.config }
+        void (async () => {
+          try {
+            if (!margeConfig(rootConfigPath)) return
+            normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
+            normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
+            await saveConfigToFile()
+          } catch (e) {
+            for (const key of Object.keys(global.lx.config)) {
+              if (!(key in previousConfig)) delete (global.lx.config as any)[key]
+            }
+            Object.assign(global.lx.config, previousConfig)
+            console.error('Hot-reload config.js failed:', e)
+          }
+        })()
       }, 500)
     }
   })

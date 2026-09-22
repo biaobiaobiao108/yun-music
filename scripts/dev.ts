@@ -8,12 +8,31 @@ const services: DevService[] = [
   { name: 'frontend', command: ['bun', 'run', 'dev:frontend'] },
 ]
 
+const runInitialFrontendBuild = async (): Promise<void> => {
+  console.log('[dev] Building frontend before starting the server...')
+  const buildProcess = Bun.spawn(['bun', 'run', 'build:frontend'], {
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  const exitCode = await buildProcess.exited
+  if (exitCode !== 0) throw new Error(`frontend build failed with code ${exitCode}`)
+}
+
+await runInitialFrontendBuild().catch(error => {
+  console.error('[dev] Unable to prepare frontend assets:', error instanceof Error ? error.message : error)
+  process.exit(1)
+})
+
 const children = services.map(service => ({
   ...service,
   process: Bun.spawn(service.command, {
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',
+    env: service.name === 'frontend'
+      ? { ...process.env, FRONTEND_SKIP_INITIAL_BUILD: '1' }
+      : undefined,
   }),
 }))
 

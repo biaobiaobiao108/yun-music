@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { closeDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user/data'
+import { hashPassword } from '@/utils/passwordHash'
 
 ;(global as any).lx = {
   dataPath: 'd:\\test_data',
@@ -26,6 +27,8 @@ describe('Web Cookie Authentication', () => {
     const lxGlobal = (global as any).lx
     lxGlobal.config['frontend.password'] = 'admin123'
     lxGlobal.config['player.password'] = 'player456'
+    delete lxGlobal.config['frontend.passwordHash']
+    delete lxGlobal.config['player.passwordHash']
     lxGlobal.config.users = [{ name: 'test_user', password: 'password123' }]
     syncUsersToDatabase(lxGlobal.config.users)
     userSessions.clear()
@@ -67,6 +70,27 @@ describe('Web Cookie Authentication', () => {
     expect(player.status).toBe(200)
     expect(player.headers.get('set-cookie')).toContain('lx_player_session=')
     expect(player.headers.get('set-cookie')).toContain(`Max-Age=${PLAYER_SESSION_TTL / 1000}`)
+  })
+
+  test('admin and player login verify persisted password hashes', async () => {
+    const lxGlobal = (global as any).lx
+    lxGlobal.config['frontend.passwordHash'] = hashPassword('admin123')
+    lxGlobal.config['player.passwordHash'] = hashPassword('player456')
+    delete lxGlobal.config['frontend.password']
+    delete lxGlobal.config['player.password']
+    const router = createAuthRouter()
+
+    const admin = await router.handle(new Request('http://localhost/api/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'admin123' }),
+    }))
+    const player = await router.handle(new Request('http://localhost/api/music/auth', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'player456' }),
+    }))
+
+    expect(admin.status).toBe(200)
+    expect(player.status).toBe(200)
   })
 
   test('HTTPS reverse proxy requests keep same-origin access and secure cookies', async () => {

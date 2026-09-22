@@ -12,6 +12,30 @@ function copyHtml(source: string, target: string, entryName?: string): void {
   fs.writeFileSync(target, content)
 }
 
+function cleanupStaleEntryBundles(directory: string, pattern: RegExp, keepName: string): void {
+  if (!fs.existsSync(directory)) return
+  for (const filename of fs.readdirSync(directory)) {
+    if (pattern.test(filename) && filename !== keepName) {
+      fs.rmSync(path.join(directory, filename), { force: true })
+    }
+  }
+}
+
+function cleanupStaleChunks(directory: string, keepPaths: Set<string>): void {
+  if (!fs.existsSync(directory)) return
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      cleanupStaleChunks(entryPath, keepPaths)
+      if (fs.readdirSync(entryPath).length === 0) fs.rmSync(entryPath, { recursive: true, force: true })
+      continue
+    }
+    if (/\.(?:js|map)$/i.test(entry.name) && !keepPaths.has(path.resolve(entryPath))) {
+      fs.rmSync(entryPath, { force: true })
+    }
+  }
+}
+
 async function build() {
   const startTime = performance.now()
   const adminEntry = path.join(import.meta.dir, '../frontend/admin/src/react/index.tsx')
@@ -59,16 +83,8 @@ async function build() {
     if (fs.existsSync(stalePath)) fs.rmSync(stalePath, { recursive: true, force: true })
   }
 
-  // Remove only previous generated entry bundles; source HTML and data are never touched here.
-  for (const [directory, pattern] of [[publicRoot, /^app(?:-[a-z0-9]+)?\.js$/i], [publicMusicRoot, /^app(?:-[a-z0-9]+)?\.js$/i]] as const) {
-    for (const filename of fs.readdirSync(directory)) {
-      if (pattern.test(filename)) fs.rmSync(path.join(directory, filename), { force: true })
-    }
-  }
-
   // 1. Build Admin Panel
   const adminChunkDir = path.join(publicRoot, 'js/chunks')
-  if (fs.existsSync(adminChunkDir)) fs.rmSync(adminChunkDir, { recursive: true, force: true })
   const adminResult = await Bun.build({
     entrypoints: [adminEntry],
     outdir: publicRoot,
@@ -101,13 +117,6 @@ async function build() {
     const staleBundle = path.join(playerOutdir, 'js', filename)
     if (fs.existsSync(staleBundle)) fs.rmSync(staleBundle, { force: true })
   }
-  if (fs.existsSync(playerChunkDir)) fs.rmSync(playerChunkDir, { recursive: true, force: true })
-  for (const filename of fs.readdirSync(playerOutdir)) {
-    if (filename.startsWith('chunk-') && filename.endsWith('.js')) {
-      fs.rmSync(path.join(playerOutdir, filename), { force: true })
-    }
-  }
-
   const playerResult = await Bun.build({
     entrypoints: [playerEntry],
     outdir: playerOutdir,
@@ -135,9 +144,6 @@ async function build() {
 
   // 3. Build the dedicated React authentication entry. It intentionally has
   // its own hash so login can be cached independently from the main player.
-  for (const filename of fs.readdirSync(publicMusicRoot)) {
-    if (/^login(?:-[a-z0-9]+)?\.js$/i.test(filename)) fs.rmSync(path.join(publicMusicRoot, filename), { force: true })
-  }
   const loginResult = await Bun.build({
     entrypoints: [playerLoginEntry],
     outdir: publicMusicRoot,
@@ -165,6 +171,15 @@ async function build() {
   copyHtml(playerHtmlSource, path.join(publicMusicRoot, 'index.html'), playerFileName)
   copyHtml(playerLoginSource, path.join(publicMusicRoot, 'login.html'), loginFileName)
 
+  // Keep old assets available until every new bundle and HTML reference has
+  // been written. Only then remove stale outputs, so a watch rebuild cannot
+  // briefly make the active player or lyric page reference a missing file.
+  cleanupStaleEntryBundles(publicRoot, /^app(?:-[a-z0-9]+)?\.js$/i, adminFileName)
+  cleanupStaleEntryBundles(publicMusicRoot, /^app(?:-[a-z0-9]+)?\.js$/i, playerFileName)
+  cleanupStaleEntryBundles(publicMusicRoot, /^login(?:-[a-z0-9]+)?\.js$/i, loginFileName)
+  cleanupStaleChunks(adminChunkDir, new Set(adminResult.outputs.map(output => path.resolve(output.path))))
+  cleanupStaleChunks(playerChunkDir, new Set(playerResult.outputs.map(output => path.resolve(output.path))))
+
   const duration = (performance.now() - startTime).toFixed(1)
   const adminSize = (fs.statSync(adminOutput.path).size / 1024).toFixed(1)
   const playerSize = (fs.statSync(playerOutput.path).size / 1024).toFixed(1)
@@ -180,7 +195,9 @@ async function build() {
 
 async function main() {
   console.log(`[Bun Bundler] Building frontend assets... ${isWatch ? '(watch mode)' : ''}`)
-  await build()
+  const skipInitialBuild = isWatch && process.env.FRONTEND_SKIP_INITIAL_BUILD === '1'
+  if (skipInitialBuild) console.log('[Bun Bundler] Initial build already completed by the dev coordinator.')
+  else await build()
 
   if (isWatch) {
     const watchRoots = [
@@ -190,13 +207,31 @@ async function main() {
       path.join(import.meta.dir, '../frontend/styles'),
     ]
     let debounceTimer: Timer | null = null
+    let buildInProgress = false
+    let rebuildQueued = false
+
+    const scheduleBuild = (filename: string | null) => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (buildInProgress) {
+          rebuildQueued = true
+          return
+        }
+        buildInProgress = true
+        console.log(`[Bun Bundler] File changed: ${filename || 'unknown'}, rebuilding...`)
+        void build().catch(error => console.error('[Bun Bundler] Watch build failed:', error)).finally(() => {
+          buildInProgress = false
+          if (rebuildQueued) {
+            rebuildQueued = false
+            scheduleBuild('queued changes')
+          }
+        })
+      }, 100)
+    }
 
     const onChange = (filename: string | null) => {
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(async () => {
-        console.log(`[Bun Bundler] File changed: ${filename || 'unknown'}, rebuilding...`)
-        await build()
-      }, 100)
+      scheduleBuild(filename)
     }
 
     for (const watchRoot of watchRoots) {

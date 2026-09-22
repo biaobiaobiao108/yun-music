@@ -16,7 +16,7 @@ import {
   clearLoginFailures,
   isLoginRateLimited,
   recordLoginFailure,
-  safeStringEqual,
+  verifyConfiguredPassword,
   getCookieValue,
   type HeaderSource,
 } from '../auth'
@@ -134,7 +134,7 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
     if (typeof password !== 'string' || password.length > 1024) {
       return ctx.fail(400, '密码格式错误')
     }
-    if (!safeStringEqual(password, global.lx.config['frontend.password'])) {
+    if (!verifyConfiguredPassword(password, global.lx.config['frontend.passwordHash'], global.lx.config['frontend.password'])) {
       recordLoginFailure(ip)
       loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
       return ctx.fail(401, '管理员密码错误')
@@ -218,8 +218,7 @@ export const createAuthRouter = (): Router => {
       if (typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '密码格式错误')
       }
-      const configuredPassword = global.lx.config['player.password']
-      if (!safeStringEqual(password, configuredPassword)) {
+      if (!verifyConfiguredPassword(password, global.lx.config['player.passwordHash'], global.lx.config['player.password'])) {
         recordLoginFailure(ip)
         loginLog.warn(`Player login failed from ${ctx.remoteAddress}`)
         return ctx.fail(401, '播放器密码错误，请重新输入')

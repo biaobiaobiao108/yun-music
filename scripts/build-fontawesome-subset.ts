@@ -2,8 +2,14 @@ import fs from 'fs'
 import path from 'path'
 
 const projectRoot = path.resolve(import.meta.dir, '..')
-const sourcePath = path.join(projectRoot, 'public/music/assets/fontawesome/css/all.min.css')
+const sourcePath = path.join(projectRoot, 'frontend/shared/assets/fontawesome/all.min.css')
 const targetPath = path.join(projectRoot, 'public/music/assets/fontawesome/css/solid-subset.min.css')
+const unusedPublishedFontFiles = [
+  'fa-brands-400.ttf',
+  'fa-brands-400.woff2',
+  'fa-regular-400.woff2',
+  'fa-solid-900.ttf',
+].map(file => path.join(projectRoot, 'public/music/assets/fontawesome/webfonts', file))
 
 const fallbackIconNames = [
   'arrow-down', 'arrow-left', 'arrow-right', 'backward-step', 'bars', 'bolt', 'broom',
@@ -60,4 +66,7 @@ const iconNames = collectSourceIconNames()
 const subset = buildSubset(source, iconNames)
 const current = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf8') : ''
 if (current !== subset) fs.writeFileSync(targetPath, subset)
+for (const file of unusedPublishedFontFiles) {
+  if (fs.existsSync(file)) fs.rmSync(file, { force: true })
+}
 console.log(`[Font Awesome] solid subset ready (${iconNames.size} icons, ${(Buffer.byteLength(subset) / 1024).toFixed(1)}KB)`)

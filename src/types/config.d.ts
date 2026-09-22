@@ -126,6 +126,9 @@ declare namespace LX {
      */
     'frontend.password'?: string
 
+    /** 由服务端生成的前端访问密码哈希；不接受前端直接修改。 */
+    'frontend.passwordHash'?: string
+
     /**
      * 是否开启Web播放器访问密码
      */
@@ -135,6 +138,9 @@ declare namespace LX {
      * Web播放器访问密码
      */
     'player.password'?: string
+
+    /** 由服务端生成的 Web 播放器密码哈希；不接受前端直接修改。 */
+    'player.passwordHash'?: string
 
     /**
      * 是否启用针对所有外发请求的代理 (目前主要用于 Music SDK)

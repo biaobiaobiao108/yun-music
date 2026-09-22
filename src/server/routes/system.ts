@@ -13,6 +13,7 @@ import { refreshUsersFromDatabase } from '@/user/data'
 import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
 import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
+import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -26,6 +27,36 @@ const parseBoolean = (value: unknown, fallback: boolean): boolean => {
 const parseBoundedInteger = (value: unknown, min: number, max: number, fallback: number): number => {
   const parsed = Number(value)
   return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback
+}
+
+const MAX_LOG_TAIL_BYTES = 4 * 1024 * 1024
+
+const readLogTail = async (filePath: string, lineLimit: number): Promise<string[]> => {
+  const handle = await fs.promises.open(filePath, 'r')
+  try {
+    const stats = await handle.stat()
+    let offset = stats.size
+    let bytesReadTotal = 0
+    let newlineCount = 0
+    const chunks: Buffer[] = []
+
+    while (offset > 0 && bytesReadTotal < MAX_LOG_TAIL_BYTES) {
+      const chunkSize = Math.min(64 * 1024, offset, MAX_LOG_TAIL_BYTES - bytesReadTotal)
+      offset -= chunkSize
+      const chunk = Buffer.allocUnsafe(chunkSize)
+      const result = await handle.read(chunk, 0, chunkSize, offset)
+      const actualChunk = chunk.subarray(0, result.bytesRead)
+      chunks.unshift(actualChunk)
+      bytesReadTotal += result.bytesRead
+      for (const byte of actualChunk) if (byte === 10) newlineCount += 1
+      if (newlineCount >= lineLimit) break
+    }
+
+    const content = Buffer.concat(chunks).toString('utf8')
+    return content.split('\n').filter(Boolean).slice(-lineLimit)
+  } finally {
+    await handle.close()
+  }
 }
 
 const normalizeConfiguredPath = (value: unknown, fallback: string, allowEmpty = false): string => {
@@ -52,6 +83,51 @@ const redactUrlCredentials = (value: unknown): string => {
   } catch {
     return '[configured]'
   }
+}
+
+const pathsOverlap = (left: string, right: string): boolean => {
+  const normalizedLeft = left || '/'
+  const normalizedRight = right || '/'
+  // Root is intentionally a catch-all fallback path in this application;
+  // only two concrete prefixes can shadow each other.
+  if (normalizedLeft === '/' || normalizedRight === '/') return normalizedLeft === normalizedRight
+  return normalizedLeft === normalizedRight ||
+    normalizedLeft.startsWith(`${normalizedRight}/`) ||
+    normalizedRight.startsWith(`${normalizedLeft}/`)
+}
+
+const applyConfiguredPassword = (
+  config: Record<string, any>,
+  restored: Record<string, unknown>,
+  plainKey: 'frontend.password' | 'player.password',
+  hashKey: 'frontend.passwordHash' | 'player.passwordHash',
+  label: string,
+  required: boolean,
+): void => {
+  if (restored[hashKey] !== undefined) {
+    if (!isPasswordHash(restored[hashKey])) throw new Error(`${hashKey} 格式无效`)
+    config[hashKey] = restored[hashKey]
+    delete config[plainKey]
+    return
+  }
+  if (restored[plainKey] === undefined) return
+  const password = restored[plainKey]
+  if (typeof password !== 'string' || password.length > 1024 || (required && !password.trim()) || password === '123456') {
+    throw new Error(`${label}配置无效`)
+  }
+  if (password.trim()) config[hashKey] = hashPassword(password)
+  else delete config[hashKey]
+  delete config[plainKey]
+}
+
+const getConfiguredPasswordHash = (
+  config: Record<string, any>,
+  plainKey: 'frontend.password' | 'player.password',
+  hashKey: 'frontend.passwordHash' | 'player.passwordHash',
+): string => {
+  if (isPasswordHash(config[hashKey])) return config[hashKey]
+  if (typeof config[plainKey] === 'string' && config[plainKey].trim()) return hashPassword(config[plainKey])
+  return ''
 }
 
 const normalizeProxyAddress = (value: unknown): string => {
@@ -91,6 +167,7 @@ const applyValidatedConfig = (restored: Record<string, unknown>, options: { incl
     'user.enableCacheSizeLimit',
     'disableTelemetry',
     'proxy.all.enabled',
+    'player.enableAuth',
   ]
   for (const key of scalarKeys) {
     if (typeof restored[key] === 'boolean') config[key] = restored[key]
@@ -134,36 +211,37 @@ const applyValidatedConfig = (restored: Record<string, unknown>, options: { incl
       config['proxy.all.address'] = normalizeProxyAddress(restored['proxy.all.address'])
     }
   } catch { }
-  try {
-    if (typeof restored['admin.path'] === 'string') config['admin.path'] = normalizeConfiguredPath(restored['admin.path'], '', true)
-    if (typeof restored['player.path'] === 'string') config['player.path'] = normalizeConfiguredPath(restored['player.path'], '/music')
-  } catch { }
+  if (typeof restored['admin.path'] === 'string' || typeof restored['player.path'] === 'string') {
+    const normalizedAdmin = typeof restored['admin.path'] === 'string'
+      ? normalizeConfiguredPath(restored['admin.path'], '', true)
+      : (config['admin.path'] ?? '')
+    const normalizedPlayer = typeof restored['player.path'] === 'string'
+      ? normalizeConfiguredPath(restored['player.path'], '/music')
+      : (config['player.path'] ?? '/music')
+    if (pathsOverlap(normalizedAdmin, normalizedPlayer)) {
+      throw new Error('后台管理路径与播放器路径不能相同或互相包含')
+    }
+    config['admin.path'] = normalizedAdmin
+    config['player.path'] = normalizedPlayer
+  }
   if (Array.isArray(restored['singer.sourcePriority'])) {
     const priority = restored['singer.sourcePriority'].filter(value => value === 'tx' || value === 'wy')
     if (priority.length > 0) config['singer.sourcePriority'] = priority
   }
 
   if (options.includeSecrets) {
-    if (restored['frontend.password'] !== undefined && !process.env.FRONTEND_PASSWORD) {
-      const password = restored['frontend.password']
-      if (typeof password !== 'string' || !password.trim() || password.length > 1024 || password === '123456') {
-        throw new Error('管理员密码配置无效')
-      }
-      config['frontend.password'] = password
+    if ((restored['frontend.password'] !== undefined || restored['frontend.passwordHash'] !== undefined) && !process.env.FRONTEND_PASSWORD) {
+      applyConfiguredPassword(config, restored, 'frontend.password', 'frontend.passwordHash', '管理员密码', true)
     }
-    if (restored['player.password'] !== undefined && !process.env.WEBPLAYER_PASSWORD) {
-      const password = restored['player.password']
-      if (typeof password !== 'string' || password.length > 1024 || (config['player.enableAuth'] && !password.trim()) || password === '123456') {
-        throw new Error('播放器密码配置无效')
-      }
-      config['player.password'] = password
+    if ((restored['player.password'] !== undefined || restored['player.passwordHash'] !== undefined) && !process.env.WEBPLAYER_PASSWORD) {
+      applyConfiguredPassword(config, restored, 'player.password', 'player.passwordHash', '播放器密码', Boolean(config['player.enableAuth']))
     }
   }
 
   if (config['proxy.all.enabled'] && !String(config['proxy.all.address'] || '').trim()) {
     throw new Error('启用全局代理时必须配置代理地址')
   }
-  if (config['player.enableAuth'] && !String(config['player.password'] || '').trim()) {
+  if (config['player.enableAuth'] && !isPasswordHash(config['player.passwordHash']) && !String(config['player.password'] || '').trim()) {
     throw new Error('播放器启用认证时必须配置密码')
   }
 }
@@ -294,7 +372,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 2. 日志读取
-  router.get('/api/logs', (ctx) => {
+  router.get('/api/logs', async (ctx) => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -315,9 +393,7 @@ export const createSystemRouter = (): Router => {
       return ctx.json({ logs: [], lines: [] })
     }
     try {
-      const content = fs.readFileSync(logFilePath, 'utf8')
-      const lines = content.split('\n').filter(Boolean)
-      const selectedLines = lines.slice(-lineLimit)
+      const selectedLines = await readLogTail(logFilePath, lineLimit)
       // `logs` is the public API field consumed by the admin UI. Keep the
       // historical `lines` alias for older clients.
       return ctx.json({ logs: selectedLines, lines: selectedLines })
@@ -348,9 +424,9 @@ export const createSystemRouter = (): Router => {
       'user.enableLoginCacheRestriction': c['user.enableLoginCacheRestriction'],
       'user.enableCacheSizeLimit': c['user.enableCacheSizeLimit'],
       'user.cacheSizeLimit': c['user.cacheSizeLimit'],
-      'frontend.passwordConfigured': Boolean(c['frontend.password']),
+      'frontend.passwordConfigured': Boolean(c['frontend.passwordHash'] || c['frontend.password']),
       'player.enableAuth': c['player.enableAuth'] || false,
-      'player.passwordConfigured': Boolean(c['player.password']),
+      'player.passwordConfigured': Boolean(c['player.passwordHash'] || c['player.password']),
       'proxy.all.enabled': c['proxy.all.enabled'] || false,
       'proxy.all.address': redactUrlCredentials(c['proxy.all.address']),
       'admin.path': c['admin.path'] ?? '',
@@ -429,13 +505,14 @@ export const createSystemRouter = (): Router => {
             rollbackConfig()
             return ctx.json({ success: false, error: '管理员密码不能使用示例密码' }, 422)
           }
-          c['frontend.password'] = newConfig['frontend.password']
+          c['frontend.passwordHash'] = hashPassword(newConfig['frontend.password'])
+          delete c['frontend.password']
         }
       }
       const nextPlayerEnableAuth = newConfig['player.enableAuth'] !== undefined
         ? parseBoolean(newConfig['player.enableAuth'], false)
         : Boolean(c['player.enableAuth'])
-      let nextPlayerPassword = c['player.password'] || ''
+      let nextPlayerPasswordHash = getConfiguredPasswordHash(c, 'player.password', 'player.passwordHash')
       if (newConfig['player.password'] !== undefined) {
         if (typeof newConfig['player.password'] !== 'string') {
           rollbackConfig()
@@ -450,15 +527,17 @@ export const createSystemRouter = (): Router => {
             rollbackConfig()
             return ctx.json({ success: false, error: '播放器密码不能使用示例密码' }, 422)
           }
-          nextPlayerPassword = newConfig['player.password']
+          nextPlayerPasswordHash = hashPassword(newConfig['player.password'])
         }
       }
-      if (nextPlayerEnableAuth && !nextPlayerPassword.trim()) {
+      if (nextPlayerEnableAuth && !nextPlayerPasswordHash) {
         rollbackConfig()
         return ctx.json({ success: false, error: '播放器启用认证时必须配置密码' }, 422)
       }
       c['player.enableAuth'] = nextPlayerEnableAuth
-      c['player.password'] = nextPlayerPassword
+      if (nextPlayerPasswordHash) c['player.passwordHash'] = nextPlayerPasswordHash
+      else delete c['player.passwordHash']
+      delete c['player.password']
 
       if (newConfig['proxy.all.enabled'] !== undefined) c['proxy.all.enabled'] = parseBoolean(newConfig['proxy.all.enabled'], false)
       if (newConfig['proxy.all.address'] !== undefined) {
@@ -477,9 +556,9 @@ export const createSystemRouter = (): Router => {
         const normalizedAdmin = normalizeConfiguredPath(newConfig['admin.path'] !== undefined ? newConfig['admin.path'] : (c['admin.path'] ?? ''), '', true)
         const normalizedPlayer = normalizeConfiguredPath(newConfig['player.path'] !== undefined ? newConfig['player.path'] : (c['player.path'] ?? '/music'), '/music')
 
-        if ((normalizedAdmin || '/') === (normalizedPlayer || '/')) {
+        if (pathsOverlap(normalizedAdmin, normalizedPlayer)) {
           rollbackConfig()
-          return ctx.json({ success: false, error: '后台管理路径与播放器路径不能相同' }, 422)
+          return ctx.json({ success: false, error: '后台管理路径与播放器路径不能相同或互相包含' }, 422)
         }
         c['admin.path'] = normalizedAdmin
         c['player.path'] = normalizedPlayer

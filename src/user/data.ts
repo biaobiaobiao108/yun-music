@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import crypto from 'node:crypto'
 import { filterFileName, toMD5 } from '@/utils'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { moveUserCacheData } from '@/server/fileCache'
+import { hashPassword, isPasswordHash, PASSWORD_HASH_PATTERN, verifyPasswordHash } from '@/utils/passwordHash'
 
 export interface ServerInfo {
   serverId: string
@@ -16,9 +16,6 @@ export const getUserDirname = (userName: string): string => {
   assertSafePathSegment(userName, 'user name')
   return `${filterFileName(userName)}_${toMD5(userName).substring(0, 6)}`
 }
-
-const PASSWORD_HASH_PREFIX = 'scrypt$'
-const STORED_PASSWORD_HASH_PATTERN = /^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i
 
 const validateStoredUserRow = (row: {
   name: string
@@ -32,7 +29,7 @@ const validateStoredUserRow = (row: {
   } catch {
     throw new Error('SQLite 用户表包含不合法的用户名')
   }
-  if (typeof row.password_hash !== 'string' || !STORED_PASSWORD_HASH_PATTERN.test(row.password_hash)) {
+  if (!isPasswordHash(row.password_hash)) {
     throw new Error('SQLite 用户表包含不合法的密码哈希')
   }
   if (!Number.isInteger(row.max_snapshot_num) || row.max_snapshot_num < 1 || row.max_snapshot_num > 10000) {
@@ -44,27 +41,8 @@ const validateStoredUserRow = (row: {
 }
 
 /** 使用 Node/Bun 原生 scrypt 保存 Web 用户密码，避免明文进入配置与数据库。 */
-export const hashUserPassword = (password: string): string => {
-  if (typeof password !== 'string' || password.length === 0 || password.length > 1024) {
-    throw new Error('用户密码长度必须在 1 到 1024 个字符之间')
-  }
-  const salt = crypto.randomBytes(16).toString('hex')
-  const digest = crypto.scryptSync(password, salt, 64).toString('hex')
-  return `${PASSWORD_HASH_PREFIX}${salt}$${digest}`
-}
-
-export const verifyUserPassword = (passwordHash: string | undefined, password: unknown): boolean => {
-  if (!passwordHash || typeof password !== 'string' || !passwordHash.startsWith(PASSWORD_HASH_PREFIX)) return false
-  const [, salt, expectedHex] = passwordHash.split('$')
-  if (!/^[a-f0-9]{32}$/i.test(salt) || !/^[a-f0-9]{128}$/i.test(expectedHex) || password.length > 1024) return false
-  try {
-    const actual = crypto.scryptSync(password, salt, 64)
-    const expected = Buffer.from(expectedHex, 'hex')
-    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected)
-  } catch {
-    return false
-  }
-}
+export const hashUserPassword = hashPassword
+export const verifyUserPassword = verifyPasswordHash
 
 /** 将运行时配置中的 Web 用户同步到 SQLite；只写入密码哈希。 */
 export const syncUsersToDatabase = (
@@ -90,7 +68,7 @@ export const syncUsersToDatabase = (
       throw new Error(`用户 ${user.name} 的歌单配置无效`)
     }
     const passwordHash = user.passwordHash || (user.password ? hashUserPassword(user.password) : existingHashes.get(user.name))
-    if (typeof passwordHash !== 'string' || !STORED_PASSWORD_HASH_PATTERN.test(passwordHash)) {
+    if (typeof passwordHash !== 'string' || !PASSWORD_HASH_PATTERN.test(passwordHash)) {
       throw new Error(`用户 ${user.name} 缺少有效密码`)
     }
     return { user, passwordHash, maxSnapshotNum, addMusicLocationType }

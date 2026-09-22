@@ -12,6 +12,14 @@ export function Button({ children, variant = 'secondary', className = '', ...pro
 
 export type SelectOption = { value: string; label: string; disabled?: boolean }
 
+const firstEnabledOption = (options: SelectOption[]): number => options.findIndex(option => !option.disabled)
+const lastEnabledOption = (options: SelectOption[]): number => {
+  for (let index = options.length - 1; index >= 0; index -= 1) {
+    if (!options[index]?.disabled) return index
+  }
+  return -1
+}
+
 /** A small semantic listbox used instead of browser-dependent native selects. */
 export function SelectMenu({ value, options, onChange, label, disabled = false, className = '', placeholder = '请选择' }: {
   value: string
@@ -27,12 +35,15 @@ export function SelectMenu({ value, options, onChange, label, disabled = false, 
   const listboxId = useId()
   const [open, setOpen] = useState(false)
   const selectedIndex = Math.max(0, options.findIndex(option => option.value === value))
-  const [highlighted, setHighlighted] = useState(selectedIndex)
+  const initialHighlighted = options[selectedIndex] && !options[selectedIndex].disabled ? selectedIndex : firstEnabledOption(options)
+  const [highlighted, setHighlighted] = useState(initialHighlighted)
   const selected = options[selectedIndex]
 
   useEffect(() => {
-    if (!open) return
-    setHighlighted(selectedIndex)
+    if (!open) {
+      setHighlighted(options[selectedIndex] && !options[selectedIndex].disabled ? selectedIndex : firstEnabledOption(options))
+      return
+    }
     const onPointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -56,13 +67,18 @@ export function SelectMenu({ value, options, onChange, label, disabled = false, 
   }, [highlighted, listboxId, open])
 
   const move = (direction: 1 | -1) => {
-    if (!options.length) return
+    if (!options.length || highlighted < 0) {
+      setHighlighted(direction > 0 ? firstEnabledOption(options) : lastEnabledOption(options))
+      return
+    }
     let next = highlighted
     for (let count = 0; count < options.length; count += 1) {
       next = (next + direction + options.length) % options.length
-      if (!options[next]?.disabled) break
+      if (!options[next]?.disabled) {
+        setHighlighted(next)
+        return
+      }
     }
-    setHighlighted(next)
   }
 
   const choose = (option: SelectOption) => {
@@ -75,14 +91,14 @@ export function SelectMenu({ value, options, onChange, label, disabled = false, 
   const onTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { event.preventDefault(); setOpen(true); move(1); return }
     if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); setOpen(true); move(-1); return }
-    if (event.key === 'Home') { event.preventDefault(); setOpen(true); setHighlighted(options.findIndex(option => !option.disabled)); return }
-    if (event.key === 'End') { event.preventDefault(); setOpen(true); setHighlighted([...options].reverse().findIndex(option => !option.disabled) < 0 ? 0 : options.length - 1); return }
+    if (event.key === 'Home') { event.preventDefault(); setOpen(true); setHighlighted(firstEnabledOption(options)); return }
+    if (event.key === 'End') { event.preventDefault(); setOpen(true); setHighlighted(lastEnabledOption(options)); return }
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(current => !current); return }
     if (event.key === 'Escape' && open) { event.preventDefault(); setOpen(false); return }
   }
 
   return <div ref={rootRef} className={`react-select-menu ${open ? 'is-open' : ''} ${className}`}>
-    <button ref={triggerRef} type="button" className="react-select-menu-trigger" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={listboxId} disabled={disabled} onClick={() => setOpen(current => !current)} onKeyDown={onTriggerKeyDown}>
+    <button ref={triggerRef} type="button" role="combobox" className="react-select-menu-trigger" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={listboxId} aria-activedescendant={open && highlighted >= 0 ? `${listboxId}-${highlighted}` : undefined} aria-autocomplete="none" disabled={disabled} onClick={() => setOpen(current => !current)} onKeyDown={onTriggerKeyDown}>
       <span>{selected?.label ?? placeholder}</span><Icon name="chevron-down" />
     </button>
     {open && <div id={listboxId} className="react-select-menu-list" role="listbox" aria-label={label}>

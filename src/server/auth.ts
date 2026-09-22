@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { getDb } from '@/database'
+import { isPasswordHash, verifyPasswordHash } from '@/utils/passwordHash'
 
 export const SESSION_COOKIE_NAME = 'lx_player_session'
 export const ADMIN_SESSION_COOKIE_NAME = 'lx_admin_session'
@@ -33,6 +34,16 @@ export const safeStringEqual = (left: unknown, right: unknown): boolean => {
   const rightBuffer = Buffer.from(right)
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer)
 }
+
+/** 兼容旧内存配置，同时优先使用持久化密码哈希。 */
+export const verifyConfiguredPassword = (password: unknown, passwordHash: unknown, legacyPassword: unknown): boolean => {
+  if (isPasswordHash(passwordHash)) return verifyPasswordHash(passwordHash, password)
+  return safeStringEqual(password, legacyPassword)
+}
+
+export const hasConfiguredPassword = (passwordHash: unknown, legacyPassword: unknown): boolean => (
+  isPasswordHash(passwordHash) || (typeof legacyPassword === 'string' && legacyPassword.trim() !== '')
+)
 
 const loginFailures = new Map<string, number[]>()
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
@@ -228,7 +239,6 @@ export const checkAdminSession = (source: HeaderSource): boolean => {
 }
 
 export const verifyAdminAuth = (source: HeaderSource): boolean => {
-  const configuredPassword = global.lx.config?.['frontend.password']
-  if (typeof configuredPassword !== 'string' || configuredPassword.trim() === '') return false
+  if (!hasConfiguredPassword(global.lx.config?.['frontend.passwordHash'], global.lx.config?.['frontend.password'])) return false
   return checkAdminSession(source)
 }

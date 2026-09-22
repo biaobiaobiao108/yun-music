@@ -40,8 +40,8 @@
 }
 
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--c-500, #10b981) 72%, white);
-    outline-offset: 2px;
+    outline: 1px solid color-mix(in srgb, var(--c-500, #10b981) 72%, white);
+    outline-offset: -1px;
 }
 
 /* Placeholder text is guidance, not primary content. Keep it readable while
@@ -114,8 +114,8 @@ body.overlay-open > *:not(.skip-link) {
 }
 
 .player-secondary-action:focus-visible {
-    outline: 2px solid var(--c-500);
-    outline-offset: 2px;
+    outline: 1px solid var(--c-500);
+    outline-offset: -1px;
 }
 
 .player-secondary-action:active {
@@ -178,8 +178,8 @@ body.overlay-open > *:not(.skip-link) {
 }
 
 :where([role="button"][tabindex="0"], .artist-album-card):focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--c-500, #10b981) 72%, white);
-    outline-offset: 2px;
+    outline: 1px solid color-mix(in srgb, var(--c-500, #10b981) 72%, white);
+    outline-offset: -1px;
 }
 
 .player-safe-drawer [role="button"][tabindex="0"]:focus-visible {
@@ -1145,7 +1145,7 @@ html, body {
 .react-description-disclosure > p.is-collapsed { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .react-description-toggle { display: inline-flex; align-items: center; gap: .25rem; margin-top: .22rem; padding: 0; border: 0; background: transparent; color: var(--app-accent, var(--c-600)); cursor: pointer; font: inherit; font-size: .74rem; }
 .react-description-toggle:hover { color: var(--app-accent-strong, var(--c-700)); }
-.react-description-toggle:focus-visible { outline: 1px solid var(--app-accent, var(--c-500)); outline-offset: 2px; }
+.react-description-toggle:focus-visible { outline: 1px solid var(--app-accent, var(--c-500)); outline-offset: -1px; }
 .react-description-toggle > .fas { font-size: .65rem; }
 .react-detail-hero small { display: block; margin-top: .65rem; color: var(--text-dim); }
 .react-detail-tabs { display: flex; align-items: center; gap: .35rem; margin-top: 1rem; padding: .25rem; border-bottom: 1px solid var(--border-main); }
@@ -2096,8 +2096,8 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 .list-header-action:focus-visible {
-    outline: 2px solid var(--c-500, #10b981);
-    outline-offset: 2px;
+    outline: 1px solid var(--c-500, #10b981);
+    outline-offset: -1px;
 }
 
 .list-header-action:disabled {
@@ -2214,8 +2214,8 @@ body > .flex.flex-1.overflow-hidden.relative {
 .player-pagination-button:focus-visible,
 .player-pagination-jump input:focus-visible,
 .player-pagination-jump button:focus-visible {
-    outline: 2px solid var(--c-500, #10b981);
-    outline-offset: 2px;
+    outline: 1px solid var(--c-500, #10b981);
+    outline-offset: -1px;
 }
 
 @media (max-width: 639px) {
@@ -3024,8 +3024,8 @@ aside {
 }
 
 .batch-checkbox:focus-visible {
-    outline: 2px solid var(--c-500);
-    outline-offset: 2px;
+    outline: 1px solid var(--c-500);
+    outline-offset: -1px;
 }
 
 [data-selection-state="selected"]:focus-visible {
@@ -3174,8 +3174,8 @@ aside {
 
 /* Keep keyboard focus visible without turning the trigger into a selected state. */
 .cs-trigger:focus-visible {
-    outline: 2px solid var(--c-500);
-    outline-offset: 2px;
+    outline: 1px solid var(--c-500);
+    outline-offset: -1px;
 }
 
 /* ── 多选筛选标签组特有样式 ── */
@@ -3650,8 +3650,8 @@ aside {
 }
 
 .player-quality-tag:focus-visible {
-    outline: 2px solid var(--c-500);
-    outline-offset: 2px;
+    outline: 1px solid var(--c-500);
+    outline-offset: -1px;
 }
 
 #player-quality-menu {
@@ -4160,8 +4160,8 @@ aside {
 .favorite-sidebar-item:focus-visible,
 .playlist-card:focus-visible,
 .player-track-grid:focus-visible {
-    outline: 2px solid var(--c-500, #10b981);
-    outline-offset: 2px;
+    outline: 1px solid var(--c-500, #10b981);
+    outline-offset: -1px;
 }
 
 .favorite-sidebar-children {
@@ -5890,8 +5890,8 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-    outline: 2px solid var(--app-accent);
-    outline-offset: 2px;
+    outline: 1px solid var(--app-accent);
+    outline-offset: -1px;
 }
 
 .react-player-shell {
@@ -7465,8 +7465,8 @@ textarea:focus-visible {
 .react-song-actions a:focus-visible,
 .react-player-footer button:focus-visible,
 .react-player-footer input:focus-visible {
-    outline: 2px solid var(--app-accent);
-    outline-offset: 2px;
+    outline: 1px solid var(--app-accent);
+    outline-offset: -1px;
 }
 
 .react-song-select {

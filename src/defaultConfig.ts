@@ -32,10 +32,12 @@ const config: LX.Config = {
 
   // 必须由部署者显式设置；禁止使用空密码或示例密码启动。
   'frontend.password': '',
+  'frontend.passwordHash': '',
 
   // Web播放器配置
   'player.enableAuth': false,
   'player.password': '',
+  'player.passwordHash': '',
 
   // 代理配置
   'proxy.all.enabled': false,

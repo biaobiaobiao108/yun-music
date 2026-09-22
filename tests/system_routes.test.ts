@@ -1,5 +1,9 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
+import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 
 ;(global as any).lx = {
   dataPath: 'd:\\test_data',
@@ -11,12 +15,18 @@ import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
   },
 }
 
-const { createSystemRouter } = await import('@/server/routes/system')
+const { createSystemRouter, reloadServerData } = await import('@/server/routes/system')
 
 describe('System Routes (routes/system.ts)', () => {
   beforeEach(() => {
     const lxGlobal = (global as any).lx;
     lxGlobal.config['frontend.password'] = 'admin_secret';
+    delete lxGlobal.config['frontend.passwordHash'];
+    delete lxGlobal.config['player.passwordHash'];
+    delete lxGlobal.config['player.password'];
+    lxGlobal.config['player.enableAuth'] = false;
+    lxGlobal.config['admin.path'] = '';
+    lxGlobal.config['player.path'] = '/music';
   })
 
   test('GET /api/stats requires admin auth', async () => {
@@ -106,6 +116,63 @@ describe('System Routes (routes/system.ts)', () => {
     })
     const res = await router.handle(req)
     expect(res.status).toBe(422)
+  })
+
+  test('POST /api/config rejects overlapping admin and player path prefixes', async () => {
+    const router = createSystemRouter()
+    const req = new Request('http://localhost:9527/api/config', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+      },
+      body: JSON.stringify({
+        'admin.path': '/app',
+        'player.path': '/app/music',
+      }),
+    })
+    const res = await router.handle(req)
+    expect(res.status).toBe(422)
+  })
+
+  test('POST /api/config stores admin and player passwords as hashes', async () => {
+    const router = createSystemRouter()
+    const req = new Request('http://localhost:9527/api/config', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+      },
+      body: JSON.stringify({
+        'frontend.password': 'new-admin-secret',
+        'player.enableAuth': true,
+        'player.password': 'new-player-secret',
+      }),
+    })
+    const res = await router.handle(req)
+    expect(res.status).toBe(200)
+    const config = (global as any).lx.config
+    expect(isPasswordHash(config['frontend.passwordHash'])).toBe(true)
+    expect(isPasswordHash(config['player.passwordHash'])).toBe(true)
+    expect(config['frontend.password']).toBeUndefined()
+    expect(config['player.password']).toBeUndefined()
+  })
+
+  test('restored player password hashes satisfy the enabled-auth validation', async () => {
+    const passwordHash = hashPassword('restored-player-secret')
+    const previousConfigPath = process.env.CONFIG_PATH
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-music-system-route-test-'))
+    const configPath = path.join(tempRoot, 'config.js')
+    fs.writeFileSync(configPath, `module.exports = ${JSON.stringify({ 'player.enableAuth': true, 'player.passwordHash': passwordHash })}\n`)
+    process.env.CONFIG_PATH = configPath
+    try {
+      await reloadServerData()
+      expect((global as any).lx.config['player.enableAuth']).toBe(true)
+      expect((global as any).lx.config['player.passwordHash']).toBe(passwordHash)
+    } finally {
+      process.env.CONFIG_PATH = previousConfigPath
+      fs.rmSync(tempRoot, { recursive: true, force: true })
+    }
   })
 
   test('removed external protocol endpoints are unavailable', async () => {

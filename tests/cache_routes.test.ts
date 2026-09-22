@@ -108,6 +108,33 @@ describe('cache list user scope', () => {
     await reader!.cancel()
   })
 
+  test('persists global cache configuration changes', async () => {
+    const setCacheLocation = spyOn(fileCache, 'setCacheLocation').mockImplementation(() => {})
+    const setNamingPattern = spyOn(fileCache, 'setNamingPattern').mockImplementation((pattern) => pattern)
+    const previousSaveConfig = global.lx.saveConfig
+    let saveCalls = 0
+    global.lx.saveConfig = async () => { saveCalls += 1 }
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/config', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+        },
+        body: JSON.stringify({ location: fileCache.CACHE_ROOTS.DATA, namingPattern: fileCache.CACHE_NAMING_PATTERNS.STANDARD }),
+      }))
+
+      expect(response.status).toBe(200)
+      expect(global.lx.config.serverCacheLocation).toBe(fileCache.CACHE_ROOTS.DATA)
+      expect(global.lx.config['cache.namingPattern']).toBe(fileCache.CACHE_NAMING_PATTERNS.STANDARD)
+      expect(saveCalls).toBe(1)
+    } finally {
+      setNamingPattern.mockRestore()
+      setCacheLocation.mockRestore()
+      global.lx.saveConfig = previousSaveConfig
+    }
+  })
+
   test('rejects anonymous live cache event streams', async () => {
     const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/events'))
     expect(response.status).toBe(401)

@@ -63,8 +63,8 @@ body {
 
 .skip-link:focus,
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--accent-primary) 72%, white);
-    outline-offset: 2px;
+    outline: 1px solid color-mix(in srgb, var(--accent-primary) 72%, white);
+    outline-offset: -1px;
 }
 
 .skip-link:focus {
@@ -184,8 +184,8 @@ body {
 }
 
 .login-password-toggle:focus-visible {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: 2px;
+    outline: 1px solid var(--accent-primary);
+    outline-offset: -1px;
 }
 
 /* .login-box input focus consolidated with form-input:focus below */
@@ -1087,8 +1087,8 @@ body {
 }
 
 .toggle-switch input:focus-visible + .toggle-track {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: 3px;
+    outline: 1px solid var(--accent-primary);
+    outline-offset: -1px;
 }
 
 
@@ -1315,8 +1315,8 @@ select.form-input option:checked {
 .stat-card[role="button"]:focus-visible,
 .file-name[role="button"]:focus-visible,
 .data-stat-card.clickable:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--accent-primary) 72%, white);
-    outline-offset: 3px;
+    outline: 1px solid color-mix(in srgb, var(--accent-primary) 72%, white);
+    outline-offset: -1px;
 }
 
 .user-select-card .avatar {
@@ -2181,7 +2181,7 @@ select.form-input option:checked {
 }
 
 .data-stat-card.clickable:focus-visible {
-    outline-offset: 2px;
+    outline-offset: -1px;
 }
 
 /* =============== 歌单标题编辑 =============== */
@@ -4492,8 +4492,8 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-    outline: 2px solid var(--app-accent);
-    outline-offset: 2px;
+    outline: 1px solid var(--app-accent);
+    outline-offset: -1px;
 }
 
 .admin-react-shell {
@@ -4881,6 +4881,7 @@ textarea:focus-visible {
 
 .admin-react-select-list button:hover,
 .admin-react-select-list button:focus-visible,
+.admin-react-select-list button.is-highlighted,
 .admin-react-select-list button.is-selected {
     background: var(--app-accent-soft);
     color: var(--app-accent);

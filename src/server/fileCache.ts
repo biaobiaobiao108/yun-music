@@ -44,6 +44,8 @@ export const setNamingPattern = (pattern: unknown) => {
     return currentNamingPattern
 }
 
+export const getNamingPattern = () => currentNamingPattern
+
 // Define the two possible cache roots
 export const CACHE_ROOTS = {
     DATA: 'data', // inside global.lx.dataPath (application data)
