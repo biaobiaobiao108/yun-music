@@ -274,6 +274,8 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
   const source = new Database(sourcePath, { readonly: true })
   const target = getDb()
   const tables = ['system_info', 'users', 'snapshots', 'snapshot_meta', 'user_settings', 'player_sessions', 'user_sessions', 'admin_sessions', 'login_failures', 'cache_index']
+  const optionalTables = new Set(['admin_sessions', 'login_failures'])
+  const additiveColumns = new Set(['audio_size', 'lyric_size'])
   try {
     source.run('PRAGMA trusted_schema = OFF')
     const check = source.query<{ quick_check: string }, []>('PRAGMA quick_check').get()
@@ -282,12 +284,20 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
       const definition = source.query<{ type: string; sql: string }, [string]>(
         'SELECT type, sql FROM sqlite_master WHERE name = ?'
       ).get(table)
-      if (definition?.type !== 'table' || !/^CREATE TABLE\s/i.test(definition.sql)) throw new Error('备份数据库结构不兼容')
-      const columns = target.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all().map(column => column.name)
+      const targetColumns = target.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all().map(column => column.name)
+      if (!definition) {
+        if (optionalTables.has(table)) return null
+        throw new Error('备份数据库结构不兼容')
+      }
+      if (definition.type !== 'table' || !/^CREATE TABLE\s/i.test(definition.sql)) throw new Error('备份数据库结构不兼容')
       const backupColumns = source.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all().map(column => column.name)
-      if (JSON.stringify(columns) !== JSON.stringify(backupColumns)) throw new Error('备份数据库版本不兼容')
-      return { table, columns }
-    })
+      const missingColumns = targetColumns.filter(column => !backupColumns.includes(column))
+      const allowedMissingColumns = table === 'cache_index' ? additiveColumns : new Set<string>()
+      if (backupColumns.some(column => !targetColumns.includes(column)) || missingColumns.some(column => !allowedMissingColumns.has(column))) {
+        throw new Error('备份数据库版本不兼容')
+      }
+      return { table, columns: backupColumns }
+    }).filter((schema): schema is { table: string; columns: string[] } => schema !== null)
 
     // The database is copied into runtime state, so validate values that later
     // become filesystem names or authentication material before mutating the
