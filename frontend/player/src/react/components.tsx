@@ -244,7 +244,7 @@ function VirtualSongRows({ songs, compact, listId, selected, onSelect, showFileM
   </ul>
 }
 
-export function SongList({ songs, empty = '暂无歌曲', compact = false, listId = 'love', selected, onSelect, showFileMetadata = true }: { songs: Song[]; empty?: string; compact?: boolean; listId?: string; selected?: Set<string>; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
+export function SongList({ songs, empty = '暂无歌曲', compact = false, listId = 'love', selected, onSelect, showFileMetadata = false }: { songs: Song[]; empty?: string; compact?: boolean; listId?: string; selected?: Set<string>; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
   if (!songs.length) return <div className="react-empty"><Icon name="music" /><p>{empty}</p></div>
   return <div className={`react-song-table ${showFileMetadata ? '' : 'react-song-table--without-file-metadata'}`}>
     <div className={`react-song-head ${onSelect ? 'is-selectable' : ''}`} aria-hidden="true">
