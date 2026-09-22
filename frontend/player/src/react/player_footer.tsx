@@ -18,11 +18,10 @@ export function consumeImmersiveLyricsTrigger(): HTMLButtonElement | null {
   return trigger
 }
 
-function VolumeControl({ volume, muted, onVolumeChange, onToggleMute, active = true, popoverId = 'player-volume-popover' }: {
+function VolumeControl({ volume, muted, onVolumeChange, active = true, popoverId = 'player-volume-popover' }: {
   volume: number
   muted: boolean
   onVolumeChange: (value: number) => void
-  onToggleMute: () => void
   active?: boolean
   popoverId?: string
 }) {
@@ -56,11 +55,10 @@ function VolumeControl({ volume, muted, onVolumeChange, onToggleMute, active = t
   const icon = muted || displayedVolume === 0 ? 'volume-xmark' : displayedVolume < .5 ? 'volume-low' : 'volume-high'
   const volumeStyle = { '--volume': `${Math.round(displayedVolume * 100)}%` } as CSSProperties
   return <div ref={rootRef} className={`react-volume-control ${open ? 'is-open' : ''}`}>
-    <button ref={triggerRef} type="button" className="player-secondary-action react-volume-trigger" aria-label={open ? '收起音量控制' : '展开音量控制'} aria-expanded={open} aria-controls={popoverId} onClick={() => setOpen(value => !value)}><Icon name={icon} /></button>
     {open && <div id={popoverId} className="react-volume-popover" role="dialog" aria-label="音量控制">
-      <button type="button" className="react-volume-mute" aria-label={muted ? '取消静音' : '静音'} aria-pressed={muted} onClick={onToggleMute}><Icon name={muted ? 'volume-xmark' : 'volume-high'} /><span>{muted ? '已静音' : '音量'}</span></button>
       <input className="react-volume-range" style={volumeStyle} type="range" min="0" max="1" step="0.01" value={displayedVolume} onChange={event => onVolumeChange(Number(event.target.value))} aria-label="音量大小" />
     </div>}
+    <button ref={triggerRef} type="button" className="player-secondary-action react-volume-trigger" aria-label={open ? '收起音量控制' : '展开音量控制'} aria-expanded={open} aria-controls={popoverId} onClick={() => setOpen(value => !value)}>{open ? <span className="react-volume-value">{Math.round(displayedVolume * 100)}%</span> : <Icon name={icon} />}</button>
   </div>
 }
 
@@ -106,7 +104,6 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   const previous = usePlaybackStore(state => state.previous)
   const seek = usePlaybackStore(state => state.seek)
   const setVolume = usePlaybackStore(state => state.setVolume)
-  const toggleMute = usePlaybackStore(state => state.toggleMute)
   const setMode = usePlaybackStore(state => state.setMode)
   const setCurrentSongUrl = usePlaybackStore(state => state.setCurrentSongUrl)
   const setDialog = usePlayerUiStore(state => state.setDialog)
@@ -246,7 +243,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
           <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
           <button type="button" id={isActive ? 'btn-play' : undefined} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
           <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
-          <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} onToggleMute={toggleMute} />
+          <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} />
         </div>
       </> : <>
         <div className="react-footer-controls">
@@ -269,7 +266,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
           <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
           <button type="button" id={isActive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
           <button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button>
-          <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} onToggleMute={toggleMute} />
+          <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} />
         </div>
       </>}
     </footer>

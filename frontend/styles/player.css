@@ -10818,3 +10818,86 @@ textarea:focus-visible {
         transform: none;
     }
 }
+
+/* Reference-style volume control: the slider expands from the right-side
+   button into a compact capsule instead of floating above the footer. */
+.react-volume-control {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    min-inline-size: 2.5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: transparent;
+    transition: inline-size 200ms cubic-bezier(.22, 1, .36, 1), background-color 200ms ease, outline-color 200ms ease;
+}
+
+.react-volume-control.is-open {
+    inline-size: min(9.875rem, calc(100vw - 1rem));
+    background: color-mix(in srgb, var(--app-text) 8%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--app-text) 12%, transparent);
+    outline-offset: -1px;
+}
+
+.react-volume-control .react-volume-popover {
+    position: static;
+    inset: auto;
+    z-index: auto;
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: flex-start;
+    grid-template-columns: none;
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: none;
+    padding: 0;
+    gap: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    animation: none;
+}
+
+.react-volume-control .react-volume-range {
+    flex: 1 1 auto;
+    inline-size: 6.25rem;
+    min-inline-size: 0;
+    margin-inline: .75rem .375rem;
+}
+
+.react-volume-control .react-volume-trigger {
+    flex: 0 0 2.5rem;
+    inline-size: 2.5rem !important;
+    min-inline-size: 2.5rem !important;
+    block-size: 2.5rem !important;
+    min-block-size: 2.5rem !important;
+    padding: 0;
+    border-radius: 999px;
+    background: transparent !important;
+    color: var(--app-text-muted);
+}
+
+.react-volume-control.is-open .react-volume-trigger {
+    color: var(--app-text);
+}
+
+.react-volume-value {
+    color: currentColor;
+    font-size: .6875rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-volume-control {
+        transition: none;
+    }
+}
