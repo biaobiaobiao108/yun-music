@@ -136,6 +136,19 @@ describe('React player navigation and state restoration', () => {
     expect(shell).not.toContain('react-sidebar-close')
   })
 
+  it('removes redundant page header descriptions', () => {
+    const library = read('frontend/player/src/react/library_views.tsx')
+    const heavyViews = read('frontend/player/src/react/heavy_views.tsx')
+    const views = read('frontend/player/src/react/views.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(library).not.toContain('把喜欢的音乐，放在触手可及的地方')
+    expect(library).not.toMatch(/<ViewFrame[^>]*subtitle=/)
+    expect(heavyViews).not.toContain('subtitle=')
+    expect(views).not.toContain('subtitle=')
+    expect(views).not.toContain('{subtitle && <p>{subtitle}</p>}')
+    expect(css).not.toContain('.react-view-header > div > p:last-child')
+  })
+
   it('refreshes search results when source or type changes and keeps search controls aligned', () => {
     const searchStore = read('frontend/player/src/react/store/search.ts')
     const views = read('frontend/player/src/react/views.tsx')
