@@ -6341,8 +6341,14 @@ textarea:focus-visible {
     --react-home-shortcut-color-a: color-mix(in srgb, var(--app-accent) 72%, #17131f);
     --react-home-shortcut-color-b: color-mix(in srgb, var(--app-accent) 28%, var(--app-surface-solid));
     --react-home-shortcut-color-c: color-mix(in srgb, var(--app-accent) 48%, #17131f);
-    --react-home-shortcut-duration: 12s;
+    --react-home-shortcut-duration: 18s;
     --react-home-shortcut-delay: 0s;
+    --react-home-shortcut-drift-from: translate3d(-10%, -4%, 0) rotate(-5deg) scale(1.04);
+    --react-home-shortcut-drift-to: translate3d(10%, 4%, 0) rotate(5deg) scale(1.12);
+    --react-home-shortcut-drift-opacity-from: .78;
+    --react-home-shortcut-drift-opacity-to: .98;
+    --react-home-shortcut-glow-transform: translate3d(0, 0, 0) rotate(0deg) scale(1.08);
+    --react-home-shortcut-glow-opacity: .42;
     position: relative;
     display: flex;
     align-items: flex-end;
@@ -6367,6 +6373,7 @@ textarea:focus-visible {
     z-index: 0;
     overflow: hidden;
     border-radius: inherit;
+    contain: paint;
     pointer-events: none;
 }
 
@@ -6374,56 +6381,40 @@ textarea:focus-visible {
 .react-home-shortcut-surface::after {
     content: '';
     position: absolute;
-    inset: -50%;
-    border-radius: 44%;
+    inset: -32%;
+    border-radius: 50%;
     pointer-events: none;
-    will-change: transform, opacity;
 }
 
 .react-home-shortcut-surface::before {
     background:
-        radial-gradient(ellipse 42% 34% at 18% 24%, var(--react-home-shortcut-color-b) 0 38%, transparent 74%),
-        radial-gradient(ellipse 48% 40% at 82% 76%, var(--react-home-shortcut-color-c) 0 36%, transparent 76%),
+        radial-gradient(ellipse 42% 34% at 18% 24%, var(--react-home-shortcut-color-b) 0 30%, transparent 78%),
+        radial-gradient(ellipse 48% 40% at 82% 76%, var(--react-home-shortcut-color-c) 0 30%, transparent 80%),
         linear-gradient(135deg, var(--react-home-shortcut-color-a), var(--react-home-shortcut-color-b) 48%, var(--react-home-shortcut-color-c));
-    filter: blur(.2rem) saturate(1.18);
-    opacity: .94;
-    transform: translate3d(-14%, -11%, 0) rotate(-10deg) scale(1.04);
+    opacity: var(--react-home-shortcut-drift-opacity-from);
+    transform: var(--react-home-shortcut-drift-from);
+    will-change: transform, opacity;
     animation: react-home-shortcut-drift var(--react-home-shortcut-duration) ease-in-out infinite alternate;
     animation-delay: var(--react-home-shortcut-delay);
 }
 
 .react-home-shortcut-surface::after {
     background:
-        radial-gradient(ellipse 46% 34% at 78% 18%, color-mix(in oklab, var(--react-home-shortcut-color-b) 70%, white 30%) 0 34%, transparent 76%),
-        radial-gradient(ellipse 48% 44% at 22% 82%, color-mix(in oklab, var(--react-home-shortcut-color-c) 88%, black 12%) 0 34%, transparent 78%);
-    filter: blur(1.5rem) saturate(1.2);
-    opacity: .72;
-    transform: translate3d(12%, 9%, 0) rotate(11deg) scale(1.08);
-    animation: react-home-shortcut-glow var(--react-home-shortcut-duration) ease-in-out infinite alternate-reverse;
-    animation-delay: calc(var(--react-home-shortcut-delay) - 3s);
+        radial-gradient(ellipse 46% 34% at 78% 18%, color-mix(in oklab, var(--react-home-shortcut-color-b) 70%, white 30%) 0 28%, transparent 78%),
+        radial-gradient(ellipse 48% 44% at 22% 82%, color-mix(in oklab, var(--react-home-shortcut-color-c) 88%, black 12%) 0 28%, transparent 80%);
+    opacity: var(--react-home-shortcut-glow-opacity);
+    transform: var(--react-home-shortcut-glow-transform);
 }
 
 @keyframes react-home-shortcut-drift {
     from {
-        opacity: .72;
-        transform: translate3d(-16%, -12%, 0) rotate(-12deg) scale(1.04);
+        opacity: var(--react-home-shortcut-drift-opacity-from);
+        transform: var(--react-home-shortcut-drift-from);
     }
 
     to {
-        opacity: 1;
-        transform: translate3d(16%, 13%, 0) rotate(12deg) scale(1.18);
-    }
-}
-
-@keyframes react-home-shortcut-glow {
-    from {
-        opacity: .3;
-        transform: translate3d(16%, 10%, 0) rotate(11deg) scale(1.06);
-    }
-
-    to {
-        opacity: .82;
-        transform: translate3d(-16%, -14%, 0) rotate(-14deg) scale(1.2);
+        opacity: var(--react-home-shortcut-drift-opacity-to);
+        transform: var(--react-home-shortcut-drift-to);
     }
 }
 
@@ -6464,32 +6455,44 @@ textarea:focus-visible {
     --react-home-shortcut-color-a: #f05a3d;
     --react-home-shortcut-color-b: #ff9f2f;
     --react-home-shortcut-color-c: #c53557;
-    --react-home-shortcut-duration: 11s;
+    --react-home-shortcut-duration: 14s;
     --react-home-shortcut-delay: -2s;
+    --react-home-shortcut-drift-from: translate3d(-15%, 1%, 0) rotate(-7deg) scale(1.03);
+    --react-home-shortcut-drift-to: translate3d(15%, -2%, 0) rotate(7deg) scale(1.08);
+    --react-home-shortcut-glow-transform: translate3d(8%, -5%, 0) rotate(-6deg) scale(1.08);
 }
 
 .react-home-shortcut.is-recent {
     --react-home-shortcut-color-a: #2d7a4e;
     --react-home-shortcut-color-b: #6fbd89;
     --react-home-shortcut-color-c: #143e32;
-    --react-home-shortcut-duration: 13s;
+    --react-home-shortcut-duration: 17s;
     --react-home-shortcut-delay: -7s;
+    --react-home-shortcut-drift-from: translate3d(8%, -13%, 0) rotate(8deg) scale(1.04);
+    --react-home-shortcut-drift-to: translate3d(-9%, 13%, 0) rotate(-8deg) scale(1.13);
+    --react-home-shortcut-glow-transform: translate3d(-8%, 6%, 0) rotate(8deg) scale(1.12);
 }
 
 .react-home-shortcut.is-library {
     --react-home-shortcut-color-a: #4f66c9;
     --react-home-shortcut-color-b: #9c97f3;
     --react-home-shortcut-color-c: #29387f;
-    --react-home-shortcut-duration: 15s;
+    --react-home-shortcut-duration: 21s;
     --react-home-shortcut-delay: -13s;
+    --react-home-shortcut-drift-from: translate3d(-9%, 8%, 0) rotate(-4deg) scale(1.02);
+    --react-home-shortcut-drift-to: translate3d(12%, -7%, 0) rotate(4deg) scale(1.16);
+    --react-home-shortcut-glow-transform: translate3d(4%, 3%, 0) rotate(-3deg) scale(1.1);
 }
 
 .react-home-shortcut.is-playlist {
     --react-home-shortcut-color-a: #765795;
     --react-home-shortcut-color-b: #c8a5d0;
     --react-home-shortcut-color-c: #45335f;
-    --react-home-shortcut-duration: 17s;
+    --react-home-shortcut-duration: 24s;
     --react-home-shortcut-delay: -18s;
+    --react-home-shortcut-drift-from: translate3d(12%, 10%, 0) rotate(11deg) scale(1.05);
+    --react-home-shortcut-drift-to: translate3d(-14%, -10%, 0) rotate(-10deg) scale(1.15);
+    --react-home-shortcut-glow-transform: translate3d(-7%, -4%, 0) rotate(10deg) scale(1.12);
 }
 
 .react-home-shortcut-icon {
@@ -8671,6 +8674,10 @@ textarea:focus-visible {
         transform: none;
     }
 
+    .react-home-shortcut-surface::before {
+        will-change: auto;
+    }
+
     .react-home-playlist-surface::before {
         animation: none;
         transform: none;
@@ -8979,7 +8986,7 @@ textarea:focus-visible {
 /* Final runtime fixes: keep the migrated surface compact and independent from
    the legacy footer rules above. */
 .react-player-footer#player-footer {
-    background: var(--app-surface-solid) !important;
+    background: var(--app-surface) !important;
     transform: translateX(-50%) !important;
     isolation: isolate;
 }
@@ -9962,26 +9969,22 @@ textarea:focus-visible {
     min-height: var(--react-footer-height);
     padding: var(--react-footer-padding-block) var(--react-footer-padding-inline);
     gap: var(--react-footer-gap);
-    background: var(--app-surface-solid) !important;
+    background: var(--app-surface) !important;
 }
 
 .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
     min-height: var(--react-footer-height);
     padding: var(--react-footer-padding-block) var(--react-footer-padding-inline);
     gap: var(--react-footer-gap);
-    background: var(--app-surface-solid) !important;
+    background: var(--app-surface) !important;
 }
 
-/* The footer keeps its visual hierarchy with a static accent wash, a crisp
-   edge and an inset highlight. This avoids repainting the page behind it on
-   every scroll/progress update while retaining the floating-surface feel. */
+/* Keep the footer translucent without blurring the page behind it. The alpha
+   surface composites cheaply while the static edge and shadow preserve its
+   separation from the content underneath. */
 .react-player-footer#player-footer,
 .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
-    background:
-        linear-gradient(135deg,
-            color-mix(in srgb, var(--app-surface-solid) 94%, var(--app-accent) 6%),
-            var(--app-surface-solid)
-        ) !important;
+    background: var(--app-surface) !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
     box-shadow:
