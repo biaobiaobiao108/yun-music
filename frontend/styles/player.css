@@ -9800,7 +9800,7 @@ textarea:focus-visible {
     padding: .44rem .82rem;
     border: 1px solid color-mix(in srgb, var(--app-border-strong) 78%, transparent) !important;
     border-radius: 999px !important;
-    background: color-mix(in srgb, var(--app-surface-solid) 58%, transparent) !important;
+    background: color-mix(in srgb, var(--app-surface-solid) 42%, transparent) !important;
     box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 24%);
 }
 
@@ -10706,7 +10706,7 @@ textarea:focus-visible {
    without introducing an animated paint source or a persistent will-change. */
 .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
     background: var(--app-surface) !important;
-    background: color-mix(in srgb, var(--app-surface-solid) 58%, transparent) !important;
+    background: color-mix(in srgb, var(--app-surface-solid) 42%, transparent) !important;
     border: 1px solid color-mix(in srgb, var(--app-border-strong) 58%, transparent) !important;
     -webkit-backdrop-filter: blur(12px) saturate(1.06) !important;
     backdrop-filter: blur(12px) saturate(1.06) !important;

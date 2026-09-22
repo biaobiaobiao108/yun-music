@@ -361,6 +361,7 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-immersive-cover-panel')
     expect(css).toContain('.react-immersive-shared-footer#player-footer')
     expect(css).toContain('--react-immersive-footer-reserve')
+    expect(css).toContain('background: color-mix(in srgb, var(--app-surface-solid) 42%, transparent) !important;')
     expect(views).toContain('--react-immersive-scrollbar-gutter')
     expect(css).toContain('var(--app-sidebar-width, 17.5rem)')
     expect(css).toContain('@keyframes react-immersive-dialog-enter')
