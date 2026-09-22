@@ -238,29 +238,40 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   }
 
   return <>
-    <footer id={footerId} aria-hidden={isActive ? undefined : true} inert={isActive ? undefined : true} className={`react-player-footer${immersive ? ' react-immersive-shared-footer' : ''}${isActive ? '' : ' is-inactive'}`}>
-      <div className="react-footer-controls">
-        <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
-        <button type="button" id={isActive ? 'btn-play' : undefined} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
-        <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
-      </div>
-      <div className="react-footer-song-section">
-        <div className="react-footer-song">
-          <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label={immersive ? '当前歌曲封面' : '打开沉浸式歌词'} disabled={!currentSong || immersive}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
-          <div className="react-footer-song-meta">
-            <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
-            <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
-          </div>
+    <footer id={footerId} aria-label={immersive ? '歌词播放控制' : '播放器'} aria-hidden={isActive ? undefined : true} inert={isActive ? undefined : true} className={`react-player-footer${immersive ? ' react-immersive-shared-footer react-immersive-detail-controls' : ''}${isActive ? '' : ' is-inactive'}`}>
+      {immersive ? <>
+        <div className="react-immersive-detail-progress"><PlayerProgressRow seek={seek} /></div>
+        <div className="react-immersive-detail-transport" aria-label="歌词播放操作">
+          <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
+          <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
+          <button type="button" id={isActive ? 'btn-play' : undefined} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
+          <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
+          <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} onToggleMute={toggleMute} />
         </div>
-        <PlayerProgressRow seek={seek} />
-      </div>
-      <div className="react-footer-actions">
-        <button ref={immersive ? undefined : songMenuButtonRef} type="button" className={`player-secondary-action react-song-menu-button${immersive ? ' is-immersive-placeholder' : ''}`} aria-label="打开歌曲更多操作" aria-expanded={immersive ? false : songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={immersive || !isActive || !currentSong} tabIndex={immersive || !isActive ? -1 : undefined}><Icon name="ellipsis" /></button>
-        <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
-        <button type="button" id={!immersive && isActive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
-        <button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button>
-        <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} onToggleMute={toggleMute} />
-      </div>
+      </> : <>
+        <div className="react-footer-controls">
+          <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
+          <button type="button" id={isActive ? 'btn-play' : undefined} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
+          <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
+        </div>
+        <div className="react-footer-song-section">
+          <div className="react-footer-song">
+            <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label="打开沉浸式歌词" disabled={!currentSong}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
+            <div className="react-footer-song-meta">
+              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
+              <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
+            </div>
+          </div>
+          <PlayerProgressRow seek={seek} />
+        </div>
+        <div className="react-footer-actions">
+          <button ref={songMenuButtonRef} type="button" className="player-secondary-action react-song-menu-button" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!isActive || !currentSong} tabIndex={!isActive ? -1 : undefined}><Icon name="ellipsis" /></button>
+          <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
+          <button type="button" id={isActive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
+          <button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button>
+          <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} onToggleMute={toggleMute} />
+        </div>
+      </>}
     </footer>
     {!immersive && <SongActionsPopover song={currentSong} open={isActive && songMenuOpen} anchorRef={songMenuButtonRef} onClose={closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />}
   </>

@@ -561,6 +561,9 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
         <section className="react-immersive-cover-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
           <div className="react-immersive-cover-wrap"><SafeImage className="react-immersive-cover" src={artwork} width="560" height="560" alt={song ? `${title}封面` : ''} /></div>
           <div className="react-immersive-meta"><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button></div>
+          {/* The normal footer is suppressed while this local transport stays
+              under the artwork, matching the reference lyrics composition. */}
+          <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
         </section>
         <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {
@@ -569,10 +572,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
           }) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
         </section>
       </div>
-      {/* Keep the immersive footer mounted in the closed dialog. When the
-          dialog opens only its active id/visibility changes, so the cover,
-          progress track and controls never get rebuilt during the transition. */}
-      <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
     </div>
   </dialog>
 }
