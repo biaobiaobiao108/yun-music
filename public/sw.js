@@ -1,5 +1,5 @@
-const CACHE_NAME = 'yun-yin-admin-react-0b1d6a0';
-const VERSIONED_ASSET_CACHE = 'yun-yin-admin-react-assets-0b1d6a0';
+const CACHE_NAME = 'yun-yin-admin-react-4cc5ccf';
+const VERSIONED_ASSET_CACHE = 'yun-yin-admin-react-assets-4cc5ccf';
 const MAX_VERSIONED_ASSETS = 60;
 const ASSETS_TO_CACHE = [
     './',
