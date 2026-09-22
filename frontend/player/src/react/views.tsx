@@ -453,7 +453,7 @@ export function SettingsView() {
 
 type ImmersiveFooterHost = 'normal' | 'immersive'
 
-export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterHost; onFooterHostChange: (host: ImmersiveFooterHost) => void; onClose: () => void }
+export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterHost; onFooterHostChange: (host: ImmersiveFooterHost) => void; onClose: () => void; onClosed?: () => void }
 
 function lyricFocusClass(index: number, active: number): string {
   if (active < 0) return 'is-idle'
@@ -464,7 +464,7 @@ function lyricFocusClass(index: number, active: number): string {
   return 'is-distant'
 }
 
-export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose }: ImmersiveLyricsProps) {
+export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose, onClosed }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
   const time = usePlaybackStore(state => (open ? state.currentTime : 0))
   const seek = usePlaybackStore(state => state.seek)
@@ -501,7 +501,8 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     lastFocus.current = null
     onFooterHostChange('normal')
     setIsClosing(false)
-  }, [onFooterHostChange])
+    onClosed?.()
+  }, [onClosed, onFooterHostChange])
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
@@ -530,14 +531,19 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
       onFooterHostChange('immersive')
     } else if (dialog.open && !isClosing) {
       setIsClosing(true)
-      closeTimer.current = window.setTimeout(finishClose, 220)
+      const closeDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220
+      if (closeDuration === 0) finishClose()
+      else closeTimer.current = window.setTimeout(finishClose, closeDuration)
+    } else if (!open && !dialog.open) {
+      onFooterHostChange('normal')
+      onClosed?.()
     }
     if (open) {
       window.addEventListener('resize', syncFooterPosition)
       return () => window.removeEventListener('resize', syncFooterPosition)
     }
     return undefined
-  }, [finishClose, isClosing, onFooterHostChange, open])
+  }, [finishClose, isClosing, onClosed, onFooterHostChange, open])
   useEffect(() => () => {
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
     if (dialogRef.current?.open) dialogRef.current.close()

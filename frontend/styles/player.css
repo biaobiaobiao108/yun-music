@@ -10007,8 +10007,9 @@ textarea:focus-visible {
     height: 3rem;
 }
 
-/* Keep immersive entry and exit quiet. Opacity is the only animated property
-   on the dialog, so the shared footer remains geometrically stable. */
+/* Keep immersive entry and exit quiet. The top layer and backdrop fade while
+   each content section settles by only a few pixels, so the shared footer
+   remains geometrically stable instead of jumping with the dialog itself. */
 @keyframes react-immersive-dialog-exit {
     from { opacity: 1; }
     to { opacity: 0; }
@@ -10017,6 +10018,16 @@ textarea:focus-visible {
 @keyframes react-immersive-backdrop-exit {
     from { opacity: 1; }
     to { opacity: 0; }
+}
+
+@keyframes react-immersive-content-enter {
+    from { translate: 0 .4rem; }
+    to { translate: 0 0; }
+}
+
+@keyframes react-immersive-content-exit {
+    from { translate: 0 0; }
+    to { translate: 0 .3rem; }
 }
 
 .react-immersive-lyrics-dialog[open]:not(.is-closing) {
@@ -10029,6 +10040,14 @@ textarea:focus-visible {
 
 .react-immersive-lyrics-dialog.is-closing::backdrop {
     animation: react-immersive-backdrop-exit 220ms ease-in both;
+}
+
+.react-immersive-lyrics-dialog[open]:not(.is-closing) .react-immersive-lyrics > * {
+    animation: react-immersive-content-enter 260ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.react-immersive-lyrics-dialog.is-closing .react-immersive-lyrics > * {
+    animation: react-immersive-content-exit 220ms ease-in both;
 }
 
 /* Settings account surface */
@@ -10270,8 +10289,11 @@ textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
     .react-immersive-lyrics-dialog[open]:not(.is-closing),
     .react-immersive-lyrics-dialog.is-closing,
-    .react-immersive-lyrics-dialog.is-closing::backdrop {
+    .react-immersive-lyrics-dialog.is-closing::backdrop,
+    .react-immersive-lyrics-dialog[open]:not(.is-closing) .react-immersive-lyrics > *,
+    .react-immersive-lyrics-dialog.is-closing .react-immersive-lyrics > * {
         animation: none;
+        translate: none;
     }
 }
 

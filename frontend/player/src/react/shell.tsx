@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
 import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
@@ -616,6 +616,13 @@ export function PlayerShell() {
   const hydrateMediaLibrary = useMediaLibraryStore(state => state.hydrate)
   const keyboardShortcuts = useSettingsStore(state => Boolean(state.settings.enableKeyboardShortcuts))
   const [immersiveFooterHost, setImmersiveFooterHost] = useState<'normal' | 'immersive'>('normal')
+  const [immersiveLyricsMounted, setImmersiveLyricsMounted] = useState(false)
+  const closeImmersiveLyrics = useCallback(() => {
+    setImmersiveLyricsMounted(true)
+    setImmersiveLyrics(false)
+  }, [setImmersiveLyrics])
+  const unmountImmersiveLyrics = useCallback(() => setImmersiveLyricsMounted(false), [])
+  useEffect(() => { if (immersiveLyrics) setImmersiveLyricsMounted(true) }, [immersiveLyrics])
   useEffect(() => { hydratePlayback(); hydrateRecent(); void hydrateSettings(); void hydrateLibrary(); void hydrateMediaLibrary() }, [hydrateLibrary, hydrateMediaLibrary, hydratePlayback, hydrateRecent, hydrateSettings])
   useEffect(() => connectPlaybackServiceStore(), [])
   useEffect(() => {
@@ -674,7 +681,7 @@ export function PlayerShell() {
     window.addEventListener('hashchange', onPop)
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
   }, [setTabFromHistory])
-  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveFooterHost !== 'normal'} /></div>{drawer === 'queue' && <QueueDrawer open onClose={() => setDrawer(null)} />}{(drawer === 'cache' || drawer === 'download') && <CacheDrawer open onClose={() => setDrawer(null)} />}<Suspense fallback={null}>{dialog === 'login' && <LoginDialog open onClose={() => setDialog(null)} />}{dialog === 'userLogin' && <UserLoginDialog open onClose={() => setDialog(null)} />}{dialog === 'createList' && <CreateListDialog open onClose={() => setDialog(null)} />}{dialog === 'addToList' && <AddToListDialog open onClose={closeAddToList} />}{dialog === 'sleep' && <SleepTimerDialog open onClose={() => setDialog(null)} />}{immersiveLyrics && <ImmersiveLyricsView open footerHost={immersiveFooterHost} onFooterHostChange={setImmersiveFooterHost} onClose={() => setImmersiveLyrics(false)} />}{dialog === 'comments' && <CommentsDialog open onClose={() => setDialog(null)} />}</Suspense><ToastRegion /></div>
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveFooterHost !== 'normal'} /></div>{drawer === 'queue' && <QueueDrawer open onClose={() => setDrawer(null)} />}{(drawer === 'cache' || drawer === 'download') && <CacheDrawer open onClose={() => setDrawer(null)} />}<Suspense fallback={null}>{dialog === 'login' && <LoginDialog open onClose={() => setDialog(null)} />}{dialog === 'userLogin' && <UserLoginDialog open onClose={() => setDialog(null)} />}{dialog === 'createList' && <CreateListDialog open onClose={() => setDialog(null)} />}{dialog === 'addToList' && <AddToListDialog open onClose={closeAddToList} />}{dialog === 'sleep' && <SleepTimerDialog open onClose={() => setDialog(null)} />}{(immersiveLyricsMounted || immersiveLyrics) && <ImmersiveLyricsView open={immersiveLyrics} footerHost={immersiveFooterHost} onFooterHostChange={setImmersiveFooterHost} onClose={closeImmersiveLyrics} onClosed={unmountImmersiveLyrics} />}{dialog === 'comments' && <CommentsDialog open onClose={() => setDialog(null)} />}</Suspense><ToastRegion /></div>
 }
 
 export function PlayerAuthGate() {

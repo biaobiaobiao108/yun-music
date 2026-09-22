@@ -375,6 +375,7 @@ describe('React player navigation and state restoration', () => {
   })
 
   it('keeps the floating topbar, two-row recent grid and immersive footer geometry stable', () => {
+    const shell = read('frontend/player/src/react/shell.tsx')
     const views = read('frontend/player/src/react/views.tsx')
     const css = read('frontend/styles/player.css')
     expect(css).toContain('.react-player-main {\n    display: block !important;')
@@ -389,8 +390,17 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('inline-size: min(35rem, calc(100vw - 2rem));')
     expect(css).toContain('react-immersive-dialog-exit')
     expect(css).toContain('.react-immersive-lyrics-dialog.is-closing')
+    expect(css).toContain('@keyframes react-immersive-content-enter')
+    expect(css).toContain('@keyframes react-immersive-content-exit')
+    expect(css).toContain('translate: 0 .4rem')
     expect(views).toContain('const closeTimer = useRef<number | null>(null)')
+    expect(views).toContain('onClosed?: () => void')
+    expect(views).toContain("const closeDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220")
     expect(views).toContain('className={`react-immersive-lyrics-dialog ${isClosing ? \'is-closing\' : \'\'}`}')
+    expect(shell).toContain('(immersiveLyricsMounted || immersiveLyrics)')
+    expect(shell).toContain('if (immersiveLyrics) setImmersiveLyricsMounted(true)')
+    expect(shell).toContain('setImmersiveLyricsMounted(true)\n    setImmersiveLyrics(false)')
+    expect(shell).toContain('onClosed={unmountImmersiveLyrics}')
   })
 
   it('uses the shared settings account and keeps source management in the admin app', () => {
