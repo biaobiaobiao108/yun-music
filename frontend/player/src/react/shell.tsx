@@ -437,23 +437,17 @@ function AudioRuntime() {
     const controller = new AbortController()
     setResolvedError('')
     if (playbackTraceName) markPlayerPerformance(`${playbackTraceName}:start`)
-    if (!currentSong.url) notifyPlayback('检查缓存')
+    const storedCacheUrl = typeof currentSong.url === 'string' && currentSong.url
+      ? normalizeCachePlaybackUrl(currentSong.url, userName)
+      : ''
+    const hasStoredCacheUrl = Boolean(storedCacheUrl && parseCachePlaybackUrl(storedCacheUrl))
+    if (!hasStoredCacheUrl) notifyPlayback('检查缓存')
     void (async () => {
       try {
         const prefetchKey = songUrlCacheKey(currentSong, quality)
-        const storedUrl = typeof currentSong.url === 'string' && currentSong.url
-          ? normalizeCachePlaybackUrl(currentSong.url, userName)
-          : ''
-        const result = storedUrl && parseCachePlaybackUrl(storedUrl)
-          ? { url: storedUrl, fromCache: true, sourceName: '本地缓存' }
-          : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, controller.signal).catch(error => {
-            if (controller.signal.aborted || cancelled) throw error
-            // Some legacy playlists persist an already-resolved online URL.
-            // It remains a safe last resort, but it must not bypass the server
-            // cache check above.
-            if (storedUrl) return { url: storedUrl, fromCache: false, sourceName: '已保存在线音源' }
-            throw error
-          })
+        const result = hasStoredCacheUrl
+          ? { url: storedCacheUrl, fromCache: true, sourceName: '本地缓存' }
+          : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, controller.signal)
         if (cancelled || controller.signal.aborted) return
         prefetchedUrls.delete(prefetchKey)
         resolvedPlayback.current = {
