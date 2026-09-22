@@ -238,6 +238,13 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain('默认列表')
   })
 
+  it('keeps stateful player icons in the generated Font Awesome subset', () => {
+    const subset = read('public/music/assets/fontawesome/css/solid-subset.min.css')
+    for (const icon of ['play', 'pause', 'shuffle', 'repeat', 'volume-high', 'volume-low', 'volume-xmark']) {
+      expect(subset).toContain(`.fa-${icon}:before`)
+    }
+  })
+
   it('keeps homepage shortcut motion restrained and persists custom playlist icons', () => {
     const api = read('frontend/player/src/react/api.ts')
     const libraryViews = read('frontend/player/src/react/library_views.tsx')

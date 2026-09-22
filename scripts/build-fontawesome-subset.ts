@@ -13,10 +13,15 @@ const fallbackIconNames = [
   'ellipsis', 'expand', 'eye', 'eye-slash', 'file-code', 'file-lines', 'file-zipper',
   'floppy-disk', 'folder-open', 'forward-step', 'gear', 'hard-drive', 'heart', 'home',
   'inbox', 'leaf', 'list', 'list-music', 'list-ul', 'lock', 'magnifying-glass', 'memory',
-  'microchip', 'moon', 'music', 'pen', 'play', 'plug', 'plus', 'right-from-bracket',
+  'microchip', 'moon', 'music', 'pause', 'pen', 'play', 'plug', 'plus', 'repeat',
   'right-left', 'right-to-bracket', 'rotate', 'search', 'shield-halved', 'spinner', 'sun',
-  'trash', 'triangle-exclamation', 'user', 'user-plus', 'users', 'xmark', 'fire',
+  'shuffle', 'trash', 'triangle-exclamation', 'user', 'user-plus', 'users', 'volume-high',
+  'volume-low', 'volume-xmark', 'xmark', 'fire', 'right-from-bracket',
 ]
+
+function addStringLiterals(value: string, names: Set<string>): void {
+  for (const match of value.matchAll(/["']([a-z0-9-]+)["']/g)) names.add(match[1])
+}
 
 function collectSourceIconNames(): Set<string> {
   const names = new Set(fallbackIconNames)
@@ -24,12 +29,10 @@ function collectSourceIconNames(): Set<string> {
     const files = new Bun.Glob('**/*.{ts,tsx}').scanSync({ cwd: path.join(projectRoot, sourceRoot), absolute: true })
     for (const file of files) {
       const source = fs.readFileSync(file, 'utf8')
-      for (const pattern of [
-        /\bIcon\s+name\s*=\s*["']([a-z0-9-]+)["']/g,
-        /\bicon\s*(?::|=)\s*["']([a-z0-9-]+)["']/g,
-      ]) {
-        for (const match of source.matchAll(pattern)) names.add(match[1])
-      }
+      for (const match of source.matchAll(/\bIcon\s+name\s*=\s*["']([a-z0-9-]+)["']/g)) names.add(match[1])
+      for (const match of source.matchAll(/\bIcon\s+name\s*=\s*\{([^}\n]+)\}/g)) addStringLiterals(match[1], names)
+      for (const match of source.matchAll(/\bicon\s*(?::\s*[^=;]+)?=\s*([^;\n]+)/g)) addStringLiterals(match[1], names)
+      for (const match of source.matchAll(/\bicon\s*:\s*["']([a-z0-9-]+)["']/g)) names.add(match[1])
     }
   }
   return names
