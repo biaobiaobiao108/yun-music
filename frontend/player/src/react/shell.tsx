@@ -34,13 +34,13 @@ function songUrlCacheKey(song: Song, quality: string): string {
   return `${generation}:${songKey(song)}:${quality}`
 }
 
-function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boolean): Promise<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }> {
+function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boolean, signal?: AbortSignal): Promise<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }> {
   const key = songUrlCacheKey(song, quality)
   const cached = prefetchedUrls.get(key)
   if (cached) return Promise.resolve(cached)
   const pending = pendingSongUrlRequests.get(key)
   if (pending) return pending
-  const request = playerApi.songUrl(song, quality, undefined, enableAutoSwitchSource)
+  const request = playerApi.songUrl(song, quality, signal, enableAutoSwitchSource)
     .then(result => {
       if (result.url) prefetchedUrls.set(key, result)
       return result
@@ -162,6 +162,8 @@ function AudioRuntime() {
   const resolvedPlayback = useRef<{ songKey: string; quality: string; url: string; fromCache: boolean; sourceName?: string } | null>(null)
   const prefetchTriggeredKey = useRef('')
   const playbackStatusKey = useRef('')
+  const lastProgressEmitAt = useRef(0)
+  const lastMediaSessionAt = useRef(0)
 
   useEffect(() => {
     recoveryAttempts.current.clear()
@@ -174,7 +176,9 @@ function AudioRuntime() {
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
     const duration = state.duration
-    if (!settings.enablePreloader || !state.currentSong || state.currentSong.url || !Number.isFinite(duration) || duration <= 0 || state.currentTime / duration < .8) return
+    const currentUrl = typeof state.currentSong?.url === 'string' ? state.currentSong.url : ''
+    const hasServerCacheUrl = Boolean(currentUrl && parseCachePlaybackUrl(currentUrl))
+    if (!settings.enablePreloader || !state.currentSong || hasServerCacheUrl || !Number.isFinite(duration) || duration <= 0 || state.currentTime / duration < .8) return
     if (state.queue.length <= 1) return
     const currentPlaybackKey = `${songKey(state.currentSong)}:${quality}`
     if (prefetchTriggeredKey.current === currentPlaybackKey) return
@@ -192,6 +196,8 @@ function AudioRuntime() {
   useEffect(() => {
     historyRecordedKey.current = ''
     playbackStatusKey.current = ''
+    lastProgressEmitAt.current = 0
+    lastMediaSessionAt.current = 0
   }, [quality, songId])
 
   useEffect(() => {
@@ -245,7 +251,7 @@ function AudioRuntime() {
         historyRecordedKey.current = historyKey
         recordRecent(currentSong, quality)
       }
-      if (settings.enableServerCache && currentSong && !currentSong.url) {
+      if (settings.enableServerCache && currentSong) {
         const cacheKey = `${songKey(currentSong)}:${quality}`
         const playback = resolvedPlayback.current
         const cacheUrl = playback?.songKey === songKey(currentSong) && playback.quality === quality && playback.url && !playback.fromCache
@@ -263,9 +269,17 @@ function AudioRuntime() {
     const onTime = () => {
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
-      emitPlaybackService({ type: 'progress', currentTime, duration })
-      prefetchNext()
-      if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && duration > 0) {
+      const now = Date.now()
+      // Safari can dispatch timeupdate more often than the footer needs. Keep
+      // the imperative audio element smooth while limiting store, React and
+      // synchronous localStorage work to a modest update rate.
+      if (now - lastProgressEmitAt.current >= 200) {
+        lastProgressEmitAt.current = now
+        emitPlaybackService({ type: 'progress', currentTime, duration })
+        prefetchNext()
+      }
+      if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && duration > 0 && (now - lastMediaSessionAt.current >= 1000 || currentTime === 0)) {
+        lastMediaSessionAt.current = now
         try {
           navigator.mediaSession.setPositionState({
             duration: Math.max(0.1, duration),
@@ -313,15 +327,26 @@ function AudioRuntime() {
     const audio = audioRef.current
     if (!audio || !currentSong || !songId) return
     let cancelled = false
+    const controller = new AbortController()
     setResolvedError('')
     if (!currentSong.url) notifyPlayback('检查缓存')
     void (async () => {
       try {
         const prefetchKey = songUrlCacheKey(currentSong, quality)
-        const result = typeof currentSong.url === 'string' && currentSong.url
-          ? { url: normalizeCachePlaybackUrl(currentSong.url, userName), fromCache: true }
-          : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false)
-        if (cancelled) return
+        const storedUrl = typeof currentSong.url === 'string' && currentSong.url
+          ? normalizeCachePlaybackUrl(currentSong.url, userName)
+          : ''
+        const result = storedUrl && parseCachePlaybackUrl(storedUrl)
+          ? { url: storedUrl, fromCache: true, sourceName: '本地缓存' }
+          : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, controller.signal).catch(error => {
+            if (controller.signal.aborted || cancelled) throw error
+            // Some legacy playlists persist an already-resolved online URL.
+            // It remains a safe last resort, but it must not bypass the server
+            // cache check above.
+            if (storedUrl) return { url: storedUrl, fromCache: false, sourceName: '已保存在线音源' }
+            throw error
+          })
+        if (cancelled || controller.signal.aborted) return
         prefetchedUrls.delete(prefetchKey)
         resolvedPlayback.current = {
           songKey: songId,
@@ -348,6 +373,7 @@ function AudioRuntime() {
     })()
     return () => {
       cancelled = true
+      controller.abort()
       const playbackUrl = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current.url : null
       if (resolvedSongKey.current === songId) resolvedSongKey.current = ''
       if (resolvedPlayback.current?.songKey === songId) resolvedPlayback.current = null

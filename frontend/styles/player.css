@@ -1265,7 +1265,7 @@ html, body {
 .react-cache-stats strong { margin-top: .2rem; }
 .react-drawer-toolbar { display: flex; justify-content: flex-end; padding: .8rem 0; border-bottom: 1px solid var(--border-main); }
 .react-empty-text { padding: 2rem 0; color: var(--text-muted); text-align: center; }
-.react-player-footer { position: fixed; z-index: 80; right: 0; bottom: 0; left: 15rem; min-height: 5.2rem; display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.35fr) minmax(160px, .8fr); align-items: center; gap: 1rem; padding: .65rem clamp(.8rem, 2.5vw, 2rem); background: color-mix(in srgb, var(--bg-panel) 92%, transparent); border-top: 1px solid var(--border-main); backdrop-filter: blur(16px); }
+.react-player-footer { position: fixed; z-index: 80; right: 0; bottom: 0; left: 15rem; min-height: 5.2rem; display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.35fr) minmax(160px, .8fr); align-items: center; gap: 1rem; padding: .65rem clamp(.8rem, 2.5vw, 2rem); background: var(--bg-panel); border-top: 1px solid var(--border-main); }
 .react-footer-song { min-width: 0; display: flex; align-items: center; gap: .65rem; padding: .25rem; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .react-footer-song img { width: 3.25rem; height: 3.25rem; flex: 0 0 auto; object-fit: cover; border-radius: .55rem; }
 .react-footer-song > span { min-width: 0; display: grid; gap: .2rem; }
@@ -4922,9 +4922,7 @@ dialog.runtime-input-dialog #modal-input {
     padding-block: 0.5rem !important;
     border: 1px solid color-mix(in srgb, var(--border-main) 86%, transparent) !important;
     border-radius: 9999px !important;
-    background: color-mix(in srgb, var(--bg-panel) 64%, transparent) !important;
-    -webkit-backdrop-filter: blur(20px) saturate(145%) contrast(1.02) !important;
-    backdrop-filter: blur(20px) saturate(145%) contrast(1.02) !important;
+    background: var(--bg-panel) !important;
     box-shadow: 0 18px 42px -22px rgb(15 23 42 / 0.56), 0 6px 16px -9px rgb(15 23 42 / 0.24) !important;
     isolation: isolate;
     transform: translate3d(0, 0, 0);
@@ -6951,7 +6949,6 @@ textarea:focus-visible {
     border-radius: 999px !important;
     background: color-mix(in srgb, var(--app-surface-solid) 78%, transparent) !important;
     box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 22%);
-    backdrop-filter: blur(24px) saturate(1.25);
 }
 
 .react-footer-song {
@@ -7907,7 +7904,6 @@ textarea:focus-visible {
     border-radius: 999px !important;
     background: color-mix(in srgb, var(--app-surface-solid) 82%, transparent) !important;
     box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 24%);
-    backdrop-filter: blur(24px) saturate(1.25);
 }
 
 .react-player-footer#player-footer .react-footer-controls {
@@ -8895,14 +8891,11 @@ textarea:focus-visible {
     }
 }
 
-/* Final runtime fixes: keep the migrated surface translucent, compact and
-   independent from the legacy footer rules above. */
+/* Final runtime fixes: keep the migrated surface compact and independent from
+   the legacy footer rules above. */
 .react-player-footer#player-footer {
-    background: color-mix(in srgb, var(--app-surface-solid) 58%, transparent) !important;
-    -webkit-backdrop-filter: blur(28px) saturate(1.25);
-    backdrop-filter: blur(28px) saturate(1.25);
-    transform: translate3d(-50%, 0, 0) translateZ(0) !important;
-    will-change: transform;
+    background: var(--app-surface-solid) !important;
+    transform: translateX(-50%) !important;
     isolation: isolate;
 }
 
@@ -9668,8 +9661,6 @@ textarea:focus-visible {
     border-radius: 999px !important;
     background: color-mix(in srgb, var(--app-surface-solid) 58%, transparent) !important;
     box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 24%);
-    -webkit-backdrop-filter: blur(28px) saturate(1.25);
-    backdrop-filter: blur(28px) saturate(1.25);
 }
 
 .react-immersive-lyrics .react-immersive-shared-footer#player-footer .react-footer-controls {
@@ -9821,7 +9812,6 @@ textarea:focus-visible {
    containing block and the immersive song-menu visibility differ, so opening
    lyrics does not resize the cover, progress track, or transport controls. */
 .react-player-footer#player-footer {
-    --react-footer-glass-alpha: 32%;
     --react-footer-height: 4.7rem;
     --react-footer-padding-block: .62rem;
     --react-footer-padding-inline: .95rem;
@@ -9830,16 +9820,32 @@ textarea:focus-visible {
     min-height: var(--react-footer-height);
     padding: var(--react-footer-padding-block) var(--react-footer-padding-inline);
     gap: var(--react-footer-gap);
-    background: color-mix(in srgb, var(--app-surface-solid) var(--react-footer-glass-alpha), transparent) !important;
-    -webkit-backdrop-filter: blur(28px) saturate(1.25);
-    backdrop-filter: blur(28px) saturate(1.25);
+    background: var(--app-surface-solid) !important;
 }
 
 .react-immersive-lyrics .react-immersive-shared-footer#player-footer {
     min-height: var(--react-footer-height);
     padding: var(--react-footer-padding-block) var(--react-footer-padding-inline);
     gap: var(--react-footer-gap);
-    background: color-mix(in srgb, var(--app-surface-solid) var(--react-footer-glass-alpha), transparent) !important;
+    background: var(--app-surface-solid) !important;
+}
+
+/* The footer keeps its visual hierarchy with a static accent wash, a crisp
+   edge and an inset highlight. This avoids repainting the page behind it on
+   every scroll/progress update while retaining the floating-surface feel. */
+.react-player-footer#player-footer,
+.react-immersive-lyrics .react-immersive-shared-footer#player-footer {
+    background:
+        linear-gradient(135deg,
+            color-mix(in srgb, var(--app-surface-solid) 94%, var(--app-accent) 6%),
+            var(--app-surface-solid)
+        ) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow:
+        0 1.2rem 3rem rgb(0 0 0 / 22%),
+        inset 0 1px 0 color-mix(in srgb, white 28%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, var(--app-border-strong) 45%, transparent) !important;
 }
 
 .react-player-footer#player-footer .react-footer-cover-button,

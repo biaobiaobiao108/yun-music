@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
 import { songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songTitle } from './types'
@@ -119,7 +119,7 @@ function songFormat(song: Song): string {
   return String(songFormatValue(song) || 'FLAC').toUpperCase()
 }
 
-export function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect, showFileMetadata = true }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
+export const SongRow = memo(function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect, showFileMetadata = true }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
   const playSong = usePlaybackStore(state => state.playSong)
   const enqueue = usePlaybackStore(state => state.enqueue)
   const addSong = useLibraryStore(state => state.addSong)
@@ -150,7 +150,7 @@ export function SongRow({ song, index, list, listId = 'love', compact = false, s
     {showFileMetadata && <><span className="react-song-size">{songSize(song)}</span><span className="react-song-quality">{songFormat(song)}</span></>}
     <span className="react-song-actions">{listId !== 'love' && <button type="button" title="从当前歌单移除" aria-label={`从当前歌单移除 ${songTitle(song)}`} onClick={removeFromPlaylist}><Icon name="trash" /></button>}<button type="button" title="加入队列" aria-label={`将 ${songTitle(song)} 加入队列`} onClick={() => { enqueue([song]); notify('已加入播放队列') }}><Icon name="plus" /></button></span>
   </li>
-}
+})
 
 export function SongList({ songs, empty = '暂无歌曲', compact = false, listId = 'love', selected, onSelect, showFileMetadata = true }: { songs: Song[]; empty?: string; compact?: boolean; listId?: string; selected?: Set<string>; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
   if (!songs.length) return <div className="react-empty"><Icon name="music" /><p>{empty}</p></div>

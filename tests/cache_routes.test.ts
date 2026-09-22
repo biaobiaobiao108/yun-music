@@ -672,6 +672,12 @@ test('/api/music/url intercepts request when cache exists and avoids online reso
     expect(data.fromCache).toBe(true)
     expect(data.url).toBe('/api/music/cache/file/_open/cached.mp3')
     expect(data.sourceName).toBe('本地缓存')
+    expect(checkCacheSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ quality: '320k' }),
+      '_open',
+      false,
+      { ignoreActiveProgress: true, preferredFolder: 'music' },
+    )
   } finally {
     checkCacheSpy.mockRestore()
     global.lx = previousLx

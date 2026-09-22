@@ -26,6 +26,31 @@ export type LibraryState = {
 
 const emptyData: UserListData = { defaultList: [], loveList: [], userList: [] }
 
+function updateListData(data: UserListData, listId: string, update: (songs: Song[]) => Song[]): UserListData {
+  if (listId === 'love') {
+    return { ...data, loveList: update(data.loveList ?? []) }
+  }
+  if (listId === 'default') {
+    return { ...data, defaultList: update(data.defaultList ?? []) }
+  }
+  let changed = false
+  const userList = (data.userList ?? []).map(list => {
+    if (String(list.id) !== String(listId)) return list
+    changed = true
+    return { ...list, list: update(list.list ?? []) }
+  })
+  return changed ? { ...data, userList } : data
+}
+
+function addSongToList(songs: Song[], song: Song): Song[] {
+  return songs.some(item => sameSong(item, song)) ? songs : [...songs, song]
+}
+
+function removeSongsFromList(songs: Song[], targets: Song[]): Song[] {
+  const targetSet = buildSongMatchSet(targets)
+  return songs.filter(song => !songMatchSetHas(targetSet, song))
+}
+
 const ensureLibraryHydrated = async (
   get: () => LibraryState,
 ): Promise<UserListData> => {
@@ -73,17 +98,37 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
   addSong: async (listId, song) => {
-    await playerApi.addToList(listId, [normalizeSongForList(song)])
-    invalidateRequestCache('library:lists')
-    await get().hydrate({ force: true })
+    const normalizedSong = normalizeSongForList(song)
+    const previousData = get().data
+    const optimisticData = updateListData(previousData, listId, songs => addSongToList(songs, normalizedSong))
+    if (optimisticData !== previousData) set({ data: optimisticData })
+    try {
+      await playerApi.addToList(listId, [normalizedSong])
+      invalidateRequestCache('library:lists')
+      // The visible state is already updated optimistically. Refresh in the
+      // background to reconcile server-side normalization without making the
+      // favorite button wait for a second full-list request.
+      void get().hydrate({ force: true })
+    } catch (error) {
+      if (get().data === optimisticData) set({ data: previousData })
+      throw error
+    }
   },
   removeSong: async (listId, song) => { await get().removeSongs(listId, [song]) },
   removeSongs: async (listId, songs) => {
     const songIds = [...new Set(songs.map(songListId).filter(Boolean))]
     if (!songIds.length) return
-    await playerApi.removeFromList(listId, songIds)
-    invalidateRequestCache('library:lists')
-    await get().hydrate({ force: true })
+    const previousData = get().data
+    const optimisticData = updateListData(previousData, listId, current => removeSongsFromList(current, songs))
+    if (optimisticData !== previousData) set({ data: optimisticData })
+    try {
+      await playerApi.removeFromList(listId, songIds)
+      invalidateRequestCache('library:lists')
+      void get().hydrate({ force: true })
+    } catch (error) {
+      if (get().data === optimisticData) set({ data: previousData })
+      throw error
+    }
   },
   createList: async (name, icon = 'music') => {
     const data = await ensureLibraryHydrated(get)
@@ -178,4 +223,3 @@ export function selectLoveMatchSet(state: LibraryState): Set<string> {
 export function isSongInLoveList(state: LibraryState, song: Song | null | undefined): boolean {
   return songMatchSetHas(selectLoveMatchSet(state), song)
 }
-

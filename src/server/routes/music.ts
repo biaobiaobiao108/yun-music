@@ -450,14 +450,21 @@ export const createMusicRouter = (): Router => {
       }>()
 
       songInfo = normalizeSongInfo(songInfo)
-      if (!songInfo || !songInfo.source) {
+      if (!songInfo) {
         throw new Error('Invalid songInfo')
       }
 
       // 优先前置检查服务端本地缓存（命中则直接返回，避免消耗外部第三方音源解析额度）
       const cacheTargetUser = verifiedUsername === 'open' ? '_open' : verifiedUsername
       if (cacheTargetUser !== '_open' || canReadPublicLocalMusic(ctx)) {
-        const cached = fileCache.checkCache({ ...songInfo, quality }, cacheTargetUser, false, { ignoreActiveProgress: true })
+        const cached = fileCache.checkCache(
+          { ...songInfo, quality },
+          cacheTargetUser,
+          false,
+          // A durable download is the strongest local source. If it is not
+          // present, check the regular server cache before resolving online.
+          { ignoreActiveProgress: true, preferredFolder: 'music' },
+        )
         if (cached.exists && !cached.isCollision && cached.url) {
           return ctx.json({
             url: cached.url,
@@ -468,6 +475,11 @@ export const createMusicRouter = (): Router => {
           })
         }
       }
+
+      // A legacy saved entry may omit its source but still be identifiable by
+      // the server cache metadata. Only require a source when we actually
+      // need to fall through to online resolution.
+      if (!songInfo.source) throw new Error('Invalid songInfo')
 
       const source = songInfo.source
       if (isRetiredOnlineSource(source)) throw new UnsupportedSourceError(source)
@@ -517,39 +529,11 @@ export const createMusicRouter = (): Router => {
 
       if (result.url) {
         if (/^https?:\/\//i.test(result.url)) {
-          const checkRedirect = async (u: string, depth = 0): Promise<string> => {
-            const safeUrl = await assertSafeRemoteHttpUrl(u)
-            if (depth > 3) return safeUrl.toString()
-            try {
-              const resp = await fetchSafeRemote(safeUrl, {
-                method: 'HEAD',
-                timeoutMs: 4000,
-                maxBytes: 1024,
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                  'Referer': safeUrl.origin,
-                },
-              })
-              const location = resp.headers.get('location')
-              if ([301, 302, 303, 307, 308].includes(resp.status) && location) {
-                let nextUrl = location
-                if (!nextUrl.startsWith('http')) {
-                  try { nextUrl = new URL(nextUrl, safeUrl).href } catch { }
-                }
-                return checkRedirect(nextUrl, depth + 1)
-              }
-              if (resp.status >= 400) {
-                console.warn(`[MusicUrl] Redirect check failed with status ${resp.status}, using original URL`)
-                return safeUrl.toString()
-              }
-            } catch (e: any) {
-              console.warn(`[MusicUrl] head check failed: ${e.message}`)
-            }
-            return safeUrl.toString()
-          }
-
-          const finalUrl = await checkRedirect(result.url)
-          result.url = finalUrl
+          // The media relay already validates and follows redirects when the
+          // browser requests the audio bytes. Do not perform a blocking HEAD
+          // request here: many music hosts make HEAD slower or reject it even
+          // though the subsequent ranged GET is playable.
+          result.url = (await assertSafeRemoteHttpUrl(result.url)).toString()
         } else {
           const err: any = new Error('音源返回了不支持的播放链接')
           err.code = 422
