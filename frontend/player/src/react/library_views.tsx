@@ -5,7 +5,7 @@ import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { selectLoveList, selectUserLists, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore } from './store'
 import type { Song } from './types'
 import { songAlbum, songImage, songKey, songTitle } from './types'
-import { ViewFrame } from './views'
+import { ViewFrame } from './view_frame'
 
 function listOf(payload: unknown, keys: string[] = ['list', 'data', 'result', 'songs']): Song[] {
   if (Array.isArray(payload)) return payload as Song[]

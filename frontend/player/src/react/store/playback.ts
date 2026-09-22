@@ -224,7 +224,14 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   },
   enqueue: songs => {
     const current = get().queue
-    const queue = [...current, ...songs.filter(song => !current.some(item => songKey(item) === songKey(song)))]
+    const queuedKeys = new Set(current.map(songKey))
+    const additions = songs.filter(song => {
+      const key = songKey(song)
+      if (queuedKeys.has(key)) return false
+      queuedKeys.add(key)
+      return true
+    })
+    const queue = [...current, ...additions]
     set({ queue })
     persistPlaybackNow({ ...get(), queue })
   },

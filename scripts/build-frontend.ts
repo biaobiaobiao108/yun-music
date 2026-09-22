@@ -33,6 +33,17 @@ async function build() {
     return
   }
 
+  const iconSubsetProcess = Bun.spawn(['bun', 'run', path.join(import.meta.dir, 'build-fontawesome-subset.ts')], {
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  const iconSubsetExitCode = await iconSubsetProcess.exited
+  if (iconSubsetExitCode !== 0) {
+    console.error('[Font Awesome] Icon subset build failed')
+    if (!isWatch) process.exit(1)
+    return
+  }
+
   // These files belonged to the retired command-driven player. Remove stale
   // local build output so a previous build cannot keep shipping dead runtime
   // resources after the React-only migration.

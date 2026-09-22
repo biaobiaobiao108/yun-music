@@ -34,7 +34,9 @@ const targetDir = path.resolve(__dirname, '../');
 
 // We exclude config.js itself to avoid infinite hash changes when injecting the hash.
 // Also ignore logs, data, server (dist), node_modules, .git.
-const publicHash = await getDirectoryHash(path.join(targetDir, 'public'), ['js/config.js', 'music/bin'], []);
+// Service worker cache names are derived from this hash. Excluding the worker
+// itself keeps the hash stable instead of creating a new value on every build.
+const publicHash = await getDirectoryHash(path.join(targetDir, 'public'), ['js/config.js', 'sw.js', 'music/sw.js', 'music/bin'], []);
 const srcHash = await getDirectoryHash(path.join(targetDir, 'src'), [], []);
 
 const finalHash = new Bun.CryptoHasher('md5').update(publicHash + srcHash).digest('hex').substring(0, 7);
@@ -62,4 +64,20 @@ if (await configFile.exists()) {
 }
 
 await Bun.write(configPath, configContent);
+
+const serviceWorkerVersions = [
+    [path.join(targetDir, 'public', 'music', 'sw.js'), `yun-yin-web-react-${finalHash}`, `yun-yin-web-react-assets-${finalHash}`],
+    [path.join(targetDir, 'public', 'sw.js'), `yun-yin-admin-react-${finalHash}`, `yun-yin-admin-react-assets-${finalHash}`],
+];
+
+for (const [serviceWorkerPath, cacheName, assetCacheName] of serviceWorkerVersions) {
+    const serviceWorkerFile = Bun.file(serviceWorkerPath);
+    if (!(await serviceWorkerFile.exists())) continue;
+    const source = await serviceWorkerFile.text();
+    const updated = source
+        .replace(/const CACHE_NAME = ['"][^'"]+['"];/, `const CACHE_NAME = '${cacheName}';`)
+        .replace(/const VERSIONED_ASSET_CACHE = ['"][^'"]+['"];/, `const VERSIONED_ASSET_CACHE = '${assetCacheName}';`);
+    if (updated !== source) await Bun.write(serviceWorkerPath, updated);
+}
+
 console.log(`Build hash updated to ${finalHash} in config.js`);

@@ -5,7 +5,7 @@ import { selectUserLists, useAuthStore, useLibraryStore, usePlaybackStore, usePl
 import type { PlayerDetail, Song } from './types'
 import { songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songSizeValue, songTitle } from './types'
 import { formatBytes, formatDuration, safeImageUrl } from '../../../shared/src/runtime'
-import { ViewFrame } from './views'
+import { ViewFrame } from './view_frame'
 import { useRequestResource } from './data/use_request'
 import { useRealtimePoll } from './data/use_realtime_poll'
 import { useCacheEvents } from './data/use_cache_events'

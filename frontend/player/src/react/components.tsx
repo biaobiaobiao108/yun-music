@@ -277,6 +277,15 @@ export function Modal({ open, title, onClose, children, className }: { open: boo
       lastFocus.current = null
     }
   }, [open])
+  useEffect(() => () => {
+    const dialog = ref.current
+    if (dialog?.open) dialog.close()
+    const focusTarget = lastFocus.current
+    const restoreFallback = () => document.getElementById('admin-main')?.focus() ?? document.getElementById('player-main-content')?.focus()
+    if (focusTarget?.isConnected && focusTarget !== document.body && !focusTarget.matches(':disabled')) focusTarget.focus()
+    else window.requestAnimationFrame(restoreFallback)
+    lastFocus.current = null
+  }, [])
   return <dialog ref={ref} className={`react-dialog${className ? ` ${className}` : ''}`} aria-labelledby={titleId} onCancel={event => { event.preventDefault(); onClose() }}><div className="react-dialog-content"><header><h2 id={titleId}>{title}</h2><button type="button" className="react-icon-button" aria-label="关闭" onClick={onClose}><Icon name="xmark" /></button></header><div className="react-dialog-body">{children}</div></div></dialog>
 }
 

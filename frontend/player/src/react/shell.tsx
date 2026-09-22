@@ -1,7 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
 import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
-import { AddToListDialog, CommentsDialog, CreateListDialog, FavoritesView, ImmersiveLyricsView, LoginDialog, SearchDetailView, SearchView, SettingsView, UserLoginDialog } from './views'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
 import { songAlbum, songArtist, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
@@ -19,6 +18,16 @@ import { clearPlayerPerformanceMark, markPlayerPerformance, measurePlayerPerform
 const SongListView = lazy(() => import('./heavy_views').then(module => ({ default: module.SongListView })))
 const LeaderboardView = lazy(() => import('./heavy_views').then(module => ({ default: module.LeaderboardView })))
 const LocalMusicView = lazy(() => import('./heavy_views').then(module => ({ default: module.LocalMusicView })))
+const AddToListDialog = lazy(() => import('./views').then(module => ({ default: module.AddToListDialog })))
+const CommentsDialog = lazy(() => import('./views').then(module => ({ default: module.CommentsDialog })))
+const CreateListDialog = lazy(() => import('./views').then(module => ({ default: module.CreateListDialog })))
+const FavoritesView = lazy(() => import('./views').then(module => ({ default: module.FavoritesView })))
+const ImmersiveLyricsView = lazy(() => import('./views').then(module => ({ default: module.ImmersiveLyricsView })))
+const LoginDialog = lazy(() => import('./views').then(module => ({ default: module.LoginDialog })))
+const SearchDetailView = lazy(() => import('./views').then(module => ({ default: module.SearchDetailView })))
+const SearchView = lazy(() => import('./views').then(module => ({ default: module.SearchView })))
+const SettingsView = lazy(() => import('./views').then(module => ({ default: module.SettingsView })))
+const UserLoginDialog = lazy(() => import('./views').then(module => ({ default: module.UserLoginDialog })))
 
 const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
 type SongUrlResult = { url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }
@@ -665,7 +674,7 @@ export function PlayerShell() {
     window.addEventListener('hashchange', onPop)
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
   }, [setTabFromHistory])
-  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveFooterHost !== 'normal'} /></div><QueueDrawer open={drawer === 'queue'} onClose={() => setDrawer(null)} /><CacheDrawer open={drawer === 'cache' || drawer === 'download'} onClose={() => setDrawer(null)} /><LoginDialog open={dialog === 'login'} onClose={() => setDialog(null)} /><UserLoginDialog open={dialog === 'userLogin'} onClose={() => setDialog(null)} /><CreateListDialog open={dialog === 'createList'} onClose={() => setDialog(null)} /><AddToListDialog open={dialog === 'addToList'} onClose={closeAddToList} /><SleepTimerDialog open={dialog === 'sleep'} onClose={() => setDialog(null)} /><ImmersiveLyricsView open={immersiveLyrics} footerHost={immersiveFooterHost} onFooterHostChange={setImmersiveFooterHost} onClose={() => setImmersiveLyrics(false)} /><CommentsDialog open={dialog === 'comments'} onClose={() => setDialog(null)} /><ToastRegion /></div>
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveFooterHost !== 'normal'} /></div>{drawer === 'queue' && <QueueDrawer open onClose={() => setDrawer(null)} />}{(drawer === 'cache' || drawer === 'download') && <CacheDrawer open onClose={() => setDrawer(null)} />}<Suspense fallback={null}>{dialog === 'login' && <LoginDialog open onClose={() => setDialog(null)} />}{dialog === 'userLogin' && <UserLoginDialog open onClose={() => setDialog(null)} />}{dialog === 'createList' && <CreateListDialog open onClose={() => setDialog(null)} />}{dialog === 'addToList' && <AddToListDialog open onClose={closeAddToList} />}{dialog === 'sleep' && <SleepTimerDialog open onClose={() => setDialog(null)} />}{immersiveLyrics && <ImmersiveLyricsView open footerHost={immersiveFooterHost} onFooterHostChange={setImmersiveFooterHost} onClose={() => setImmersiveLyrics(false)} />}{dialog === 'comments' && <CommentsDialog open onClose={() => setDialog(null)} />}</Suspense><ToastRegion /></div>
 }
 
 export function PlayerAuthGate() {

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'yun-yin-admin-react-v4';
-const VERSIONED_ASSET_CACHE = 'yun-yin-admin-react-assets-v1';
+const CACHE_NAME = 'yun-yin-admin-react-0b1d6a0';
+const VERSIONED_ASSET_CACHE = 'yun-yin-admin-react-assets-0b1d6a0';
 const MAX_VERSIONED_ASSETS = 60;
 const ASSETS_TO_CACHE = [
     './',
@@ -7,7 +7,7 @@ const ASSETS_TO_CACHE = [
     './assets/yun-yin.png',
     './manifest.json',
     './tailwind.generated.css',
-    './music/assets/fontawesome/css/all.min.css'
+    './music/assets/fontawesome/css/solid-subset.min.css'
 ];
 
 self.addEventListener('install', (event) => {

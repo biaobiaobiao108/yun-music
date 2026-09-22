@@ -8,6 +8,7 @@ import type { PlayerDetail, PlayerTab, Song } from './types'
 import { sameSong, songArtist, songImage, songKey, songTitle } from './types'
 import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runtime'
 import { goBack } from './route_state'
+import { ViewFrame } from './view_frame'
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -47,6 +48,22 @@ function resultImage(song: Song): string {
   return safeImageUrl(songImage(song))
 }
 
+function findActiveLyricIndex(lines: readonly { time: number }[], time: number): number {
+  let low = 0
+  let high = lines.length - 1
+  let active = -1
+  while (low <= high) {
+    const middle = low + Math.floor((high - low) / 2)
+    if ((lines[middle]?.time ?? Infinity) <= time) {
+      active = middle
+      low = middle + 1
+    } else {
+      high = middle - 1
+    }
+  }
+  return active
+}
+
 function SearchEntityGrid({ items, kind, onOpen }: { items: Song[]; kind: 'artist' | 'album' | 'playlist'; onOpen: (detail: PlayerDetail) => void }) {
   const mediaItems = useMediaLibraryStore(state => kind === 'artist' ? state.artists : state.albums)
   const toggleMedia = useMediaLibraryStore(state => state.toggle)
@@ -56,6 +73,8 @@ function SearchEntityGrid({ items, kind, onOpen }: { items: Song[]; kind: 'artis
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const notify = usePlayerUiStore(state => state.notify)
   const [busyKey, setBusyKey] = useState('')
+  const favoriteMediaKeys = useMemo(() => kind === 'playlist' ? new Set<string>() : new Set(mediaItems.map(item => mediaLibraryItemKey(item, kind))), [kind, mediaItems])
+  const favoritePlaylistKeys = useMemo(() => new Set(userLists.map(list => `${String(list.source || '')}:${String(list.sourceListId ?? '')}`)), [userLists])
   if (!items.length) return <div className="react-empty"><Icon name={kind === 'artist' ? 'user' : kind === 'album' ? 'compact-disc' : 'list'} /><p>没有找到匹配的结果</p></div>
   return <div className="react-entity-grid">{items.map((item, index) => {
     const entityDetail = kind === 'playlist' ? null : songEntityDetail(item, kind, { allowGenericId: true, allowGenericName: true })
@@ -65,8 +84,8 @@ function SearchEntityGrid({ items, kind, onOpen }: { items: Song[]; kind: 'artis
     const subtitle = kind === 'artist' ? `${String(item.albumSize ?? 0)} 张专辑` : kind === 'album' ? String(item.artistName ?? item.singer ?? '未知歌手') : String(item.creator ?? item.artistName ?? '平台歌单')
     const favoriteKey = `${source}:${kind}:${id}`
     const isFavorite = kind === 'playlist'
-      ? userLists.some(list => String(list.source || '') === source && String(list.sourceListId ?? '') === id)
-      : mediaItems.some(mediaItem => mediaLibraryItemKey(mediaItem, kind) === mediaLibraryItemKey(item, kind))
+      ? favoritePlaylistKeys.has(`${source}:${id}`)
+      : favoriteMediaKeys.has(mediaLibraryItemKey(item, kind))
     const open = () => {
       if (entityDetail) {
         onOpen(entityDetail)
@@ -432,8 +451,6 @@ export function SettingsView() {
   return <ViewFrame title="设置"><section className="react-settings-grid"><section className="react-content-card t-bg-panel"><h2>外观与播放</h2><div className="react-settings-form"><div className="react-setting-field"><span>主题</span><SelectMenu label="主题" value={String(settings.appearance ?? 'system')} options={[{ value: 'system', label: '跟随系统' }, { value: 'light', label: '浅色' }, { value: 'dark', label: '深色' }]} onChange={value => setSetting('appearance', value)} /></div><div className="react-setting-field"><span>强调色</span><SelectMenu label="强调色" value={String(settings.themeColor ?? 'netease')} options={[{ value: 'netease', label: '网易红' }, { value: 'emerald', label: '翡翠绿' }, { value: 'blue', label: '海洋蓝' }, { value: 'amber', label: '琥珀橙' }, { value: 'violet', label: '紫罗兰' }, { value: 'rose', label: '玫瑰粉' }]} onChange={value => setSetting('themeColor', value)} /></div><div className="react-setting-field"><span>默认音质</span><SelectMenu label="默认音质" value={String(settings.preferredQuality)} options={[{ value: '128k', label: '128K' }, { value: '320k', label: '320K' }, { value: 'flac', label: '无损 FLAC' }, { value: 'hires', label: 'Hi-Res' }]} onChange={value => setSetting('preferredQuality', value)} /></div><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.autoResume)} onChange={toggle('autoResume')} /><span>自动恢复上次播放进度</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableKeyboardShortcuts)} onChange={toggle('enableKeyboardShortcuts')} /><span>启用键盘快捷键</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showLyricTranslation)} onChange={toggle('showLyricTranslation')} /><span>显示歌词翻译</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.showLyricRoma)} onChange={toggle('showLyricRoma')} /><span>显示罗马音 / 逐字歌词</span></label></div></section><section className="react-content-card t-bg-panel"><h2>缓存与播放策略</h2><div className="react-settings-form"><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enablePreloader)} onChange={toggle('enablePreloader')} /><span>预取下一首歌曲</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableAutoDegradeQuality)} onChange={toggle('enableAutoDegradeQuality')} /><span>播放失败时自动降级音质</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableAutoSwitchSource)} onChange={toggle('enableAutoSwitchSource')} /><span>解析失败时自动换源</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableServerCache)} onChange={toggle('enableServerCache')} /><span>播放后加入服务器缓存</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.enableCrossfade)} onChange={toggle('enableCrossfade')} /><span>切歌淡入淡出</span></label><label className="react-switch-row"><input type="checkbox" checked={Boolean(settings.keepScreenAwake)} onChange={toggle('keepScreenAwake')} /><span>播放时保持屏幕唤醒</span></label></div></section><section className="react-content-card t-bg-panel react-account-card"><div className="react-account-heading"><div><p className="react-eyebrow">ACCOUNT</p><h2>用户账户</h2><p>登录后同步歌单、收藏与播放记录</p></div><span className={`react-account-badge ${userAuthenticated ? 'is-active' : ''}`}><Icon name={userAuthenticated ? 'circle-check' : 'circle-user'} />{userAuthenticated ? '已登录' : '未登录'}</span></div>{userAuthenticated ? <div className="react-account-state"><Icon name="circle-check" /><div className="react-account-copy"><strong>{userName}</strong><span>当前账户已连接，可以同步你的音乐数据</span></div><Button onClick={() => void logout()}>退出账户</Button></div> : <form className="react-settings-form react-account-form" onSubmit={login}><label>用户名<input value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" required /></label><label>密码<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" required /></label>{accountError && <p className="react-error" role="alert">{accountError}</p>}<Button variant="primary" type="submit">登录账户</Button></form>}</section></section></ViewFrame>
 }
 
-export function ViewFrame({ title, actions, hideHeader = false, children }: { title: string; actions?: React.ReactNode; hideHeader?: boolean; children: React.ReactNode }) { return <section id={`view-${title}`} className={`player-main-view react-view ${hideHeader ? 'react-view-no-header' : ''}`} aria-label={hideHeader ? title : undefined}>{!hideHeader && <header className="react-view-header"><div><h1>{title}</h1></div>{actions}</header>}{children}</section> }
-
 type ImmersiveFooterHost = 'normal' | 'immersive'
 
 export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterHost; onFooterHostChange: (host: ImmersiveFooterHost) => void; onClose: () => void }
@@ -465,7 +482,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [isClosing, setIsClosing] = useState(false)
   useEffect(() => { if (open) void load(song) }, [load, open, song])
-  const active = useMemo(() => (open ? lines.reduce((result, line, index) => line.time <= time ? index : result, -1) : -1), [lines, open, time])
+  const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
     const dialog = dialogRef.current
     if (!dialog) return
@@ -524,6 +541,11 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   useEffect(() => () => {
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
     if (dialogRef.current?.open) dialogRef.current.close()
+    const focusTarget = lastFocus.current
+    const restoreFallback = () => document.querySelector<HTMLButtonElement>('.react-player-main > #player-footer .react-footer-cover-button')?.focus()
+    if (focusTarget?.isConnected && focusTarget !== document.body && !focusTarget.matches(':disabled')) focusTarget.focus()
+    else window.requestAnimationFrame(restoreFallback)
+    lastFocus.current = null
     onFooterHostChange('normal')
   }, [onFooterHostChange])
   useEffect(() => {
