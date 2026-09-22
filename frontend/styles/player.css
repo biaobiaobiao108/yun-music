@@ -9836,25 +9836,35 @@ textarea:focus-visible {
     padding-block-start: 4.65rem;
 }
 
-/* Recent playback is a single horizontal rail. It can scroll sideways on
-   narrow screens, but never grows a second row or shifts the page height. */
+/* Recent playback stays within two responsive rows on the home page. The
+   full history remains available from the "查看全部" action. */
 .react-home-rail {
-    display: flex;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-rows: repeat(2, minmax(0, auto));
+    grid-auto-rows: 0;
     align-items: stretch;
     gap: 1.05rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: none;
+    overflow: clip;
 }
 
-.react-home-rail::-webkit-scrollbar {
+.react-home-rail > .react-artwork-card:nth-child(n + 9) {
     display: none;
 }
 
 .react-home-rail > .react-artwork-card {
-    flex: 0 0 clamp(8.8rem, calc((100% - 5.25rem) / 6), 12rem);
+    min-inline-size: 0;
+}
+
+@media (max-width: 900px) {
+    .react-home-rail > .react-artwork-card:nth-child(n + 7) {
+        display: none;
+    }
+}
+
+@media (max-width: 560px) {
+    .react-home-rail > .react-artwork-card:nth-child(n + 5) {
+        display: none;
+    }
 }
 
 /* The normal and immersive bars share these geometry tokens. Only the

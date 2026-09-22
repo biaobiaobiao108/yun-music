@@ -334,12 +334,14 @@ describe('React player navigation and state restoration', () => {
     expect(css).not.toMatch(/(?:react-)?vinyl|visualizer|频谱/i)
   })
 
-  it('keeps the floating topbar, recent rail and immersive footer geometry stable', () => {
+  it('keeps the floating topbar, two-row recent grid and immersive footer geometry stable', () => {
     const views = read('frontend/player/src/react/views.tsx')
     const css = read('frontend/styles/player.css')
     expect(css).toContain('.react-player-main {\n    display: block !important;')
     expect(css).toContain('height: 0 !important;\n    min-height: 0 !important;')
-    expect(css).toContain('.react-home-rail {\n    display: flex;\n    flex-wrap: nowrap;')
+    expect(css).toContain('.react-home-rail {\n    display: grid;\n    grid-template-rows: repeat(2, minmax(0, auto));')
+    expect(css).toContain('.react-home-rail > .react-artwork-card:nth-child(n + 9)')
+    expect(css).toContain('.react-home-rail > .react-artwork-card:nth-child(n + 5)')
     expect(css).toContain('background:\n        linear-gradient(135deg,')
     expect(css).toContain('backdrop-filter: none !important;')
     expect(css).toContain('.react-player-footer.is-inactive')
