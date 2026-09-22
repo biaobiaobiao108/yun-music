@@ -10695,7 +10695,7 @@ textarea:focus-visible {
     border: 0 !important;
     -webkit-backdrop-filter: blur(12px) saturate(1.06) !important;
     backdrop-filter: blur(12px) saturate(1.06) !important;
-    box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 22%) !important;
+    box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 14%) !important;
 }
 
 /* The lyrics view owns a local transport under the artwork instead of
