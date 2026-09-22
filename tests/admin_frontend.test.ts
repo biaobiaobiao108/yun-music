@@ -123,7 +123,7 @@ describe('React admin frontend', () => {
     expect(playerEntry).toContain("const [phase, setPhase]")
     expect(playerEntry).not.toContain('react-toast-close')
     expect(adminCss).toContain('border: 0;')
-    expect(playerCss).toContain('backdrop-filter: blur(14px)')
+    expect(playerCss).toContain('backdrop-filter: none')
     expect(playerViews).not.toContain('自定义音源由管理员在管理后台配置')
     expect(playerViews).not.toContain('AboutView')
     expect(playerViews).not.toContain('openCustomSourceModal')

@@ -98,7 +98,7 @@ describe('Outbound URL network boundaries', () => {
     })
     try {
       await createCacheRouter().handle(new Request('http://localhost/api/music/download?url=http%3A%2F%2Fexample.com%2Faudio'))
-      expect(options.agent).toBe(false)
+      expect(options.agent).toMatchObject({ keepAlive: true, maxSockets: 8 })
       const connectedAddress = await new Promise(resolve => options.lookup('example.com', {}, (_error: any, address: string) => resolve(address)))
       expect(connectedAddress).toBe('8.8.8.8')
     } finally {

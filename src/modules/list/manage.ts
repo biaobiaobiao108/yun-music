@@ -6,17 +6,17 @@ import { toMD5 } from '@/utils'
 export class ListManage {
   snapshotDataManage: SnapshotDataManage
   listDataManage: ListDataManage
+  private snapshotQueue: Promise<string> = Promise.resolve('')
 
   constructor(userDataManage: UserDataManage) {
     this.snapshotDataManage = new SnapshotDataManage(userDataManage)
     this.listDataManage = new ListDataManage(this.snapshotDataManage)
   }
 
-  createSnapshot = async () => {
+  private createSnapshotNow = async () => {
     const listData = JSON.stringify(await this.getListData())
     const md5 = toMD5(listData)
     const snapshotInfo = await this.snapshotDataManage.getSnapshotInfo()
-    console.log(md5, snapshotInfo.latest)
     if (snapshotInfo.latest == md5) return md5
     if (snapshotInfo.list.includes(md5)) {
       snapshotInfo.list.splice(snapshotInfo.list.indexOf(md5), 1)
@@ -26,6 +26,20 @@ export class ListManage {
     snapshotInfo.time = Date.now()
     this.snapshotDataManage.saveSnapshotInfo(snapshotInfo)
     return md5
+  }
+
+  /**
+   * Serialize snapshot writes per user space. Favorite clicks can arrive in
+   * bursts; running several JSON/SQLite snapshot writes concurrently only
+   * adds contention and often produces the same final snapshot repeatedly.
+   */
+  createSnapshot = () => {
+    const next = this.snapshotQueue.then(() => this.createSnapshotNow())
+    this.snapshotQueue = next.catch(error => {
+      console.error('[ListManage] Failed to create list snapshot:', error)
+      return ''
+    })
+    return next
   }
 
   getCurrentListInfoKey = async () => {

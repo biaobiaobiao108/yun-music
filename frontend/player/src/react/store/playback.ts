@@ -45,6 +45,10 @@ let pauseCommand: () => void = () => undefined
 let seekCommand: (time: number) => void = () => undefined
 let volumeCommand: (volume: number) => void = () => undefined
 let lastPlaybackPersistAt = 0
+type PersistedPlaybackState = Pick<PlaybackState, 'currentSong' | 'currentIndex' | 'currentTime' | 'queue' | 'mode' | 'quality'>
+type PlaybackPersistHandle = number | ReturnType<typeof setTimeout>
+let pendingPlaybackState: PersistedPlaybackState | null = null
+let playbackPersistHandle: PlaybackPersistHandle | null = null
 
 export function connectAudioCommands(commands: { play: () => void; pause: () => void; seek: (time: number) => void; volume: (volume: number) => void }): void {
   playCommand = commands.play
@@ -62,7 +66,7 @@ const initialVolume = (() => {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.8
 })()
 
-function persistPlayback(state: Pick<PlaybackState, 'currentSong' | 'currentIndex' | 'currentTime' | 'queue' | 'mode' | 'quality'>): void {
+function persistPlayback(state: PersistedPlaybackState): void {
   writeJson(browserStorage(), scopedStorageKey('lx_playback_state'), {
     song: state.currentSong,
     index: state.currentIndex,
@@ -72,6 +76,48 @@ function persistPlayback(state: Pick<PlaybackState, 'currentSong' | 'currentInde
     quality: state.quality,
     timestamp: Date.now(),
   })
+}
+
+function cancelScheduledPlaybackPersist(): void {
+  if (playbackPersistHandle === null) return
+  const idleWindow = typeof window === 'undefined' ? null : window as Window & {
+    cancelIdleCallback?: (handle: number) => void
+  }
+  if (idleWindow?.cancelIdleCallback && typeof playbackPersistHandle === 'number') {
+    idleWindow.cancelIdleCallback(playbackPersistHandle)
+  } else {
+    clearTimeout(playbackPersistHandle as ReturnType<typeof setTimeout>)
+  }
+  playbackPersistHandle = null
+}
+
+function persistPlaybackNow(state: PersistedPlaybackState): void {
+  cancelScheduledPlaybackPersist()
+  pendingPlaybackState = null
+  persistPlayback(state)
+}
+
+function schedulePlaybackPersist(state: PersistedPlaybackState): void {
+  pendingPlaybackState = {
+    ...state,
+    // The queue is the largest part of this local snapshot. Keep the existing
+    // resume contract while copying it only once per scheduled write.
+    queue: state.queue.slice(0, 300),
+  }
+  if (playbackPersistHandle !== null) return
+
+  const flush = () => {
+    playbackPersistHandle = null
+    const next = pendingPlaybackState
+    pendingPlaybackState = null
+    if (next) persistPlayback(next)
+  }
+  const idleWindow = typeof window === 'undefined' ? null : window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+  }
+  playbackPersistHandle = idleWindow?.requestIdleCallback
+    ? idleWindow.requestIdleCallback(flush, { timeout: 1200 })
+    : setTimeout(flush, 180)
 }
 
 export const usePlaybackStore = create<PlaybackState>((set, get) => ({
@@ -97,23 +143,28 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song))
     const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, resolvedUrl: null, error: '' }
     set(next)
-    persistPlayback({ ...get(), ...next })
+    persistPlaybackNow({ ...get(), ...next })
   },
   toggle: () => {
     if (get().isPlaying) {
       pauseCommand()
       set({ isPlaying: false })
+      persistPlaybackNow(get())
     } else {
       playCommand()
       set({ isPlaying: true })
     }
   },
-  setPlaying: isPlaying => set({ isPlaying }),
+  setPlaying: isPlaying => {
+    set({ isPlaying })
+    if (!isPlaying) persistPlaybackNow(get())
+  },
   setProgress: (currentTime, duration) => {
     set({ currentTime, ...(duration !== undefined ? { duration } : {}) })
-    if (Date.now() - lastPlaybackPersistAt >= 3000) {
-      lastPlaybackPersistAt = Date.now()
-      persistPlayback({ ...get(), currentTime })
+    const now = Date.now()
+    if (now - lastPlaybackPersistAt >= 5000) {
+      lastPlaybackPersistAt = now
+      schedulePlaybackPersist({ ...get(), currentTime })
     }
   },
   setVolume: volume => {
@@ -137,12 +188,12 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   setMode: mode => {
     writeString(browserStorage(), 'lx_play_mode', mode)
     set({ mode })
-    persistPlayback({ ...get(), mode })
+    persistPlaybackNow({ ...get(), mode })
   },
   setQuality: quality => {
     const next = String(quality || 'flac')
     set({ quality: next })
-    persistPlayback({ ...get(), quality: next })
+    persistPlaybackNow({ ...get(), quality: next })
   },
   setResolvedUrl: resolvedUrl => set({ resolvedUrl }),
   setCurrentSongUrl: url => {
@@ -152,7 +203,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const currentSong = { ...state.currentSong, url }
     const queue = state.queue.map(song => songKey(song) === currentKey ? { ...song, url } : song)
     set({ currentSong, queue })
-    persistPlayback({ ...state, currentSong, queue })
+    persistPlaybackNow({ ...state, currentSong, queue })
   },
   seek: time => {
     seekCommand(time)
@@ -175,7 +226,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const current = get().queue
     const queue = [...current, ...songs.filter(song => !current.some(item => songKey(item) === songKey(song)))]
     set({ queue })
-    persistPlayback({ ...get(), queue })
+    persistPlaybackNow({ ...get(), queue })
   },
   removeFromQueue: index => {
     const state = get()
@@ -185,7 +236,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     if (!queue.length) {
       pauseCommand()
       set({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, resolvedUrl: null })
-      persistPlayback({ ...state, queue: [], currentIndex: -1, currentSong: null, currentTime: 0 })
+      persistPlaybackNow({ ...state, queue: [], currentIndex: -1, currentSong: null, currentTime: 0 })
       return
     }
     if (removingCurrent) {
@@ -196,10 +247,12 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const currentIndex = state.currentIndex > index ? state.currentIndex - 1 : state.currentIndex
     const currentSong = currentIndex >= 0 ? queue[currentIndex] ?? null : null
     set({ queue, currentIndex, currentSong })
-    persistPlayback({ ...state, queue, currentIndex, currentSong })
+    persistPlaybackNow({ ...state, queue, currentIndex, currentSong })
   },
   reset: () => {
     pauseCommand()
+    cancelScheduledPlaybackPersist()
+    pendingPlaybackState = null
     lastPlaybackPersistAt = 0
     set({
       queue: [],

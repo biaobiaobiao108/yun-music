@@ -1,6 +1,8 @@
 // Bump this whenever the React shell or its static contract changes so an
 // already-open player cannot keep serving a stale UI bundle indefinitely.
-const CACHE_NAME = 'yun-yin-web-react-v8';
+const CACHE_NAME = 'yun-yin-web-react-v9';
+const VERSIONED_ASSET_CACHE = 'yun-yin-web-react-assets-v1';
+const MAX_VERSIONED_ASSETS = 80;
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -24,6 +26,48 @@ self.addEventListener('install', (event) => {
     self.skipWaiting();
 });
 
+const isVersionedAsset = (url) => (
+    /\/(?:app|login)-[a-z0-9]+\.(?:js|css)$/i.test(url.pathname) ||
+    /\/js\/chunks\/[^/]+-[a-z0-9]+\.(?:js|css)$/i.test(url.pathname)
+);
+
+const cacheVersionedAsset = async (request, response) => {
+    if (!response || response.status !== 200 || response.type !== 'basic') return;
+    const cache = await caches.open(VERSIONED_ASSET_CACHE);
+    await cache.put(request, response.clone());
+    const keys = await cache.keys();
+    const overflow = keys.length - MAX_VERSIONED_ASSETS;
+    if (overflow > 0) {
+        await Promise.all(keys.slice(0, overflow).map((key) => cache.delete(key)));
+    }
+};
+
+const cacheFirstVersionedAsset = async (request) => {
+    const cache = await caches.open(VERSIONED_ASSET_CACHE);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    const response = await fetch(request);
+    void cacheVersionedAsset(request, response).catch(() => undefined);
+    return response;
+};
+
+const KNOWN_CACHES = [CACHE_NAME, VERSIONED_ASSET_CACHE];
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((cacheNames) => Promise.all(
+            cacheNames.map((cacheName) => {
+                if (!KNOWN_CACHES.includes(cacheName)) {
+                    console.log('[SW] Deleting old cache:', cacheName);
+                    return caches.delete(cacheName);
+                }
+                return undefined;
+            })
+        ))
+    );
+    self.clients.claim();
+});
+
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
@@ -39,8 +83,28 @@ self.addEventListener('fetch', (event) => {
         return; // 直接 return 就不走 event.respondWith，相当于不拦截
     }
 
-    // 3. 常规静态资源采用 Network First 策略
+    // 3. HTML 与未哈希资源采用 Network First，保证入口和主题配置及时更新。
     if (event.request.method !== 'GET') return;
+
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    if (response && response.status === 200 && response.type === 'basic') {
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache)).catch(() => undefined);
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    if (isVersionedAsset(url)) {
+        event.respondWith(cacheFirstVersionedAsset(event.request));
+        return;
+    }
 
     event.respondWith(
         fetch(event.request)
@@ -61,22 +125,4 @@ self.addEventListener('fetch', (event) => {
                 return caches.match(event.request);
             })
     );
-});
-
-const KNOWN_CACHES = [CACHE_NAME];
-
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (!KNOWN_CACHES.includes(cacheName)) {
-                        console.log('[SW] Deleting old cache:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
-    );
-    self.clients.claim();
 });

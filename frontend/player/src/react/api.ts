@@ -1,4 +1,4 @@
-import { requestJson, type RequestPolicy } from './data/request'
+import { requestJson, type RequestPolicy, type RequestPriority } from './data/request'
 import { scopedStorageKey } from './session'
 import { readJson, writeJson } from '../../../shared/src/storage'
 import type { RuntimeConfig } from '../../../shared/src/runtime'
@@ -93,7 +93,7 @@ export const playerApi = {
     }
     return []
   },
-  songUrl: (songInfo: Song, quality: string, signal?: AbortSignal, enableAutoSwitchApiSource = true) => requestJson<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>('/api/music/url', { method: 'POST', body: JSON.stringify({ songInfo, quality, enableAutoSwitchApiSource }), signal }),
+  songUrl: (songInfo: Song, quality: string, signal?: AbortSignal, enableAutoSwitchApiSource = true, priority: RequestPriority = 'high') => requestJson<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>('/api/music/url', { method: 'POST', body: JSON.stringify({ songInfo, quality, enableAutoSwitchApiSource }), signal, priority }),
   lyric: (songInfo: Song, signal?: AbortSignal) => requestJson<Record<string, unknown>>('/api/music/lyric', { method: 'POST', body: JSON.stringify({ songInfo }), signal }),
   listData: (user?: string, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<UserListData>(user ? `/api/user/list?user=${encodeURIComponent(user)}` : '/api/user/list', { signal, ...policy }),
   saveListData: (data: UserListData) => requestJson('/api/user/list', { method: 'POST', body: JSON.stringify(data) }),

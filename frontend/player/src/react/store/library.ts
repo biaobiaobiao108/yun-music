@@ -5,6 +5,8 @@ import { buildSongMatchSet, normalizeSongForList, sameSong, songListId, songKey,
 
 let libraryController: AbortController | null = null
 let libraryRequestId = 0
+let libraryHydrateTimer: ReturnType<typeof setTimeout> | null = null
+const LIBRARY_HYDRATE_DEBOUNCE_MS = 320
 
 export type LibraryState = {
   data: UserListData
@@ -63,6 +65,14 @@ const ensureLibraryHydrated = async (
   return next.data
 }
 
+function scheduleLibraryHydrate(get: () => LibraryState): void {
+  if (libraryHydrateTimer) clearTimeout(libraryHydrateTimer)
+  libraryHydrateTimer = setTimeout(() => {
+    libraryHydrateTimer = null
+    void get().hydrate({ force: true })
+  }, LIBRARY_HYDRATE_DEBOUNCE_MS)
+}
+
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   // Keep the initial state loading so a direct #favorites?listId=… route is
   // not mistaken for a deleted playlist before the first hydration finishes.
@@ -106,9 +116,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       await playerApi.addToList(listId, [normalizedSong])
       invalidateRequestCache('library:lists')
       // The visible state is already updated optimistically. Refresh in the
-      // background to reconcile server-side normalization without making the
-      // favorite button wait for a second full-list request.
-      void get().hydrate({ force: true })
+      // background to reconcile server-side normalization without starting a
+      // full-list request for every rapid favorite click.
+      scheduleLibraryHydrate(get)
     } catch (error) {
       if (get().data === optimisticData) set({ data: previousData })
       throw error
@@ -124,7 +134,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       await playerApi.removeFromList(listId, songIds)
       invalidateRequestCache('library:lists')
-      void get().hydrate({ force: true })
+      scheduleLibraryHydrate(get)
     } catch (error) {
       if (get().data === optimisticData) set({ data: previousData })
       throw error
@@ -183,11 +193,15 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   reset: () => {
     libraryRequestId += 1
     libraryController?.abort()
+    if (libraryHydrateTimer) clearTimeout(libraryHydrateTimer)
+    libraryHydrateTimer = null
     set({ data: emptyData, loading: false, refreshing: false, error: '', loadedAt: 0 })
   },
   invalidate: () => {
     libraryRequestId += 1
     libraryController?.abort()
+    if (libraryHydrateTimer) clearTimeout(libraryHydrateTimer)
+    libraryHydrateTimer = null
     invalidateRequestCache('library:lists')
     set({ loadedAt: 0 })
   },

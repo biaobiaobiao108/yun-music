@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
 import { songAlbum, songArtist, songDurationValue, songFormatValue, songImage, songKey, songSizeBytes, songTitle } from './types'
@@ -95,7 +95,7 @@ type SafeImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
 
 export function SafeImage({ src, fallback = '/music/assets/yun-yin.png', onError, ...props }: SafeImageProps) {
   const fallbackUrl = safeImageUrl(fallback)
-  return <img {...props} src={safeImageUrl(src, fallback)} onError={event => {
+  return <img {...props} decoding={props.decoding ?? 'async'} src={safeImageUrl(src, fallback)} onError={event => {
     onError?.(event)
     const target = event.currentTarget
     if (target.dataset.fallbackApplied === 'true') return
@@ -119,7 +119,7 @@ function songFormat(song: Song): string {
   return String(songFormatValue(song) || 'FLAC').toUpperCase()
 }
 
-export const SongRow = memo(function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect, showFileMetadata = true }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
+export const SongRow = memo(function SongRow({ song, index, list, listId = 'love', compact = false, selected = false, onSelect, showFileMetadata = true, style, virtualTotal }: { song: Song; index: number; list: Song[]; listId?: string; compact?: boolean; selected?: boolean; onSelect?: (song: Song) => void; showFileMetadata?: boolean; style?: CSSProperties; virtualTotal?: number }) {
   const playSong = usePlaybackStore(state => state.playSong)
   const enqueue = usePlaybackStore(state => state.enqueue)
   const addSong = useLibraryStore(state => state.addSong)
@@ -140,10 +140,10 @@ export const SongRow = memo(function SongRow({ song, index, list, listId = 'love
     }
     playSong(song, list, index)
   }
-  return <li className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''}`}>
+  return <li className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''}`} style={style} aria-setsize={virtualTotal} aria-posinset={virtualTotal ? index + 1 : undefined}>
     {onSelect && <span className="react-song-select"><input type="checkbox" checked={selected} onChange={() => onSelect(song)} aria-label={`选择 ${songTitle(song)}`} /></span>}
     <span className="react-song-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-    <button type="button" className="react-song-main" aria-pressed={onSelect ? selected : undefined} onClick={handleMainClick}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button>
+    <button type="button" className="react-song-main" aria-pressed={onSelect ? selected : undefined} onClick={handleMainClick}><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" decoding="async" alt="" /><span className="react-song-text"><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></span></button>
     <span className="react-song-album" title={songAlbum(song)}>{songAlbum(song)}</span>
     <button type="button" className={`react-song-favorite ${isLoved ? 'is-loved' : ''}`} title={isLoved ? '取消收藏' : '收藏'} aria-label={`${isLoved ? '取消收藏' : '收藏'} ${songTitle(song)}`} aria-pressed={isLoved} onClick={toggleFavorite}><Icon name="heart" /></button>
     <span className="react-song-duration">{songDuration(song)}</span>
@@ -152,6 +152,98 @@ export const SongRow = memo(function SongRow({ song, index, list, listId = 'love
   </li>
 })
 
+const VIRTUAL_LIST_THRESHOLD = 180
+
+function findScrollParent(element: HTMLElement): HTMLElement {
+  let parent = element.parentElement
+  while (parent) {
+    const overflowY = getComputedStyle(parent).overflowY
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') return parent
+    parent = parent.parentElement
+  }
+  return (document.scrollingElement as HTMLElement | null) || document.documentElement
+}
+
+function resolveVirtualRowHeight(element: HTMLElement): number {
+  const value = getComputedStyle(element).getPropertyValue('--react-song-row-height').trim()
+  const numeric = Number.parseFloat(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) return 70
+  if (value.endsWith('rem')) {
+    const rootSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+    return numeric * (Number.isFinite(rootSize) && rootSize > 0 ? rootSize : 16)
+  }
+  if (value.endsWith('em')) {
+    const elementSize = Number.parseFloat(getComputedStyle(element).fontSize)
+    return numeric * (Number.isFinite(elementSize) && elementSize > 0 ? elementSize : 16)
+  }
+  return numeric
+}
+
+function VirtualSongRows({ songs, compact, listId, selected, onSelect, showFileMetadata }: { songs: Song[]; compact: boolean; listId: string; selected?: Set<string>; onSelect?: (song: Song) => void; showFileMetadata: boolean }) {
+  const listRef = useRef<HTMLUListElement>(null)
+  const [windowState, setWindowState] = useState({ scrollTop: 0, viewportHeight: 0, listTop: 0, rowHeight: 70 })
+
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const scrollParent = findScrollParent(list)
+    let frame = 0
+
+    const measure = () => {
+      const listRect = list.getBoundingClientRect()
+      const parentRect = scrollParent.getBoundingClientRect()
+      const rowHeight = resolveVirtualRowHeight(list)
+      setWindowState({
+        scrollTop: scrollParent.scrollTop,
+        viewportHeight: scrollParent.clientHeight,
+        listTop: listRect.top - parentRect.top + scrollParent.scrollTop,
+        rowHeight,
+      })
+    }
+    const onScroll = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        const listRect = list.getBoundingClientRect()
+        const parentRect = scrollParent.getBoundingClientRect()
+        setWindowState(current => ({
+          ...current,
+          scrollTop: scrollParent.scrollTop,
+          listTop: listRect.top - parentRect.top + scrollParent.scrollTop,
+        }))
+      })
+    }
+
+    measure()
+    scrollParent.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(scrollParent)
+    return () => {
+      scrollParent.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [songs.length])
+
+  const rowHeight = windowState.rowHeight
+  const viewportRows = windowState.viewportHeight > 0 ? Math.ceil(windowState.viewportHeight / rowHeight) : 32
+  const overscan = 8
+  const firstVisible = Math.max(0, Math.floor(Math.max(0, windowState.scrollTop - windowState.listTop) / rowHeight))
+  const start = Math.max(0, firstVisible - overscan)
+  const count = Math.min(songs.length - start, viewportRows + overscan * 2)
+  const end = Math.min(songs.length, start + Math.max(1, count))
+  const visibleSongs = songs.slice(start, end)
+
+  return <ul ref={listRef} className="react-song-list is-virtualized" aria-label="歌曲列表" style={{ height: `${songs.length * rowHeight}px` }}>
+    {visibleSongs.map((song, offset) => {
+      const index = start + offset
+      return <SongRow key={`${songKey(song)}-${index}`} song={song} index={index} list={songs} listId={listId} compact={compact} selected={selected?.has(songKey(song))} onSelect={onSelect} showFileMetadata={showFileMetadata} virtualTotal={songs.length} style={{ top: `${index * rowHeight}px` }} />
+    })}
+  </ul>
+}
+
 export function SongList({ songs, empty = '暂无歌曲', compact = false, listId = 'love', selected, onSelect, showFileMetadata = true }: { songs: Song[]; empty?: string; compact?: boolean; listId?: string; selected?: Set<string>; onSelect?: (song: Song) => void; showFileMetadata?: boolean }) {
   if (!songs.length) return <div className="react-empty"><Icon name="music" /><p>{empty}</p></div>
   return <div className={`react-song-table ${showFileMetadata ? '' : 'react-song-table--without-file-metadata'}`}>
@@ -159,7 +251,9 @@ export function SongList({ songs, empty = '暂无歌曲', compact = false, listI
       {onSelect && <span />}
       <span>#</span><span>歌曲 / 歌手</span><span>专辑</span><span>收藏</span><span>时长</span>{showFileMetadata && <><span>大小</span><span>格式</span></>}<span />
     </div>
-    <ul className="react-song-list" aria-label="歌曲列表">{songs.map((song, index) => <SongRow key={`${songKey(song)}-${index}`} song={song} index={index} list={songs} listId={listId} compact={compact} selected={selected?.has(songKey(song))} onSelect={onSelect} showFileMetadata={showFileMetadata} />)}</ul>
+    {songs.length > VIRTUAL_LIST_THRESHOLD
+      ? <VirtualSongRows songs={songs} compact={compact} listId={listId} selected={selected} onSelect={onSelect} showFileMetadata={showFileMetadata} />
+      : <ul className="react-song-list" aria-label="歌曲列表">{songs.map((song, index) => <SongRow key={`${songKey(song)}-${index}`} song={song} index={index} list={songs} listId={listId} compact={compact} selected={selected?.has(songKey(song))} onSelect={onSelect} showFileMetadata={showFileMetadata} />)}</ul>}
   </div>
 }
 

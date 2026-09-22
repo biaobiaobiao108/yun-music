@@ -417,6 +417,7 @@ export const createMusicRouter = (): Router => {
 
   // 8. 音乐播放 URL 解析 API
   router.post('/api/music/url', async (ctx) => {
+    const urlStartedAt = performance.now()
     const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
     const rawReqId = ctx.headers.get('x-req-id')?.trim() || ''
@@ -456,6 +457,8 @@ export const createMusicRouter = (): Router => {
 
       // 优先前置检查服务端本地缓存（命中则直接返回，避免消耗外部第三方音源解析额度）
       const cacheTargetUser = verifiedUsername === 'open' ? '_open' : verifiedUsername
+      const cacheStartedAt = performance.now()
+      let cacheDurationMs = 0
       if (cacheTargetUser !== '_open' || canReadPublicLocalMusic(ctx)) {
         const cached = fileCache.checkCache(
           { ...songInfo, quality },
@@ -465,6 +468,7 @@ export const createMusicRouter = (): Router => {
           // present, check the regular server cache before resolving online.
           { ignoreActiveProgress: true, preferredFolder: 'music' },
         )
+        cacheDurationMs = performance.now() - cacheStartedAt
         if (cached.exists && !cached.isCollision && cached.url) {
           return ctx.json({
             url: cached.url,
@@ -472,9 +476,11 @@ export const createMusicRouter = (): Router => {
             quality: cached.quality || quality || '128k',
             sourceName: '本地缓存',
             fromCache: true,
-          })
+          }, 200, { 'Server-Timing': `cache;dur=${cacheDurationMs.toFixed(1)}, total;dur=${(performance.now() - urlStartedAt).toFixed(1)}` })
         }
       }
+
+      const resolveStartedAt = performance.now()
 
       // A legacy saved entry may omit its source but still be identifiable by
       // the server cache metadata. Only require a source when we actually
@@ -545,7 +551,9 @@ export const createMusicRouter = (): Router => {
         result.downloadSource = fileCache.detectDownloadSource(result.url, songInfo.source)
       }
 
-      return ctx.json(result)
+      return ctx.json(result, 200, {
+        'Server-Timing': `cache;dur=${cacheDurationMs.toFixed(1)}, resolve;dur=${(performance.now() - resolveStartedAt).toFixed(1)}, total;dur=${(performance.now() - urlStartedAt).toFixed(1)}`,
+      })
     } catch (err: any) {
       console.error('[MusicUrl] Error:', err.message)
       const status = err.code === 422 ? 422 : 500

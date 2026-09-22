@@ -19,6 +19,28 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
 
+// Reuse a small, bounded set of upstream sockets for the media relay. The
+// relay still validates every target URL and keeps the per-client concurrency
+// limits below; keep-alive only removes avoidable TCP/TLS handshakes between
+// adjacent tracks from the same host.
+const upstreamHttpAgent = new http.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 1_000,
+  maxSockets: 8,
+  maxFreeSockets: 4,
+  timeout: 30_000,
+})
+const upstreamHttpsAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 1_000,
+  maxSockets: 8,
+  maxFreeSockets: 4,
+  maxCachedSessions: 100,
+  timeout: 30_000,
+})
+
+const getUpstreamAgent = (protocol: string): http.Agent | https.Agent => protocol === 'https:' ? upstreamHttpsAgent : upstreamHttpAgent
+
 /** Keep upstream buffers bounded by downstream demand; cancellation tears down the whole pipeline. */
 export const createProxyResponseStream = (
   source: Readable,
@@ -1339,7 +1361,7 @@ export const createCacheRouter = (): Router => {
             const options: any = {
               method: 'GET',
               lookup: parsedUrl.lookup,
-              agent: false,
+              agent: getUpstreamAgent(parsedUrl.protocol),
               signal: ctx.request.signal,
               headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

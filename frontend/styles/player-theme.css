@@ -219,8 +219,7 @@ i {
 
 .t-bg-glass {
     background-color: var(--bg-glass) !important;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--border-main) 42%, transparent);
 }
 
 .t-text-main {

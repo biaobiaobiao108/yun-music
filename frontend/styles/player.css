@@ -1088,7 +1088,7 @@ html, body {
 .react-sidebar-user button { width: 100%; padding: .5rem; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; border-radius: .55rem; }
 .react-sidebar-user button:hover { background: var(--bg-item-hover); color: var(--c-600); }
 .react-sidebar-backdrop { display: none; }
-.react-player-topbar { min-height: 4.2rem; flex: 0 0 auto; display: flex; align-items: center; gap: .65rem; padding: .65rem clamp(.85rem, 3vw, 2.4rem); background: var(--bg-header); border-bottom: 1px solid var(--border-main); backdrop-filter: blur(14px); z-index: 30; }
+.react-player-topbar { min-height: 4.2rem; flex: 0 0 auto; display: flex; align-items: center; gap: .65rem; padding: .65rem clamp(.85rem, 3vw, 2.4rem); background: var(--bg-header); border-bottom: 1px solid var(--border-main); backdrop-filter: none; -webkit-backdrop-filter: none; z-index: 30; }
 .react-menu-button { display: none; }
 .react-history-controls { display: flex; gap: .2rem; }
 .react-eyebrow { color: var(--text-dim); font-size: .7rem; margin-bottom: .15rem; }
@@ -1230,7 +1230,7 @@ html, body {
 .react-account-state { display: grid; justify-items: start; gap: .7rem; color: var(--text-muted); }
 .react-account-state > i { color: var(--c-500); font-size: 2rem; }
 .react-dialog { width: min(560px, calc(100% - 2rem)); max-height: min(720px, calc(100dvh - 2rem)); padding: 0; border: 0; border-radius: 1rem; background: var(--bg-panel); color: var(--text-main); box-shadow: 0 24px 80px rgba(0,0,0,.3); }
-.react-dialog::backdrop { background: rgba(15,23,42,.58); backdrop-filter: blur(4px); }
+.react-dialog::backdrop { background: rgba(15,23,42,.58); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .react-dialog-content > header, .react-drawer-header { display: flex; align-items: center; justify-content: space-between; gap: .7rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--border-main); }
 .react-dialog-content > header h2, .react-drawer-header h2 { font-size: 1rem; }
 .react-dialog-body, .react-drawer-body { padding: 1.2rem; overflow: auto; }
@@ -1299,8 +1299,8 @@ html, body {
     color: var(--text-main);
     background: color-mix(in srgb, var(--bg-panel) 52%, transparent);
     box-shadow: 0 .35rem 1.1rem rgba(0, 0, 0, .12);
-    backdrop-filter: blur(14px) saturate(115%);
-    -webkit-backdrop-filter: blur(14px) saturate(115%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     opacity: 0;
     transform: translateY(4px);
     transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease;
@@ -1611,8 +1611,8 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding-block: max(0.75rem, env(safe-area-inset-top, 0px)) max(0.75rem, env(safe-area-inset-bottom, 0px));
     padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px));
     background: rgb(15 23 42 / 0.38);
-    backdrop-filter: blur(12px) saturate(1.08);
-    -webkit-backdrop-filter: blur(12px) saturate(1.08);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 #comment-modal .comment-modal-backdrop {
@@ -1758,8 +1758,8 @@ body > .flex.flex-1.overflow-hidden.relative {
 /* Glassmorphism utilities */
 .glass {
     background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
@@ -1976,8 +1976,8 @@ body > .flex.flex-1.overflow-hidden.relative {
     border-radius: 0.875rem;
     border: 1px solid var(--border-main);
     background: color-mix(in srgb, var(--bg-panel) 85%, var(--bg-main));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     box-shadow: 0 4px 16px -2px rgb(0 0 0 / 0.15), 0 2px 6px -1px rgb(0 0 0 / 0.1);
     z-index: 30;
     transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
@@ -2313,7 +2313,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     width: 16rem;
     padding: 0.75rem;
     background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
     border: 1px solid var(--c-100);
     border-radius: 0.75rem;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -2380,8 +2380,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     opacity: 0.45;
     filter: blur(0.4px);
     transform-origin: left center;
-    will-change: transform, opacity;
-
     /* Wrapping constraints */
     width: fit-content;
     max-width: 100%;
@@ -2550,7 +2548,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     transition-property: transform, opacity;
     transition-duration: var(--motion-duration-panel);
     transition-timing-function: var(--motion-ease-emphasized);
-    will-change: transform, opacity;
 }
 
 @keyframes player-view-enter-forward {
@@ -2581,7 +2578,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     animation-duration: var(--motion-duration-panel);
     animation-timing-function: var(--motion-ease-emphasized);
     animation-fill-mode: both;
-    will-change: transform, opacity;
 }
 
 .player-view-entering[data-player-view-direction="forward"] {
@@ -2606,7 +2602,6 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 .player-detail-content-entering {
     animation: player-list-item-enter var(--motion-duration-standard) var(--motion-ease-emphasized) both;
-    will-change: transform;
 }
 
 .player-motion-item {
@@ -2615,7 +2610,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     transition-property: transform, box-shadow, background-color, border-color, color, opacity;
     transition-duration: var(--motion-duration-standard);
     transition-timing-function: var(--motion-ease-standard);
-    will-change: transform;
 }
 
 @supports (view-transition-name: none) {
@@ -2876,7 +2870,6 @@ aside {
        while leaving the player footer (z-60) available for playback controls. */
     z-index: 45;
     transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease-out !important;
-    will-change: transform, opacity;
 }
 
 #view-player-detail.translate-y-\[100\%\] #player-detail-container {
@@ -2889,7 +2882,6 @@ aside {
        in the content flow instead of letting the first lyric line hide behind it. */
     padding-block-start: 5rem;
     transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease-out;
-    will-change: transform, opacity;
 }
 
 /* In very short viewports the detail navbar is hidden; reclaim the space so
@@ -2904,7 +2896,6 @@ aside {
     z-index: 60 !important;
     pointer-events: auto !important;
     transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    will-change: transform;
 }
 
 /* Top-level navigation controls need a visible pressed state, including on
@@ -3282,8 +3273,8 @@ aside {
     border: 1.5px solid var(--border-main);
     border-radius: 12px;
     box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.2), 0 10px 15px -10px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(25px);
-    -webkit-backdrop-filter: blur(25px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     opacity: 0;
     transform: translateY(10px) scale(0.95);
     pointer-events: none;
@@ -3494,8 +3485,8 @@ aside {
     padding: 5px 3px;
     border-radius: 9999px;
     background: color-mix(in srgb, var(--bg-panel, #ffffff) 24%, transparent);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid color-mix(in srgb, var(--border-main, #e7e8eb) 22%, transparent);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     opacity: 0;
@@ -3577,8 +3568,8 @@ aside {
     top: 8px;
     right: 8px;
     background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     color: #ffffff;
     font-size: 11px;
     font-weight: 600;
@@ -4279,7 +4270,7 @@ aside {
     border-radius: 0.625rem;
     background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
     box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
-    backdrop-filter: blur(12px);
+    backdrop-filter: none;
     opacity: 0;
     transform: translateY(-4px) scale(0.98);
     pointer-events: none;
@@ -4881,8 +4872,8 @@ dialog.runtime-input-dialog #modal-input {
     border: 1px solid color-mix(in srgb, var(--border-main) 72%, transparent);
     border-radius: 9999px;
     background: color-mix(in srgb, var(--bg-panel) 42%, transparent);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 
 .lyric-detail-action {
@@ -4927,7 +4918,6 @@ dialog.runtime-input-dialog #modal-input {
     isolation: isolate;
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
-    will-change: transform;
     overflow: visible !important;
 }
 
@@ -5283,8 +5273,8 @@ body > .flex.flex-1.overflow-hidden.relative {
     z-index: 12;
     border-radius: 9999px;
     background: color-mix(in srgb, var(--bg-panel) 72%, transparent);
-    -webkit-backdrop-filter: blur(8px) saturate(120%);
-    backdrop-filter: blur(8px) saturate(120%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 
 .songlist-load-more.hidden {
@@ -5754,7 +5744,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding: max(1rem, env(safe-area-inset-top)) clamp(1rem, 4vw, 3.5rem) 1rem;
     border-bottom: 1px solid color-mix(in srgb, var(--border-main) 70%, transparent);
     background: color-mix(in srgb, var(--bg-panel) 58%, transparent);
-    backdrop-filter: blur(18px);
+    backdrop-filter: none;
 }
 
 .react-immersive-lyrics-header h2 {
@@ -6819,6 +6809,20 @@ textarea:focus-visible {
     margin: 0;
     padding: 0;
     list-style: none;
+    --react-song-row-height: 4.35rem;
+}
+
+.react-song-list.is-virtualized {
+    position: relative;
+    display: block;
+    overflow: clip;
+}
+
+.react-song-list.is-virtualized > .react-song-row {
+    position: absolute;
+    inset-inline: 0;
+    block-size: var(--react-song-row-height);
+    min-block-size: var(--react-song-row-height);
 }
 
 .react-song-row {
@@ -7482,6 +7486,10 @@ textarea:focus-visible {
 }
 
 @media (max-width: 760px) {
+    .react-song-list {
+        --react-song-row-height: 3.85rem;
+    }
+
     .react-song-head {
         display: none !important;
     }
@@ -7604,7 +7612,7 @@ textarea:focus-visible {
     background: color-mix(in srgb, var(--app-surface-solid) 42%, transparent);
     color: var(--app-text);
     cursor: pointer;
-    backdrop-filter: blur(16px);
+    backdrop-filter: none;
 }
 
 .react-immersive-nav-button:hover,
@@ -8064,7 +8072,7 @@ textarea:focus-visible {
     background: color-mix(in srgb, var(--app-surface-solid) 96%, transparent);
     color: var(--app-text);
     box-shadow: 0 1rem 2.8rem rgb(0 0 0 / 30%);
-    backdrop-filter: blur(22px) saturate(1.25);
+    backdrop-filter: none;
 }
 
 .react-song-actions-popover-heading {
@@ -9113,8 +9121,8 @@ textarea:focus-visible {
     background: color-mix(in srgb, var(--app-surface-solid) 94%, transparent);
     color: var(--app-text);
     box-shadow: 0 .9rem 2.4rem rgb(0 0 0 / 28%);
-    backdrop-filter: blur(22px) saturate(1.2);
-    -webkit-backdrop-filter: blur(22px) saturate(1.2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     animation: react-panel-enter 180ms cubic-bezier(.22, 1, .36, 1) both;
 }
 
@@ -9608,10 +9616,8 @@ textarea:focus-visible {
     pointer-events: auto;
     border: 1px solid var(--app-border);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent);
+    background: color-mix(in srgb, var(--app-surface-solid) 90%, var(--app-bg));
     box-shadow: var(--app-shadow-soft);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    backdrop-filter: blur(18px) saturate(1.2);
 }
 
 .react-player-topbar .react-history-controls {
@@ -9620,6 +9626,49 @@ textarea:focus-visible {
 
 .react-player-topbar .react-topbar-actions {
     margin-inline-end: .55rem;
+}
+
+/* Low-cost layered surfaces: gradients, opaque color-mix backgrounds and
+   shadows keep the hierarchy without forcing Safari to repaint the backdrop
+   on every scroll or audio-progress update. */
+.react-player-topbar,
+.react-player-toast,
+#comment-modal,
+.player-floating-capsule,
+.lyric-detail-actions,
+.react-immersive-lyrics-header,
+.react-immersive-nav-button,
+.react-song-actions-popover,
+.react-volume-popover,
+.songlist-load-more,
+.glass {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.react-player-toast,
+#comment-modal {
+    background: color-mix(in srgb, var(--bg-panel) 88%, var(--bg-main)) !important;
+}
+
+.player-floating-capsule {
+    background: color-mix(in srgb, var(--bg-panel) 92%, var(--bg-main));
+}
+
+.lyric-detail-actions {
+    background: color-mix(in srgb, var(--bg-panel) 86%, var(--bg-main));
+}
+
+.react-immersive-lyrics-header {
+    background: color-mix(in srgb, var(--bg-panel) 90%, var(--bg-main));
+}
+
+.react-immersive-nav-button {
+    background: color-mix(in srgb, var(--app-surface-solid) 82%, var(--app-bg));
+}
+
+.songlist-load-more {
+    background: color-mix(in srgb, var(--bg-panel) 88%, var(--bg-main));
 }
 
 .react-player-topbar .react-history-controls .react-icon-button,

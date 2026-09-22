@@ -52,6 +52,30 @@ export const CACHE_ROOTS = {
 
 const getRootPath = (): string => (global.lx as any)?.appPath || (global.lx as any)?.rootPath || process.cwd()
 
+const assertCachePathInside = (baseDir: string, fullPath: string, message: string): void => {
+    const resolvedBaseLexical = path.resolve(baseDir)
+    const resolvedFullLexical = path.resolve(fullPath)
+    if (!isPathInside(resolvedBaseLexical, resolvedFullLexical)) {
+        throw new Error(message)
+    }
+
+    // When the user directory does not exist yet, compare the nearest existing
+    // ancestor with the real base directory. This keeps the symlink boundary
+    // check while avoiding the macOS /var -> /private/var false positive.
+    if (!fs.existsSync(baseDir)) return
+    const resolvedBase = fs.realpathSync.native(baseDir)
+    let probe = fullPath
+    while (!fs.existsSync(probe)) {
+        const parent = path.dirname(probe)
+        if (parent === probe) break
+        probe = parent
+    }
+    const resolvedProbe = fs.realpathSync.native(probe)
+    if (!isPathInside(resolvedBase, resolvedProbe)) {
+        throw new Error(message)
+    }
+}
+
 let currentCacheLocation = CACHE_ROOTS.ROOT
 const CACHE_LIST_SYNC_TTL = 30 * 1000
 const cacheListSyncState = new NativeLruCache<string, { lastSync: number, pending?: Promise<void> }>({
@@ -288,15 +312,7 @@ export const getCacheDir = (
     if (create && !fs.existsSync(fullPath)) {
         fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 })
     }
-    const resolvedBaseDir = fs.existsSync(baseDir)
-        ? fs.realpathSync.native(baseDir)
-        : path.resolve(baseDir)
-    const resolvedFullPath = fs.existsSync(fullPath)
-        ? fs.realpathSync.native(fullPath)
-        : path.resolve(fullPath)
-    if (!isPathInside(resolvedBaseDir, resolvedFullPath)) {
-        throw new Error('Cache directory escapes allowed root')
-    }
+    assertCachePathInside(baseDir, fullPath, 'Cache directory escapes allowed root')
     return fullPath
 }
 
@@ -314,15 +330,7 @@ const getCoverCacheUserDir = (baseDir: string, username: string, create: boolean
     if (create && !fs.existsSync(fullPath)) {
         fs.mkdirSync(fullPath, { recursive: true, mode: 0o700 })
     }
-    const resolvedBaseDir = fs.existsSync(baseDir)
-        ? fs.realpathSync.native(baseDir)
-        : path.resolve(baseDir)
-    const resolvedFullPath = fs.existsSync(fullPath)
-        ? fs.realpathSync.native(fullPath)
-        : path.resolve(fullPath)
-    if (!isPathInside(resolvedBaseDir, resolvedFullPath)) {
-        throw new Error('Cover cache directory escapes allowed root')
-    }
+    assertCachePathInside(baseDir, fullPath, 'Cover cache directory escapes allowed root')
     return fullPath
 }
 
@@ -335,6 +343,9 @@ const getCoverCacheUserDirs = (username: string, create = false): string[] => (
 )
 
 // --- Cache Index Manager ---
+const CACHE_INDEX_MEMORY_TTL_MS = 1_000
+const CACHE_INDEX_MEMORY_MAX = 4_096
+
 export interface CacheItem {
     id: string
     songmid?: string
@@ -388,6 +399,51 @@ export interface DownloadProvenance {
 }
 
 class CacheIndexManager {
+    private readonly itemCache = new Map<string, { item: CacheItem | null; expiresAt: number }>()
+    private readonly listCache = new Map<string, { items: CacheItem[]; expiresAt: number }>()
+
+    private itemCacheKey(username: string, folder: 'cache' | 'music', songId: string, quality: string | undefined, exact: boolean, location: string): string {
+        return `${location}\u0000${username}\u0000${folder}\u0000${songId}\u0000${quality || ''}\u0000${exact ? '1' : '0'}`
+    }
+
+    private listCacheKey(username: string, folder: 'cache' | 'music', location: string): string {
+        return `${location}\u0000${username}\u0000${folder}`
+    }
+
+    private trimMemoryCache(): void {
+        while (this.itemCache.size + this.listCache.size > CACHE_INDEX_MEMORY_MAX) {
+            const oldestItem = this.itemCache.keys().next().value
+            if (oldestItem) {
+                this.itemCache.delete(oldestItem)
+                continue
+            }
+            const oldestList = this.listCache.keys().next().value
+            if (!oldestList) break
+            this.listCache.delete(oldestList)
+        }
+    }
+
+    private invalidateMemoryCache(username?: string, folder?: 'cache' | 'music', location?: string): void {
+        if (!username && !folder && !location) {
+            this.itemCache.clear()
+            this.listCache.clear()
+            return
+        }
+        const matches = (key: string) => {
+            const [keyLocation, keyUsername, keyFolder] = key.split('\u0000')
+            return (!location || keyLocation === location)
+                && (!username || keyUsername === username)
+                && (!folder || keyFolder === folder)
+        }
+        for (const key of this.itemCache.keys()) if (matches(key)) this.itemCache.delete(key)
+        for (const key of this.listCache.keys()) if (matches(key)) this.listCache.delete(key)
+    }
+
+    private cacheItem(username: string, folder: 'cache' | 'music', songId: string, quality: string | undefined, exact: boolean, location: string, item: CacheItem | null): void {
+        this.itemCache.set(this.itemCacheKey(username, folder, songId, quality, exact, location), { item, expiresAt: Date.now() + CACHE_INDEX_MEMORY_TTL_MS })
+        this.trimMemoryCache()
+    }
+
     load(username: string, folder: 'cache' | 'music', location?: string): Map<string, CacheItem> {
         const loc = location || currentCacheLocation
         const map = new Map<string, CacheItem>()
@@ -417,6 +473,15 @@ class CacheIndexManager {
 
     get(username: string, songId: string, folder: 'cache' | 'music', quality?: string, exact: boolean = false, location?: string): CacheItem | undefined {
         const loc = location || currentCacheLocation
+        const key = this.itemCacheKey(username, folder, songId, quality, exact, loc)
+        const cached = this.itemCache.get(key)
+        if (cached && cached.expiresAt > Date.now()) {
+            this.itemCache.delete(key)
+            this.itemCache.set(key, cached)
+            return cached.item || undefined
+        }
+        this.itemCache.delete(key)
+        let result: CacheItem | null = null
         try {
             const db = getDb()
 
@@ -425,9 +490,12 @@ class CacheIndexManager {
                     'SELECT data FROM cache_index WHERE location = ? AND user_name = ? AND folder = ? AND song_id = ? AND quality = ?'
                 ).get(loc, username, folder, songId, quality)
                 if (row) {
-                    try { return JSON.parse(row.data) as CacheItem } catch {}
+                    try { result = JSON.parse(row.data) as CacheItem } catch {}
                 }
-                if (exact) return undefined
+                if (result || exact) {
+                    this.cacheItem(username, folder, songId, quality, exact, loc, result)
+                    return result || undefined
+                }
             }
 
             // Fallback: 非精确模式下获取同 ID 的任意质量
@@ -435,16 +503,19 @@ class CacheIndexManager {
                 'SELECT data FROM cache_index WHERE location = ? AND user_name = ? AND folder = ? AND song_id = ? LIMIT 1'
             ).get(loc, username, folder, songId)
             if (row) {
-                try { return JSON.parse(row.data) as CacheItem } catch {}
+                try { result = JSON.parse(row.data) as CacheItem } catch {}
             }
         } catch (e) {
             console.error(`[CacheIndex] Failed to get cache item for ${username}:${songId}:`, e)
         }
-        return undefined
+        this.cacheItem(username, folder, songId, quality, exact, loc, result)
+        return result || undefined
     }
 
     update(username: string, item: CacheItem, folder: 'cache' | 'music', location?: string) {
         const loc = location || currentCacheLocation
+        this.invalidateMemoryCache(username, folder, loc)
+        invalidateCacheFileAvailability()
         const quality = item.quality || 'unknown'
         try {
             const db = getDb()
@@ -459,6 +530,8 @@ class CacheIndexManager {
 
     remove(username: string, songId: string, folder: 'cache' | 'music', quality?: string, location?: string): boolean {
         const loc = location || currentCacheLocation
+        this.invalidateMemoryCache(username, folder, loc)
+        invalidateCacheFileAvailability()
         try {
             const db = getDb()
             if (quality) {
@@ -481,6 +554,8 @@ class CacheIndexManager {
 
     clear(username: string, folder: 'cache' | 'music', location?: string): number {
         const loc = location || currentCacheLocation
+        this.invalidateMemoryCache(username, folder, loc)
+        invalidateCacheFileAvailability()
         try {
             const db = getDb()
             const result = db.run(
@@ -496,6 +571,14 @@ class CacheIndexManager {
 
     getAll(username: string, folder: 'cache' | 'music', location?: string): CacheItem[] {
         const loc = location || currentCacheLocation
+        const key = this.listCacheKey(username, folder, loc)
+        const cached = this.listCache.get(key)
+        if (cached && cached.expiresAt > Date.now()) {
+            this.listCache.delete(key)
+            this.listCache.set(key, cached)
+            return cached.items
+        }
+        this.listCache.delete(key)
         try {
             const db = getDb()
             const rows = db.query<{ data: string }, [string, string, string]>(
@@ -508,6 +591,8 @@ class CacheIndexManager {
                     list.push(JSON.parse(r.data) as CacheItem)
                 } catch {}
             }
+            this.listCache.set(key, { items: list, expiresAt: Date.now() + CACHE_INDEX_MEMORY_TTL_MS })
+            this.trimMemoryCache()
             return list
         } catch (e) {
             console.error(`[CacheIndex] Failed to getAll cache items for ${username}:${folder}:`, e)
@@ -600,14 +685,37 @@ export const resolveCacheRelativePath = (dir: string, filename: string) => {
     }
 }
 
+const CACHE_FILE_AVAILABILITY_TTL_MS = 1_000
+const CACHE_FILE_AVAILABILITY_MAX = 2_048
+const cacheFileAvailability = new Map<string, { usable: boolean; expiresAt: number }>()
+
+function invalidateCacheFileAvailability(): void {
+    cacheFileAvailability.clear()
+}
+
 const isUsableCacheFile = (filePath: string | null) => {
     if (!filePath) return false
+    const cached = cacheFileAvailability.get(filePath)
+    if (cached && cached.expiresAt > Date.now()) {
+        cacheFileAvailability.delete(filePath)
+        cacheFileAvailability.set(filePath, cached)
+        return cached.usable
+    }
+    cacheFileAvailability.delete(filePath)
+    let usable = false
     try {
         const stats = fs.statSync(filePath)
-        return stats.isFile() && stats.size > 0
+        usable = stats.isFile() && stats.size > 0
     } catch {
-        return false
+        usable = false
     }
+    cacheFileAvailability.set(filePath, { usable, expiresAt: Date.now() + CACHE_FILE_AVAILABILITY_TTL_MS })
+    while (cacheFileAvailability.size > CACHE_FILE_AVAILABILITY_MAX) {
+        const oldest = cacheFileAvailability.keys().next().value
+        if (!oldest) break
+        cacheFileAvailability.delete(oldest)
+    }
+    return usable
 }
 
 type CompanionLyricFile = {
@@ -1910,6 +2018,7 @@ export const removeCacheFile = (filename: string, username?: string, requestedFo
     } catch (e: any) {
         if (e?.code !== 'ENOENT') throw e
     }
+    invalidateCacheFileAvailability()
     console.log(`[FileCache] Deleted from ${folder}: ${filename}`)
 
     const ext = path.extname(filename)

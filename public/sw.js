@@ -1,4 +1,6 @@
-const CACHE_NAME = 'yun-yin-admin-react-v3';
+const CACHE_NAME = 'yun-yin-admin-react-v4';
+const VERSIONED_ASSET_CACHE = 'yun-yin-admin-react-assets-v1';
+const MAX_VERSIONED_ASSETS = 60;
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -10,12 +12,31 @@ const ASSETS_TO_CACHE = [
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
+    caches.open(CACHE_NAME).then((cache) => {
             return cache.addAll(ASSETS_TO_CACHE);
         })
     );
     self.skipWaiting();
 });
+
+const isVersionedAsset = (url) => (
+    /\/(?:app|login)-[a-z0-9]+\.js$/i.test(url.pathname) ||
+    /\/js\/chunks\/[^/]+-[a-z0-9]+\.js$/i.test(url.pathname)
+);
+
+const cacheFirstVersionedAsset = async (request) => {
+    const cache = await caches.open(VERSIONED_ASSET_CACHE);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    const response = await fetch(request);
+    if (response && response.status === 200 && response.type === 'basic') {
+        await cache.put(request, response.clone());
+        const keys = await cache.keys();
+        const overflow = keys.length - MAX_VERSIONED_ASSETS;
+        if (overflow > 0) await Promise.all(keys.slice(0, overflow).map((key) => cache.delete(key)));
+    }
+    return response;
+};
 
 self.addEventListener('fetch', (event) => {
     // Only cache GET requests
@@ -30,6 +51,11 @@ self.addEventListener('fetch', (event) => {
     // [Fix] Do not cache external resources (CDN, placeholders, etc.)
     const url = new URL(event.request.url);
     if (url.origin !== location.origin) return;
+
+    if (isVersionedAsset(url)) {
+        event.respondWith(cacheFirstVersionedAsset(event.request));
+        return;
+    }
 
     event.respondWith(
         fetch(event.request)
@@ -64,7 +90,7 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
+                    if (![CACHE_NAME, VERSIONED_ASSET_CACHE].includes(cacheName)) {
                         return caches.delete(cacheName);
                     }
                 })

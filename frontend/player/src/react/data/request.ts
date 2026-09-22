@@ -7,8 +7,12 @@ export type RequestPolicy = {
   force?: boolean
 }
 
+export type RequestPriority = 'high' | 'low' | 'auto'
+
 export type PlayerRequestInit = RequestInit & RequestPolicy & {
   fetcher?: typeof fetch
+  /** Progressive enhancement; unsupported browsers ignore the extra option. */
+  priority?: RequestPriority
 }
 
 export class ApiRequestError extends Error {
@@ -93,7 +97,7 @@ function readCached<T>(key: string): T | undefined {
  * persistent browser store.
  */
 export async function requestJson<T>(input: RequestInfo | URL, init: PlayerRequestInit = {}): Promise<T> {
-  const { cacheKey, cacheTtlMs = 0, force = false, fetcher = fetch, ...requestInit } = init
+  const { cacheKey, cacheTtlMs = 0, force = false, fetcher = fetch, priority, ...requestInit } = init
   const requestCacheKey = cacheKey ? `${cacheKey}@${getSessionGeneration()}` : undefined
   if (requestInit.signal?.aborted) throw abortError()
   const cached = !force && requestCacheKey ? readCached<T>(requestCacheKey) : undefined
@@ -114,6 +118,7 @@ export async function requestJson<T>(input: RequestInfo | URL, init: PlayerReque
       ...requestInit,
       credentials: requestInit.credentials ?? 'same-origin',
       headers,
+      ...(priority ? { priority } : {}),
       ...(requestController ? { signal: requestController.signal } : {}),
     })
     if (!response.ok) {
