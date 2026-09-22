@@ -7140,6 +7140,10 @@ textarea:focus-visible {
     display: none;
 }
 
+.react-footer-controls .react-like-button span {
+    display: none;
+}
+
 .react-volume-range {
     width: 4.5rem;
     accent-color: var(--app-accent);
@@ -8386,7 +8390,7 @@ textarea:focus-visible {
         bottom: .6rem !important;
         width: calc(100% - 1rem) !important;
         min-height: 4.4rem;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr);
         gap: .55rem;
         padding: .55rem .7rem;
         border-radius: 1.35rem !important;
@@ -8402,16 +8406,11 @@ textarea:focus-visible {
         grid-row: 1;
     }
 
-    .react-player-footer#player-footer .react-footer-actions {
-        grid-column: 3;
-        grid-row: 1;
-    }
-
     .react-player-footer#player-footer .react-footer-controls { gap: .04rem; }
     .react-player-footer#player-footer .react-footer-controls .player-secondary-action,
     .react-player-footer#player-footer .react-footer-actions .player-secondary-action { width: 2.15rem; height: 2.15rem; }
     .react-player-footer#player-footer .react-play-button { width: 2.55rem; height: 2.55rem; }
-    .react-player-footer#player-footer .react-footer-actions { gap: 0; }
+    .react-player-footer#player-footer .react-footer-actions { display: none; }
     .react-player-footer#player-footer .react-volume-range { display: none; }
 }
 

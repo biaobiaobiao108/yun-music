@@ -250,6 +250,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
           <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
           <button type="button" id={isActive ? 'btn-play' : undefined} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
           <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
+          <button type="button" id={isActive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
         </div>
         <div className="react-footer-song-section">
           <div className="react-footer-song">
@@ -264,7 +265,6 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
         <div className="react-footer-actions">
           <button ref={songMenuButtonRef} type="button" className="player-secondary-action react-song-menu-button" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!isActive || !currentSong} tabIndex={!isActive ? -1 : undefined}><Icon name="ellipsis" /></button>
           <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
-          <button type="button" id={isActive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
           <button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button>
           <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} />
         </div>
