@@ -10707,7 +10707,7 @@ textarea:focus-visible {
 .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
     background: var(--app-surface) !important;
     background: color-mix(in srgb, var(--app-surface-solid) 58%, transparent) !important;
-    border: 0 !important;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 58%, transparent) !important;
     -webkit-backdrop-filter: blur(12px) saturate(1.06) !important;
     backdrop-filter: blur(12px) saturate(1.06) !important;
     box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 14%) !important;

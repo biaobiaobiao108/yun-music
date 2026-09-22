@@ -1,7 +1,7 @@
 // Bump this whenever the React shell or its static contract changes so an
 // already-open player cannot keep serving a stale UI bundle indefinitely.
-const CACHE_NAME = 'yun-yin-web-react-133f35f';
-const VERSIONED_ASSET_CACHE = 'yun-yin-web-react-assets-133f35f';
+const CACHE_NAME = 'yun-yin-web-react-1dd9050';
+const VERSIONED_ASSET_CACHE = 'yun-yin-web-react-assets-1dd9050';
 const MAX_VERSIONED_ASSETS = 80;
 const ASSETS_TO_CACHE = [
     './',

@@ -366,6 +366,7 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('@keyframes react-immersive-dialog-enter')
     expect(css).toContain('.react-immersive-lyrics-dialog[open]::backdrop')
     expect(css).toContain('backdrop-filter: blur(12px) saturate(1.06) !important;')
+    expect(css).toContain('border: 1px solid color-mix(in srgb, var(--app-border-strong) 58%, transparent) !important;')
     expect(css).toContain('border: 0 !important;')
     expect(css).toContain('box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 14%) !important;')
     expect(css).toContain('.react-immersive-detail-controls#player-footer')
