@@ -53,7 +53,7 @@ export function HomeView() {
       if (seen.has(key)) return false
       seen.add(key)
       return true
-    }).slice(0, 8)
+    }).slice(0, 12)
   }, [recent])
   const visibleUserLists = userLists.slice(0, 6)
   const recentQueueIndex = (song: Song) => recent.findIndex(candidate => songKey(candidate) === songKey(song))

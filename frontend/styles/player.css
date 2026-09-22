@@ -9847,12 +9847,18 @@ textarea:focus-visible {
     overflow: clip;
 }
 
-.react-home-rail > .react-artwork-card:nth-child(n + 9) {
+.react-home-rail > .react-artwork-card:nth-child(n + 13) {
     display: none;
 }
 
 .react-home-rail > .react-artwork-card {
     min-inline-size: 0;
+}
+
+@media (max-width: 1180px) {
+    .react-home-rail > .react-artwork-card:nth-child(n + 9) {
+        display: none;
+    }
 }
 
 @media (max-width: 900px) {

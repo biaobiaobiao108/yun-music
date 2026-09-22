@@ -340,6 +340,7 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-player-main {\n    display: block !important;')
     expect(css).toContain('height: 0 !important;\n    min-height: 0 !important;')
     expect(css).toContain('.react-home-rail {\n    display: grid;\n    grid-template-rows: repeat(2, minmax(0, auto));')
+    expect(css).toContain('.react-home-rail > .react-artwork-card:nth-child(n + 13)')
     expect(css).toContain('.react-home-rail > .react-artwork-card:nth-child(n + 9)')
     expect(css).toContain('.react-home-rail > .react-artwork-card:nth-child(n + 5)')
     expect(css).toContain('background:\n        linear-gradient(135deg,')
