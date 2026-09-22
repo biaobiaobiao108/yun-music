@@ -6341,7 +6341,7 @@ textarea:focus-visible {
     --react-home-shortcut-color-a: color-mix(in srgb, var(--app-accent) 72%, #17131f);
     --react-home-shortcut-color-b: color-mix(in srgb, var(--app-accent) 28%, var(--app-surface-solid));
     --react-home-shortcut-color-c: color-mix(in srgb, var(--app-accent) 48%, #17131f);
-    --react-home-shortcut-duration: 22s;
+    --react-home-shortcut-duration: 12s;
     --react-home-shortcut-delay: 0s;
     position: relative;
     display: flex;
@@ -6350,15 +6350,15 @@ textarea:focus-visible {
     min-height: 9rem;
     padding: 1.1rem;
     overflow: hidden;
-    border: 1px solid transparent;
+    border: 0;
     border-radius: var(--app-radius-lg);
     isolation: isolate;
     background: linear-gradient(135deg, var(--react-home-shortcut-color-a), var(--react-home-shortcut-color-b));
     color: white;
     cursor: pointer;
     text-align: left;
-    box-shadow: var(--app-shadow-soft);
-    transition: filter var(--app-motion) ease, box-shadow var(--app-motion) ease;
+    box-shadow: none;
+    transition: filter var(--app-motion) ease;
 }
 
 .react-home-shortcut-surface {
@@ -6374,56 +6374,56 @@ textarea:focus-visible {
 .react-home-shortcut-surface::after {
     content: '';
     position: absolute;
-    inset: -38%;
-    border-radius: 50%;
+    inset: -50%;
+    border-radius: 44%;
     pointer-events: none;
     will-change: transform, opacity;
 }
 
 .react-home-shortcut-surface::before {
     background:
-        radial-gradient(ellipse at 22% 30%, var(--react-home-shortcut-color-b) 0 14%, transparent 58%),
-        radial-gradient(ellipse at 78% 72%, var(--react-home-shortcut-color-c) 0 16%, transparent 62%),
-        linear-gradient(135deg, var(--react-home-shortcut-color-a), var(--react-home-shortcut-color-b) 56%, var(--react-home-shortcut-color-c));
-    filter: blur(.12rem) saturate(1.08);
-    opacity: .9;
-    transform: translate3d(-5%, -4%, 0) rotate(-5deg) scale(1.02);
+        radial-gradient(ellipse 42% 34% at 18% 24%, var(--react-home-shortcut-color-b) 0 38%, transparent 74%),
+        radial-gradient(ellipse 48% 40% at 82% 76%, var(--react-home-shortcut-color-c) 0 36%, transparent 76%),
+        linear-gradient(135deg, var(--react-home-shortcut-color-a), var(--react-home-shortcut-color-b) 48%, var(--react-home-shortcut-color-c));
+    filter: blur(.2rem) saturate(1.18);
+    opacity: .94;
+    transform: translate3d(-14%, -11%, 0) rotate(-10deg) scale(1.04);
     animation: react-home-shortcut-drift var(--react-home-shortcut-duration) ease-in-out infinite alternate;
     animation-delay: var(--react-home-shortcut-delay);
 }
 
 .react-home-shortcut-surface::after {
     background:
-        radial-gradient(ellipse at 72% 24%, color-mix(in oklab, var(--react-home-shortcut-color-b) 78%, white 22%) 0 10%, transparent 40%),
-        radial-gradient(ellipse at 28% 78%, color-mix(in oklab, var(--react-home-shortcut-color-c) 86%, black 14%) 0 12%, transparent 44%);
-    filter: blur(1rem) saturate(1.12);
-    opacity: .54;
-    transform: translate3d(4%, 3%, 0) rotate(8deg) scale(1.06);
+        radial-gradient(ellipse 46% 34% at 78% 18%, color-mix(in oklab, var(--react-home-shortcut-color-b) 70%, white 30%) 0 34%, transparent 76%),
+        radial-gradient(ellipse 48% 44% at 22% 82%, color-mix(in oklab, var(--react-home-shortcut-color-c) 88%, black 12%) 0 34%, transparent 78%);
+    filter: blur(1.5rem) saturate(1.2);
+    opacity: .72;
+    transform: translate3d(12%, 9%, 0) rotate(11deg) scale(1.08);
     animation: react-home-shortcut-glow var(--react-home-shortcut-duration) ease-in-out infinite alternate-reverse;
     animation-delay: calc(var(--react-home-shortcut-delay) - 3s);
 }
 
 @keyframes react-home-shortcut-drift {
     from {
-        opacity: .78;
-        transform: translate3d(-5%, -4%, 0) rotate(-5deg) scale(1.02);
+        opacity: .72;
+        transform: translate3d(-16%, -12%, 0) rotate(-12deg) scale(1.04);
     }
 
     to {
-        opacity: .98;
-        transform: translate3d(6%, 5%, 0) rotate(6deg) scale(1.12);
+        opacity: 1;
+        transform: translate3d(16%, 13%, 0) rotate(12deg) scale(1.18);
     }
 }
 
 @keyframes react-home-shortcut-glow {
     from {
-        opacity: .34;
-        transform: translate3d(4%, 3%, 0) rotate(8deg) scale(1.06);
+        opacity: .3;
+        transform: translate3d(16%, 10%, 0) rotate(11deg) scale(1.06);
     }
 
     to {
-        opacity: .72;
-        transform: translate3d(-4%, -5%, 0) rotate(-9deg) scale(1.14);
+        opacity: .82;
+        transform: translate3d(-16%, -14%, 0) rotate(-14deg) scale(1.2);
     }
 }
 
@@ -6464,7 +6464,7 @@ textarea:focus-visible {
     --react-home-shortcut-color-a: #f05a3d;
     --react-home-shortcut-color-b: #ff9f2f;
     --react-home-shortcut-color-c: #c53557;
-    --react-home-shortcut-duration: 16s;
+    --react-home-shortcut-duration: 11s;
     --react-home-shortcut-delay: -2s;
 }
 
@@ -6472,7 +6472,7 @@ textarea:focus-visible {
     --react-home-shortcut-color-a: #2d7a4e;
     --react-home-shortcut-color-b: #6fbd89;
     --react-home-shortcut-color-c: #143e32;
-    --react-home-shortcut-duration: 19s;
+    --react-home-shortcut-duration: 13s;
     --react-home-shortcut-delay: -7s;
 }
 
@@ -6480,7 +6480,7 @@ textarea:focus-visible {
     --react-home-shortcut-color-a: #4f66c9;
     --react-home-shortcut-color-b: #9c97f3;
     --react-home-shortcut-color-c: #29387f;
-    --react-home-shortcut-duration: 22s;
+    --react-home-shortcut-duration: 15s;
     --react-home-shortcut-delay: -13s;
 }
 
@@ -6488,7 +6488,7 @@ textarea:focus-visible {
     --react-home-shortcut-color-a: #765795;
     --react-home-shortcut-color-b: #c8a5d0;
     --react-home-shortcut-color-c: #45335f;
-    --react-home-shortcut-duration: 25s;
+    --react-home-shortcut-duration: 17s;
     --react-home-shortcut-delay: -18s;
 }
 

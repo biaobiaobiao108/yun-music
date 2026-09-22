@@ -242,7 +242,7 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain('<span>{option.label}</span>')
     expect(views).toContain('createList(name.trim(), icon)')
     expect(shell).toContain('playlistIcon(list.icon)')
-    expect(css).toContain('border: 1px solid transparent;')
+    expect(css).toContain('border: 0;')
     expect(css).toContain('@keyframes react-home-shortcut-drift')
     expect(css).toContain('@keyframes react-home-playlist-drift')
     expect(css).toContain('.react-home-shortcut:hover .react-home-shortcut-arrow')
