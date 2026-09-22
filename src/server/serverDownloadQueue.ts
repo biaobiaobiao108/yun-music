@@ -66,10 +66,13 @@ export const MAX_HISTORY_PER_USER = 200
 const tasks = new Map<string, ServerDownloadTask>()
 const controllers = new Map<string, AbortController>()
 const concurrencyByUser = new Map<string, number>()
+const taskIdentityIndex = new Map<string, string>()
+const pendingCountByUser = new Map<string, number>()
 let resolver: DownloadResolver | null = null
 let initialized = false
 let processing = false
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let saveChain: Promise<void> = Promise.resolve()
 
 const taskMapKey = (username: string, id: string) => `${username}:${id}`
 const getQueueFile = () => path.join(global.lx.dataPath, 'server-download-queue.json')
@@ -177,6 +180,23 @@ const shouldReplaceTask = (current: ServerDownloadTask, candidate: ServerDownloa
   return (candidate.updatedAt || candidate.createdAt) > (current.updatedAt || current.createdAt)
 }
 
+/** Rebuild the small lookup indexes after a batch of queue mutations. */
+const rebuildTaskIndexes = (): void => {
+  taskIdentityIndex.clear()
+  pendingCountByUser.clear()
+  for (const task of tasks.values()) {
+    if (resumableStatuses.has(task.status)) {
+      pendingCountByUser.set(task.username, (pendingCountByUser.get(task.username) || 0) + 1)
+    }
+    const identity = getTaskIdentity(task)
+    const currentKey = taskIdentityIndex.get(identity)
+    const current = currentKey ? tasks.get(currentKey) : undefined
+    if (!current || shouldReplaceTask(current, task)) {
+      taskIdentityIndex.set(identity, taskMapKey(task.username, task.id))
+    }
+  }
+}
+
 /** Keep one persisted task for each user/song/requested-quality combination. */
 export const deduplicateDownloadTasks = (taskList: ServerDownloadTask[]) => {
   const retained = new Map<string, ServerDownloadTask>()
@@ -202,7 +222,10 @@ export const isDownloadTaskRunnable = (
 const deduplicateTasksInMemory = () => {
   const currentTasks = Array.from(tasks.values())
   const retainedTasks = deduplicateDownloadTasks(currentTasks)
-  if (retainedTasks.length === currentTasks.length) return false
+  if (retainedTasks.length === currentTasks.length) {
+    rebuildTaskIndexes()
+    return false
+  }
 
   const retainedKeys = new Set(retainedTasks.map(task => taskMapKey(task.username, task.id)))
   for (const task of currentTasks) {
@@ -212,6 +235,7 @@ const deduplicateTasksInMemory = () => {
 
   tasks.clear()
   retainedTasks.forEach(task => tasks.set(taskMapKey(task.username, task.id), task))
+  rebuildTaskIndexes()
   return true
 }
 
@@ -257,6 +281,7 @@ const pruneHistory = () => {
     tasks.clear()
     retained.forEach(task => tasks.set(taskMapKey(task.username, task.id), task))
   }
+  rebuildTaskIndexes()
   return removed
 }
 
@@ -269,18 +294,23 @@ const saveNow = () => {
   }
   const file = getQueueFile()
   const tempFile = `${file}.tmp`
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.writeFileSync(tempFile, JSON.stringify({
-      version: 2,
-      concurrencyByUser: Object.fromEntries(concurrencyByUser),
-      tasks: Array.from(tasks.values()).map(serializeDownloadTask),
-    }, null, 2), 'utf8')
-    fs.renameSync(tempFile, file)
-  } catch (err) {
-    console.warn('[ServerDownloadQueue] Failed to save queue:', err)
-    try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile) } catch (e) { }
+  const payload = JSON.stringify({
+    version: 2,
+    concurrencyByUser: Object.fromEntries(concurrencyByUser),
+    tasks: Array.from(tasks.values()).map(serializeDownloadTask),
+  }, null, 2)
+  const persist = async (): Promise<void> => {
+    try {
+      await fs.promises.mkdir(path.dirname(file), { recursive: true })
+      await Bun.write(tempFile, payload)
+      await fs.promises.rename(tempFile, file)
+    } catch (err) {
+      console.warn('[ServerDownloadQueue] Failed to save queue:', err)
+      try { await fs.promises.unlink(tempFile) } catch { }
+    }
   }
+  saveChain = saveChain.then(persist, persist)
+  void saveChain
 }
 
 const scheduleSave = () => {
@@ -342,6 +372,7 @@ const loadTasks = () => {
     deduplicateDownloadTasks(restoredTasks)
       .forEach(task => tasks.set(taskMapKey(task.username, task.id), task))
     pruneHistory()
+    rebuildTaskIndexes()
     console.log(`[ServerDownloadQueue] Restored ${tasks.size} persisted tasks`)
   } catch (err) {
     console.warn('[ServerDownloadQueue] Failed to restore queue:', err)
@@ -567,16 +598,20 @@ const processQueue = async () => {
         activeIdentities.add(getTaskIdentity(activeTask))
         if (activeTask.background) activeBackground++
       }
-      const candidates = Array.from(tasks.values())
-        .filter(task => task.status === 'waiting')
-        .sort((a, b) => Number(a.background) - Number(b.background) || a.createdAt - b.createdAt)
-      const next = candidates.find(task => isDownloadTaskRunnable(
-        task,
-        activeByUser.get(task.username) || 0,
-        activeBackground,
-        activeIdentities,
-        getConcurrency(task.username),
-      ))
+      let next: ServerDownloadTask | undefined
+      for (const task of tasks.values()) {
+        if (!isDownloadTaskRunnable(
+          task,
+          activeByUser.get(task.username) || 0,
+          activeBackground,
+          activeIdentities,
+          getConcurrency(task.username),
+        )) continue
+        if (!next || Number(task.background) < Number(next.background) ||
+          (task.background === next.background && task.createdAt < next.createdAt)) {
+          next = task
+        }
+      }
       if (!next) break
       void runTask(next)
     }
@@ -652,7 +687,7 @@ const markTaskAsExisting = (task: ServerDownloadTask, username: string, input: Q
 export const enqueue = (username: string, inputs: QueueInput[]) => {
   if (inputs.length > 100) throw new Error('Too many tasks in one request')
   deduplicateTasksInMemory()
-  const pendingCount = Array.from(tasks.values()).filter(task => task.username === username && resumableStatuses.has(task.status)).length
+  const pendingCount = pendingCountByUser.get(username) || 0
   if (pendingCount + inputs.length > MAX_PENDING_TASKS_PER_USER) throw new Error('Too many pending download tasks')
   const added: ServerDownloadTask[] = []
   for (const input of inputs) {
@@ -660,16 +695,16 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
     const id = sanitizeId(input.id)
     const key = taskMapKey(username, id)
     const quality = String(input.quality || '320k')
-    const existing = tasks.get(key) || Array.from(tasks.values()).find(task => (
-      task.username === username && getTaskIdentity(task) === getTaskIdentity({
-        username,
-        songInfo: input.songInfo,
-        quality,
-        requestedQuality: quality,
-        songKey: '',
-        activeSongKey: undefined,
-      })
-    ))
+    const identity = getTaskIdentity({
+      username,
+      songInfo: input.songInfo,
+      quality,
+      requestedQuality: quality,
+      songKey: '',
+      activeSongKey: undefined,
+    })
+    const existingKey = taskIdentityIndex.get(identity)
+    const existing = tasks.get(key) || (existingKey ? tasks.get(existingKey) : undefined)
     const targetFolder = targetFolderForInput(input)
     const targetExists = hasRequestedTarget(username, input, quality)
     if (existing) {
@@ -781,6 +816,7 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
     tasks.set(key, task)
     added.push(task)
   }
+  rebuildTaskIndexes()
   saveNow()
   notifyQueueListeners(username)
   void processQueue()
@@ -900,6 +936,7 @@ export const remove = (username: string, options: { id?: string; all?: boolean; 
     controllers.get(key)?.abort()
     tasks.delete(key)
   }
+  rebuildTaskIndexes()
   saveNow()
   notifyQueueListeners(username)
   void processQueue()
