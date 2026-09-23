@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterAll } from 'bun:test'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { closeDb } from '@/database'
+
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-auth-test-'))
 
 // Initialize global.lx before importing modules that depend on it at top-level
-(global as any).lx = {
-  dataPath: 'd:\\test_data',
+;(global as any).lx = {
+  dataPath: testDataDir,
   config: {
     'frontend.password': 'secure123',
     'user.enablePath': false,
@@ -64,5 +70,10 @@ describe('Admin Authentication Security (verifyAdminAuth)', () => {
     expect(verifyAdminAuth(mockReq)).toBe(false)
     expect(verifyAdminAuth({ headers: {} } as any)).toBe(false)
     expect(verifyAdminAuth({ headers: { cookie: urlWithAuth.searchParams.toString() } } as any)).toBe(false)
+  })
+
+  afterAll(() => {
+    closeDb()
+    try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
   })
 })

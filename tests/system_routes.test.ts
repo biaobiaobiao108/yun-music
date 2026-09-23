@@ -1,13 +1,17 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
+import { closeDb } from '@/database'
+
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-sys-test-'))
+const testUserDir = path.join(testDataDir, 'users')
 
 ;(global as any).lx = {
-  dataPath: 'd:\\test_data',
-  userPath: 'd:\\test_users',
+  dataPath: testDataDir,
+  userPath: testUserDir,
   config: {
     'frontend.password': 'admin_secret',
     users: [{ name: 'test_u', password: 'pwd' }],
@@ -181,5 +185,10 @@ describe('System Routes (routes/system.ts)', () => {
       headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
     }))
     expect(res.status).toBe(404)
+  })
+
+  afterAll(() => {
+    closeDb()
+    try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
   })
 })

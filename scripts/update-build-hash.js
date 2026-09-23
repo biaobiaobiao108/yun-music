@@ -6,6 +6,7 @@ async function getDirectoryHash(dir, exclude = [], extensions = []) {
             const relPath = path.relative(dir, file).replace(/\\/g, '/');
             const fileName = path.basename(file);
             return !exclude.some(ex => relPath.startsWith(ex) || fileName === ex) &&
+                !/\.(?:db(?:[-.].*)?|sqlite(?:3)?|wal|shm|log)$/i.test(fileName) &&
                 (extensions.length === 0 || extensions.some(ext => fileName.endsWith(ext)));
         });
 

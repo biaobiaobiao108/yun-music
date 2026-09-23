@@ -1,15 +1,20 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { createStaticRouter, isPathInside } from '@/server/routes/static'
 import { Router } from '@/server/core'
+import { closeDb } from '@/database'
 
 describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
   const publicDir = path.join(process.cwd(), 'public')
+  let testDataDir = ''
 
   beforeEach(() => {
-    (global as any).lx = {
-      dataPath: publicDir,
+    testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-static-test-'))
+    closeDb()
+    ;(global as any).lx = {
+      dataPath: testDataDir,
       staticPath: publicDir,
       config: {
         'player.path': '/music',
@@ -17,6 +22,14 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
         'player.enableAuth': false,
         port: 9527,
       },
+    }
+  })
+
+  afterEach(() => {
+    closeDb()
+    if (testDataDir) {
+      try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
+      testDataDir = ''
     }
   })
 

@@ -1,11 +1,17 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:test'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { closeDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user/data'
 import { hashPassword } from '@/utils/passwordHash'
 
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-auth-routes-test-'))
+const testUserDir = path.join(testDataDir, 'users')
+
 ;(global as any).lx = {
-  dataPath: 'd:\\test_data',
-  userPath: 'd:\\test_users',
+  dataPath: testDataDir,
+  userPath: testUserDir,
   config: {
     'frontend.password': 'admin123',
     'player.password': 'player456',
@@ -137,5 +143,10 @@ describe('Web Cookie Authentication', () => {
       headers: { 'x-user-name': 'test_user', 'x-user-password': 'password123' },
     }))
     expect(await response.json()).toEqual({ valid: false, username: null })
+  })
+
+  afterAll(() => {
+    closeDb()
+    try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
   })
 })
