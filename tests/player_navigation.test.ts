@@ -122,6 +122,7 @@ describe('React player navigation and state restoration', () => {
     expect(shell).not.toContain('react-sidebar-user')
     expect(css).toContain('width: 0 !important')
     expect(css).toContain('.react-immersive-lyrics-list::-webkit-scrollbar')
+    expect(css).toMatch(/\.react-immersive-lyrics-list > button:focus,\s*\.react-immersive-lyrics-list > button:focus-visible\s*\{\s*outline: 0 !important;\s*outline-offset: 0 !important;\s*box-shadow: none !important;/)
     expect(views).toContain('onFooterHostChange')
     expect(views).toContain("onFooterHostChange('immersive')")
     expect(views).toContain("onFooterHostChange('normal')")

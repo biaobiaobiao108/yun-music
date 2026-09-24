@@ -10916,10 +10916,10 @@ textarea:focus-visible {
     }
 }
 
-/* Pointer interaction on lyric rows is for seeking, not a keyboard focus cue.
-   Keep the shared focus ring when keyboard navigation is in use. */
-.react-immersive-lyrics-list[data-input-modality="pointer"] > button:hover,
-.react-immersive-lyrics-list[data-input-modality="pointer"] > button:focus-visible {
-    outline-color: transparent !important;
+/* Lyric rows are seek targets; remove their outline and inset focus ring in Safari. */
+.react-immersive-lyrics-list > button:focus,
+.react-immersive-lyrics-list > button:focus-visible {
+    outline: 0 !important;
+    outline-offset: 0 !important;
     box-shadow: none !important;
 }

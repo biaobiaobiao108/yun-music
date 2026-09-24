@@ -675,18 +675,6 @@ export function PlayerShell() {
   }, [setImmersiveLyrics])
   const unmountImmersiveLyrics = useCallback(() => setImmersiveLyricsMounted(false), [])
   useEffect(() => { if (immersiveLyrics) setImmersiveLyricsMounted(true) }, [immersiveLyrics])
-  useEffect(() => {
-    const root = document.documentElement
-    const markPointerInput = () => { root.dataset.playerInputModality = 'pointer' }
-    const markKeyboardInput = () => { root.dataset.playerInputModality = 'keyboard' }
-    document.addEventListener('pointerdown', markPointerInput, true)
-    document.addEventListener('keydown', markKeyboardInput, true)
-    return () => {
-      document.removeEventListener('pointerdown', markPointerInput, true)
-      document.removeEventListener('keydown', markKeyboardInput, true)
-      delete root.dataset.playerInputModality
-    }
-  }, [])
   useEffect(() => { hydratePlayback(); hydrateRecent(); void hydrateSettings(); void hydrateLibrary(); void hydrateMediaLibrary() }, [hydrateLibrary, hydrateMediaLibrary, hydratePlayback, hydrateRecent, hydrateSettings])
   useEffect(() => connectPlaybackServiceStore(), [])
   useEffect(() => {
