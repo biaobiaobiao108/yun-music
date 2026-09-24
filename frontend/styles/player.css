@@ -10625,49 +10625,36 @@ textarea:focus-visible {
 .react-immersive-lyrics-list > button {
     align-items: center;
     color: color-mix(in srgb, var(--app-text) 34%, transparent) !important;
-    filter: blur(1.8px);
     opacity: .34;
     text-align: center;
-    transform: scale(.975);
-    transform-origin: center;
-    transition: color var(--app-motion-fast) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease;
+    transition: color var(--app-motion-fast) ease, opacity var(--app-motion) ease;
 }
 
 .react-immersive-lyrics-list > button.is-idle {
     color: color-mix(in srgb, var(--app-text) 58%, transparent) !important;
-    filter: none;
     opacity: .62;
-    transform: none;
 }
 
 .react-immersive-lyrics-list > button.is-distant {
     color: color-mix(in srgb, var(--app-text) 26%, transparent) !important;
-    filter: blur(2.2px);
     opacity: .26;
-    transform: scale(.96);
 }
 
 .react-immersive-lyrics-list > button.is-near {
     color: color-mix(in srgb, var(--app-text) 42%, transparent) !important;
-    filter: blur(1.15px);
     opacity: .48;
-    transform: scale(.985);
 }
 
 .react-immersive-lyrics-list > button.is-adjacent {
     color: color-mix(in srgb, var(--app-text) 62%, transparent) !important;
-    filter: blur(.45px);
     opacity: .7;
-    transform: scale(.995);
 }
 
 .react-immersive-lyrics-list > button.is-active {
     color: var(--app-text) !important;
-    filter: none;
     opacity: 1;
     font-size: var(--react-lyric-size, 1.25rem);
     text-shadow: 0 .45rem 1.8rem color-mix(in srgb, var(--app-text) 20%, transparent);
-    transform: scale(1.015);
 }
 
 .react-immersive-lyrics-list > button small {
@@ -10681,22 +10668,17 @@ textarea:focus-visible {
 .react-immersive-lyrics-list > button:hover,
 .react-immersive-lyrics-list > button:focus-visible {
     color: var(--app-text) !important;
-    filter: none;
     opacity: .9;
-    transform: scale(1.005);
 }
 
 .react-immersive-lyrics-list > button.is-active:hover,
 .react-immersive-lyrics-list > button.is-active:focus-visible {
     opacity: 1;
-    transform: scale(1.015);
 }
 
 @media (prefers-reduced-motion: reduce) {
     .react-immersive-lyrics-list > button {
-        filter: none;
         transition: none;
-        transform: none;
     }
 }
 
@@ -10714,7 +10696,7 @@ textarea:focus-visible {
 
 /* The lyrics view owns a local transport under the artwork instead of
    retaining a second bottom-fixed player bar. */
-.react-immersive-lyrics .react-immersive-detail-controls#player-footer {
+.react-immersive-lyrics footer.react-player-footer.react-immersive-detail-controls#player-footer {
     position: relative !important;
     inset: auto !important;
     inset-inline: auto !important;
@@ -10916,10 +10898,21 @@ textarea:focus-visible {
     }
 }
 
-/* Lyric rows are seek targets; remove their outline and inset focus ring in Safari. */
-.react-immersive-lyrics-list > button:focus,
+/* Keep pointer focus invisible while retaining an inset keyboard cue. */
+.react-immersive-lyrics-list > button:focus:not(:focus-visible) {
+    outline: 0 !important;
+    box-shadow: none !important;
+}
+
 .react-immersive-lyrics-list > button:focus-visible {
     outline: 0 !important;
-    outline-offset: 0 !important;
-    box-shadow: none !important;
+    box-shadow: inset 0 0 0 1px var(--app-accent) !important;
+}
+
+@media (forced-colors: active) {
+    .react-immersive-lyrics-list > button:focus-visible {
+        outline: 1px solid Highlight !important;
+        outline-offset: -1px !important;
+        box-shadow: none !important;
+    }
 }
