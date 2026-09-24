@@ -50,6 +50,11 @@ function abortError(): DOMException {
   return new DOMException('The operation was aborted.', 'AbortError')
 }
 
+function setMediaSessionPlaybackState(state: MediaSessionPlaybackState): void {
+  if (!('mediaSession' in navigator)) return
+  try { navigator.mediaSession.playbackState = state } catch { /* media session may be unavailable in this context */ }
+}
+
 function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise
   if (signal.aborted) return Promise.reject(abortError())
@@ -213,7 +218,6 @@ function AudioRuntime() {
   const setResolvedUrl = usePlaybackStore(state => state.setResolvedUrl)
   const volume = usePlaybackStore(state => state.volume)
   const setQuality = usePlaybackStore(state => state.setQuality)
-  const togglePlayback = usePlaybackStore(state => state.toggle)
   const previousPlayback = usePlaybackStore(state => state.previous)
   const nextPlayback = usePlaybackStore(state => state.next)
   const recordRecent = useRecentStore(state => state.record)
@@ -332,6 +336,7 @@ function AudioRuntime() {
     })
     audio.volume = volume
     const onPlay = () => {
+      setMediaSessionPlaybackState('playing')
       emitPlaybackService({ type: 'play' })
       if (currentSong) {
         const playback = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current : null
@@ -375,7 +380,10 @@ function AudioRuntime() {
       markPlayerPerformance(endMark)
       measurePlayerPerformance(`${playbackTraceName}:playing`, `${playbackTraceName}:start`, endMark)
     }
-    const onPause = () => emitPlaybackService({ type: 'pause' })
+    const onPause = () => {
+      setMediaSessionPlaybackState(currentSong ? 'paused' : 'none')
+      emitPlaybackService({ type: 'pause' })
+    }
     const onTime = () => {
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
@@ -473,7 +481,19 @@ function AudioRuntime() {
         if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
           notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')
         }
-        if (usePlaybackStore.getState().isPlaying) await audio.play()
+        if (usePlaybackStore.getState().isPlaying) {
+          try {
+            await audio.play()
+          } catch (error) {
+            if (cancelled) return
+            if (error instanceof DOMException && error.name === 'NotAllowedError') {
+              setPlaying(false)
+              notify('歌曲已就绪，请点击播放按钮继续')
+              return
+            }
+            throw error
+          }
+        }
       } catch (error) {
         if (cancelled) return
         setResolvedUrl(null)
@@ -507,7 +527,39 @@ function AudioRuntime() {
       if (error instanceof DOMException && error.name === 'NotAllowedError') notify('浏览器阻止了自动播放，请点击播放按钮')
     })
   }, [isPlaying, notify, setPlaying])
-  useEffect(() => { if (!currentSong || !('mediaSession' in navigator)) return; navigator.mediaSession.metadata = new MediaMetadata({ title: String(currentSong.name || '未知歌曲'), artist: String(currentSong.singer || ''), album: songAlbum(currentSong), artwork: [{ src: safeImageUrl(songImage(currentSong)) }] }); navigator.mediaSession.setActionHandler?.('play', togglePlayback); navigator.mediaSession.setActionHandler?.('pause', togglePlayback); navigator.mediaSession.setActionHandler?.('previoustrack', previousPlayback); navigator.mediaSession.setActionHandler?.('nexttrack', nextPlayback) }, [currentSong, nextPlayback, previousPlayback, togglePlayback])
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    const mediaSession = navigator.mediaSession
+    const setActionHandler = (action: MediaSessionAction, handler: (() => void) | null) => {
+      try { mediaSession.setActionHandler?.(action, handler) } catch { /* action is not supported by this browser */ }
+    }
+    const actions: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack']
+    if (!currentSong) {
+      mediaSession.metadata = null
+      setMediaSessionPlaybackState('none')
+      actions.forEach(action => setActionHandler(action, null))
+      return
+    }
+
+    mediaSession.metadata = new MediaMetadata({
+      title: String(currentSong.name || '未知歌曲'),
+      artist: String(currentSong.singer || ''),
+      album: songAlbum(currentSong),
+      artwork: [{ src: safeImageUrl(songImage(currentSong)) }],
+    })
+    setMediaSessionPlaybackState(audioRef.current && !audioRef.current.paused ? 'playing' : 'paused')
+    setActionHandler('play', () => {
+      const state = usePlaybackStore.getState()
+      if (!state.isPlaying) state.toggle()
+    })
+    setActionHandler('pause', () => {
+      const state = usePlaybackStore.getState()
+      if (state.isPlaying) state.toggle()
+    })
+    setActionHandler('previoustrack', previousPlayback)
+    setActionHandler('nexttrack', nextPlayback)
+    return () => actions.forEach(action => setActionHandler(action, null))
+  }, [currentSong, nextPlayback, previousPlayback])
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
 

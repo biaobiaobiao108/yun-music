@@ -10915,3 +10915,11 @@ textarea:focus-visible {
         transition: none;
     }
 }
+
+/* Pointer interaction on lyric rows is for seeking, not a keyboard focus cue.
+   Keep the shared focus ring when keyboard navigation is in use. */
+.react-immersive-lyrics-list[data-input-modality="pointer"] > button:hover,
+.react-immersive-lyrics-list[data-input-modality="pointer"] > button:focus-visible {
+    outline: 1px solid transparent !important;
+    box-shadow: none !important;
+}

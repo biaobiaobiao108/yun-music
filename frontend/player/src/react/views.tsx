@@ -481,6 +481,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const closeTimer = useRef<number | null>(null)
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [isClosing, setIsClosing] = useState(false)
+  const [lyricsInputModality, setLyricsInputModality] = useState<'keyboard' | 'pointer'>('keyboard')
   useEffect(() => { if (open) void load(song) }, [load, open, song])
   const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
@@ -579,7 +580,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
       else { await addSong('love', song); notify('已添加到喜欢') }
     } catch (error) { notify(error instanceof Error ? error.message : '喜欢操作失败') }
   }
-  return <dialog ref={dialogRef} className={`react-immersive-lyrics-dialog ${isClosing ? 'is-closing' : ''}`} aria-labelledby="immersive-lyrics-title" onCancel={event => { event.preventDefault(); onClose() }}>
+  return <dialog ref={dialogRef} className={`react-immersive-lyrics-dialog ${isClosing ? 'is-closing' : ''}`} aria-labelledby="immersive-lyrics-title" onCancel={event => { event.preventDefault(); onClose() }} onKeyDown={() => setLyricsInputModality('keyboard')}>
     <div className="react-immersive-lyrics" style={immersiveStyle}>
       <header className="react-immersive-lyrics-header">
         <button type="button" className="react-immersive-nav-button" data-immersive-close aria-label="关闭沉浸式歌词" onClick={onClose}><Icon name="chevron-down" /></button>
@@ -593,10 +594,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
               under the artwork, matching the reference lyrics composition. */}
           <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
         </section>
-        <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
+        <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite" data-input-modality={lyricsInputModality} onPointerMove={() => setLyricsInputModality('pointer')} onPointerDown={() => setLyricsInputModality('pointer')}>
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {
             const focusClass = lyricFocusClass(index, active)
-            return <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={focusClass} data-lyric-focus={focusClass.replace('is-', '')} aria-current={index === active ? 'true' : undefined} onClick={() => seek(line.time)}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>
+            return <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={focusClass} data-lyric-focus={focusClass.replace('is-', '')} aria-current={index === active ? 'true' : undefined} onClick={event => { seek(line.time); if (event.detail > 0) event.currentTarget.blur() }}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>
           }) : <div className="react-empty"><Icon name="file-lines" /><p>暂无歌词</p></div>}
         </section>
       </div>
