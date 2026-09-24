@@ -5778,7 +5778,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     height: min(66dvh, 42rem);
     overflow-y: auto;
     overscroll-behavior: contain;
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     padding: 40% .75rem;
     scrollbar-gutter: stable;
     text-align: center;
@@ -10920,6 +10920,6 @@ textarea:focus-visible {
    Keep the shared focus ring when keyboard navigation is in use. */
 .react-immersive-lyrics-list[data-input-modality="pointer"] > button:hover,
 .react-immersive-lyrics-list[data-input-modality="pointer"] > button:focus-visible {
-    outline: 1px solid transparent !important;
+    outline-color: transparent !important;
     box-shadow: none !important;
 }

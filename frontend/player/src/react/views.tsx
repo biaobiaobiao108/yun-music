@@ -480,8 +480,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const lastFocus = useRef<HTMLElement | null>(null)
   const closeTimer = useRef<number | null>(null)
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const lyricsListRef = useRef<HTMLElement | null>(null)
+  const scrollFrameRef = useRef<number | null>(null)
   const [isClosing, setIsClosing] = useState(false)
-  const [lyricsInputModality, setLyricsInputModality] = useState<'keyboard' | 'pointer'>('keyboard')
+  const [lyricsInputModality, setLyricsInputModality] = useState<'keyboard' | 'pointer'>(() => document.documentElement.dataset.playerInputModality === 'pointer' ? 'pointer' : 'keyboard')
   useEffect(() => { if (open) void load(song) }, [load, open, song])
   const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
@@ -557,10 +559,41 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   }, [onFooterHostChange])
   useEffect(() => {
     if (active < 0) return
+    const list = lyricsListRef.current
     const line = lineRefs.current[active]
-    if (!line) return
-    line.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
-  }, [active])
+    if (!list || !line) return
+    const listRect = list.getBoundingClientRect()
+    const lineRect = line.getBoundingClientRect()
+    const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight)
+    const targetTop = Math.min(maxScrollTop, Math.max(0, list.scrollTop + lineRect.top - listRect.top - (list.clientHeight - line.clientHeight) / 2))
+    const startTop = list.scrollTop
+    const distance = targetTop - startTop
+    if (Math.abs(distance) < 1) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      list.scrollTop = targetTop
+      return
+    }
+    const duration = 320
+    let startTime = 0
+    const step = (time: number) => {
+      if (startTime === 0) startTime = time
+      const progress = Math.min(1, (time - startTime) / duration)
+      const eased = progress * progress * (3 - 2 * progress)
+      list.scrollTop = startTop + distance * eased
+      if (progress < 1) scrollFrameRef.current = window.requestAnimationFrame(step)
+      else scrollFrameRef.current = null
+    }
+    scrollFrameRef.current = window.requestAnimationFrame(step)
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current)
+        scrollFrameRef.current = null
+      }
+    }
+  }, [active, lines])
+  useEffect(() => () => {
+    if (scrollFrameRef.current !== null) window.cancelAnimationFrame(scrollFrameRef.current)
+  }, [])
   const lyricStyle = { '--react-lyric-size': `${Math.max(.9, Number(settings.lyricFontSize || 1.25))}rem` } as CSSProperties
   const title = songTitle(song)
   const artwork = safeImageUrl(songImage(song))
@@ -581,7 +614,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     } catch (error) { notify(error instanceof Error ? error.message : '喜欢操作失败') }
   }
   return <dialog ref={dialogRef} className={`react-immersive-lyrics-dialog ${isClosing ? 'is-closing' : ''}`} aria-labelledby="immersive-lyrics-title" onCancel={event => { event.preventDefault(); onClose() }} onKeyDown={() => setLyricsInputModality('keyboard')}>
-    <div className="react-immersive-lyrics" style={immersiveStyle}>
+    <div className="react-immersive-lyrics" style={immersiveStyle} onPointerMoveCapture={() => setLyricsInputModality('pointer')} onPointerDownCapture={() => setLyricsInputModality('pointer')}>
       <header className="react-immersive-lyrics-header">
         <button type="button" className="react-immersive-nav-button" data-immersive-close aria-label="关闭沉浸式歌词" onClick={onClose}><Icon name="chevron-down" /></button>
         <button type="button" className="react-immersive-nav-button" aria-label="切换全屏" onClick={toggleFullscreen}><Icon name="expand" /></button>
@@ -594,7 +627,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
               under the artwork, matching the reference lyrics composition. */}
           <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
         </section>
-        <section className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite" data-input-modality={lyricsInputModality} onPointerMove={() => setLyricsInputModality('pointer')} onPointerDown={() => setLyricsInputModality('pointer')}>
+        <section ref={lyricsListRef} className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite" data-input-modality={lyricsInputModality}>
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {
             const focusClass = lyricFocusClass(index, active)
             return <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={focusClass} data-lyric-focus={focusClass.replace('is-', '')} aria-current={index === active ? 'true' : undefined} onClick={event => { seek(line.time); if (event.detail > 0) event.currentTarget.blur() }}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>
