@@ -85,6 +85,29 @@ const resolveSnapshotUsername = (ctx: HttpContext, userParam: string, write = fa
   return tokenUser && tokenUser === userParam ? tokenUser : null
 }
 
+const resolveSettingsUsername = (ctx: HttpContext, write = false): string | Response => {
+  const requested = ctx.query.get('user')?.trim() || ''
+  const verified = verifyUserAuth(ctx)
+  const isAdmin = verifyAdminAuth(ctx.request)
+  const isPublic = ['default', 'open', '_open'].includes(requested) || (!requested && !verified)
+
+  if (isPublic) {
+    if (write && global.lx.config['user.enablePublicRestriction'] && !isAdmin) {
+      return ctx.fail(403, '权限不足：公共用户保存设置受限，请先验证管理员身份')
+    }
+    return '_open'
+  }
+  if (!requested) return verified!
+  if (isAdmin) {
+    try { return assertSafePathSegment(requested, 'user name') } catch { return ctx.fail(400, '用户名不合法') }
+  }
+  return verified === requested ? verified : ctx.fail(403, '没有权限操作该用户的设置')
+}
+
+const isSettingsRecord = (value: unknown): value is Record<string, unknown> => (
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+)
+
 /** 注册用户歌单、账户管理、偏好与曲库数据管理路由 */
 export const createUserRouter = (): Router => {
   const router = new Router()
@@ -218,6 +241,7 @@ export const createUserRouter = (): Router => {
             user.password = ''
           }
           saveUsers()
+          if (password !== undefined) revokeUserAuth(name)
           return ctx.json({ success: true })
         } catch (error) {
           Object.assign(user, previousUser)
@@ -423,19 +447,8 @@ export const createUserRouter = (): Router => {
 
   // 4. 用户设置 (GET & POST /api/user/settings)
   router.get('/api/user/settings', (ctx) => {
-    const reqUsername = ctx.query.get('user') || ''
-    const isPublic = !reqUsername || reqUsername === 'default'
-    let resolvedUsername: string | null = null
-
-    const config = (global.lx?.config ?? {}) as any
-    if (isPublic && config['user.enablePublicRestriction']) {
-      resolvedUsername = '_open'
-    } else {
-      resolvedUsername = verifyUserAuth(ctx)
-      if (!resolvedUsername) {
-        return ctx.fail(401, '登录状态已失效，请重新登录')
-      }
-    }
+    const resolvedUsername = resolveSettingsUsername(ctx)
+    if (resolvedUsername instanceof Response) return resolvedUsername
 
     try {
       const db = getDb()
@@ -456,31 +469,16 @@ export const createUserRouter = (): Router => {
   })
 
   router.post('/api/user/settings', async (ctx) => {
-    const reqUsername = ctx.query.get('user') || ''
-    const isPublic = !reqUsername || reqUsername === 'default'
-    let resolvedUsername: string | null = null
-    const config = (global.lx?.config ?? {}) as any
-
-    if (isPublic) {
-      if (config['user.enablePublicRestriction']) {
-        const isAdmin = verifyAdminAuth(ctx.request)
-        if (!isAdmin) {
-          return ctx.json({ success: false, error: '权限不足：公共用户保存设置受限，请先验证管理员身份。' }, 403)
-        }
-      }
-      resolvedUsername = '_open'
-    } else {
-      resolvedUsername = verifyUserAuth(ctx)
-      if (!resolvedUsername) {
-        return ctx.fail(401, '登录状态已失效，请重新登录')
-      }
-    }
+    const resolvedUsername = resolveSettingsUsername(ctx, true)
+    if (resolvedUsername instanceof Response) return resolvedUsername
 
     try {
-      let settings = await ctx.bodyJson<Record<string, unknown>>(MAX_USER_SETTING_BODY_BYTES)
+      const parsedSettings = await ctx.bodyJson<unknown>(MAX_USER_SETTING_BODY_BYTES)
+      if (!isSettingsRecord(parsedSettings)) return ctx.fail(400, '设置数据格式错误')
+      let settings: Record<string, unknown> = parsedSettings
 
-      if (resolvedUsername === '_open' && config['user.enablePublicRestriction']) {
-        const restrictedSettings: any = {}
+      if (resolvedUsername === '_open' && global.lx.config['user.enablePublicRestriction']) {
+        const restrictedSettings: Record<string, unknown> = {}
         const allowedKeys = [
           'serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency',
           'preferredQuality', 'enablePublicSources',
@@ -492,9 +490,21 @@ export const createUserRouter = (): Router => {
       }
 
       const db = getDb()
+      const previous = db.query<{ value: string }, [string, string]>(
+        'SELECT value FROM user_settings WHERE user_name = ? AND key = ?'
+      ).get(resolvedUsername, 'settings')
+      let existing: Record<string, unknown> = {}
+      if (previous) {
+        try {
+          const parsed: unknown = JSON.parse(previous.value)
+          if (isSettingsRecord(parsed)) existing = parsed
+        } catch { /* Replace a malformed legacy value with valid settings. */ }
+      }
+      const value = JSON.stringify({ ...existing, ...settings })
+      if (Buffer.byteLength(value) > MAX_USER_SETTING_BODY_BYTES) return ctx.fail(413, '设置数据过大')
       db.run(
         'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
-        [resolvedUsername, 'settings', JSON.stringify(settings), Date.now()]
+        [resolvedUsername, 'settings', value, Date.now()]
       )
       return ctx.json({ success: true })
     } catch {

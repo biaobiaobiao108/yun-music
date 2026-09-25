@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "prestart": "bun run scripts/download-binary.js && bun run scripts/update-build-hash.js",
+    "prestart": "bun run build:frontend && bun run scripts/download-binary.js",
     "start": "bun run src/index.ts",
     "predev": "bun scripts/update-build-hash.js",
     "dev": "bun scripts/dev.ts",

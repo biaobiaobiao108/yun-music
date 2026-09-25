@@ -93,6 +93,30 @@ describe('cache list user scope', () => {
     }
   })
 
+  test('queues an existing private cache without validating an unused remote URL', async () => {
+    const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
+      exists: true, isCollision: false, foundIn: username, folder: 'cache',
+      filename: 'cached-song.mp3', path: 'cached-song.mp3', quality: '128k',
+    } as any)
+    const enqueue = spyOn(serverDownloadQueue, 'enqueue').mockReturnValue([])
+    try {
+      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/download', {
+        method: 'POST',
+        headers: { cookie: `lx_user_session=${sessionId}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          songInfo: { source: 'wy', songmid: 'cached-song', name: 'Cached Song' },
+          url: 'http://127.0.0.1/unreachable.mp3', quality: '128k', enableOnlyDownloadMode: true,
+        }),
+      }))
+      expect(response.status).toBe(200)
+      expect(enqueue).toHaveBeenCalledTimes(1)
+      expect(enqueue.mock.calls[0]?.[1]?.[0]?.resolvedUrl).toBeUndefined()
+    } finally {
+      enqueue.mockRestore()
+      checkCache.mockRestore()
+    }
+  })
+
   test('opens an authenticated live cache event stream', async () => {
     const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/events', {
       headers: { cookie: `lx_user_session=${sessionId}` },

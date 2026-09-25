@@ -835,7 +835,7 @@ describe('File Cache Path Traversal Defense', () => {
         singer: 'Move Singer',
         albumName: 'Move Album',
         source: 'wy',
-      }, 'https://example.com/move-song.mp3', '128k', username, undefined, true)
+      }, 'http://127.0.0.1/move-song.mp3', '128k', username, undefined, true)
 
       expect(fs.existsSync(cacheFile)).toBe(false)
       expect(fs.existsSync(path.join(fileCache.getCacheDir(username, true), 'move-song.mp3'))).toBe(true)

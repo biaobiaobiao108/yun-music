@@ -2718,8 +2718,6 @@ const ensureCachedLyrics = async (
 }
 
 export const downloadAndCache = async (songInfo: any, url: string, quality?: string, username?: string, signal?: AbortSignal, isOnlyDownload?: boolean, shouldCacheLyric: boolean = true, shouldEmbedLyric: boolean = true, provenance: DownloadProvenance = {}) => {
-    const safeUrl = await assertSafeRemoteHttpUrl(url)
-    url = safeUrl.toString()
     const dir = ensureDir(username, isOnlyDownload)
     const baseName = getFileName(songInfo, quality, isOnlyDownload, username)
     // Use a unique staging path so a crash cannot leave a stale .tmp file that
@@ -2803,6 +2801,10 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
     }
 
     if (signal?.aborted) return
+    // An existing local file needs no remote connection. Validate the URL only
+    // when a cache miss will actually start a network download.
+    const safeUrl = await assertSafeRemoteHttpUrl(url)
+    url = safeUrl.toString()
     console.log(`[FileCache] Starting download for: ${baseName}`)
 
     return new Promise<void>((resolve, reject) => {

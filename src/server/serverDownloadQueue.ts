@@ -484,6 +484,11 @@ const runTask = async (task: ServerDownloadTask) => {
   notifyQueueListeners(task.username)
 
   try {
+    const cached = fileCache.checkCache(
+      { ...requestedSongInfo, quality: task.quality, exactQuality: true }, task.username, false,
+      { ignoreActiveProgress: true, preferredFolder: targetOnlyDownloadMode ? 'music' : 'cache' },
+    )
+    const hasPrivateCache = cached.exists && !cached.isCollision && cached.foundIn === task.username
     const suppliedUrl = task.resolvedUrl && task.resolvedUrlAt && Date.now() - task.resolvedUrlAt <= RESOLVED_URL_TTL
       ? task.resolvedUrl
       : undefined
@@ -491,7 +496,9 @@ const runTask = async (task: ServerDownloadTask) => {
     task.resolvedUrl = undefined
     task.resolvedUrlAt = undefined
     scheduleSave()
-    let resolved = suppliedUrl && suppliedUrlAt && Date.now() - suppliedUrlAt <= RESOLVED_URL_TTL
+    let resolved = hasPrivateCache
+      ? { url: '', quality: task.quality, songInfo: task.songInfo }
+      : suppliedUrl && suppliedUrlAt && Date.now() - suppliedUrlAt <= RESOLVED_URL_TTL
       ? {
         url: suppliedUrl,
         quality: task.quality,
@@ -502,7 +509,7 @@ const runTask = async (task: ServerDownloadTask) => {
       }
       : await resolver(task)
     if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
-    if (!resolved?.url) throw new Error('无法解析下载地址')
+    if (!resolved || (!resolved.url && !hasPrivateCache)) throw new Error('无法解析下载地址')
 
     const applyResolvedTarget = (nextResolved: ResolveResult) => {
       task.songInfo = requestedSongInfo
@@ -525,13 +532,10 @@ const runTask = async (task: ServerDownloadTask) => {
     try {
       await downloadResolvedSong(resolved)
     } catch (firstError: any) {
-      // The URL supplied by the browser can expire or be reachable only with
-      // browser-specific request context. A successful foreground playback
-      // must still produce a server cache, so refresh the source once before
-      // marking the background task as failed. This is intentionally limited
-      // to one retry to avoid duplicate paid-source requests and retry loops.
-      if (!suppliedUrl || controller.signal.aborted) throw firstError
-      console.warn(`[ServerDownloadQueue] Supplied cache URL failed for ${task.songKey}; refreshing source once`)
+      // A local cache can disappear before promotion, and a browser URL can
+      // expire. Resolve once more before marking the task as failed.
+      if ((!suppliedUrl && !hasPrivateCache) || controller.signal.aborted) throw firstError
+      console.warn(`[ServerDownloadQueue] Local cache or supplied URL failed for ${task.songKey}; refreshing source once`)
       resolved = await resolver(task)
       if (!resolved?.url) throw firstError
       await downloadResolvedSong(resolved)

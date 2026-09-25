@@ -86,6 +86,11 @@ export const clearUserSessionCache = (): void => {
   lastUserConfigReference = Symbol('reset')
 }
 
+export const revokeAllUserSessions = (): void => {
+  getDb().run('DELETE FROM user_sessions')
+  clearUserSessionCache()
+}
+
 /** 验证 Web 用户的 HttpOnly 会话，不再接受密码、Token 或用户名请求头。 */
 export const verifyUserAuth = (ctx: HttpContext | HeaderSource): string | null => {
   pruneUserSessions()

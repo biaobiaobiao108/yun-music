@@ -3,8 +3,8 @@ import path from 'node:path'
 import os from 'node:os'
 import { Router, type HttpContext } from '../core'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses, toUserMessage } from '../core/context'
-import { clearPlayerSessionCache, verifyAdminAuth } from '../auth'
-import { clearUserSessionCache } from './auth'
+import { revokeAllAdminSessions, revokeAllPlayerSessions, verifyAdminAuth } from '../auth'
+import { revokeAllUserSessions } from './auth'
 import { serverStatus } from '../state'
 import { startupLog } from '@/utils/log4js'
 import { resolveInside } from '@/utils/pathSecurity'
@@ -580,6 +580,13 @@ export const createSystemRouter = (): Router => {
         warning = '必须至少开启一种连接方式，已自动开启“根路径”模式。'
       }
 
+      const adminPasswordChanged = c['frontend.passwordHash'] !== originalConfig['frontend.passwordHash']
+        || c['frontend.password'] !== originalConfig['frontend.password']
+      const playerAuthChanged = c['player.passwordHash'] !== originalConfig['player.passwordHash']
+        || c['player.password'] !== originalConfig['player.password']
+        || Boolean(c['player.enableAuth']) !== Boolean(originalConfig['player.enableAuth'])
+      if (adminPasswordChanged) revokeAllAdminSessions()
+      if (playerAuthChanged) revokeAllPlayerSessions()
       if (global.lx.saveConfig) await global.lx.saveConfig()
 
       return ctx.json({ success: true, warning })
@@ -689,7 +696,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 6. 本地备份还原。上传内容只进入临时目录，完成路径/类型校验后才替换
-  // 用户数据和 SQLite；管理员会话本身保留，但所有播放器/用户会话都会失效。
+  // 用户数据和 SQLite；恢复后撤销所有会话，避免备份中的旧凭证重新生效。
   router.post('/api/backup/upload', async (ctx) => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     const declaredLength = Number(ctx.headers.get('content-length') || 0)
@@ -714,13 +721,14 @@ export const createSystemRouter = (): Router => {
           applyValidatedConfig(restoredConfig)
           resetUserSpaces()
           refreshUsersFromDatabase()
-          clearUserSessionCache()
-          clearPlayerSessionCache()
           if (global.lx.config.serverCacheLocation) {
             fileCache.setCacheLocation(global.lx.config.serverCacheLocation)
           }
           global.lx.config['cache.namingPattern'] = fileCache.setNamingPattern(global.lx.config['cache.namingPattern'])
           if (global.lx.saveConfig) await global.lx.saveConfig()
+          revokeAllUserSessions()
+          revokeAllPlayerSessions()
+          revokeAllAdminSessions()
         } catch (error) {
           for (const key of Object.keys(global.lx.config)) {
             if (!(key in previousConfig)) delete (global.lx.config as any)[key]

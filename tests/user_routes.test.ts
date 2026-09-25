@@ -56,6 +56,26 @@ describe('User snapshot permissions', () => {
     })
   )
 
+  test('personal settings use the logged-in user and preserve earlier keys', async () => {
+    const router = createUserRouter()
+    const save = (body: Record<string, unknown>, url = 'http://localhost/api/user/settings', headers = userHeaders) => router.handle(new Request(url, {
+      method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }))
+
+    expect((await save({ preferredQuality: 'flac' })).status).toBe(200)
+    expect((await save({ theme: 'dark' })).status).toBe(200)
+    const personal = await router.handle(new Request('http://localhost/api/user/settings', { headers: userHeaders }))
+    expect(await personal.json()).toEqual({ preferredQuality: 'flac', theme: 'dark' })
+    expect(getDb().query<{ value: string }, [string, string]>(
+      'SELECT value FROM user_settings WHERE user_name = ? AND key = ?'
+    ).get(username, 'settings')?.value).toBe(JSON.stringify({ preferredQuality: 'flac', theme: 'dark' }))
+
+    const publicSettings = await router.handle(new Request('http://localhost/api/user/settings?user=_open', { headers: userHeaders }))
+    expect(await publicSettings.json()).toEqual({})
+    expect((await save({ theme: 'light' }, 'http://localhost/api/user/settings?user=_open')).status).toBe(403)
+    expect((await save({ theme: 'light' }, 'http://localhost/api/user/settings?user=other')).status).toBe(403)
+  })
+
   test('public readers cannot upload, restore or delete snapshots through any public alias', async () => {
     const router = createUserRouter()
     for (const headers of [{}, userHeaders]) {
@@ -270,6 +290,29 @@ describe('Deleted account credentials', () => {
       body: JSON.stringify({ username, password: 'new-password' }),
     }))).status).toBe(200)
   }, 15_000)
+
+  test('changing a password revokes the account’s existing sessions', async () => {
+    const auth = createAuthRouter()
+    const login = (password: string) => auth.handle(new Request('http://localhost/api/user/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }))
+    const firstLogin = await login('old-password')
+    expect(firstLogin.status).toBe(200)
+    const cookie = firstLogin.headers.get('set-cookie')!.split(';')[0]
+    const authenticated = new Request('http://localhost/api/user/auth/verify', { headers: { cookie } })
+    expect(verifyUserAuth(authenticated)).toBe(username)
+
+    const changed = await createUserRouter().handle(new Request('http://localhost/api/users', {
+      method: 'PUT', headers: adminHeaders,
+      body: JSON.stringify({ name: username, password: 'new-password' }),
+    }))
+    expect(changed.status).toBe(200)
+    expect(verifyUserAuth(authenticated)).toBeNull()
+    expect(getDb().query('SELECT * FROM user_sessions WHERE user_name = ?').all(username)).toEqual([])
+    expect((await login('old-password')).status).toBe(401)
+    expect((await login('new-password')).status).toBe(200)
+  })
 
   test('authentication rejects cached and persisted sessions for users removed from configuration', async () => {
     const login = await createAuthRouter().handle(new Request('http://localhost/api/user/login', {

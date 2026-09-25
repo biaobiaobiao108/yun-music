@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
+import { ADMIN_SESSION_COOKIE_NAME, checkAdminSession, checkPlayerAuthSession, createAdminSession, createPlayerSession, SESSION_COOKIE_NAME } from '@/server/auth'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 import { closeDb } from '@/database'
 
@@ -141,11 +141,13 @@ describe('System Routes (routes/system.ts)', () => {
 
   test('POST /api/config stores admin and player passwords as hashes', async () => {
     const router = createSystemRouter()
+    const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const playerCookie = `${SESSION_COOKIE_NAME}=${createPlayerSession()}`
     const req = new Request('http://localhost:9527/api/config', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+        cookie: adminCookie,
       },
       body: JSON.stringify({
         'frontend.password': 'new-admin-secret',
@@ -160,6 +162,8 @@ describe('System Routes (routes/system.ts)', () => {
     expect(isPasswordHash(config['player.passwordHash'])).toBe(true)
     expect(config['frontend.password']).toBeUndefined()
     expect(config['player.password']).toBeUndefined()
+    expect(checkAdminSession(new Request('http://localhost/api/status', { headers: { cookie: adminCookie } }))).toBe(false)
+    expect(checkPlayerAuthSession({ [SESSION_COOKIE_NAME]: playerCookie.split('=')[1] })).toBe(false)
   })
 
   test('restored player password hashes satisfy the enabled-auth validation', async () => {

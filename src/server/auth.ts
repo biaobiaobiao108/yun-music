@@ -154,6 +154,11 @@ export const clearPlayerSessionCache = (): void => {
   lastPlayerSessionPruneAt = 0
 }
 
+export const revokeAllPlayerSessions = (): void => {
+  getDb().run('DELETE FROM player_sessions')
+  clearPlayerSessionCache()
+}
+
 export const createPlayerSession = (): string => {
   prunePlayerSessions()
   const sessionId = crypto.randomBytes(32).toString('hex')
@@ -215,6 +220,12 @@ export const createAdminSession = (): string => {
 export const removeAdminSession = (sessionId: string): void => {
   adminSessions.delete(sessionId)
   try { getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)]) } catch { }
+}
+
+export const revokeAllAdminSessions = (): void => {
+  getDb().run('DELETE FROM admin_sessions')
+  adminSessions.clear()
+  lastAdminSessionPruneAt = 0
 }
 
 export const checkAdminSession = (source: HeaderSource): boolean => {

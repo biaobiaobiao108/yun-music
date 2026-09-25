@@ -568,9 +568,13 @@ export const createCacheRouter = (): Router => {
       } catch {
         return ctx.fail(400, '下载地址不合法')
       }
-      const safeDownloadUrl = await assertSafeRemoteHttpUrl(requestedUrl)
-
       const username = target.username
+      const cached = fileCache.checkCache(
+        { ...songInfo, quality, exactQuality: true }, username, false,
+        { preferredFolder: enableOnlyDownloadMode ? 'music' : 'cache' },
+      )
+      const hasPrivateCache = cached.exists && !cached.isCollision && cached.foundIn === username
+      const safeDownloadUrl = hasPrivateCache ? null : await assertSafeRemoteHttpUrl(requestedUrl)
 
       if (namingPattern && verifyAdminAuth(ctx.request)) {
         const normalizedNamingPattern = fileCache.setNamingPattern(namingPattern)
@@ -582,7 +586,7 @@ export const createCacheRouter = (): Router => {
         id: songKey,
         songInfo,
         quality,
-        resolvedUrl: safeDownloadUrl.toString(),
+        resolvedUrl: safeDownloadUrl?.toString(),
         background: background === true,
         enableOnlyDownloadMode: !!enableOnlyDownloadMode,
         cacheLyric: cacheLyric !== false,

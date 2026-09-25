@@ -240,6 +240,47 @@ describe('Server download queue deduplication', () => {
     }
   })
 
+  test('promotes a private cache without resolving a remote URL', async () => {
+    const previousLx = (global as any).lx
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-queue-promote-'))
+    const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
+      exists: true, isCollision: false, foundIn: 'promote-user', folder: 'cache',
+      filename: 'cached-song.flac', path: '/tmp/cached-song.flac', quality: 'flac',
+    } as any)
+    const downloadAndCache = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
+    let resolverCalls = 0
+
+    try {
+      ;(global as any).lx = { dataPath: path.join(root, 'data'), config: {} }
+      initialize(async () => {
+        resolverCalls++
+        return { url: 'https://example.com/cached-song.flac', quality: 'flac' }
+      })
+      enqueue('promote-user', [{
+        id: 'wy_cached-song_flac',
+        songInfo: { source: 'wy', songmid: 'cached-song', name: 'Cached Song' },
+        quality: 'flac', enableOnlyDownloadMode: true,
+      }])
+
+      const deadline = Date.now() + 3000
+      let task = list('promote-user').find(item => item.id === 'wy_cached-song_flac')
+      while (Date.now() < deadline && task?.status !== 'finished') {
+        await new Promise(resolve => setTimeout(resolve, 20))
+        task = list('promote-user').find(item => item.id === 'wy_cached-song_flac')
+      }
+      expect(task?.status).toBe('finished')
+      expect(resolverCalls).toBe(0)
+      expect(downloadAndCache.mock.calls[0]?.[1]).toBe('')
+    } finally {
+      await new Promise(resolve => setTimeout(resolve, 220))
+      downloadAndCache.mockRestore()
+      checkCache.mockRestore()
+      closeDb()
+      ;(global as any).lx = previousLx
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
+    }
+  })
+
   test('refreshes a browser-supplied URL once while retaining the requested cache identity', async () => {
     const previousLx = (global as any).lx
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-queue-retry-'))
