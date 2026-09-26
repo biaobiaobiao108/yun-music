@@ -785,6 +785,18 @@ export function PlayerApp() {
   const required = useAuthStore(state => state.playerAuthRequired)
   const authenticated = useAuthStore(state => state.playerAuthenticated)
   const hydrate = useAuthStore(state => state.hydrate)
+  useEffect(() => {
+    const root = document.documentElement
+    const onPointerDown = () => root.setAttribute('data-focus-modality', 'pointer')
+    const onKeyDown = () => root.removeAttribute('data-focus-modality')
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown, true)
+      root.removeAttribute('data-focus-modality')
+    }
+  }, [])
   useEffect(() => { void hydrate() }, [hydrate])
   if (checking) return <main className="react-player-loading"><Loading label="正在准备播放器…" /></main>
   if (required && !authenticated) return <PlayerAuthGate />

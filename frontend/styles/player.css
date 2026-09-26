@@ -11260,3 +11260,10 @@ textarea:focus-visible {
         box-shadow: none;
     }
 }
+
+/* A pointer click can leave some browsers reporting focus-visible on buttons.
+   Suppress its ring until keyboard input returns focus styling to the user. */
+html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea, [tabindex]):focus {
+    outline: 0 !important;
+    box-shadow: none !important;
+}
