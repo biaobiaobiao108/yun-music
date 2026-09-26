@@ -32,10 +32,20 @@ export const resolveInside = (root: string, ...parts: string[]): string => {
   if (!isPathInside(resolvedRoot, candidate)) throw new Error('Path escapes allowed directory')
 
   const realRoot = fs.existsSync(resolvedRoot) ? fs.realpathSync.native(resolvedRoot) : resolvedRoot
-  const probe = fs.existsSync(candidate) ? candidate : path.dirname(candidate)
-  if (fs.existsSync(probe)) {
-    const realProbe = fs.realpathSync.native(probe)
-    if (!isPathInside(realRoot, realProbe)) throw new Error('Path escapes allowed directory')
+  // Resolve the nearest existing ancestor. Checking only the direct parent
+  // misses a symlink when multiple child directories do not exist yet.
+  let probe = candidate
+  while (probe !== resolvedRoot) {
+    try {
+      const realProbe = fs.realpathSync.native(probe)
+      if (!isPathInside(realRoot, realProbe)) throw new Error('Path escapes allowed directory')
+      return candidate
+    } catch (error) {
+      if (!isMissingPathError(error)) throw error
+      const parent = path.dirname(probe)
+      if (parent === probe) break
+      probe = parent
+    }
   }
   return candidate
 }
