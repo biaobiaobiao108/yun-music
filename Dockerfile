@@ -33,7 +33,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun install --production --frozen-lockfile && \
-  find node_modules -type f \( -name "*.map" -o -name "*.md" -o -name "*.ts" ! -name "*.d.ts" \) -delete 2>/dev/null || true
+  (find node_modules -type f \( -name "*.map" -o -name "*.md" -o -name "*.ts" ! -name "*.d.ts" \) -delete 2>/dev/null || true)
 
 # Stage 3: Ultra-slim Production Runner
 FROM oven/bun:${BUN_VERSION}-alpine AS runner
