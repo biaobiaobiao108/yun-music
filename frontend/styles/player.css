@@ -305,8 +305,7 @@ body.overlay-open > *:not(.skip-link) {
 }
 
 @media (max-width: 900px) {
-    #root .react-player-drawer.react-queue-drawer,
-    #root .react-player-drawer.react-download-drawer {
+    #root .react-player-drawer.react-glass-drawer {
         --player-footer-reserved-height: 7.5rem;
         bottom: calc(var(--player-footer-reserved-height) + .55rem + max(.6rem, env(safe-area-inset-bottom, 0px)) + .75rem);
         inset-block-end: calc(var(--player-footer-reserved-height) + .55rem + max(.6rem, env(safe-area-inset-bottom, 0px)) + .75rem);
@@ -1266,11 +1265,6 @@ html, body {
 .react-queue-list small, .react-task-list small { color: var(--text-muted); font-size: .74rem; }
 .react-task-progress { display: block; width: 100%; height: .32rem; margin-top: .2rem; accent-color: var(--c-500); }
 .react-queue-list li > button:last-child, .react-task-list li > button { width: 2rem; height: 2rem; border: 0; background: transparent; color: var(--text-dim); cursor: pointer; }
-.react-cache-stats { display: grid; grid-template-columns: repeat(2,1fr); gap: .5rem; }
-.react-cache-stats div { padding: .75rem; border-radius: .65rem; background: color-mix(in srgb, var(--c-500) 9%, transparent); }
-.react-cache-stats span, .react-cache-stats strong { display: block; }
-.react-cache-stats span { color: var(--text-muted); font-size: .73rem; }
-.react-cache-stats strong { margin-top: .2rem; }
 .react-drawer-toolbar { display: flex; justify-content: flex-end; padding: .8rem 0; border-bottom: 1px solid var(--border-main); }
 .react-empty-text { padding: 2rem 0; color: var(--text-muted); text-align: center; }
 .react-player-footer { position: fixed; z-index: 80; right: 0; bottom: 0; left: 15rem; min-height: 5.2rem; display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.35fr) minmax(160px, .8fr); align-items: center; gap: 1rem; padding: .65rem clamp(.8rem, 2.5vw, 2rem); background: var(--bg-panel); border-top: 1px solid var(--border-main); }
@@ -10926,8 +10920,8 @@ textarea:focus-visible {
     }
 }
 
-/* Reference-style playlist drawer: reuse the footer's translucent surface,
-   while keeping the queue itself inside the available visual viewport. */
+/* Queue and cache drawers share the footer's translucent surface and stay
+   above the footer inside the available visual viewport. */
 .react-drawer-actions {
     display: flex;
     flex: 0 0 auto;
@@ -10936,7 +10930,7 @@ textarea:focus-visible {
     gap: .25rem;
 }
 
-.react-player-drawer.react-queue-drawer {
+.react-player-drawer.react-glass-drawer {
     top: max(var(--player-shell-gap, 1rem), env(safe-area-inset-top, 0px));
     bottom: calc(max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + var(--player-footer-reserved-height, 4.75rem) + .75rem);
     right: max(var(--player-shell-gap, 1rem), env(safe-area-inset-right, 0px));
@@ -10960,19 +10954,14 @@ textarea:focus-visible {
     transition: transform 220ms cubic-bezier(.22, 1, .36, 1);
 }
 
-.react-player-drawer.react-download-drawer {
-    bottom: calc(max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + var(--player-footer-reserved-height, 4.75rem) + .75rem);
-    inset-block-end: calc(max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + var(--player-footer-reserved-height, 4.75rem) + .75rem);
-}
-
-.react-queue-drawer .react-drawer-header {
+.react-glass-drawer .react-drawer-header {
     flex: 0 0 auto;
     min-width: 0;
     padding: .85rem 1rem .5rem;
     border-bottom: 0;
 }
 
-.react-queue-drawer .react-drawer-header h2 {
+.react-glass-drawer .react-drawer-header h2 {
     display: flex;
     min-width: 0;
     align-items: baseline;
@@ -10983,18 +10972,18 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
-.react-queue-count {
+.react-drawer-count {
     color: var(--app-text-muted);
     font-size: .68em;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
 
-.react-queue-drawer .react-drawer-actions {
+.react-glass-drawer .react-drawer-actions {
     gap: .25rem;
 }
 
-.react-queue-drawer .react-icon-button {
+.react-glass-drawer .react-icon-button {
     position: relative;
     width: 2.5rem;
     height: 2.5rem;
@@ -11005,23 +10994,23 @@ textarea:focus-visible {
     transition: color 140ms ease, background-color 140ms ease;
 }
 
-.react-queue-drawer .react-icon-button:hover,
-.react-queue-drawer .react-icon-button:focus-visible {
+.react-glass-drawer .react-icon-button:hover,
+.react-glass-drawer .react-icon-button:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-text) 8%, transparent);
 }
 
-.react-queue-drawer .react-icon-button:focus:not(:focus-visible) {
+.react-glass-drawer .react-icon-button:focus:not(:focus-visible) {
     outline: 0;
     box-shadow: none;
 }
 
-.react-queue-drawer .react-icon-button:focus-visible {
+.react-glass-drawer .react-icon-button:focus-visible {
     outline: 0;
     box-shadow: inset 0 0 0 1px var(--app-accent);
 }
 
-.react-queue-drawer .react-icon-button:disabled {
+.react-glass-drawer .react-icon-button:disabled {
     cursor: default;
     opacity: .42;
 }
@@ -11034,14 +11023,14 @@ textarea:focus-visible {
     font-weight: 800;
 }
 
-.react-queue-header-separator {
+.react-drawer-header-separator {
     width: 1px;
     height: 1.4rem;
     margin-inline: .15rem;
     background: color-mix(in srgb, var(--app-text-muted) 34%, transparent);
 }
 
-.react-queue-drawer .react-drawer-body {
+.react-glass-drawer .react-drawer-body {
     flex: 1 1 auto;
     min-height: 0;
     padding: .25rem .75rem 1rem;
@@ -11049,6 +11038,177 @@ textarea:focus-visible {
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
+}
+
+.react-download-drawer .react-drawer-body {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    overflow: hidden;
+}
+
+.react-cache-stats {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .4rem;
+}
+
+.react-cache-stats > div {
+    display: flex;
+    min-width: 0;
+    min-height: 2.2rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: .35rem;
+    box-sizing: border-box;
+    padding: .3rem .6rem;
+    border: 1px solid var(--app-border);
+    border-radius: .7rem;
+    background: color-mix(in srgb, var(--app-surface-soft) 72%, var(--app-bg-raised) 28%);
+}
+
+.react-cache-stats span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--app-text-muted);
+    font-size: .68rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-cache-stats strong {
+    flex: 0 0 auto;
+    color: var(--app-text);
+    font-size: .8rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+.react-cache-task-list {
+    display: grid;
+    flex: 1 1 auto;
+    align-content: start;
+    gap: .15rem;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    list-style: none;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+.react-cache-task {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr) 2.5rem;
+    align-items: center;
+    gap: .65rem;
+    min-width: 0;
+    padding: .3rem;
+    border-radius: .9rem;
+    transition: background-color 140ms ease;
+}
+
+.react-cache-task:hover,
+.react-cache-task:focus-within {
+    background: color-mix(in srgb, var(--app-text) 8%, transparent);
+}
+
+.react-cache-cover {
+    display: block;
+    width: 2.75rem;
+    height: 2.75rem;
+    overflow: hidden;
+    border-radius: .55rem;
+    background: var(--app-surface-soft);
+}
+
+.react-cache-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.react-cache-meta {
+    display: grid;
+    min-width: 0;
+    gap: .15rem;
+}
+
+.react-cache-meta strong,
+.react-cache-meta small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-cache-meta strong {
+    color: var(--app-text);
+    font-size: .9rem;
+    font-weight: 600;
+}
+
+.react-cache-meta small {
+    color: var(--app-text-muted);
+    font-size: .76rem;
+}
+
+.react-cache-task .react-task-progress {
+    width: 100%;
+    height: .22rem;
+    margin-top: .08rem;
+    accent-color: var(--app-accent);
+}
+
+.react-cache-empty {
+    display: grid;
+    flex: 1 1 auto;
+    min-height: 8rem;
+    place-items: center;
+}
+
+.react-cache-empty .react-empty-text {
+    padding: 1.25rem 0;
+    margin: 0;
+}
+
+.react-cache-remove {
+    display: inline-grid;
+    flex: 0 0 2.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border: 0;
+    border-radius: .7rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(.96);
+    transition: opacity 140ms ease, transform 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.react-cache-task:hover .react-cache-remove,
+.react-cache-task:focus-within .react-cache-remove {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+}
+
+.react-cache-remove:hover,
+.react-cache-remove:focus-visible {
+    color: var(--app-text);
+    background: color-mix(in srgb, var(--app-text) 10%, transparent);
+}
+
+.react-cache-remove:focus-visible {
+    outline: 0;
+    box-shadow: inset 0 0 0 1px var(--app-accent);
 }
 
 .react-queue-list {
@@ -11195,7 +11355,7 @@ textarea:focus-visible {
 }
 
 @media (max-width: 360px) {
-    .react-player-drawer.react-queue-drawer {
+    .react-player-drawer.react-glass-drawer {
         top: max(.5rem, env(safe-area-inset-top, 0px));
         right: max(.5rem, env(safe-area-inset-right, 0px));
         inset-block-start: max(.5rem, env(safe-area-inset-top, 0px));
@@ -11205,20 +11365,20 @@ textarea:focus-visible {
         max-block-size: calc(100dvh - 1rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     }
 
-    .react-queue-drawer .react-drawer-header {
+    .react-glass-drawer .react-drawer-header {
         padding: .7rem .65rem .4rem;
     }
 
-    .react-queue-drawer .react-icon-button {
+    .react-glass-drawer .react-icon-button {
         width: 2.25rem;
         min-width: 2.25rem;
     }
 
-    .react-queue-header-separator {
+    .react-drawer-header-separator {
         display: none;
     }
 
-    .react-queue-drawer .react-drawer-body {
+    .react-glass-drawer .react-drawer-body {
         padding-inline: .45rem;
     }
 
@@ -11231,6 +11391,21 @@ textarea:focus-visible {
         width: 2.5rem;
         height: 2.5rem;
     }
+
+    .react-cache-task {
+        grid-template-columns: 2.5rem minmax(0, 1fr) 2.25rem;
+        gap: .5rem;
+    }
+
+    .react-cache-cover {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    .react-cache-remove {
+        width: 2.25rem;
+        height: 2.25rem;
+    }
 }
 
 @media (hover: none), (pointer: coarse) {
@@ -11240,13 +11415,22 @@ textarea:focus-visible {
         transform: none;
         visibility: visible;
     }
+
+    .react-cache-remove {
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
+        visibility: visible;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .react-player-drawer.react-queue-drawer,
+    .react-player-drawer.react-glass-drawer,
     .react-queue-drawer .react-queue-list li,
+    .react-cache-task,
     .react-queue-remove,
-    .react-queue-drawer .react-icon-button {
+    .react-cache-remove,
+    .react-glass-drawer .react-icon-button {
         transition: none;
     }
 }
@@ -11254,7 +11438,8 @@ textarea:focus-visible {
 @media (forced-colors: active) {
     .react-queue-song:focus-visible,
     .react-queue-remove:focus-visible,
-    .react-queue-drawer .react-icon-button:focus-visible {
+    .react-cache-remove:focus-visible,
+    .react-glass-drawer .react-icon-button:focus-visible {
         outline: 1px solid Highlight;
         outline-offset: -1px;
         box-shadow: none;
