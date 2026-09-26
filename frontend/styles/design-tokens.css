@@ -8,6 +8,7 @@
     --app-sidebar: #ffffff;
     --app-surface: rgba(255, 255, 255, .82);
     --app-surface-solid: #ffffff;
+    --app-surface-glass: rgba(255, 255, 255, .42);
     --app-surface-soft: #f0eff5;
     --app-border: rgba(32, 28, 48, .11);
     --app-border-strong: rgba(32, 28, 48, .18);
@@ -36,6 +37,7 @@
     --app-sidebar: #211e2e;
     --app-surface: rgba(39, 35, 54, .78);
     --app-surface-solid: #292538;
+    --app-surface-glass: rgba(41, 37, 56, .42);
     --app-surface-soft: #302b42;
     --app-border: rgba(239, 235, 250, .105);
     --app-border-strong: rgba(239, 235, 250, .18);
@@ -59,6 +61,7 @@
         --app-sidebar: #211e2e;
         --app-surface: rgba(39, 35, 54, .78);
         --app-surface-solid: #292538;
+        --app-surface-glass: rgba(41, 37, 56, .42);
         --app-surface-soft: #302b42;
         --app-border: rgba(239, 235, 250, .105);
         --app-border-strong: rgba(239, 235, 250, .18);

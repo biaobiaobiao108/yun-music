@@ -1,9 +1,9 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
-import { Button, Drawer, Icon, Loading, Modal, ToastRegion } from './components'
+import { Button, Drawer, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
-import { songAlbum, songArtist, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
+import { songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from './player_history'
 import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
@@ -575,7 +575,43 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const currentIndex = usePlaybackStore(state => state.currentIndex)
   const playSong = usePlaybackStore(state => state.playSong)
   const remove = usePlaybackStore(state => state.removeFromQueue)
-  return <Drawer open={open} title={`播放队列（${queue.length}）`} onClose={onClose} labelledBy="queue-title"><ol className="react-queue-list">{queue.map((song, index) => <li key={`${songKey(song)}-${index}`} className={index === currentIndex ? 'is-current' : ''}><button type="button" onClick={() => playSong(song, queue, index)}><span>{index + 1}</span><span><strong>{songTitle(song)}</strong><small>{String(song.singer || '')}</small></span></button><button type="button" aria-label={`移除 ${songTitle(song)}`} onClick={() => remove(index)}><Icon name="xmark" /></button></li>)}</ol>{!queue.length && <p className="react-empty-text">队列为空</p>}</Drawer>
+  const mode = usePlaybackStore(state => state.mode)
+  const setMode = usePlaybackStore(state => state.setMode)
+  const clearQueue = usePlaybackStore(state => state.clearQueue)
+  const modeLabel = mode === 'random' ? '随机播放' : mode === 'single' ? '单曲循环' : '列表循环'
+  const cycleMode = () => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')
+
+  return <Drawer
+    open={open}
+    title="播放列表"
+    titleSuffix={<small className="react-queue-count">{queue.length}</small>}
+    onClose={onClose}
+    labelledBy="queue-title"
+    className="react-queue-drawer"
+    headerActions={<>
+      <button type="button" className={`react-icon-button react-queue-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={'播放模式：' + modeLabel} aria-pressed={mode !== 'list'} title={modeLabel} onClick={cycleMode}>
+        <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}
+      </button>
+      <button type="button" className="react-icon-button" aria-label="清空播放列表" title="清空播放列表" disabled={!queue.length} onClick={clearQueue}>
+        <Icon name="trash" />
+      </button>
+      <span className="react-queue-header-separator" aria-hidden="true" />
+    </>}
+  >
+    <ol className="react-queue-list">
+      {queue.map((song, index) => <li key={`${songKey(song)}-${index}`} className={index === currentIndex ? 'is-current' : ''} aria-current={index === currentIndex ? 'true' : undefined}>
+        <button type="button" className="react-queue-song" onClick={() => playSong(song, queue, index)}>
+          <span className="react-queue-cover"><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /></span>
+          <span className="react-queue-meta"><strong title={songTitle(song)}>{songTitle(song)}</strong><small title={songArtist(song)}>{songArtist(song)}</small></span>
+          <time className="react-queue-duration">{formatDuration(songDurationValue(song))}</time>
+        </button>
+        <button type="button" className="react-queue-remove" aria-label={'移除 ' + songTitle(song)} title="从播放列表移除" onClick={() => remove(index)}>
+          <Icon name="trash" />
+        </button>
+      </li>)}
+    </ol>
+    {!queue.length && <p className="react-empty-text">播放列表为空</p>}
+  </Drawer>
 }
 
 function cacheTaskText(value: unknown): string {
@@ -627,7 +663,7 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
     if (!completedCount) return
     try { await removeCompleted(); notify(`已清理 ${completedCount} 个已完成任务`) } catch (error) { notify(error instanceof Error ? error.message : '清理任务失败') }
   }
-  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load({ force: true })}><Icon name="rotate" />刷新</Button><Button onClick={() => void clearCompleted()} disabled={!completedCount}><Icon name="broom" />清理已完成{completedCount ? `（${completedCount}）` : ''}</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); const artist = cacheTaskArtist(task); const progress = cacheTaskProgress(task); const status = cacheTaskStatus(task.status); return <li key={`${id}-${index}`}><span><strong>{cacheTaskName(task)}</strong><small>{artist ? `${artist} · ` : ''}{status}{progress === null ? '' : ` · ${progress}%`}</small>{progress !== null && <progress className="react-task-progress" max="100" value={progress} aria-label={`${cacheTaskName(task)}下载进度`}>{progress}%</progress>}</span><button type="button" onClick={() => void remove(id)} aria-label={`移除${cacheTaskName(task)}`}><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
+  return <Drawer open={open} title="缓存与下载" onClose={onClose} labelledBy="cache-title" className="react-download-drawer"><div className="react-cache-stats"><div><span>缓存</span><strong>{formatBytes(cacheSize)}</strong></div><div><span>下载</span><strong>{formatBytes(musicSize)}</strong></div></div><div className="react-drawer-toolbar"><Button onClick={() => void load({ force: true })}><Icon name="rotate" />刷新</Button><Button onClick={() => void clearCompleted()} disabled={!completedCount}><Icon name="broom" />清理已完成{completedCount ? `（${completedCount}）` : ''}</Button></div>{tasks.length ? <ul className="react-task-list">{tasks.map((task, index) => { const id = String(task.id ?? task.songKey ?? index); const artist = cacheTaskArtist(task); const progress = cacheTaskProgress(task); const status = cacheTaskStatus(task.status); return <li key={`${id}-${index}`}><span><strong>{cacheTaskName(task)}</strong><small>{artist ? `${artist} · ` : ''}{status}{progress === null ? '' : ` · ${progress}%`}</small>{progress !== null && <progress className="react-task-progress" max="100" value={progress} aria-label={`${cacheTaskName(task)}下载进度`}>{progress}%</progress>}</span><button type="button" onClick={() => void remove(id)} aria-label={`移除${cacheTaskName(task)}`}><Icon name="xmark" /></button></li> })}</ul> : <p className="react-empty-text">暂无下载任务</p>}</Drawer>
 }
 
 function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {

@@ -155,6 +155,41 @@ describe('React player module boundaries', () => {
     expect(pauseCalls).toBe(1)
   })
 
+  it('clears playback queue and progress while preserving mode and quality', () => {
+    let pauseCalls = 0
+    connectAudioCommands({ play: () => undefined, pause: () => { pauseCalls += 1 }, seek: () => undefined, volume: () => undefined })
+    const song = { source: 'wy', songmid: 'queue-clear', name: '清空测试' }
+    usePlaybackStore.setState({
+      queue: [song],
+      currentIndex: 0,
+      currentSong: song,
+      isPlaying: true,
+      currentTime: 42,
+      duration: 180,
+      mode: 'random',
+      quality: '320k',
+      resolvedUrl: 'https://example.invalid/audio',
+      resolving: false,
+      error: '',
+    })
+
+    usePlaybackStore.getState().clearQueue()
+
+    expect(usePlaybackStore.getState()).toMatchObject({
+      queue: [],
+      currentIndex: -1,
+      currentSong: null,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+      resolvedUrl: null,
+      resolving: false,
+      mode: 'random',
+      quality: '320k',
+    })
+    expect(pauseCalls).toBe(1)
+  })
+
   it('publishes the reference navigation and shared theme contracts', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
     const library = read('frontend/player/src/react/library_views.tsx')

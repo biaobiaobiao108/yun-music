@@ -36,6 +36,7 @@ export type PlaybackState = {
   previous: () => void
   enqueue: (songs: Song[]) => void
   removeFromQueue: (index: number) => void
+  clearQueue: () => void
   reset: () => void
   hydrate: () => void
 }
@@ -255,6 +256,24 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const currentSong = currentIndex >= 0 ? queue[currentIndex] ?? null : null
     set({ queue, currentIndex, currentSong })
     persistPlaybackNow({ ...state, queue, currentIndex, currentSong })
+  },
+  clearQueue: () => {
+    const state = get()
+    if (!state.queue.length && !state.currentSong && !state.isPlaying && state.currentIndex < 0 && state.currentTime === 0 && state.duration === 0 && !state.resolvedUrl && !state.resolving && !state.error) return
+    pauseCommand()
+    const cleared = {
+      queue: [],
+      currentIndex: -1,
+      currentSong: null,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+      resolvedUrl: null,
+      resolving: false,
+      error: '',
+    }
+    set(cleared)
+    persistPlaybackNow({ ...state, ...cleared })
   },
   reset: () => {
     pauseCommand()
