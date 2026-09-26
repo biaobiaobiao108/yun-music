@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createPlayerHistoryController } from '../frontend/player/src/react/player_history'
-import { songAlbum, songArtist, songDurationValue, songFormatValue, songSizeBytes, songSizeValue, songTitle } from '../frontend/player/src/react/types'
+import { formatSongDuration, songAlbum, songArtist, songDurationValue, songFormatValue, songSizeBytes, songSizeValue, songTitle } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
@@ -175,6 +175,25 @@ describe('React player navigation and state restoration', () => {
     expect(songDurationValue({ meta: { interval: '03:21' } })).toBe('03:21')
     expect(songFormatValue({ meta: { ext: 'flac' } })).toBe('flac')
     expect(songAlbum({ name: '没有专辑' })).toBe('—')
+  })
+
+  it('formats source-shaped duration strings instead of rendering them as zero', () => {
+    expect(formatSongDuration('04:15')).toBe('04:15')
+    expect(formatSongDuration('4:5')).toBe('04:05')
+    expect(formatSongDuration('1:02:03')).toBe('62:03')
+    expect(formatSongDuration(251000)).toBe('04:11')
+    expect(formatSongDuration('--/--')).toBe('—')
+    expect(formatSongDuration(undefined)).toBe('—')
+  })
+
+  it('uses fixed queue columns and swaps duration for the remove control on hover', () => {
+    const shell = read('frontend/player/src/react/shell.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(shell).toContain('formatSongDuration(songDurationValue(song))')
+    expect(css).toContain('grid-template-columns: 2.75rem minmax(0, 1fr) 3.25rem')
+    expect(css).toContain('text-align: right;')
+    expect(css).toContain('.react-queue-drawer .react-queue-list li:hover .react-queue-duration')
+    expect(css).toContain('visibility 0s linear var(--app-motion-fast, 140ms)')
   })
 
   it('keeps the normal footer order and exposes the portal song action flow', () => {

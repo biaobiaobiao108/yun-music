@@ -3,8 +3,8 @@ import { playerApi, playlistIcon, type CacheTask } from './api'
 import { Button, Drawer, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
-import { songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
-import { formatDuration, safeImageUrl } from '../../../shared/src/runtime'
+import { formatSongDuration, songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
+import { safeImageUrl } from '../../../shared/src/runtime'
 import { createPlayerHistoryController } from './player_history'
 import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
 import { emitPlaybackService } from './playback_service'
@@ -603,7 +603,7 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
         <button type="button" className="react-queue-song" onClick={() => playSong(song, queue, index)}>
           <span className="react-queue-cover"><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /></span>
           <span className="react-queue-meta"><strong title={songTitle(song)}>{songTitle(song)}</strong><small title={songArtist(song)}>{songArtist(song)}</small></span>
-          <time className="react-queue-duration">{formatDuration(songDurationValue(song))}</time>
+          <time className="react-queue-duration">{formatSongDuration(songDurationValue(song))}</time>
         </button>
         <button type="button" className="react-queue-remove" aria-label={'移除 ' + songTitle(song)} title="从播放列表移除" onClick={() => remove(index)}>
           <Icon name="trash" />

@@ -11241,9 +11241,11 @@ textarea:focus-visible {
 
 .react-queue-song {
     display: grid;
-    flex: 1 1 auto;
+    flex: 1 1 0%;
     min-width: 0;
-    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+    width: 0;
+    box-sizing: border-box;
+    grid-template-columns: 2.75rem minmax(0, 1fr) 3.25rem;
     align-items: center;
     gap: .75rem;
     padding: .3rem;
@@ -11262,8 +11264,11 @@ textarea:focus-visible {
 
 .react-queue-cover {
     display: block;
+    flex: 0 0 2.75rem;
     width: 2.75rem;
     height: 2.75rem;
+    aspect-ratio: 1;
+    box-sizing: border-box;
     overflow: hidden;
     border-radius: .55rem;
     background: var(--app-surface-soft);
@@ -11273,6 +11278,7 @@ textarea:focus-visible {
     display: block;
     width: 100%;
     height: 100%;
+    aspect-ratio: 1;
     object-fit: cover;
 }
 
@@ -11301,11 +11307,27 @@ textarea:focus-visible {
 }
 
 .react-queue-duration {
-    padding-inline-start: .25rem;
+    width: 3.25rem;
+    justify-self: end;
+    box-sizing: border-box;
+    padding-inline: 0 .1rem;
     color: var(--app-text-muted);
     font-size: .88rem;
     font-variant-numeric: tabular-nums;
+    text-align: right;
     white-space: nowrap;
+    opacity: 1;
+    transform: translateX(0);
+    visibility: visible;
+    transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease, visibility 0s;
+}
+
+.react-queue-drawer .react-queue-list li:hover .react-queue-duration,
+.react-queue-drawer .react-queue-list li:focus-within .react-queue-duration {
+    opacity: 0;
+    transform: translateX(.2rem);
+    visibility: hidden;
+    transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease, visibility 0s linear var(--app-motion-fast, 140ms);
 }
 
 .react-queue-remove {
@@ -11323,7 +11345,7 @@ textarea:focus-visible {
     pointer-events: none;
     transform: scale(.96);
     visibility: hidden;
-    transition: opacity 140ms ease, transform 140ms ease, color 140ms ease, background-color 140ms ease, visibility 140ms;
+    transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease, color var(--app-motion-fast, 140ms) ease, background-color var(--app-motion-fast, 140ms) ease, visibility 0s linear var(--app-motion-fast, 140ms);
 }
 
 .react-queue-drawer .react-queue-list li:hover .react-queue-remove,
@@ -11332,6 +11354,7 @@ textarea:focus-visible {
     pointer-events: auto;
     transform: scale(1);
     visibility: visible;
+    transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease, color var(--app-motion-fast, 140ms) ease, background-color var(--app-motion-fast, 140ms) ease, visibility 0s;
 }
 
 .react-queue-remove:hover,
@@ -11383,13 +11406,19 @@ textarea:focus-visible {
     }
 
     .react-queue-song {
-        grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+        grid-template-columns: 2.5rem minmax(0, 1fr) 3rem;
         gap: .55rem;
     }
 
     .react-queue-cover {
+        flex-basis: 2.5rem;
         width: 2.5rem;
         height: 2.5rem;
+    }
+
+    .react-queue-duration {
+        width: 3rem;
+        font-size: .82rem;
     }
 
     .react-cache-task {
@@ -11409,6 +11438,13 @@ textarea:focus-visible {
 }
 
 @media (hover: none), (pointer: coarse) {
+    .react-queue-duration {
+        opacity: 1;
+        transform: none;
+        visibility: visible;
+        transition: none;
+    }
+
     .react-queue-remove {
         opacity: 1;
         pointer-events: auto;
@@ -11427,6 +11463,7 @@ textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
     .react-player-drawer.react-glass-drawer,
     .react-queue-drawer .react-queue-list li,
+    .react-queue-duration,
     .react-cache-task,
     .react-queue-remove,
     .react-cache-remove,

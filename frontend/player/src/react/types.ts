@@ -1,4 +1,4 @@
-import { parseByteSize } from '../../../shared/src/runtime'
+import { formatDuration, parseByteSize } from '../../../shared/src/runtime'
 
 export type Song = Record<string, unknown> & {
   id?: string | number
@@ -144,6 +144,25 @@ export function songDurationValue(song: Song | null | undefined): unknown {
     ?? songInfo.interval ?? songInfo.duration ?? songInfo.durationMs
     ?? info.interval ?? info.duration ?? info.durationMs
     ?? data.interval ?? data.duration ?? data.durationMs
+}
+
+export function formatSongDuration(value: unknown): string {
+  if (value === undefined || value === null) return '—'
+  if (typeof value === 'string') {
+    const text = value.trim()
+    if (!text || text === '--/--') return '—'
+    const parts = /^(\d+):([0-5]?\d)(?::([0-5]?\d))?$/.exec(text)
+    if (parts) {
+      const minutes = parts[3] === undefined
+        ? Number(parts[1])
+        : Number(parts[1]) * 60 + Number(parts[2])
+      const seconds = parts[3] === undefined ? Number(parts[2]) : Number(parts[3])
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    }
+    value = Number(text)
+  }
+  const numeric = Number(value)
+  return Number.isFinite(numeric) && numeric >= 0 ? formatDuration(numeric) : '—'
 }
 
 export function songFormatValue(song: Song | null | undefined): unknown {
