@@ -108,6 +108,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   const setCurrentSongUrl = usePlaybackStore(state => state.setCurrentSongUrl)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const setImmersiveLyrics = usePlayerUiStore(state => state.setImmersiveLyrics)
+  const drawer = usePlayerUiStore(state => state.drawer)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const notify = usePlayerUiStore(state => state.notify)
   const openAddToList = usePlayerUiStore(state => state.openAddToList)
@@ -224,7 +225,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   }, [setDialog])
 
   const openQueue = () => {
-    setDrawer('queue')
+    setDrawer(drawer === 'queue' ? null : 'queue')
   }
 
   const openLyrics = (event: MouseEvent<HTMLButtonElement>) => {
@@ -265,7 +266,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
         <div className="react-footer-actions">
           <button ref={songMenuButtonRef} type="button" className="player-secondary-action react-song-menu-button" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!isActive || !currentSong} tabIndex={!isActive ? -1 : undefined}><Icon name="ellipsis" /></button>
           <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
-          <button type="button" className="player-secondary-action" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button>
+          <button type="button" className="player-secondary-action" aria-label={drawer === 'queue' ? '关闭播放队列' : '打开播放队列'} aria-expanded={drawer === 'queue'} onClick={openQueue}><Icon name="list" /></button>
           <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} />
         </div>
       </>}
