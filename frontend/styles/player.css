@@ -11323,7 +11323,7 @@ textarea:focus-visible {
 .react-queue-duration {
     width: 3.25rem;
     box-sizing: border-box;
-    padding-inline: 0 .1rem;
+    padding-inline: 0 .3rem;
     color: var(--app-text-muted);
     font-size: .88rem;
     font-variant-numeric: tabular-nums;
