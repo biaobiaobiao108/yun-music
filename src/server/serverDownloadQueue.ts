@@ -9,6 +9,8 @@ export interface ServerDownloadTask {
   username: string
   songKey: string
   activeSongKey?: string
+  /** Ephemeral per-user/task key for the process-global cache progress map. */
+  progressKey?: string
   songInfo: any
   quality: string
   requestedQuality: string
@@ -65,6 +67,8 @@ export const MAX_PENDING_TASKS_PER_USER = 500
 export const MAX_HISTORY_PER_USER = 200
 const tasks = new Map<string, ServerDownloadTask>()
 const controllers = new Map<string, AbortController>()
+// Removed tasks keep their execution slot until their resolver/download settles.
+const activeTasks = new Map<string, ServerDownloadTask>()
 const concurrencyByUser = new Map<string, number>()
 const taskIdentityIndex = new Map<string, string>()
 const pendingCountByUser = new Map<string, number>()
@@ -75,6 +79,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 let saveChain: Promise<void> = Promise.resolve()
 
 const taskMapKey = (username: string, id: string) => `${username}:${id}`
+const getTaskProgressKey = (username: string, id: string) => `queue:${encodeURIComponent(username)}:${encodeURIComponent(id)}`
 const getQueueFile = () => path.join(global.lx.dataPath, 'server-download-queue.json')
 const validStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', 'tagging', 'paused', 'finished', 'exists', 'error'])
 const resumableStatuses = new Set<ServerDownloadStatus>(['waiting', 'downloading', 'tagging', 'paused'])
@@ -137,6 +142,7 @@ export const serializeDownloadTask = (task: ServerDownloadTask) => {
   const {
     resolvedUrl: _resolvedUrl,
     resolvedUrlAt: _resolvedUrlAt,
+    progressKey: _progressKey,
     ...persistedTask
   } = task
   return {
@@ -381,7 +387,7 @@ const loadTasks = () => {
 
 const getPublicTask = (task: ServerDownloadTask) => {
   const live = task.status === 'downloading' && task.activeSongKey && controllers.has(taskMapKey(task.username, task.id))
-    ? fileCache.cacheProgress.get(task.activeSongKey)
+    ? fileCache.cacheProgress.get(task.progressKey || task.activeSongKey)
     : undefined
   // A transient cache progress entry must never downgrade a terminal queue
   // state. In particular, lyric/tagging cleanup can outlive the audio task.
@@ -473,6 +479,8 @@ const runTask = async (task: ServerDownloadTask) => {
   const targetOnlyDownloadMode = task.enableOnlyDownloadMode === true
   const controller = new AbortController()
   controllers.set(key, controller)
+  activeTasks.set(key, task)
+  task.progressKey = undefined
   task.status = 'downloading'
   task.progress = 0
   task.total = 0
@@ -515,6 +523,7 @@ const runTask = async (task: ServerDownloadTask) => {
       task.songInfo = requestedSongInfo
       task.quality = nextResolved.quality || task.requestedQuality
       task.activeSongKey = fileCache.normalizeSongId(requestedSongInfo) + '_' + task.quality
+      task.progressKey = getTaskProgressKey(task.username, task.id)
       task.updatedAt = Date.now()
       scheduleSave()
     }
@@ -526,6 +535,7 @@ const runTask = async (task: ServerDownloadTask) => {
           requestedSource: nextResolved.requestedSource,
           downloadSource: nextResolved.downloadSource,
           sourceName: nextResolved.sourceName,
+          progressKey: task.progressKey,
         })
     }
 
@@ -559,7 +569,7 @@ const runTask = async (task: ServerDownloadTask) => {
     }
 
     const progress = task.activeSongKey
-      ? fileCache.cacheProgress.get(task.activeSongKey)
+      ? fileCache.cacheProgress.get(task.progressKey || task.activeSongKey)
       : undefined
     task.status = progress?.status === 'exists' ? 'exists' : 'finished'
     task.progress = 100
@@ -579,6 +589,8 @@ const runTask = async (task: ServerDownloadTask) => {
     task.speed = 0
   } finally {
     controllers.delete(key)
+    activeTasks.delete(key)
+    task.progressKey = undefined
     task.updatedAt = Date.now()
     scheduleSave()
     notifyQueueListeners(task.username)
@@ -594,8 +606,7 @@ const processQueue = async () => {
       const activeByUser = new Map<string, number>()
       const activeIdentities = new Set<string>()
       let activeBackground = 0
-      for (const key of controllers.keys()) {
-        const activeTask = tasks.get(key)
+      for (const [key, activeTask] of activeTasks) {
         const username = activeTask?.username
         if (!activeTask || !username) continue
         activeByUser.set(username, (activeByUser.get(username) || 0) + 1)
@@ -665,6 +676,7 @@ const markTaskAsExisting = (task: ServerDownloadTask, username: string, input: Q
   const now = Date.now()
   task.songKey = fileCache.normalizeSongId(input.songInfo) + '_' + quality
   task.activeSongKey = undefined
+  task.progressKey = undefined
   task.songInfo = sanitizeSongInfo(input.songInfo)
   task.quality = quality
   task.requestedQuality = quality
@@ -696,7 +708,13 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
   const added: ServerDownloadTask[] = []
   for (const input of inputs) {
     if (!input?.songInfo) continue
-    const id = sanitizeId(input.id)
+    let id = sanitizeId(input.id)
+    const requestedKey = taskMapKey(username, id)
+    if (controllers.has(requestedKey) && !tasks.has(requestedKey)) {
+      // A removed task may still be unwinding an aborted resolver. Do not
+      // reuse its controller key while that execution still owns a slot.
+      do { id = sanitizeId(undefined) } while (controllers.has(taskMapKey(username, id)) || tasks.has(taskMapKey(username, id)))
+    }
     const key = taskMapKey(username, id)
     const quality = String(input.quality || '320k')
     const identity = getTaskIdentity({
@@ -750,6 +768,7 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
       const now = Date.now()
       existing.songKey = fileCache.normalizeSongId(input.songInfo) + '_' + quality
       existing.activeSongKey = undefined
+      existing.progressKey = undefined
       existing.songInfo = sanitizeSongInfo(input.songInfo)
       existing.quality = quality
       existing.requestedQuality = quality
@@ -867,17 +886,15 @@ export const getActiveTaskProgress = (username: string, songInfo: any, quality?:
  * without first checking task ownership.
  */
 export const getProgressForUser = (username: string, ids: string[]) => {
-  const allowedKeys = new Set<string>()
-  for (const task of tasks.values()) {
-    if (task.username !== username) continue
-    if (task.songKey) allowedKeys.add(task.songKey)
-    if (task.activeSongKey) allowedKeys.add(task.activeSongKey)
-  }
-
   const progress: Record<string, any> = {}
   for (const id of ids) {
-    if (!allowedKeys.has(id)) continue
-    const value = fileCache.cacheProgress.get(id)
+    const task = Array.from(tasks.values()).find(candidate => (
+      candidate.username === username && (candidate.songKey === id || candidate.activeSongKey === id)
+    ))
+    if (!task) continue
+    const value = task.progressKey
+      ? fileCache.cacheProgress.get(task.progressKey)
+      : undefined
     if (value) progress[id] = value
   }
   return progress

@@ -3,17 +3,27 @@ import dns from 'node:dns/promises'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession, USER_SESSION_COOKIE_NAME } from '@/server/auth'
 import { userSessions } from '@/server/routes/auth'
 import { createCustomSourceRouter } from '@/server/routes/customSource'
 import * as networkSecurity from '@/server/networkSecurity'
-import { closeDb } from '@/database'
+import { closeDb, getDb, initDatabase } from '@/database'
+import { syncUsersToDatabase } from '@/user'
+
+const persistUserSession = (sessionId: string, username: string, createdAt = Date.now()) => {
+  getDb().run(
+    'INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)',
+    [createHash('sha256').update(sessionId).digest('hex'), username, createdAt],
+  )
+}
 
 describe('Custom Source Security and Isolation', () => {
   let tempRoot: string
   let prevGlobalLx: any
 
   beforeEach(() => {
+    closeDb()
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-custom-source-test-'))
     prevGlobalLx = (global as any).lx
     ;(global as any).lx = {
@@ -24,6 +34,8 @@ describe('Custom Source Security and Isolation', () => {
         users: [{ name: 'normal_user', password: 'pwd' }],
       },
     }
+    initDatabase(':memory:')
+    syncUsersToDatabase((global as any).lx.config.users)
   })
 
   afterEach(() => {
@@ -48,7 +60,9 @@ describe('Custom Source Security and Isolation', () => {
 
     // 模拟普通用户 session
     const sessionId = 'user_session_token_123'
-    userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
+    const createdAt = Date.now()
+    userSessions.set(sessionId, { username: 'normal_user', createdAt })
+    persistUserSession(sessionId, 'normal_user', createdAt)
 
     // 普通用户不能再写入排序文件，且请求应在文件操作前被拒绝。
     const req = new Request('http://localhost:9527/api/custom-source/reorder', {
@@ -170,7 +184,9 @@ describe('Custom Source Security and Isolation', () => {
     fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]))
 
     const sessionId = 'source-list-user-session'
-    userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
+    const createdAt = Date.now()
+    userSessions.set(sessionId, { username: 'normal_user', createdAt })
+    persistUserSession(sessionId, 'normal_user', createdAt)
     const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list?username=normal_user', {
       headers: { cookie: `${USER_SESSION_COOKIE_NAME}=${sessionId}` },
     }))
@@ -255,7 +271,9 @@ describe('Custom Source Security and Isolation', () => {
     fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]))
 
     const userSession = 'admin-scope-user-session'
-    userSessions.set(userSession, { username: 'normal_user', createdAt: Date.now() })
+    const createdAt = Date.now()
+    userSessions.set(userSession, { username: 'normal_user', createdAt })
+    persistUserSession(userSession, 'normal_user', createdAt)
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}; ${USER_SESSION_COOKIE_NAME}=${userSession}`
     const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list?username=open', {
       headers: { cookie },
@@ -397,7 +415,9 @@ describe('Custom Source Security and Isolation', () => {
   test('all custom source write endpoints reject a regular user before touching files', async () => {
     const router = createCustomSourceRouter()
     const sessionId = 'regular-source-write-session'
-    userSessions.set(sessionId, { username: 'normal_user', createdAt: Date.now() })
+    const createdAt = Date.now()
+    userSessions.set(sessionId, { username: 'normal_user', createdAt })
+    persistUserSession(sessionId, 'normal_user', createdAt)
     const cookie = `${USER_SESSION_COOKIE_NAME}=${sessionId}`
     const requests = [
       ['/api/custom-source/validate', { script: 'lx.send("inited", { sources: {} })', username: 'normal_user' }],

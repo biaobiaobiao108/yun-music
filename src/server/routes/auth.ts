@@ -33,6 +33,10 @@ let lastUserConfigReference: unknown = Symbol('uninitialized')
 
 const hashUserSession = (sessionId: string): string => crypto.createHash('sha256').update(sessionId).digest('hex')
 
+const escapeLogControls = (value: string): string => value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, character => (
+  `\\u${character.codePointAt(0)!.toString(16).padStart(4, '0')}`
+))
+
 const deletePersistedUserSession = (sessionId: string): void => {
   getDb().run('DELETE FROM user_sessions WHERE session_hash = ?', [hashUserSession(sessionId)])
 }
@@ -93,32 +97,31 @@ export const revokeAllUserSessions = (): void => {
 
 /** 验证 Web 用户的 HttpOnly 会话，不再接受密码、Token 或用户名请求头。 */
 export const verifyUserAuth = (ctx: HttpContext | HeaderSource): string | null => {
-  pruneUserSessions()
   const sessionId = getCookieValue(ctx, USER_SESSION_COOKIE_NAME)
   if (!sessionId) return null
 
-  const cached = userSessions.get(sessionId)
-  const now = Date.now()
-  if (cached) {
-    if (now - cached.createdAt <= USER_SESSION_TTL) {
-      if (isActiveUser(cached.username)) return cached.username
+  try {
+    pruneUserSessions()
+    const now = Date.now()
+    // SQLite is authoritative across workers. Never accept a warm local cache
+    // entry without checking that the session still exists in the shared DB.
+    const persisted = getDb().query<{ user_name: string; created_at: number }, [string]>(
+      'SELECT user_name, created_at FROM user_sessions WHERE session_hash = ?'
+    ).get(hashUserSession(sessionId))
+    if (!persisted || now - persisted.created_at > USER_SESSION_TTL || !isActiveUser(persisted.user_name)) {
       userSessions.delete(sessionId)
-      deletePersistedUserSession(sessionId)
+      if (persisted) {
+        try { deletePersistedUserSession(sessionId) } catch { }
+      }
       return null
     }
+    userSessions.set(sessionId, { username: persisted.user_name, createdAt: persisted.created_at })
+    return persisted.user_name
+  } catch {
+    // Do not trust process-local state if SQLite cannot confirm the session.
     userSessions.delete(sessionId)
-    deletePersistedUserSession(sessionId)
-  }
-
-  const persisted = getDb().query<{ user_name: string; created_at: number }, [string]>(
-    'SELECT user_name, created_at FROM user_sessions WHERE session_hash = ?'
-  ).get(hashUserSession(sessionId))
-  if (!persisted || Date.now() - persisted.created_at > USER_SESSION_TTL || !isActiveUser(persisted.user_name)) {
-    deletePersistedUserSession(sessionId)
     return null
   }
-  userSessions.set(sessionId, { username: persisted.user_name, createdAt: persisted.created_at })
-  return persisted.user_name
 }
 
 const cookie = (name: string, value: string, maxAge: number, secure: boolean): string => (
@@ -192,12 +195,12 @@ export const createAuthRouter = (): Router => {
       })
       if (!user) {
         recordLoginFailure(ip)
-        loginLog.warn(`User login failed: ${username || '[unknown]'} from ${ctx.remoteAddress}`)
+        loginLog.warn(`User login failed: ${escapeLogControls(username || '[unknown]')} from ${ctx.remoteAddress}`)
         return ctx.fail(401, '用户名或密码错误')
       }
       clearLoginFailures(ip)
       const sessionId = issueUserSession(user.name)
-      loginLog.info(`User login success: ${user.name} from ${ctx.remoteAddress}`)
+      loginLog.info(`User login success: ${escapeLogControls(user.name)} from ${ctx.remoteAddress}`)
       return ctx.json({ success: true, username: user.name }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, sessionId, USER_SESSION_TTL / 1000, ctx.isSecure) })
     } catch {
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')

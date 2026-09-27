@@ -99,8 +99,7 @@ export const initMusicServices = async (): Promise<void> => {
 
   // 3. 初始化 Music SDK
   const proxyEnabled = global.lx?.config?.['proxy.all.enabled']
-  const proxyAddress = global.lx?.config?.['proxy.all.address']
-  startupLog.info(`Music SDK Proxy: ${proxyEnabled ? `Enabled (${proxyAddress})` : 'Disabled'}`)
+  startupLog.info(`Music SDK Proxy: ${proxyEnabled ? 'Enabled' : 'Disabled'}`)
   try {
     await musicSdk.init()
     startupLog.info('musicSdk initialized')

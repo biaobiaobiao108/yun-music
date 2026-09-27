@@ -44,6 +44,13 @@ const normalizeForwardedAddress = (value: string | undefined): string | null => 
 
 const HTTP_TOKEN_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
 
+// Request bodies are buffered before JSON/FormData parsing. Reserve each
+// request's maximum while reading so many large concurrent bodies cannot
+// multiply their peak memory usage. The 128 MiB pool still leaves room for
+// the supported 100 MiB administrator backup upload plus small requests.
+const MAX_BUFFERED_REQUEST_BODY_BYTES = 128 * 1024 * 1024
+let bufferedRequestBodyBudgetBytes = 0
+
 /** Validate configuration values that are later passed to Headers.get(). */
 export const isValidHttpHeaderName = (value: unknown): value is string => (
   typeof value === 'string' && value.length > 0 && value.length <= 256 && HTTP_TOKEN_PATTERN.test(value)
@@ -217,21 +224,37 @@ export class HttpContext {
 
   /** 解析 JSON 请求体 */
   async bodyJson<T = unknown>(maxBytes = 20 * 1024 * 1024): Promise<T> {
-    const body = await this.readBodyText(maxBytes)
-    try {
-      return JSON.parse(body) as T
-    } catch {
-      throw new Error('Invalid JSON body')
-    }
+    return this.withBodyBufferBudget(maxBytes, async () => {
+      const body = new TextDecoder().decode(await this.readBodyBytes(maxBytes))
+      try {
+        return JSON.parse(body) as T
+      } catch {
+        throw new Error('Invalid JSON body')
+      }
+    })
   }
 
   /** 解析纯文本请求体 */
   async bodyText(maxBytes = 20 * 1024 * 1024): Promise<string> {
-    return this.readBodyText(maxBytes)
+    return this.withBodyBufferBudget(maxBytes, async () => (
+      new TextDecoder().decode(await this.readBodyBytes(maxBytes))
+    ))
   }
 
-  private async readBodyText(maxBytes = 20 * 1024 * 1024): Promise<string> {
-    return new TextDecoder().decode(await this.readBodyBytes(maxBytes))
+  private async withBodyBufferBudget<T>(maxBytes: number, read: () => Promise<T>): Promise<T> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > MAX_BUFFERED_REQUEST_BODY_BYTES) {
+      throw new Error('Request body is too large')
+    }
+    if (bufferedRequestBodyBudgetBytes + maxBytes > MAX_BUFFERED_REQUEST_BODY_BYTES) {
+      throw new Error('Concurrent request body buffering limit exceeded')
+    }
+
+    bufferedRequestBodyBudgetBytes += maxBytes
+    try {
+      return await read()
+    } finally {
+      bufferedRequestBodyBudgetBytes -= maxBytes
+    }
   }
 
   private async readBodyBytes(maxBytes = 20 * 1024 * 1024): Promise<Uint8Array> {
@@ -274,14 +297,16 @@ export class HttpContext {
     // Request.formData() does not expose a size limit. Buffer the request
     // through the same bounded reader first, then let the platform parse the
     // already-bounded multipart payload.
-    const bytes = await this.readBodyBytes(maxBytes)
-    const headers = new Headers(this.headers)
-    headers.delete('content-length')
-    return await new Request(this.request.url, {
-      method: this.method,
-      headers,
-      body: bytes as unknown as BodyInit,
-    }).formData()
+    return this.withBodyBufferBudget(maxBytes, async () => {
+      const bytes = await this.readBodyBytes(maxBytes)
+      const headers = new Headers(this.headers)
+      headers.delete('content-length')
+      return await new Request(this.request.url, {
+        method: this.method,
+        headers,
+        body: bytes as unknown as BodyInit,
+      }).formData()
+    })
   }
 
   /** 构造 JSON 响应 */

@@ -179,17 +179,24 @@ export const checkPlayerAuthSession = (cookies: Record<string, string>): boolean
   const sessionId = cookies[SESSION_COOKIE_NAME]
   if (!sessionId) return false
   const now = Date.now()
-  const session = playerSessions.get(sessionId)
-  if (session && now - session.createdAt <= PLAYER_SESSION_TTL) return true
-  const persisted = getDb().query<{ created_at: number }, [string]>(
-    'SELECT created_at FROM player_sessions WHERE session_hash = ?'
-  ).get(hashSession(sessionId))
-  if (!persisted || now - persisted.created_at > PLAYER_SESSION_TTL) {
-    removePlayerSession(sessionId)
+  try {
+    // The SQLite row is authoritative. A process-local cache cannot be used
+    // to authorize a session because another worker may have revoked it.
+    const persisted = getDb().query<{ created_at: number }, [string]>(
+      'SELECT created_at FROM player_sessions WHERE session_hash = ?'
+    ).get(hashSession(sessionId))
+    if (!persisted || now - persisted.created_at > PLAYER_SESSION_TTL) {
+      playerSessions.delete(sessionId)
+      try { getDb().run('DELETE FROM player_sessions WHERE session_hash = ?', [hashSession(sessionId)]) } catch { }
+      return false
+    }
+    playerSessions.set(sessionId, { createdAt: persisted.created_at })
+    return true
+  } catch {
+    // Authentication fails closed when the shared session store is unavailable.
+    playerSessions.delete(sessionId)
     return false
   }
-  playerSessions.set(sessionId, { createdAt: persisted.created_at })
-  return true
 }
 
 let lastAdminSessionPruneAt = 0
@@ -232,21 +239,25 @@ export const checkAdminSession = (source: HeaderSource): boolean => {
   pruneAdminSessions()
   const sessionId = getCookieValue(source, ADMIN_SESSION_COOKIE_NAME)
   if (!sessionId) return false
-  let expiresAt = adminSessions.get(sessionId)
-  if (!expiresAt) {
+  try {
+    // Always consult SQLite so logout/revocation on another process takes
+    // effect immediately even if this process still has a warm cache entry.
     const persisted = getDb().query<{ expires_at: number }, [string]>(
       'SELECT expires_at FROM admin_sessions WHERE session_hash = ?'
     ).get(hashSession(sessionId))
-    if (persisted) {
-      expiresAt = Number(persisted.expires_at)
-      adminSessions.set(sessionId, expiresAt)
+    const expiresAt = Number(persisted?.expires_at || 0)
+    if (!persisted || expiresAt <= Date.now()) {
+      adminSessions.delete(sessionId)
+      try { getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)]) } catch { }
+      return false
     }
-  }
-  if (!expiresAt || expiresAt <= Date.now()) {
-    removeAdminSession(sessionId)
+    adminSessions.set(sessionId, expiresAt)
+    return true
+  } catch {
+    // Authentication fails closed when the shared session store is unavailable.
+    adminSessions.delete(sessionId)
     return false
   }
-  return true
 }
 
 export const verifyAdminAuth = (source: HeaderSource): boolean => {

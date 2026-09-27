@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { closeDb, getDb, initDatabase } from '@/database'
 import { getUserDirname, getUserSpace, releaseUserSpace, syncUsersToDatabase } from '@/user'
 import { createUserRouter } from '@/server/routes/user'
@@ -33,7 +34,12 @@ describe('User snapshot permissions', () => {
     } as typeof global.lx
     syncUsersToDatabase(global.lx.config.users)
     adminHeaders = { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` }
-    userSessions.set(sessionToken, { username, createdAt: Date.now() })
+    const createdAt = Date.now()
+    userSessions.set(sessionToken, { username, createdAt })
+    getDb().run(
+      'INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)',
+      [createHash('sha256').update(sessionToken).digest('hex'), username, createdAt],
+    )
     for (const owner of ['_open', username]) {
       const manager = getUserSpace(owner).listManage
       await manager.getListData()

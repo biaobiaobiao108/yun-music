@@ -21,6 +21,8 @@ import { assertSnapshotId } from '@/modules/list/snapshotDataManage'
 import { deleteUserCacheData } from '@/server/fileCache'
 
 const MAX_USER_SETTING_BODY_BYTES = 2 * 1024 * 1024
+const RESERVED_USER_NAMES = new Set(['default', 'open', '_open'])
+const isReservedUserName = (name: string) => RESERVED_USER_NAMES.has(name.trim().toLowerCase())
 
 /** 辅助获取请求的目标用户空间名称 */
 const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | null => {
@@ -135,23 +137,24 @@ export const createUserRouter = (): Router => {
       if (typeof name !== 'string' || !name.trim() || typeof password !== 'string' || !password.trim()) {
         return ctx.fail(400, '请填写用户名和密码')
       }
+      const normalizedName = name.trim()
       if (password.length > 1024) return ctx.fail(422, '密码长度不能超过 1024 个字符')
       try {
-        assertSafePathSegment(name, 'user name')
+        assertSafePathSegment(normalizedName, 'user name')
       } catch {
         return ctx.fail(422, '用户名不合法，不能包含路径分隔符等特殊字符')
       }
-      if (name === '_open') return ctx.fail(422, '该用户名为系统保留名称，请更换')
-      if (global.lx.config.users.some((u: any) => u.name === name)) {
+      if (isReservedUserName(normalizedName)) return ctx.fail(422, 'default、open 和 _open 为系统保留名称，请更换用户名')
+      if (global.lx.config.users.some((u: any) => u.name === normalizedName)) {
         return ctx.fail(409, '该用户名已存在')
       }
 
-      const dataPath = path.join(global.lx.userPath, getUserDirname(name))
+      const dataPath = path.join(global.lx.userPath, getUserDirname(normalizedName))
       const dataPathExisted = fs.existsSync(dataPath)
       if (!dataPathExisted) fs.mkdirSync(dataPath, { recursive: true })
 
       const newUser = {
-        name,
+        name: normalizedName,
         password,
         dataPath,
       }
@@ -182,37 +185,39 @@ export const createUserRouter = (): Router => {
         return ctx.fail(422, '密码不能为空')
       }
       if (typeof password === 'string' && password.length > 1024) return ctx.fail(422, '密码长度不能超过 1024 个字符')
-      if (newName !== undefined) {
-        if (typeof newName !== 'string' || !newName.trim()) return ctx.fail(422, '新用户名不能为空')
+      const normalizedName = name.trim()
+      const normalizedNewName = typeof newName === 'string' ? newName.trim() : newName
+      if (normalizedNewName !== undefined) {
+        if (typeof normalizedNewName !== 'string' || !normalizedNewName) return ctx.fail(422, '新用户名不能为空')
         try {
-          assertSafePathSegment(newName, 'user name')
+          assertSafePathSegment(normalizedNewName, 'user name')
         } catch {
           return ctx.fail(422, '用户名不合法，不能包含路径分隔符等特殊字符')
         }
-        if (newName === '_open') return ctx.fail(422, '该用户名为系统保留名称，请更换')
+        if (isReservedUserName(normalizedNewName)) return ctx.fail(422, 'default、open 和 _open 为系统保留名称，请更换用户名')
       }
-      const userIdx = global.lx.config.users.findIndex((u: any) => u.name === name)
+      const userIdx = global.lx.config.users.findIndex((u: any) => u.name === normalizedName)
       if (userIdx === -1) {
         return ctx.fail(404, '用户不存在')
       }
 
       const user = global.lx.config.users[userIdx]
 
-      if (newName !== undefined && newName !== name) {
-        if (global.lx.config.users.some((u: any) => u.name === newName)) {
+      if (normalizedNewName !== undefined && normalizedNewName !== normalizedName) {
+        if (global.lx.config.users.some((u: any) => u.name === normalizedNewName)) {
           return ctx.fail(409, '新用户名已存在')
         }
 
         const previousUser = { ...user }
         let migrationCompleted = false
-        renameUserSpace(name)
+        renameUserSpace(normalizedName)
         try {
           // Revoke before changing the users primary key. The SQLite session
           // table intentionally does not cascade ON UPDATE.
-          revokeUserAuth(name)
-          const newDataPath = migrateUserData(name, newName)
+          revokeUserAuth(normalizedName)
+          const newDataPath = migrateUserData(normalizedName, normalizedNewName)
           migrationCompleted = true
-          user.name = newName
+          user.name = normalizedNewName
           user.dataPath = newDataPath
           if (password !== undefined) {
             user.passwordHash = hashUserPassword(password)
@@ -223,7 +228,7 @@ export const createUserRouter = (): Router => {
         } catch (err: any) {
           if (migrationCompleted) {
             try {
-              migrateUserData(newName, name)
+              migrateUserData(normalizedNewName, normalizedName)
             } catch (rollbackError) {
               console.error('[User] 用户重命名回滚失败:', rollbackError)
             }
@@ -231,7 +236,7 @@ export const createUserRouter = (): Router => {
           Object.assign(user, previousUser)
           return ctx.fail(500, toUserMessage(err, '数据迁移失败，请稍后重试'))
         } finally {
-          finishRenameUserSpace(name)
+          finishRenameUserSpace(normalizedName)
         }
       } else {
         const previousUser = { ...user }
@@ -241,7 +246,7 @@ export const createUserRouter = (): Router => {
             user.password = ''
           }
           saveUsers()
-          if (password !== undefined) revokeUserAuth(name)
+          if (password !== undefined) revokeUserAuth(normalizedName)
           return ctx.json({ success: true })
         } catch (error) {
           Object.assign(user, previousUser)

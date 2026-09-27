@@ -30,7 +30,11 @@ const detectArchiveTool = (): ArchiveTool => {
   throw new Error('服务器缺少 unzip 或 tar，无法读取备份压缩包')
 }
 
-const readLimitedStream = async (stream: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<Uint8Array> => {
+const readLimitedStream = async (
+  stream: ReadableStream<Uint8Array> | null,
+  maxBytes: number,
+  onLimitExceeded?: () => void,
+): Promise<Uint8Array> => {
   if (!stream) return new Uint8Array()
   const reader = stream.getReader()
   const chunks: Uint8Array[] = []
@@ -41,9 +45,18 @@ const readLimitedStream = async (stream: ReadableStream<Uint8Array> | null, maxB
       if (done) break
       const chunk = value instanceof Uint8Array ? value : new Uint8Array(value)
       total += chunk.byteLength
-      if (total > maxBytes) throw new Error('备份工具输出超出限制')
+      if (total > maxBytes) {
+        onLimitExceeded?.()
+        try { await reader.cancel() } catch { }
+        throw new Error('备份工具输出超出限制')
+      }
       chunks.push(chunk)
     }
+  } catch (error) {
+    // Cancel the pipe before releasing its reader. Leaving a child pipe open
+    // after stopping reads can block the archive process forever.
+    try { await reader.cancel(error) } catch { }
+    throw error
   } finally {
     reader.releaseLock()
   }
@@ -58,29 +71,30 @@ const readLimitedStream = async (stream: ReadableStream<Uint8Array> | null, maxB
 
 const runArchiveCommand = async (args: string[], maxOutputBytes = MAX_UNZIP_OUTPUT_BYTES): Promise<string> => {
   const child = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe' })
-  const stdoutPromise = readLimitedStream(child.stdout, maxOutputBytes)
-  const stderrPromise = readLimitedStream(child.stderr, Math.min(maxOutputBytes, 512 * 1024))
-  const settled = await Promise.allSettled([stdoutPromise, stderrPromise, child.exited])
-  const stdoutResult = settled[0]
-  const stderrResult = settled[1]
-  const exitResult = settled[2]
-  if (stdoutResult.status === 'rejected') {
+  const terminate = () => {
     if (!child.killed) child.kill('SIGKILL')
-    await child.exited.catch(() => 1)
-    throw stdoutResult.reason
   }
-  if (stderrResult.status === 'rejected') {
-    if (!child.killed) child.kill('SIGKILL')
-    await child.exited.catch(() => 1)
-    throw stderrResult.reason
+  const stdoutPromise = readLimitedStream(child.stdout, maxOutputBytes, terminate)
+  const stderrPromise = readLimitedStream(child.stderr, Math.min(maxOutputBytes, 512 * 1024), terminate)
+  try {
+    const [stdoutBytes, stderrBytes, exitCode] = await Promise.all([
+      stdoutPromise,
+      stderrPromise,
+      child.exited,
+    ])
+    const stdout = new TextDecoder().decode(stdoutBytes)
+    const stderr = new TextDecoder().decode(stderrBytes)
+    if (exitCode !== 0) {
+      throw new Error(stderr.trim().slice(0, 512) || '备份压缩包无法读取')
+    }
+    return stdout
+  } catch (error) {
+    terminate()
+    // Ensure both pipe readers finish cancellation and the child has exited
+    // before propagating the error to the restore handler's finally block.
+    await Promise.allSettled([stdoutPromise, stderrPromise, child.exited])
+    throw error
   }
-  if (exitResult.status === 'rejected') throw exitResult.reason
-  const stdout = new TextDecoder().decode(stdoutResult.value)
-  const stderr = new TextDecoder().decode(stderrResult.value)
-  if (exitResult.value !== 0) {
-    throw new Error(stderr.trim().slice(0, 512) || '备份压缩包无法读取')
-  }
-  return stdout
 }
 
 const isAllowedBackupEntry = (rawName: string): boolean => {
@@ -163,7 +177,9 @@ const extractBackupEntry = async (
     ? ['unzip', '-p', archivePath, entry]
     : ['tar', '-xOf', archivePath, entry]
   const child = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' })
-  const stderrPromise = readLimitedStream(child.stderr, 512 * 1024)
+  const stderrPromise = readLimitedStream(child.stderr, 512 * 1024, () => {
+    if (!child.killed) child.kill('SIGKILL')
+  })
   const output = fs.createWriteStream(destination, { flags: 'wx', mode: 0o600 })
   let outputError: Error | null = null
   const onOutputError = (error: Error) => {
@@ -197,8 +213,9 @@ const extractBackupEntry = async (
     }
     return total
   } catch (error) {
-    try { reader?.releaseLock() } catch { }
     if (!child.killed) child.kill('SIGKILL')
+    try { await reader?.cancel(error) } catch { }
+    try { reader?.releaseLock() } catch { }
     await Promise.allSettled([stderrPromise, child.exited])
     output.destroy()
     try { fs.unlinkSync(destination) } catch { }

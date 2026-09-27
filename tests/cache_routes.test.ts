@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import dns from 'node:dns/promises'
+import { createHash } from 'node:crypto'
 import http from 'node:http'
 import { EventEmitter } from 'node:events'
 import { Readable } from 'node:stream'
@@ -13,8 +14,15 @@ import { createCacheRouter, createProxyResponseStream } from '@/server/routes/ca
 import { createMusicRouter, normalizeSongListId } from '@/server/routes/music'
 import { userSessions } from '@/server/routes/auth'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
-import { closeDb, initDatabase } from '@/database'
+import { closeDb, getDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user'
+
+const persistUserSession = (sessionId: string, username: string, createdAt = Date.now()) => {
+  getDb().run(
+    'INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)',
+    [createHash('sha256').update(sessionId).digest('hex'), username, createdAt],
+  )
+}
 
 describe('cache list user scope', () => {
   const username = 'cache_owner'
@@ -34,7 +42,9 @@ describe('cache list user scope', () => {
       },
     } as typeof global.lx
     syncUsersToDatabase(global.lx.config.users)
-    userSessions.set(sessionId, { username, createdAt: Date.now() })
+    const createdAt = Date.now()
+    userSessions.set(sessionId, { username, createdAt })
+    persistUserSession(sessionId, username, createdAt)
   })
 
   afterEach(() => {
@@ -420,8 +430,13 @@ test('cache file routes honor the requested folder and keep personal media priva
   fs.mkdirSync(musicDir, { recursive: true })
   fs.writeFileSync(path.join(cacheDir, 'song.mp3'), 'cache-file')
   fs.writeFileSync(path.join(musicDir, 'song.mp3'), 'music-file')
+  closeDb()
+  initDatabase(':memory:')
   global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'file-route-admin' } } as typeof global.lx
-  userSessions.set(sessionId, { username, createdAt: Date.now() })
+  syncUsersToDatabase(global.lx.config.users)
+  const createdAt = Date.now()
+  userSessions.set(sessionId, { username, createdAt })
+  persistUserSession(sessionId, username, createdAt)
   const getCacheLocation = spyOn(fileCache, 'getCacheLocation').mockReturnValue(fileCache.CACHE_ROOTS.ROOT)
   const getCacheDir = spyOn(fileCache, 'getCacheDir').mockImplementation((_username, isOnlyDownload) => isOnlyDownload ? musicDir : cacheDir)
 
@@ -484,6 +499,7 @@ test('cache file routes honor the requested folder and keep personal media priva
     getCacheDir.mockRestore()
     getCacheLocation.mockRestore()
     userSessions.delete(sessionId)
+    closeDb()
     fs.rmSync(tempRoot, { recursive: true, force: true })
     global.lx = previousLx
   }
@@ -493,8 +509,13 @@ test('cover routes forward the requested folder and return public cache headers 
   const previousLx = global.lx
   const username = 'cover_owner'
   const sessionId = 'cover-owner-session'
+  closeDb()
+  initDatabase(':memory:')
   global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'cover-route-admin' } } as typeof global.lx
-  userSessions.set(sessionId, { username, createdAt: Date.now() })
+  syncUsersToDatabase(global.lx.config.users)
+  const createdAt = Date.now()
+  userSessions.set(sessionId, { username, createdAt })
+  persistUserSession(sessionId, username, createdAt)
   const getCacheCover = spyOn(fileCache, 'getCacheCover').mockResolvedValue({
     data: Buffer.from('cover'),
     mime: 'image/png',
@@ -520,6 +541,7 @@ test('cover routes forward the requested folder and return public cache headers 
   } finally {
     getCacheCover.mockRestore()
     userSessions.delete(sessionId)
+    closeDb()
     global.lx = previousLx
   }
 })

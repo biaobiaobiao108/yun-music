@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { playerApi } from '../api'
 import { invalidateRequestCache, isAbortError } from '../data/request'
+import { getSessionGeneration, getSessionScope } from '../session'
 import { songEntityId, songEntityName, songSource } from '../song_details'
 import { songImage, type Song } from '../types'
 
 let mediaController: AbortController | null = null
 let mediaRequestId = 0
+const mediaToggleRequestIds: Record<'albums' | 'artists', number> = { albums: 0, artists: 0 }
 
 function normalizeLibraryItems(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -76,6 +78,9 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
   },
   toggle: async (kind, item) => {
     const key = kind === 'artist' ? 'artists' : 'albums'
+    const sessionScope = getSessionScope()
+    const sessionGeneration = getSessionGeneration()
+    const requestId = ++mediaToggleRequestIds[key]
     const current = get()[key]
     const itemKey = mediaLibraryItemKey(item, kind)
     const exists = current.some(candidate => mediaLibraryItemKey(candidate, kind) === itemKey)
@@ -87,15 +92,28 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
       invalidateRequestCache('media-library:')
       if (kind === 'artist') await playerApi.saveLibraryArtists(next)
       else await playerApi.saveLibraryAlbums(next)
-      set({ loadedAt: Date.now(), error: '' })
+      if (
+        sessionScope === getSessionScope() &&
+        sessionGeneration === getSessionGeneration() &&
+        requestId === mediaToggleRequestIds[key]
+      ) set({ loadedAt: Date.now(), error: '' })
       return !exists
     } catch (error) {
-      set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<MediaLibraryState, typeof key | 'error'>)
+      if (
+        sessionScope === getSessionScope() &&
+        sessionGeneration === getSessionGeneration() &&
+        requestId === mediaToggleRequestIds[key] &&
+        get()[key] === next
+      ) {
+        set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<MediaLibraryState, typeof key | 'error'>)
+      }
       throw error
     }
   },
   reset: () => {
     mediaRequestId += 1
+    mediaToggleRequestIds.albums += 1
+    mediaToggleRequestIds.artists += 1
     mediaController?.abort()
     mediaController = null
     invalidateRequestCache('media-library:')

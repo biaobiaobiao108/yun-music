@@ -11,9 +11,16 @@ export interface ServerInfo {
   version: number
 }
 
+const RESERVED_USER_ALIASES = new Set(['default', 'open', '_open'])
+const isReservedUserAlias = (name: string) => RESERVED_USER_ALIASES.has(name.toLowerCase())
+const assertPrivateUserNameNotReserved = (name: string) => {
+  if (isReservedUserAlias(name)) throw new Error(`用户名 ${name} 为系统保留名称`)
+}
+
 export const getUserDirname = (userName: string): string => {
   if (userName === '_open') return '_open'
   assertSafePathSegment(userName, 'user name')
+  assertPrivateUserNameNotReserved(userName)
   return `${filterFileName(userName)}_${toMD5(userName).substring(0, 6)}`
 }
 
@@ -23,7 +30,7 @@ const validateStoredUserRow = (row: {
   max_snapshot_num: number
   add_music_location_type: string
 }): void => {
-  if (row.name === '_open') throw new Error('SQLite 用户表包含系统保留用户')
+  if (isReservedUserAlias(row.name)) throw new Error('SQLite 用户表包含系统保留用户名 default/open/_open')
   try {
     assertSafePathSegment(row.name, 'user name')
   } catch {
@@ -53,11 +60,14 @@ export const syncUsersToDatabase = (
   const db = getDb()
   const now = Date.now()
   const existingRows = db.query<{ name: string; password_hash: string }, []>('SELECT name, password_hash FROM users').all()
+  for (const row of existingRows) {
+    if (isReservedUserAlias(row.name)) throw new Error('SQLite 用户表包含系统保留用户名 default/open/_open')
+  }
   const existingHashes = new Map(existingRows.map(row => [row.name, row.password_hash]))
   // Compute credentials before entering the transaction. A failed transaction
   // must not leave the in-memory config with passwords cleared or newly hashed.
   const preparedUsers = users.map(user => {
-    if (user.name === '_open') throw new Error('该用户名为系统保留名称')
+    assertPrivateUserNameNotReserved(user.name)
     assertSafePathSegment(user.name, 'user name')
     const maxSnapshotNum = user.maxSnapshotNum ?? 10
     const addMusicLocationType = user['list.addMusicLocationType'] ?? 'bottom'

@@ -1347,9 +1347,23 @@ export const createCacheRouter = (): Router => {
       let activeProxyRequest: http.ClientRequest | null = null
       let activeProxyResponse: http.IncomingMessage | null = null
       let activeTempStream: fs.WriteStream | null = null
-      const settleResponse = (response: Response, releaseSlot = true) => {
+      let activeTempPath: string | null = null
+      const cleanupActiveTempFile = () => {
+        const tempPath = activeTempPath
+        if (!tempPath) return
+        activeTempPath = null
+        const unlink = () => fs.unlink(tempPath, () => { })
+        if (activeTempStream && !activeTempStream.closed) {
+          activeTempStream.once('close', unlink)
+          activeTempStream.destroy()
+        } else {
+          unlink()
+        }
+      }
+      const settleResponse = (response: Response, releaseSlot = true, preserveTempFile = false) => {
         if (responseSettled) return
         responseSettled = true
+        if (!preserveTempFile) cleanupActiveTempFile()
         if (abortListener) {
           ctx.request.signal.removeEventListener('abort', abortListener)
           abortListener = null
@@ -1364,7 +1378,7 @@ export const createCacheRouter = (): Router => {
         // route prevents an orphaned async proxy chain from lingering.
         try { activeProxyRequest?.destroy() } catch { }
         try { activeProxyResponse?.destroy() } catch { }
-        try { activeTempStream?.destroy() } catch { }
+        cleanupActiveTempFile()
         settleResponse(new Response(null, { status: 499 }))
       }
 
@@ -1472,12 +1486,13 @@ export const createCacheRouter = (): Router => {
                 const tempPath = path.join(os.tmpdir(), `lx_tag_${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`)
                 const tempStream = fs.createWriteStream(tempPath, { flags: 'wx', mode: 0o600 })
                 activeTempStream = tempStream
+                activeTempPath = tempPath
                 let tempStreamError: Error | null = null
                 let taggedResponseSettled = false
-                const settleTaggedResponse = (response: Response, releaseSlot = true) => {
+                const settleTaggedResponse = (response: Response, releaseSlot = true, preserveTempFile = false) => {
                   if (taggedResponseSettled) return
                   taggedResponseSettled = true
-                  settleResponse(response, releaseSlot)
+                  settleResponse(response, releaseSlot, preserveTempFile)
                 }
                 const markProgressError = (message: string) => {
                   if (!taskId) return
@@ -1488,7 +1503,6 @@ export const createCacheRouter = (): Router => {
                   markProgressError(message)
                   try { tempStream.destroy() } catch { }
                   try { proxyRes.destroy() } catch { }
-                  fs.unlink(tempPath, () => { })
                   settleTaggedResponse(ctx.fail(502, '下载数据流中断，请重试'))
                 }
                 tempStream.on('error', (error) => {
@@ -1506,7 +1520,6 @@ export const createCacheRouter = (): Router => {
                   if (received > maxAudioBytes) {
                     proxyRes.destroy(new Error('Remote file is too large'))
                     tempStream.destroy()
-                    fs.unlink(tempPath, () => { })
                     markProgressError('Remote file is too large')
                     settleTaggedResponse(ctx.fail(413, '远程文件过大，已超过允许的下载上限'))
                     return
@@ -1547,7 +1560,7 @@ export const createCacheRouter = (): Router => {
                       cleaned = true
                       releaseProxySlot()
                       readStream.destroy()
-                      fs.unlink(tempPath, () => { })
+                      cleanupActiveTempFile()
                     }
                     const stream = new ReadableStream({
                       start(controller) {
@@ -1617,16 +1630,15 @@ export const createCacheRouter = (): Router => {
 
                     headers['Content-Length'] = fs.statSync(tempPath).size.toString()
                     finishProgress()
-                    settleTaggedResponse(createTempFileResponse(), false)
+                    settleTaggedResponse(createTempFileResponse(), false, true)
                   } catch (e: any) {
                     if (tempStreamError) {
                       markProgressError(tempStreamError.message || 'Download stream failed')
-                      fs.unlink(tempPath, () => { })
                       settleTaggedResponse(ctx.fail(502, '下载处理失败，请重试'))
                     } else if (fs.existsSync(tempPath)) {
                       finishProgress()
                       if (!headers['Content-Length']) headers['Content-Length'] = fs.statSync(tempPath).size.toString()
-                      settleTaggedResponse(createTempFileResponse(), false)
+                      settleTaggedResponse(createTempFileResponse(), false, true)
                     } else {
                       markProgressError(e?.message || 'Download processing failed')
                       settleTaggedResponse(ctx.fail(502, '下载处理失败，请重试'))

@@ -11,6 +11,9 @@ import path from 'node:path'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from '../networkSecurity'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
 
+// These endpoints only need compact song metadata and pagination fields.
+const MAX_MUSIC_JSON_BODY_BYTES = 512 * 1024
+
 /** 音乐解析进度 SSE 专属通道: requestId -> Controller */
 export const musicProgressControllers = new Map<string, ReadableStreamDefaultController<Uint8Array>>()
 const musicProgressTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -448,7 +451,7 @@ export const createMusicRouter = (): Router => {
         songInfo?: any
         quality?: string
         enableAutoSwitchApiSource?: boolean
-      }>()
+      }>(MAX_MUSIC_JSON_BODY_BYTES)
 
       songInfo = normalizeSongInfo(songInfo)
       if (!songInfo) {
@@ -566,7 +569,7 @@ export const createMusicRouter = (): Router => {
     const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
     try {
-      let { songInfo, quality } = await ctx.bodyJson<{ songInfo?: any; quality?: string }>()
+      let { songInfo, quality } = await ctx.bodyJson<{ songInfo?: any; quality?: string }>(MAX_MUSIC_JSON_BODY_BYTES)
       songInfo = normalizeSongInfo(songInfo)
       if (!songInfo || !songInfo.source || !quality) {
         throw new Error('Invalid quality size request')
@@ -594,7 +597,7 @@ export const createMusicRouter = (): Router => {
   // 10. 在线歌词查询 API (POST & GET)
   router.post('/api/music/lyric', async (ctx) => {
     try {
-      let { songInfo } = await ctx.bodyJson<{ songInfo?: any }>()
+      let { songInfo } = await ctx.bodyJson<{ songInfo?: any }>(MAX_MUSIC_JSON_BODY_BYTES)
       songInfo = normalizeSongInfo(songInfo)
       if (!songInfo || !songInfo.source) {
         throw new Error('Invalid songInfo')
@@ -857,7 +860,7 @@ export const createMusicRouter = (): Router => {
         type?: string
         page?: number
         limit?: number
-      }>()
+      }>(MAX_MUSIC_JSON_BODY_BYTES)
       page = boundedInt(String(page ?? ''), 1, 1, 1000)
       limit = boundedInt(String(limit ?? ''), 20, 1, 100)
       songInfo = normalizeSongInfo(songInfo)
