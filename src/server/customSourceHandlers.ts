@@ -85,8 +85,10 @@ function sanitizeSourceError(value: unknown): string | undefined {
     return value.replace(/https?:\/\/[^\s"'<>]+/gi, '[已隐藏远程地址]')
 }
 
-function sanitizeSourceForClient(source: Record<string, unknown>): Record<string, unknown> {
+function sanitizeSourceForClient(source: Record<string, unknown>, allowRemoteUpdate = false): Record<string, unknown> {
     const { sourceUrl: _sourceUrl, ...safeSource } = source
+    if (allowRemoteUpdate && typeof _sourceUrl === 'string' && _sourceUrl.trim()) safeSource.canUpdate = true
+    else delete safeSource.canUpdate
     const error = sanitizeSourceError(safeSource.error)
     if (error) safeSource.error = error
     else delete safeSource.error
@@ -278,6 +280,50 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
     }
 }
 
+async function downloadRemoteCustomSource(rawUrl: string): Promise<string> {
+    const url = rawUrl.trim()
+    if (!url || url.length > 2048) throw new Error('Invalid remote URL')
+
+    const download = async (targetUrl: string, depth = 0): Promise<string> => {
+        if (depth > 5) throw new Error('Too many redirects')
+        const safeUrl = await assertSafeRemoteHttpUrl(targetUrl)
+
+        let response: Response
+        try {
+            response = await fetchSafeRemote(safeUrl, {
+                method: 'GET',
+                timeoutMs: 10000,
+                maxBytes: 5 * 1024 * 1024,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                },
+            })
+        } catch (error) {
+            if (error instanceof Error && error.message === 'Remote response is too large') {
+                throw new Error('Remote script is too large')
+            }
+            throw error
+        }
+
+        // 手动处理重定向，确保逐跳经过 assertSafeRemoteHttpUrl 校验防止 SSRF 绕过
+        if (response.status >= 300 && response.status < 400) {
+            const location = response.headers.get('location')
+            if (location) {
+                const redirectUrl = new URL(location, safeUrl).toString()
+                return download(redirectUrl, depth + 1)
+            }
+        }
+
+        if (!response.ok) throw new Error(`Failed to download: status code ${response.status}`)
+        const content = await response.text()
+        if (!content) throw new Error('Empty response')
+        if (Buffer.byteLength(content, 'utf8') > 5 * 1024 * 1024) throw new Error('Remote script is too large')
+        return content
+    }
+
+    return download(url)
+}
+
 // 从远程URL导入脚本
 export async function handleImport(ctx: HttpContext): Promise<Response> {
     try {
@@ -285,59 +331,13 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
         const body = await readBody(ctx)
         const { url, filename, username } = JSON.parse(body)
 
-        if (!url) {
-            throw new Error('Missing URL')
-        }
+        if (typeof url !== 'string' || !url.trim()) throw new Error('Missing URL')
 
         // 前置身份与权限校验，防止无权限用户滥用服务器带宽发起外部请求
         const targetOwner = getRequestedOwner(ctx, username)
 
-        // 辅助函数：使用 Bun 原生 fetch 实现具备超时保护、SSRF 防御与流式字节限制的下载
-        const download = async (targetUrl: string, depth = 0): Promise<string> => {
-            if (depth > 5) throw new Error('Too many redirects')
-            const safeUrl = await assertSafeRemoteHttpUrl(targetUrl)
-
-            let response: Response
-            try {
-                response = await fetchSafeRemote(safeUrl, {
-                    method: 'GET',
-                    timeoutMs: 10000,
-                    maxBytes: 5 * 1024 * 1024,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    },
-                })
-            } catch (error) {
-                if (error instanceof Error && error.message === 'Remote response is too large') {
-                    throw new Error('Remote script is too large')
-                }
-                throw error
-            }
-
-            // 手动处理重定向，确保逐跳经过 assertSafeRemoteHttpUrl 校验防止 SSRF 绕过
-            if (response.status >= 300 && response.status < 400) {
-                const location = response.headers.get('location')
-                if (location) {
-                    const redirectUrl = new URL(location, safeUrl).toString()
-                    return download(redirectUrl, depth + 1)
-                }
-            }
-
-            if (!response.ok) {
-                throw new Error(`Failed to download: status code ${response.status}`)
-            }
-
-            const content = await response.text()
-            if (!content) throw new Error('Empty response')
-            return content
-        }
-
-        const content = await download(url)
-
-        // 获取脚本信息
-        if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > 5 * 1024 * 1024) {
-            throw new Error('Script content is missing or too large')
-        }
+        const sourceUrl = url.trim()
+        const content = await downloadRemoteCustomSource(sourceUrl)
         const { metadata, supportedSources } = await getScriptInfo(content)
 
         // 生成唯一ID（可读的文件名）
@@ -370,6 +370,7 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
                     size: Buffer.byteLength(content, 'utf-8'),
                     supportedSources,
                     enabled: false,
+                    sourceUrl,
                     uploadTime: new Date().toISOString(),
                 })
                 writeJsonFileAtomic(metaPath, sources)
@@ -385,6 +386,91 @@ export async function handleImport(ctx: HttpContext): Promise<Response> {
     } catch (err: any) {
         const message = sanitizeSourceError(err?.message) || '远程音源导入失败'
         console.error('[CustomSource] Import error:', message)
+        return ctx.json({ success: false, error: message }, 500)
+    }
+}
+
+// 更新远程 URL 音源。保留原 ID、启用状态和列表顺序。
+export async function handleUpdate(ctx: HttpContext): Promise<Response> {
+    try {
+        requireAdmin(ctx)
+        const body = await readBody(ctx)
+        const { id, sourceId, username, sourceOwner, url: requestedUrl } = JSON.parse(body)
+        const targetId = id || sourceId
+        assertSafePathSegment(targetId, 'source id')
+        const targetOwner = getRequestedOwner(ctx, sourceOwner || username)
+        if (requestedUrl !== undefined && (typeof requestedUrl !== 'string' || requestedUrl.length > 2048)) {
+            throw new Error('Invalid remote URL')
+        }
+        const overrideUrl = typeof requestedUrl === 'string' ? requestedUrl.trim() : ''
+
+        const snapshot = await withSourceMutationLock(targetOwner, async () => {
+            const sourcesDir = getSourceDir(targetOwner)
+            const metaPath = path.join(sourcesDir, 'sources.json')
+            if (!fs.existsSync(metaPath)) throw new Error('源不存在')
+            const sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+            const source = sources.find((entry: any) => entry.id === targetId)
+            if (!source) throw new Error('源不存在')
+            const storedUrl = typeof source.sourceUrl === 'string' ? source.sourceUrl.trim() : ''
+            const sourceUrl = overrideUrl || storedUrl
+            if (!sourceUrl) throw new Error('该音源没有保存来源 URL，请输入要更新的脚本地址')
+            return {
+                sourceUrl,
+                storedUrl,
+                uploadTime: source.uploadTime,
+            }
+        })
+
+        const content = await downloadRemoteCustomSource(snapshot.sourceUrl)
+        const { metadata, supportedSources } = await getScriptInfo(content)
+
+        return await withSourceMutationLock(targetOwner, async () => {
+            const sourcesDir = getSourceDir(targetOwner)
+            const metaPath = path.join(sourcesDir, 'sources.json')
+            if (!fs.existsSync(metaPath)) throw new Error('源不存在')
+            const sources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+            const sourceIndex = sources.findIndex((entry: any) => entry.id === targetId)
+            if (sourceIndex < 0) throw new Error('源不存在')
+            const source = sources[sourceIndex]
+            const currentStoredUrl = typeof source.sourceUrl === 'string' ? source.sourceUrl.trim() : ''
+            if (currentStoredUrl !== snapshot.storedUrl || source.uploadTime !== snapshot.uploadTime) {
+                throw new Error('音源已在另一请求中更新，请刷新列表后重试')
+            }
+
+            const scriptPath = path.join(sourcesDir, targetId)
+            if (!fs.existsSync(scriptPath)) throw new Error('音源脚本文件不存在')
+            const previousScript = fs.readFileSync(scriptPath, 'utf-8')
+            const updatedSource = {
+                ...source,
+                name: metadata.name || source.name || targetId,
+                version: metadata.version || source.version || '1.0.0',
+                author: metadata.author || source.author || '未知',
+                description: metadata.description || '',
+                homepage: metadata.homepage || '',
+                size: Buffer.byteLength(content, 'utf-8'),
+                supportedSources,
+                sourceUrl: snapshot.sourceUrl,
+                uploadTime: new Date().toISOString(),
+            }
+
+            sources[sourceIndex] = updatedSource
+            writeTextFileAtomic(scriptPath, content)
+            try {
+                writeJsonFileAtomic(metaPath, sources)
+                await initUserApis(targetOwner)
+            } catch (error) {
+                writeTextFileAtomic(scriptPath, previousScript)
+                sources[sourceIndex] = source
+                writeJsonFileAtomic(metaPath, sources)
+                await Promise.allSettled([initUserApis(targetOwner)])
+                throw error
+            }
+
+            return ctx.json({ success: true, id: targetId, name: updatedSource.name, owner: targetOwner })
+        })
+    } catch (err: any) {
+        const message = sanitizeSourceError(err?.message) || '远程音源更新失败'
+        console.error('[CustomSource] Update error:', message)
         return ctx.json({ success: false, error: message }, 500)
     }
 }
@@ -441,8 +527,9 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
     allSources.push(...userSources)
 
     // 补充运行时状态
+    const allowRemoteUpdate = verifyAdminAuth(ctx.request)
     const enrichedSources = allSources.map((source: any) => {
-        const safeSource = sanitizeSourceForClient(source)
+        const safeSource = sanitizeSourceForClient(source, allowRemoteUpdate)
         // 合并运行时状态
         const status = getApiStatus(String(safeSource.owner || ''), String(safeSource.id || ''))
         if (status) {

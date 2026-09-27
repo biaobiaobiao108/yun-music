@@ -34,6 +34,10 @@ export const createCustomSourceRouter = (): Router => {
     return customSourceHandlers.handleImport(ctx)
   })
 
+  router.post('/api/custom-source/update', (ctx) => {
+    return customSourceHandlers.handleUpdate(ctx)
+  })
+
   router.post('/api/custom-source/upload', (ctx) => {
     return customSourceHandlers.handleUpload(ctx)
   })

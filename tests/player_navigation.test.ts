@@ -206,6 +206,18 @@ describe('React player navigation and state restoration', () => {
     expect(removeStyle).not.toContain('color-mix')
   })
 
+  it('animates the queue and download drawers with a reduced-motion fallback', () => {
+    const css = read('frontend/styles/player.css')
+    expect(css).toContain('.react-player-drawer.react-glass-drawer:not(.is-open)')
+    expect(css).toContain('.react-player-drawer.react-glass-drawer.is-open')
+    expect(css).toContain('translate3d(8px, 0, 0) scale(.99)')
+    expect(css).toContain('transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion, 220ms)')
+    const reducedMotion = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'), css.indexOf('@media (forced-colors: active)', css.lastIndexOf('@media (prefers-reduced-motion: reduce)')))
+    expect(reducedMotion).toContain('.react-player-drawer.react-glass-drawer.is-open')
+    expect(reducedMotion).toContain('.react-player-drawer.react-glass-drawer:not(.is-open)')
+    expect(reducedMotion).toContain('transform: none;')
+  })
+
   it('keeps the normal footer order and exposes the portal song action flow', () => {
     const footer = read('frontend/player/src/react/player_footer.tsx')
     const actions = read('frontend/player/src/react/song_actions.tsx')

@@ -30,6 +30,8 @@ export function CustomSourcesView() {
   const [dragOverSourceId, setDragOverSourceId] = useState('')
   const [removeTarget, setRemoveTarget] = useState<AdminCustomSource | null>(null)
   const [transferTarget, setTransferTarget] = useState<AdminCustomSource | null>(null)
+  const [updateTarget, setUpdateTarget] = useState<AdminCustomSource | null>(null)
+  const [updateUrl, setUpdateUrl] = useState('')
   const [targetOwner, setTargetOwner] = useState<CustomSourceOwner>('open')
 
   const userOptions = useMemo(() => users
@@ -111,6 +113,26 @@ export function CustomSourcesView() {
     }
   }
 
+  const updateSource = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!updateTarget) return
+    const source = updateTarget
+    const url = updateUrl.trim() || undefined
+    if (!url && !source.canUpdate) return
+    setAction(`update:${source.id}`)
+    try {
+      await adminApi.updateCustomSource(source.id, source.owner, url)
+      notify(`已更新“${sourceName(source)}”`)
+      setUpdateTarget(null)
+      setUpdateUrl('')
+      await loadView('sources')
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : '更新音源失败')
+    } finally {
+      setAction('')
+    }
+  }
+
   const reorderSource = async (sourceId: string, targetId: string, afterTarget: boolean) => {
     if (!sourceId || sourceId === targetId || action) return
     const ids = reorderCustomSourceIds(visibleSources.map(item => item.id), sourceId, targetId, afterTarget)
@@ -187,11 +209,20 @@ export function CustomSourcesView() {
             void reorderSource(source.id, target.id, event.key === 'ArrowDown')
           }}><Icon name="bars" /></button><span className="admin-custom-source-icon"><Icon name="plug" /></span><span><strong title={sourceName(source)}>{sourceName(source)}</strong><small>{source.author || '未知作者'}{source.version ? ` · v${source.version}` : ''}</small></span></div>{source.error && <p className="admin-custom-source-error">{source.error}</p>}</th>
           <td>{ownerLabel(source.owner)}</td><td>{source.supportedSources?.length ? source.supportedSources.join('、') : '—'}</td><td><span className={`admin-react-status ${source.enabled ? 'is-ok' : ''}`}>{source.enabled ? '已启用' : '已停用'}</span></td><td>{formatBytes(source.size)}</td><td>{formatDate(source.uploadTime)}</td>
-          <td className="admin-react-row-actions"><Button onClick={() => void toggleSource(source)} disabled={Boolean(action)}>{source.enabled ? '停用' : '启用'}</Button><Button onClick={() => { setTransferTarget(source); setTargetOwner(source.owner === 'open' ? (userOptions[0]?.value ?? 'open') : 'open') }} disabled={!transferOptions.length || Boolean(action)}>转移</Button><Button variant="danger" onClick={() => setRemoveTarget(source)} disabled={Boolean(action)}>删除</Button></td>
+          <td className="admin-react-row-actions"><Button onClick={() => void toggleSource(source)} disabled={Boolean(action)}>{source.enabled ? '停用' : '启用'}</Button><Button onClick={() => { setUpdateTarget(source); setUpdateUrl('') }} disabled={Boolean(action)} title="更新音源脚本"><Icon name="rotate" />更新</Button><Button onClick={() => { setTransferTarget(source); setTargetOwner(source.owner === 'open' ? (userOptions[0]?.value ?? 'open') : 'open') }} disabled={!transferOptions.length || Boolean(action)}>转移</Button><Button variant="danger" onClick={() => setRemoveTarget(source)} disabled={Boolean(action)}>删除</Button></td>
         </tr>
       })}</tbody></table></div> : <Empty label={`暂无${ownerLabel(sourceOwner)}`} />}
     </Panel>
     <ConfirmDialog open={Boolean(removeTarget)} title="删除自定义源" message={`确定删除“${removeTarget ? sourceName(removeTarget) : ''}”吗？此操作不可撤销。`} confirmLabel="删除" onClose={() => setRemoveTarget(null)} onConfirm={removeSource} />
+    <Modal open={Boolean(updateTarget)} title="更新自定义源" onClose={() => { if (!action.startsWith('update:')) { setUpdateTarget(null); setUpdateUrl('') } }}>
+      <form className="admin-react-form" onSubmit={updateSource}>
+        <p>更新“{updateTarget ? sourceName(updateTarget) : ''}”的远程脚本。当前启用状态和排序会保留。</p>
+        <label htmlFor="admin-custom-source-update-url">脚本 URL</label>
+        <input id="admin-custom-source-update-url" type="url" value={updateUrl} onChange={event => setUpdateUrl(event.target.value)} placeholder={updateTarget?.canUpdate ? '留空以使用已保存的来源地址' : 'https://example.com/source.js'} required={!updateTarget?.canUpdate} disabled={action.startsWith('update:')} />
+        <small>{updateTarget?.canUpdate ? '已保存的来源地址不会显示在页面中；留空即可拉取最新版本。' : '此音源没有保存来源地址，请输入对应的脚本 URL。'}</small>
+        <div className="admin-react-dialog-actions"><Button onClick={() => { setUpdateTarget(null); setUpdateUrl('') }} disabled={action.startsWith('update:')}>取消</Button><Button variant="primary" type="submit" disabled={Boolean(action) || (!updateTarget?.canUpdate && !updateUrl.trim())}>{action.startsWith('update:') ? '更新中…' : '更新音源'}</Button></div>
+      </form>
+    </Modal>
     <Modal open={Boolean(transferTarget)} title="转移音源归属" onClose={() => setTransferTarget(null)}>
       <p>将“{transferTarget ? sourceName(transferTarget) : ''}”转移到新的作用域后，原作用域将不再提供该音源。</p>
       <label className="admin-custom-source-transfer-field">目标作用域<SelectMenu label="目标作用域" value={targetOwner} options={transferOptions} onChange={setTargetOwner} disabled={!transferOptions.length} /></label>

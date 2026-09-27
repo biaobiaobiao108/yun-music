@@ -10951,7 +10951,23 @@ textarea:focus-visible {
     -webkit-backdrop-filter: blur(12px) saturate(1.06) !important;
     backdrop-filter: blur(12px) saturate(1.06) !important;
     box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / 14%) !important;
-    transition: transform 220ms cubic-bezier(.22, 1, .36, 1);
+    transform-origin: top right;
+    transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion, 220ms) cubic-bezier(.22, 1, .36, 1), visibility 0s linear var(--app-motion, 220ms);
+}
+
+.react-player-drawer.react-glass-drawer:not(.is-open) {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(8px, 0, 0) scale(.99);
+}
+
+.react-player-drawer.react-glass-drawer.is-open {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(0, 0, 0) scale(1);
+    transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion, 220ms) cubic-bezier(.22, 1, .36, 1), visibility 0s;
 }
 
 .react-glass-drawer .react-drawer-header {
@@ -11505,6 +11521,8 @@ textarea:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
     .react-player-drawer.react-glass-drawer,
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open),
     .react-queue-drawer .react-queue-list li,
     .react-queue-duration,
     .react-cache-task,
@@ -11512,6 +11530,11 @@ textarea:focus-visible {
     .react-cache-remove,
     .react-glass-drawer .react-icon-button {
         transition: none;
+    }
+
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open) {
+        transform: none;
     }
 }
 

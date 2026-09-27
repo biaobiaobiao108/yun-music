@@ -59,6 +59,7 @@ export type AdminCustomSource = {
   uploadTime?: string
   status?: string
   error?: string
+  canUpdate?: boolean
 }
 
 type UnknownRecord = Record<string, unknown>
@@ -111,6 +112,7 @@ function normalizeCustomSource(value: unknown): AdminCustomSource | null {
     ...(firstText(record.uploadTime) ? { uploadTime: firstText(record.uploadTime) } : {}),
     ...(firstText(record.status) ? { status: firstText(record.status) } : {}),
     ...(firstText(record.error) ? { error: firstText(record.error) } : {}),
+    ...(record.canUpdate === true ? { canUpdate: true } : {}),
   }
 }
 
@@ -280,6 +282,7 @@ export const adminApi = {
   customSources: async (owner: CustomSourceOwner = 'open', signal?: AbortSignal) => normalizeAdminCustomSources(await adminRequest<unknown>(`/api/custom-source/list?username=${encodeURIComponent(owner)}`, { signal })),
   uploadCustomSource: (filename: string, content: string, type: string, owner: CustomSourceOwner) => adminRequest('/api/custom-source/upload', { method: 'POST', body: JSON.stringify({ filename, content, type, username: owner }) }),
   importCustomSource: (url: string, filename: string | undefined, owner: CustomSourceOwner) => adminRequest('/api/custom-source/import', { method: 'POST', body: JSON.stringify({ url, filename, username: owner }) }),
+  updateCustomSource: (id: string, owner: CustomSourceOwner, url?: string) => adminRequest('/api/custom-source/update', { method: 'POST', body: JSON.stringify({ id, sourceOwner: owner, ...(url ? { url } : {}) }) }),
   toggleCustomSource: (id: string, enabled: boolean, owner: CustomSourceOwner) => adminRequest('/api/custom-source/toggle', { method: 'POST', body: JSON.stringify({ id, enabled, username: owner }) }),
   deleteCustomSource: (id: string, owner: CustomSourceOwner) => adminRequest('/api/custom-source/delete', { method: 'POST', body: JSON.stringify({ id, sourceOwner: owner }) }),
   reorderCustomSources: (owner: CustomSourceOwner, sourceIds: string[]) => adminRequest('/api/custom-source/reorder', { method: 'POST', body: JSON.stringify({ username: owner, sourceIds }) }),

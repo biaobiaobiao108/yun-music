@@ -199,6 +199,52 @@ describe('Custom Source Security and Isolation', () => {
     expect(JSON.stringify(body)).not.toContain('do-not-leak')
   })
 
+  test('imports and updates URL sources in place without exposing their saved URL', async () => {
+    const router = createCustomSourceRouter()
+    const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
+    const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote')
+      .mockResolvedValueOnce(new Response('/*!\n@name Remote Source\n@version 1.0.0\n*/\nlx.send("inited", { status: true, sources: { wy: "wy" } })'))
+      .mockResolvedValueOnce(new Response('/*!\n@name Remote Source\n@version 2.0.0\n*/\nlx.send("inited", { status: true, sources: { wy: "wy" } })'))
+    const sourceUrl = 'https://example.com/source.js?token=keep-private'
+
+    try {
+      const importResponse = await router.handle(new Request('http://localhost:9527/api/custom-source/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ url: sourceUrl, username: 'open' }),
+      }))
+      const imported = await importResponse.json() as { success: boolean; id: string }
+      expect(imported.success).toBe(true)
+      expect(imported.id).toBe('Remote Source.js')
+
+      const updateResponse = await router.handle(new Request('http://localhost:9527/api/custom-source/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ id: imported.id, sourceOwner: 'open' }),
+      }))
+      expect(updateResponse.status).toBe(200)
+      expect(await updateResponse.json()).toMatchObject({ success: true, id: imported.id, owner: 'open' })
+
+      const sourceDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
+      const metadata = JSON.parse(fs.readFileSync(path.join(sourceDir, 'sources.json'), 'utf-8')) as Array<Record<string, unknown>>
+      expect(metadata[0]).toMatchObject({ id: imported.id, version: '2.0.0', enabled: false, sourceUrl })
+      expect(fs.readFileSync(path.join(sourceDir, imported.id), 'utf-8')).toContain('@version 2.0.0')
+
+      const listResponse = await router.handle(new Request('http://localhost:9527/api/custom-source/list', {
+        headers: { cookie: adminCookie },
+      }))
+      const listed = await listResponse.json() as Array<Record<string, unknown>>
+      expect(listed[0]).toMatchObject({ id: imported.id, canUpdate: true })
+      expect(listed[0]).not.toHaveProperty('sourceUrl')
+      expect(JSON.stringify(listed)).not.toContain('keep-private')
+      expect(remoteFetch).toHaveBeenCalledTimes(2)
+    } finally {
+      remoteFetch.mockRestore()
+      lookup.mockRestore()
+    }
+  })
+
   test('admin scope queries keep public and private source lists isolated', async () => {
     const router = createCustomSourceRouter()
     const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
