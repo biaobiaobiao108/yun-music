@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
 import { Button, Drawer, DrawerState, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
@@ -570,24 +570,11 @@ function PlayerFooter({ hidden = false }: { hidden?: boolean }) {
   return <PlayerFooterBar isActive={!hidden} />
 }
 
-type QueueDragSession = {
-  key: string
-  pointerId: number
-  pointerType: string
-  startX: number
-  startY: number
-  lastY: number
-  startedAt: number
-  active: boolean
-  scrolling: boolean
-}
-
 function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queue = usePlaybackStore(state => state.queue)
   const currentIndex = usePlaybackStore(state => state.currentIndex)
   const currentSong = usePlaybackStore(state => state.currentSong)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
-  const priorityNextSongKey = usePlaybackStore(state => state.priorityNextSongKey)
   const hasHydrated = usePlaybackStore(state => state.hasHydrated)
   const playSong = usePlaybackStore(state => state.playSong)
   const playNext = usePlaybackStore(state => state.playNext)
@@ -598,17 +585,11 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const clearQueue = usePlaybackStore(state => state.clearQueue)
   const setTab = usePlayerUiStore(state => state.setTab)
   const notify = usePlayerUiStore(state => state.notify)
-  const queueDrag = useRef<QueueDragSession | null>(null)
   const queueRows = useRef(new Map<string, HTMLLIElement>())
   const queueSongs = useRef(new Map<string, HTMLButtonElement>())
   const queueAnimations = useRef(new Map<string, Animation>())
   const previousQueuePositions = useRef<Map<string, number> | null>(null)
-  const suppressQueueClick = useRef<{ key: string; expiresAt: number } | null>(null)
-  const queueList = useRef<HTMLOListElement>(null)
-  const [draggingKey, setDraggingKey] = useState<string | null>(null)
   const [reorderAnnouncement, setReorderAnnouncement] = useState('')
-  const queuePointerMove = useRef<(event: PointerEvent) => void>(() => {})
-  const queuePointerEnd = useRef<(event: PointerEvent) => void>(() => {})
   const modeLabel = mode === 'random' ? '随机播放' : mode === 'single' ? '单曲循环' : '列表循环'
   const cycleMode = () => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')
   const openSearch = () => { onClose(); setTab('search') }
@@ -622,8 +603,7 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   const reorderQueueItem = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return
-    if (queueDrag.current?.active) previousQueuePositions.current = null
-    else captureQueuePositions()
+    captureQueuePositions()
     moveQueueItem(fromIndex, toIndex)
   }
 
@@ -638,7 +618,7 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   useLayoutEffect(() => {
     const previous = previousQueuePositions.current
     previousQueuePositions.current = null
-    if (!previous || draggingKey || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!previous || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     queueRows.current.forEach((row, key) => {
       const oldTop = previous.get(key)
       if (oldTop === undefined) return
@@ -657,19 +637,10 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
         if (queueAnimations.current.get(key) === animation) queueAnimations.current.delete(key)
       }
     })
-  }, [draggingKey, queue])
+  }, [queue])
 
   useEffect(() => {
-    const handleMove = (event: PointerEvent) => queuePointerMove.current(event)
-    const handleEnd = (event: PointerEvent) => queuePointerEnd.current(event)
-    window.addEventListener('pointermove', handleMove, { passive: false })
-    window.addEventListener('pointerup', handleEnd)
-    window.addEventListener('pointercancel', handleEnd)
     return () => {
-      window.removeEventListener('pointermove', handleMove)
-      window.removeEventListener('pointerup', handleEnd)
-      window.removeEventListener('pointercancel', handleEnd)
-      queueDrag.current = null
       queueAnimations.current.forEach(animation => animation.cancel())
       queueAnimations.current.clear()
     }
@@ -694,86 +665,6 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
     queueSongs.current.get(key)?.focus({ preventScroll: true })
   }
 
-  const startQueueDrag = (event: ReactPointerEvent<HTMLLIElement>, key: string) => {
-    if (!event.isPrimary || event.button !== 0) return
-    if ((event.target as HTMLElement).closest('.react-queue-actions')) return
-    queueAnimations.current.forEach(animation => animation.cancel())
-    queueAnimations.current.clear()
-    previousQueuePositions.current = null
-    queueDrag.current = {
-      key,
-      pointerId: event.pointerId,
-      pointerType: event.pointerType,
-      startX: event.clientX,
-      startY: event.clientY,
-      lastY: event.clientY,
-      startedAt: performance.now(),
-      active: false,
-      scrolling: false,
-    }
-  }
-
-  queuePointerMove.current = event => {
-    const session = queueDrag.current
-    if (!session || session.pointerId !== event.pointerId) return
-    if (session.pointerType === 'touch' && !session.active && !session.scrolling) {
-      const deltaX = event.clientX - session.startX
-      const deltaY = event.clientY - session.startY
-      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 6) return
-      if (performance.now() - session.startedAt < 320 || Math.abs(deltaX) > Math.abs(deltaY)) {
-        session.scrolling = true
-      } else {
-        session.active = true
-        setDraggingKey(session.key)
-      }
-    }
-    if (session.scrolling) {
-      const scrollContainer = queueList.current
-      if (scrollContainer) scrollContainer.scrollTop -= event.clientY - session.lastY
-      session.lastY = event.clientY
-      event.preventDefault()
-      return
-    }
-    if (!session.active) {
-      if (Math.hypot(event.clientX - session.startX, event.clientY - session.startY) < 6) return
-      session.active = true
-      setDraggingKey(session.key)
-    }
-    event.preventDefault()
-    session.lastY = event.clientY
-    const scrollContainer = queueList.current
-    const scrollBounds = scrollContainer?.getBoundingClientRect()
-    if (scrollContainer && scrollBounds) {
-      if (event.clientY < scrollBounds.top + 36) scrollContainer.scrollTop -= 12
-      else if (event.clientY > scrollBounds.bottom - 36) scrollContainer.scrollTop += 12
-    }
-    const currentQueue = usePlaybackStore.getState().queue
-    const fromIndex = currentQueue.findIndex(song => songKey(song) === session.key)
-    const queueLength = currentQueue.length
-    if (fromIndex < 0 || queueLength < 2) return
-    const rowsWithoutDragged = Array.from(queueRows.current.entries())
-      .filter(([key, row]) => key !== session.key && row.isConnected)
-      .sort(([, first], [, second]) => Number(first.dataset.queueIndex) - Number(second.dataset.queueIndex))
-    const insertionIndex = rowsWithoutDragged.filter(([, row]) => {
-      const bounds = row.getBoundingClientRect()
-      return event.clientY > bounds.top + bounds.height / 2
-    }).length
-    const toIndex = Math.min(queueLength - 1, insertionIndex)
-    if (toIndex !== fromIndex) {
-      reorderQueueItem(fromIndex, toIndex)
-    }
-  }
-
-  queuePointerEnd.current = event => {
-    const session = queueDrag.current
-    if (!session || session.pointerId !== event.pointerId) return
-    if (session.active) queuePointerMove.current(event)
-    queueDrag.current = null
-    setDraggingKey(null)
-    if (session.active || session.scrolling) suppressQueueClick.current = { key: session.key, expiresAt: Date.now() + 500 }
-    if (session.active) announcePosition(session.key)
-  }
-
   return <Drawer
     open={open}
     title="播放列表"
@@ -795,42 +686,31 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
       ? <DrawerState kind="loading" title="正在恢复播放列表…" />
       : queue.length
         ? <>
-          <p id="queue-reorder-help" className="sr-only">使用上下方向键调整歌曲顺序；触屏可按住歌曲行拖动排序，轻扫歌曲行可滚动列表。</p>
+          <p id="queue-reorder-help" className="sr-only">使用上下方向键调整歌曲顺序。</p>
           <span className="sr-only" role="status" aria-live="polite">{reorderAnnouncement}</span>
-          <ol ref={queueList} className="react-queue-list" aria-label="播放队列">
+          <ol className="react-queue-list" aria-label="播放队列">
             {queue.map((song, index) => {
               const key = songKey(song)
               const isCurrent = index === currentIndex && Boolean(currentSong && key === songKey(currentSong))
-              const isNext = key === priorityNextSongKey
               return <li
                 key={key}
                 ref={element => { if (element) queueRows.current.set(key, element); else queueRows.current.delete(key) }}
                 data-queue-index={index}
-                className={`${isCurrent ? `is-current ${isPlaying ? 'is-playing' : 'is-paused'}` : ''}${isNext ? ' is-next' : ''}${draggingKey === key ? ' is-dragging' : ''}`}
+                className={isCurrent ? `is-current ${isPlaying ? 'is-playing' : 'is-paused'}` : ''}
                 aria-current={isCurrent ? 'true' : undefined}
-                onPointerDown={event => startQueueDrag(event, key)}
-                draggable={false}
               >
                 <button
                   ref={element => { if (element) queueSongs.current.set(key, element); else queueSongs.current.delete(key) }}
                   type="button"
                   className="react-queue-song"
-                  aria-label={`${songTitle(song)}，${songArtist(song)}${isCurrent ? isPlaying ? '，正在播放' : '，当前歌曲已暂停' : ''}${isNext ? '，下一首' : ''}，可用上下方向键调整顺序`}
+                  aria-label={`${songTitle(song)}，${songArtist(song)}${isCurrent ? isPlaying ? '，正在播放' : '，当前歌曲已暂停' : ''}，可用上下方向键调整顺序`}
                   aria-describedby="queue-reorder-help"
                   aria-keyshortcuts="ArrowUp ArrowDown"
                   onKeyDown={event => reorderByKeyboard(event, key)}
-                  onClick={event => {
-                    const suppressed = suppressQueueClick.current
-                    if (suppressed && suppressed.key === key && suppressed.expiresAt >= Date.now()) {
-                      suppressQueueClick.current = null
-                      event.preventDefault()
-                      return
-                    }
-                    playSong(song, queue, index)
-                  }}
+                  onClick={() => playSong(song, queue, index)}
                 >
-                  <span className="react-queue-cover"><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" />{isCurrent && <span className="react-queue-current-cover"><Icon name={isPlaying ? 'volume-high' : 'pause'} /></span>}</span>
-                  <span className="react-queue-meta"><strong title={songTitle(song)}>{songTitle(song)}</strong><small><span className="react-queue-artist" title={songArtist(song)}>{songArtist(song)}</span>{isCurrent && <span className="react-queue-state-chip"><Icon name={isPlaying ? 'volume-high' : 'pause'} />{isPlaying ? '正在播放' : '已暂停'}</span>}{isNext && <span className="react-queue-next-chip"><Icon name="forward-step" />下一首</span>}</small></span>
+                  <span className="react-queue-cover"><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" draggable={false} alt="" />{isCurrent && <span className="react-queue-current-cover"><Icon name={isPlaying ? 'volume-high' : 'pause'} /></span>}</span>
+                  <span className="react-queue-meta"><strong title={songTitle(song)}>{songTitle(song)}</strong><small><span className="react-queue-artist" title={songArtist(song)}>{songArtist(song)}</span></small></span>
                 </button>
                 <span className="react-queue-actions">
                   <time className="react-queue-duration">{formatSongDuration(songDurationValue(song))}</time>
