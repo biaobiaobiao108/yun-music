@@ -9915,6 +9915,26 @@ textarea:focus-visible {
     position: absolute;
     inset-block-start: .85rem;
     margin: 0 !important;
+    z-index: 1;
+}
+
+.react-player-topbar::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 auto;
+    height: 5.5rem;
+    pointer-events: none;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--app-bg) 68%, transparent) 0%,
+        color-mix(in srgb, var(--app-bg) 38%, transparent) 56%,
+        transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
 }
 
 .react-player-topbar .react-history-controls {
