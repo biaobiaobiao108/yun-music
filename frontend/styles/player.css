@@ -11056,6 +11056,59 @@ textarea:focus-visible {
     scrollbar-width: thin;
 }
 
+.react-drawer-state {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 10rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    padding: 1rem;
+    color: var(--app-text-muted);
+    text-align: center;
+}
+
+.react-drawer-state-icon {
+    display: grid;
+    width: 2.8rem;
+    height: 2.8rem;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--app-accent) 24%, var(--app-border));
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--app-accent) 9%, var(--app-surface-soft));
+    color: var(--app-accent);
+    font-size: 1.1rem;
+}
+
+.react-drawer-state.is-loading .react-drawer-state-icon i {
+    animation: react-player-spin 1s linear infinite;
+}
+
+.react-drawer-state > strong {
+    color: var(--app-text);
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.react-drawer-state > p {
+    max-width: 22rem;
+    margin: 0;
+    font-size: .82rem;
+    line-height: 1.5;
+}
+
+.react-drawer-state-action {
+    min-height: 2.5rem;
+    margin-top: .25rem;
+}
+
+.react-drawer-state.is-error .react-drawer-state-icon {
+    border-color: color-mix(in srgb, var(--danger, #c0392b) 28%, var(--app-border));
+    background: color-mix(in srgb, var(--danger, #c0392b) 10%, var(--app-surface-soft));
+    color: var(--danger, #c0392b);
+}
+
 .react-download-drawer .react-drawer-body {
     display: flex;
     flex-direction: column;
@@ -11119,7 +11172,7 @@ textarea:focus-visible {
 
 .react-cache-task {
     display: grid;
-    grid-template-columns: 2.75rem minmax(0, 1fr) 2.5rem;
+    grid-template-columns: 2.75rem minmax(0, 1fr) 5.25rem;
     align-items: center;
     gap: .65rem;
     min-width: 0;
@@ -11173,6 +11226,20 @@ textarea:focus-visible {
     font-size: .76rem;
 }
 
+.react-cache-refresh-error {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: .35rem .55rem;
+    border-radius: .55rem;
+    background: color-mix(in srgb, var(--danger, #c0392b) 9%, transparent);
+    color: var(--app-text-muted);
+    font-size: .74rem;
+}
+
+.react-cache-error-detail {
+    color: var(--danger, #c0392b) !important;
+}
+
 .react-cache-task .react-task-progress {
     width: 100%;
     height: .22rem;
@@ -11192,6 +11259,14 @@ textarea:focus-visible {
     margin: 0;
 }
 
+.react-cache-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .1rem;
+}
+
+.react-cache-task-action,
 .react-cache-remove {
     display: inline-grid;
     flex: 0 0 2.5rem;
@@ -11209,6 +11284,18 @@ textarea:focus-visible {
     transition: opacity 140ms ease, transform 140ms ease, color 140ms ease, background-color 140ms ease;
 }
 
+.react-cache-task-action {
+    color: var(--app-accent);
+}
+
+.react-cache-task-action:disabled,
+.react-cache-remove:disabled {
+    cursor: default;
+    opacity: .45;
+}
+
+.react-cache-task:hover .react-cache-task-action,
+.react-cache-task:focus-within .react-cache-task-action,
 .react-cache-task:hover .react-cache-remove,
 .react-cache-task:focus-within .react-cache-remove {
     opacity: 1;
@@ -11216,12 +11303,15 @@ textarea:focus-visible {
     transform: scale(1);
 }
 
+.react-cache-task-action:hover,
+.react-cache-task-action:focus-visible,
 .react-cache-remove:hover,
 .react-cache-remove:focus-visible {
     color: var(--app-text);
     background: color-mix(in srgb, var(--app-text) 10%, transparent);
 }
 
+.react-cache-task-action:focus-visible,
 .react-cache-remove:focus-visible {
     outline: 0;
     box-shadow: inset 0 0 0 1px var(--app-accent);
@@ -11238,13 +11328,17 @@ textarea:focus-visible {
 .react-queue-drawer .react-queue-list li {
     display: grid;
     min-width: 0;
-    grid-template-columns: minmax(0, 1fr) 3.25rem;
+    grid-template-columns: minmax(0, 1fr) 5rem;
     align-items: center;
     column-gap: .2rem;
     padding: .2rem;
+    border: 1px solid transparent;
     border-radius: .9rem;
     background: transparent;
-    transition: background-color 140ms ease;
+    user-select: none;
+    -webkit-user-drag: none;
+    transition: background-color var(--app-motion-fast, 140ms) ease, border-color var(--app-motion-fast, 140ms) ease, box-shadow var(--app-motion-fast, 140ms) ease;
+    cursor: grab;
 }
 
 .react-queue-drawer .react-queue-list li:hover,
@@ -11253,7 +11347,21 @@ textarea:focus-visible {
 }
 
 .react-queue-drawer .react-queue-list li.is-current {
-    background: color-mix(in srgb, var(--app-text) 10%, transparent);
+    box-sizing: border-box;
+    border-color: transparent;
+    background: color-mix(in srgb, var(--app-text) 13%, transparent);
+    box-shadow: none;
+}
+
+.react-queue-drawer .react-queue-list li.is-next:not(.is-current) {
+    background: color-mix(in srgb, var(--app-accent) 6%, transparent);
+}
+
+.react-queue-list li.is-dragging {
+    cursor: grabbing;
+    border-color: color-mix(in srgb, var(--app-text) 10%, transparent);
+    background: color-mix(in srgb, var(--app-text) 9%, transparent);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--app-text) 8%, transparent);
 }
 
 .react-queue-song {
@@ -11269,8 +11377,14 @@ textarea:focus-visible {
     border-radius: .75rem;
     background: transparent;
     color: inherit;
-    cursor: pointer;
+    cursor: grab;
     text-align: left;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.react-queue-song:active {
+    cursor: grabbing;
 }
 
 .react-queue-song:focus-visible {
@@ -11279,6 +11393,7 @@ textarea:focus-visible {
 }
 
 .react-queue-cover {
+    position: relative;
     display: block;
     width: 2.75rem;
     height: 2.75rem;
@@ -11287,6 +11402,17 @@ textarea:focus-visible {
     overflow: hidden;
     border-radius: .55rem;
     background: var(--app-surface-soft);
+}
+
+.react-queue-current-cover {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--app-bg) 58%, transparent);
+    color: var(--app-text);
+    font-size: .85rem;
 }
 
 .react-queue-cover img {
@@ -11317,29 +11443,61 @@ textarea:focus-visible {
 }
 
 .react-queue-meta small {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: .3rem;
     color: var(--app-text-muted);
     font-size: .82rem;
+}
+
+.react-queue-artist {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-queue-state-chip,
+.react-queue-next-chip {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: .2rem;
+    padding: .08rem .35rem;
+    border-radius: 999px;
+    color: var(--app-accent);
+    font-size: .65rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.react-queue-state-chip {
+    background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+
+.react-queue-next-chip {
+    background: color-mix(in srgb, var(--app-accent) 8%, transparent);
 }
 
 .react-queue-actions {
     position: relative;
     display: grid;
-    width: 3.25rem;
+    width: 5rem;
     height: 2.5rem;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, 2.5rem);
     align-items: center;
     justify-self: end;
 }
 
-.react-queue-actions > .react-queue-duration,
-.react-queue-actions > .react-queue-remove {
-    grid-area: 1 / 1;
+.react-queue-actions > .react-queue-duration {
+    grid-area: 1 / 1 / 2 / 3;
 }
 
 .react-queue-duration {
-    width: 3.25rem;
+    width: 5rem;
     box-sizing: border-box;
-    padding-inline: 0 .3rem;
+    padding-inline: 0 .45rem;
     color: var(--app-text-muted);
     font-size: .88rem;
     font-variant-numeric: tabular-nums;
@@ -11359,9 +11517,9 @@ textarea:focus-visible {
     transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease, visibility 0s linear var(--app-motion-fast, 140ms);
 }
 
-.react-queue-remove {
+.react-queue-action {
     display: inline-flex;
-    width: 100%;
+    width: 2.5rem;
     height: 2.5rem;
     align-items: center;
     justify-content: center;
@@ -11379,13 +11537,31 @@ textarea:focus-visible {
     transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease, color var(--app-motion-fast, 140ms) ease, background-color var(--app-motion-fast, 140ms) ease, visibility 0s linear var(--app-motion-fast, 140ms);
 }
 
-.react-queue-drawer .react-queue-list li:hover .react-queue-remove,
-.react-queue-drawer .react-queue-list li:focus-within .react-queue-remove {
+.react-queue-play-next {
+    grid-area: 1 / 1;
+}
+
+.react-queue-remove {
+    grid-area: 1 / 2;
+}
+
+.react-queue-drawer .react-queue-list li:hover .react-queue-action,
+.react-queue-drawer .react-queue-list li:focus-within .react-queue-action {
     opacity: 1;
     pointer-events: auto;
     transform: scale(1);
     visibility: visible;
     transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease, color var(--app-motion-fast, 140ms) ease, background-color var(--app-motion-fast, 140ms) ease, visibility 0s;
+}
+
+.react-queue-action:disabled {
+    cursor: default;
+    opacity: .42;
+}
+
+.react-queue-play-next:hover,
+.react-queue-play-next:focus-visible {
+    color: var(--app-accent);
 }
 
 .react-queue-remove:hover,
@@ -11448,20 +11624,21 @@ textarea:focus-visible {
     }
 
     .react-queue-actions > .react-queue-duration {
-        width: 3rem;
+        width: 5rem;
         font-size: .82rem;
     }
 
     .react-queue-drawer .react-queue-list li {
-        grid-template-columns: minmax(0, 1fr) 3rem;
+        grid-template-columns: minmax(0, 1fr) 5rem;
     }
 
     .react-queue-actions {
-        width: 3rem;
+        width: 5rem;
+        grid-template-columns: repeat(2, 2.5rem);
     }
 
     .react-cache-task {
-        grid-template-columns: 2.5rem minmax(0, 1fr) 2.25rem;
+        grid-template-columns: 2.5rem minmax(0, 1fr) 4.6rem;
         gap: .5rem;
     }
 
@@ -11470,24 +11647,36 @@ textarea:focus-visible {
         height: 2.5rem;
     }
 
+    .react-cache-task-action,
     .react-cache-remove {
         width: 2.25rem;
         height: 2.25rem;
+        flex-basis: 2.25rem;
     }
 }
 
 @media (hover: none), (pointer: coarse) {
     .react-queue-drawer .react-queue-list li {
-        grid-template-columns: minmax(0, 1fr) 5.75rem;
+        touch-action: none;
+    }
+
+    .react-queue-song {
+        cursor: pointer;
+    }
+
+    .react-queue-drawer .react-queue-list li {
+        grid-template-columns: minmax(0, 1fr) 7.25rem;
     }
 
     .react-queue-actions {
-        width: 5.75rem;
-        grid-template-columns: 3.25rem 2.5rem;
+        width: 7.25rem;
+        grid-template-columns: 2.25rem repeat(2, 2.5rem);
     }
 
     .react-queue-actions > .react-queue-duration {
         grid-area: 1 / 1;
+        width: 2.25rem;
+        padding-inline: 0 .1rem;
         opacity: 1;
         transform: none;
         visibility: visible;
@@ -11502,15 +11691,24 @@ textarea:focus-visible {
         transition: none;
     }
 
-    .react-queue-actions > .react-queue-remove {
+    .react-queue-actions > .react-queue-play-next {
         grid-area: 1 / 2;
+    }
+
+    .react-queue-actions > .react-queue-remove {
+        grid-area: 1 / 3;
+    }
+
+    .react-queue-actions > .react-queue-action {
         width: 2.5rem;
+        height: 2.5rem;
         opacity: 1;
         pointer-events: auto;
         transform: none;
         visibility: visible;
     }
 
+    .react-cache-task-action,
     .react-cache-remove {
         opacity: 1;
         pointer-events: auto;
@@ -11525,11 +11723,17 @@ textarea:focus-visible {
     .react-player-drawer.react-glass-drawer:not(.is-open),
     .react-queue-drawer .react-queue-list li,
     .react-queue-duration,
+    .react-queue-action,
     .react-cache-task,
     .react-queue-remove,
+    .react-cache-task-action,
     .react-cache-remove,
     .react-glass-drawer .react-icon-button {
         transition: none;
+    }
+
+    .react-drawer-state.is-loading .react-drawer-state-icon i {
+        animation: none;
     }
 
     .react-player-drawer.react-glass-drawer.is-open,
@@ -11540,7 +11744,9 @@ textarea:focus-visible {
 
 @media (forced-colors: active) {
     .react-queue-song:focus-visible,
+    .react-queue-action:focus-visible,
     .react-queue-remove:focus-visible,
+    .react-cache-task-action:focus-visible,
     .react-cache-remove:focus-visible,
     .react-glass-drawer .react-icon-button:focus-visible {
         outline: 1px solid Highlight;

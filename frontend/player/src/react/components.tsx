@@ -309,6 +309,23 @@ export function Drawer({ open, title, titleSuffix, onClose, children, labelledBy
   return <aside className={'react-player-drawer ' + className + (open ? ' is-open' : '')} aria-hidden={!open} aria-labelledby={labelledBy} inert={!open ? true : undefined}><div className="react-drawer-header"><h2 id={labelledBy}>{title}{titleSuffix}</h2><div className="react-drawer-actions">{headerActions}<button type="button" className="react-icon-button" onClick={onClose} aria-label={'关闭' + title}><Icon name="xmark" /></button></div></div><div className="react-drawer-body">{children}</div></aside>
 }
 
+export function DrawerState({ kind, title, description, icon = 'music', actionLabel, onAction }: {
+  kind: 'loading' | 'empty' | 'error'
+  title: string
+  description?: string
+  icon?: string
+  actionLabel?: string
+  onAction?: () => void
+}) {
+  const statusIcon = kind === 'loading' ? 'spinner' : kind === 'error' ? 'triangle-exclamation' : icon
+  return <div className={`react-drawer-state is-${kind}`} role={kind === 'loading' ? 'status' : kind === 'error' ? 'alert' : undefined} aria-live={kind === 'empty' ? undefined : 'polite'}>
+    <span className="react-drawer-state-icon"><Icon name={statusIcon} /></span>
+    <strong>{title}</strong>
+    {description && <p>{description}</p>}
+    {actionLabel && onAction && <Button className="react-drawer-state-action" onClick={onAction}>{actionLabel}</Button>}
+  </div>
+}
+
 export function ToastRegion() {
   const notice = usePlayerUiStore(state => state.notice)
   const clear = usePlayerUiStore(state => state.clearNotice)

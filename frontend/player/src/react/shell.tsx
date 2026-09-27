@@ -1,6 +1,6 @@
-import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
-import { Button, Drawer, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
+import { Button, Drawer, DrawerState, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
 import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
 import { formatSongDuration, songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
@@ -425,7 +425,7 @@ function AudioRuntime() {
         recoveryAttempts.current.add(`resume:${songId}`)
       }
     }
-    const onEnded = () => { const state = usePlaybackStore.getState(); if (state.mode === 'single') { audio.currentTime = 0; void audio.play() } else state.next() }
+    const onEnded = () => { const state = usePlaybackStore.getState(); if (state.mode === 'single' && !state.priorityNextSongKey) { audio.currentTime = 0; void audio.play() } else state.next() }
     const onError = () => {
       if (settings.enableAutoDegradeQuality && currentSong && !currentSong.url) {
         const currentQualityIndex = QUALITY_FALLBACKS.indexOf(quality)
@@ -570,16 +570,209 @@ function PlayerFooter({ hidden = false }: { hidden?: boolean }) {
   return <PlayerFooterBar isActive={!hidden} />
 }
 
+type QueueDragSession = {
+  key: string
+  pointerId: number
+  pointerType: string
+  startX: number
+  startY: number
+  lastY: number
+  startedAt: number
+  active: boolean
+  scrolling: boolean
+}
+
 function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queue = usePlaybackStore(state => state.queue)
   const currentIndex = usePlaybackStore(state => state.currentIndex)
+  const currentSong = usePlaybackStore(state => state.currentSong)
+  const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const priorityNextSongKey = usePlaybackStore(state => state.priorityNextSongKey)
+  const hasHydrated = usePlaybackStore(state => state.hasHydrated)
   const playSong = usePlaybackStore(state => state.playSong)
+  const playNext = usePlaybackStore(state => state.playNext)
+  const moveQueueItem = usePlaybackStore(state => state.moveQueueItem)
   const remove = usePlaybackStore(state => state.removeFromQueue)
   const mode = usePlaybackStore(state => state.mode)
   const setMode = usePlaybackStore(state => state.setMode)
   const clearQueue = usePlaybackStore(state => state.clearQueue)
+  const setTab = usePlayerUiStore(state => state.setTab)
+  const notify = usePlayerUiStore(state => state.notify)
+  const queueDrag = useRef<QueueDragSession | null>(null)
+  const queueRows = useRef(new Map<string, HTMLLIElement>())
+  const queueSongs = useRef(new Map<string, HTMLButtonElement>())
+  const queueAnimations = useRef(new Map<string, Animation>())
+  const previousQueuePositions = useRef<Map<string, number> | null>(null)
+  const suppressQueueClick = useRef<{ key: string; expiresAt: number } | null>(null)
+  const queueList = useRef<HTMLOListElement>(null)
+  const [draggingKey, setDraggingKey] = useState<string | null>(null)
+  const [reorderAnnouncement, setReorderAnnouncement] = useState('')
+  const queuePointerMove = useRef<(event: PointerEvent) => void>(() => {})
+  const queuePointerEnd = useRef<(event: PointerEvent) => void>(() => {})
   const modeLabel = mode === 'random' ? '随机播放' : mode === 'single' ? '单曲循环' : '列表循环'
   const cycleMode = () => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')
+  const openSearch = () => { onClose(); setTab('search') }
+
+  const captureQueuePositions = () => {
+    const positions = new Map<string, number>()
+    queueRows.current.forEach((row, key) => positions.set(key, row.getBoundingClientRect().top))
+    previousQueuePositions.current = positions
+    return positions
+  }
+
+  const reorderQueueItem = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return
+    if (queueDrag.current?.active) previousQueuePositions.current = null
+    else captureQueuePositions()
+    moveQueueItem(fromIndex, toIndex)
+  }
+
+  const animateQueuePositions = (song: Song) => {
+    const before = queue.map(songKey)
+    captureQueuePositions()
+    playNext(song)
+    const after = usePlaybackStore.getState().queue.map(songKey)
+    if (before.length === after.length && before.every((key, index) => key === after[index])) previousQueuePositions.current = null
+  }
+
+  useLayoutEffect(() => {
+    const previous = previousQueuePositions.current
+    previousQueuePositions.current = null
+    if (!previous || draggingKey || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    queueRows.current.forEach((row, key) => {
+      const oldTop = previous.get(key)
+      if (oldTop === undefined) return
+      const deltaY = oldTop - row.getBoundingClientRect().top
+      if (Math.abs(deltaY) < 1) return
+      queueAnimations.current.get(key)?.cancel()
+      const animation = row.animate(
+        [{ transform: `translateY(${deltaY}px) scale(.995)` }, { transform: 'translateY(0) scale(1)' }],
+        { duration: 170, easing: 'cubic-bezier(.2, .75, .25, 1)' },
+      )
+      queueAnimations.current.set(key, animation)
+      animation.onfinish = () => {
+        if (queueAnimations.current.get(key) === animation) queueAnimations.current.delete(key)
+      }
+      animation.oncancel = () => {
+        if (queueAnimations.current.get(key) === animation) queueAnimations.current.delete(key)
+      }
+    })
+  }, [draggingKey, queue])
+
+  useEffect(() => {
+    const handleMove = (event: PointerEvent) => queuePointerMove.current(event)
+    const handleEnd = (event: PointerEvent) => queuePointerEnd.current(event)
+    window.addEventListener('pointermove', handleMove, { passive: false })
+    window.addEventListener('pointerup', handleEnd)
+    window.addEventListener('pointercancel', handleEnd)
+    return () => {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleEnd)
+      window.removeEventListener('pointercancel', handleEnd)
+      queueDrag.current = null
+      queueAnimations.current.forEach(animation => animation.cancel())
+      queueAnimations.current.clear()
+    }
+  }, [])
+
+  const announcePosition = (key: string) => {
+    const state = usePlaybackStore.getState()
+    const index = state.queue.findIndex(song => songKey(song) === key)
+    const song = state.queue[index]
+    if (song && index >= 0) setReorderAnnouncement(`${songTitle(song)}，已移动到第 ${index + 1} 首，共 ${state.queue.length} 首`)
+  }
+
+  const reorderByKeyboard = (event: ReactKeyboardEvent<HTMLButtonElement>, key: string) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const state = usePlaybackStore.getState()
+    const fromIndex = state.queue.findIndex(song => songKey(song) === key)
+    const toIndex = Math.max(0, Math.min(state.queue.length - 1, fromIndex + (event.key === 'ArrowUp' ? -1 : 1)))
+    if (fromIndex < 0 || fromIndex === toIndex) return
+    reorderQueueItem(fromIndex, toIndex)
+    announcePosition(key)
+    queueSongs.current.get(key)?.focus({ preventScroll: true })
+  }
+
+  const startQueueDrag = (event: ReactPointerEvent<HTMLLIElement>, key: string) => {
+    if (!event.isPrimary || event.button !== 0) return
+    if ((event.target as HTMLElement).closest('.react-queue-actions')) return
+    queueAnimations.current.forEach(animation => animation.cancel())
+    queueAnimations.current.clear()
+    previousQueuePositions.current = null
+    queueDrag.current = {
+      key,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastY: event.clientY,
+      startedAt: performance.now(),
+      active: false,
+      scrolling: false,
+    }
+  }
+
+  queuePointerMove.current = event => {
+    const session = queueDrag.current
+    if (!session || session.pointerId !== event.pointerId) return
+    if (session.pointerType === 'touch' && !session.active && !session.scrolling) {
+      const deltaX = event.clientX - session.startX
+      const deltaY = event.clientY - session.startY
+      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 6) return
+      if (performance.now() - session.startedAt < 320 || Math.abs(deltaX) > Math.abs(deltaY)) {
+        session.scrolling = true
+      } else {
+        session.active = true
+        setDraggingKey(session.key)
+      }
+    }
+    if (session.scrolling) {
+      const scrollContainer = queueList.current
+      if (scrollContainer) scrollContainer.scrollTop -= event.clientY - session.lastY
+      session.lastY = event.clientY
+      event.preventDefault()
+      return
+    }
+    if (!session.active) {
+      if (Math.hypot(event.clientX - session.startX, event.clientY - session.startY) < 6) return
+      session.active = true
+      setDraggingKey(session.key)
+    }
+    event.preventDefault()
+    session.lastY = event.clientY
+    const scrollContainer = queueList.current
+    const scrollBounds = scrollContainer?.getBoundingClientRect()
+    if (scrollContainer && scrollBounds) {
+      if (event.clientY < scrollBounds.top + 36) scrollContainer.scrollTop -= 12
+      else if (event.clientY > scrollBounds.bottom - 36) scrollContainer.scrollTop += 12
+    }
+    const currentQueue = usePlaybackStore.getState().queue
+    const fromIndex = currentQueue.findIndex(song => songKey(song) === session.key)
+    const queueLength = currentQueue.length
+    if (fromIndex < 0 || queueLength < 2) return
+    const rowsWithoutDragged = Array.from(queueRows.current.entries())
+      .filter(([key, row]) => key !== session.key && row.isConnected)
+      .sort(([, first], [, second]) => Number(first.dataset.queueIndex) - Number(second.dataset.queueIndex))
+    const insertionIndex = rowsWithoutDragged.filter(([, row]) => {
+      const bounds = row.getBoundingClientRect()
+      return event.clientY > bounds.top + bounds.height / 2
+    }).length
+    const toIndex = Math.min(queueLength - 1, insertionIndex)
+    if (toIndex !== fromIndex) {
+      reorderQueueItem(fromIndex, toIndex)
+    }
+  }
+
+  queuePointerEnd.current = event => {
+    const session = queueDrag.current
+    if (!session || session.pointerId !== event.pointerId) return
+    if (session.active) queuePointerMove.current(event)
+    queueDrag.current = null
+    setDraggingKey(null)
+    if (session.active || session.scrolling) suppressQueueClick.current = { key: session.key, expiresAt: Date.now() + 500 }
+    if (session.active) announcePosition(session.key)
+  }
 
   return <Drawer
     open={open}
@@ -598,21 +791,61 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
       <span className="react-drawer-header-separator" aria-hidden="true" />
     </>}
   >
-    <ol className="react-queue-list">
-      {queue.map((song, index) => <li key={`${songKey(song)}-${index}`} className={index === currentIndex ? 'is-current' : ''} aria-current={index === currentIndex ? 'true' : undefined}>
-        <button type="button" className="react-queue-song" onClick={() => playSong(song, queue, index)}>
-          <span className="react-queue-cover"><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /></span>
-          <span className="react-queue-meta"><strong title={songTitle(song)}>{songTitle(song)}</strong><small title={songArtist(song)}>{songArtist(song)}</small></span>
-        </button>
-        <span className="react-queue-actions">
-          <time className="react-queue-duration">{formatSongDuration(songDurationValue(song))}</time>
-          <button type="button" className="react-queue-remove" aria-label={'移除 ' + songTitle(song)} title="从播放列表移除" onClick={() => remove(index)}>
-            <Icon name="trash" />
-          </button>
-        </span>
-      </li>)}
-    </ol>
-    {!queue.length && <p className="react-empty-text">播放列表为空</p>}
+    {!hasHydrated
+      ? <DrawerState kind="loading" title="正在恢复播放列表…" />
+      : queue.length
+        ? <>
+          <p id="queue-reorder-help" className="sr-only">使用上下方向键调整歌曲顺序；触屏可按住歌曲行拖动排序，轻扫歌曲行可滚动列表。</p>
+          <span className="sr-only" role="status" aria-live="polite">{reorderAnnouncement}</span>
+          <ol ref={queueList} className="react-queue-list" aria-label="播放队列">
+            {queue.map((song, index) => {
+              const key = songKey(song)
+              const isCurrent = index === currentIndex && Boolean(currentSong && key === songKey(currentSong))
+              const isNext = key === priorityNextSongKey
+              return <li
+                key={key}
+                ref={element => { if (element) queueRows.current.set(key, element); else queueRows.current.delete(key) }}
+                data-queue-index={index}
+                className={`${isCurrent ? `is-current ${isPlaying ? 'is-playing' : 'is-paused'}` : ''}${isNext ? ' is-next' : ''}${draggingKey === key ? ' is-dragging' : ''}`}
+                aria-current={isCurrent ? 'true' : undefined}
+                onPointerDown={event => startQueueDrag(event, key)}
+                draggable={false}
+              >
+                <button
+                  ref={element => { if (element) queueSongs.current.set(key, element); else queueSongs.current.delete(key) }}
+                  type="button"
+                  className="react-queue-song"
+                  aria-label={`${songTitle(song)}，${songArtist(song)}${isCurrent ? isPlaying ? '，正在播放' : '，当前歌曲已暂停' : ''}${isNext ? '，下一首' : ''}，可用上下方向键调整顺序`}
+                  aria-describedby="queue-reorder-help"
+                  aria-keyshortcuts="ArrowUp ArrowDown"
+                  onKeyDown={event => reorderByKeyboard(event, key)}
+                  onClick={event => {
+                    const suppressed = suppressQueueClick.current
+                    if (suppressed && suppressed.key === key && suppressed.expiresAt >= Date.now()) {
+                      suppressQueueClick.current = null
+                      event.preventDefault()
+                      return
+                    }
+                    playSong(song, queue, index)
+                  }}
+                >
+                  <span className="react-queue-cover"><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" />{isCurrent && <span className="react-queue-current-cover"><Icon name={isPlaying ? 'volume-high' : 'pause'} /></span>}</span>
+                  <span className="react-queue-meta"><strong title={songTitle(song)}>{songTitle(song)}</strong><small><span className="react-queue-artist" title={songArtist(song)}>{songArtist(song)}</span>{isCurrent && <span className="react-queue-state-chip"><Icon name={isPlaying ? 'volume-high' : 'pause'} />{isPlaying ? '正在播放' : '已暂停'}</span>}{isNext && <span className="react-queue-next-chip"><Icon name="forward-step" />下一首</span>}</small></span>
+                </button>
+                <span className="react-queue-actions">
+                  <time className="react-queue-duration">{formatSongDuration(songDurationValue(song))}</time>
+                  <button type="button" className="react-queue-action react-queue-play-next" aria-label={`将 ${songTitle(song)} 设为下一首播放`} title="下一首播放" disabled={isCurrent} onClick={() => { animateQueuePositions(song); notify(currentSong ? `已将《${songTitle(song)}》设为下一首` : `开始播放《${songTitle(song)}》`) }}>
+                    <Icon name="forward-step" />
+                  </button>
+                  <button type="button" className="react-queue-action react-queue-remove" aria-label={'移除 ' + songTitle(song)} title="从播放列表移除" onClick={() => remove(index)}>
+                    <Icon name="trash" />
+                  </button>
+                </span>
+              </li>
+            })}
+          </ol>
+        </>
+        : <DrawerState kind="empty" icon="list-music" title="播放列表为空" description="搜索歌曲并加入队列后，会显示在这里。" actionLabel="去搜索音乐" onAction={openSearch} />}
   </Drawer>
 }
 
@@ -646,11 +879,21 @@ function cacheTaskProgress(task: CacheTask): number | null {
 function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const tasks = useCacheStore(state => state.tasks)
   const stats = useCacheStore(state => state.stats)
+  const loading = useCacheStore(state => state.loading)
+  const error = useCacheStore(state => state.error)
+  const loadedAt = useCacheStore(state => state.loadedAt)
+  const pendingTaskActions = useCacheStore(state => state.pendingTaskActions)
+  const pendingBatchAction = useCacheStore(state => state.pendingBatchAction)
   const load = useCacheStore(state => state.load)
   const applyQueue = useCacheStore(state => state.applyQueue)
+  const pauseTask = useCacheStore(state => state.pauseTask)
+  const resumeTask = useCacheStore(state => state.resumeTask)
+  const pauseAll = useCacheStore(state => state.pauseAll)
+  const resumeAll = useCacheStore(state => state.resumeAll)
   const remove = useCacheStore(state => state.remove)
   const removeCompleted = useCacheStore(state => state.removeCompleted)
   const notify = usePlayerUiStore(state => state.notify)
+  const setTab = usePlayerUiStore(state => state.setTab)
   const eventsConnected = useCacheEvents({
     enabled: open,
     onQueue: applyQueue,
@@ -661,9 +904,14 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const cacheSize = stats?.cacheSize ?? stats?.cache?.totalSize
   const musicSize = stats?.musicSize ?? stats?.music?.totalSize
   const completedCount = tasks.filter(task => ['finished', 'exists'].includes(cacheTaskText(task.status))).length
+  const hasPausableTasks = tasks.some(task => ['waiting', 'downloading', 'tagging'].includes(cacheTaskText(task.status)))
+  const hasResumableTasks = tasks.some(task => ['paused', 'error'].includes(cacheTaskText(task.status)))
+  const batchAction = hasPausableTasks ? 'pause' : hasResumableTasks ? 'resume' : null
+  const visibleBatchAction = pendingBatchAction === 'pause' || pendingBatchAction === 'resume' ? pendingBatchAction : batchAction
+  const openSearch = () => { onClose(); setTab('search') }
   const clearCompleted = async () => {
     if (!completedCount) return
-    try { await removeCompleted(); notify(`已清理 ${completedCount} 个已完成任务`) } catch (error) { notify(error instanceof Error ? error.message : '清理任务失败') }
+    if (await removeCompleted()) notify(`已清理 ${completedCount} 个已完成任务`)
   }
   return <Drawer
     open={open}
@@ -676,38 +924,63 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
       <button type="button" className="react-icon-button" aria-label="刷新缓存与下载" title="刷新" onClick={() => void load({ force: true })}>
         <Icon name="rotate" />
       </button>
-      <button type="button" className="react-icon-button" aria-label="清理已完成任务" title="清理已完成任务" disabled={!completedCount} onClick={() => void clearCompleted()}>
+      <button type="button" className="react-icon-button" aria-label="清理已完成任务" title="清理已完成任务" disabled={!completedCount || pendingBatchAction !== null || Object.keys(pendingTaskActions).length > 0} onClick={() => void clearCompleted()}>
         <Icon name="broom" />
       </button>
+      {visibleBatchAction && <button type="button" className="react-icon-button" aria-label={visibleBatchAction === 'pause' ? '暂停全部下载' : '继续全部下载'} title={visibleBatchAction === 'pause' ? '暂停全部' : '继续全部'} disabled={pendingBatchAction !== null || Object.keys(pendingTaskActions).length > 0} onClick={() => { if (visibleBatchAction === 'pause') void pauseAll(); else void resumeAll() }}>
+        <Icon name={pendingBatchAction ? 'spinner' : visibleBatchAction === 'pause' ? 'pause' : 'play'} />
+      </button>}
       <span className="react-drawer-header-separator" aria-hidden="true" />
     </>}
   >
     <div className="react-cache-stats" role="group" aria-label="存储空间">
-      <div><span>缓存占用</span><strong>{formatBytes(cacheSize)}</strong></div>
-      <div><span>下载占用</span><strong>{formatBytes(musicSize)}</strong></div>
+      <div><span>缓存占用</span><strong>{stats ? formatBytes(cacheSize) : '—'}</strong></div>
+      <div><span>下载占用</span><strong>{stats ? formatBytes(musicSize) : '—'}</strong></div>
     </div>
-    {tasks.length ? <ul className="react-cache-task-list" aria-label="缓存与下载任务">
-      {tasks.map((task, index) => {
-        const id = String(task.id ?? task.songKey ?? index)
-        const name = cacheTaskName(task)
-        const artist = cacheTaskArtist(task)
-        const progress = cacheTaskProgress(task)
-        const status = cacheTaskStatus(task.status)
-        return <li key={`${id}-${index}`} className="react-cache-task">
-          <span className="react-cache-cover" aria-hidden="true">
-            <SafeImage src={task.songInfo ? songImage(task.songInfo) : undefined} width="48" height="48" loading="lazy" alt="" />
-          </span>
-          <span className="react-cache-meta">
-            <strong title={name}>{name}</strong>
-            <small title={artist || status}>{artist ? `${artist} · ${status}` : status}{progress === null ? '' : ` · ${progress}%`}</small>
-            {progress !== null && <progress className="react-task-progress" max="100" value={progress} aria-label={`${name}下载进度`}>{progress}%</progress>}
-          </span>
-          <button type="button" className="react-cache-remove" onClick={() => void remove(id)} aria-label={`移除${name}`} title="移除任务">
-            <Icon name="xmark" />
-          </button>
-        </li>
-      })}
-    </ul> : <div className="react-cache-empty"><p className="react-empty-text">暂无下载任务</p></div>}
+    {error && tasks.length > 0 && <p className="react-cache-refresh-error" role="status">无法刷新任务：{error}</p>}
+    {loading && loadedAt === 0
+      ? <DrawerState kind="loading" title="正在加载下载任务…" />
+      : error && tasks.length === 0
+        ? <DrawerState kind="error" title="下载任务加载失败" description={error} actionLabel="重试" onAction={() => void load({ force: true })} />
+        : tasks.length
+          ? <ul className="react-cache-task-list" aria-label="缓存与下载任务">
+            {tasks.map((task, index) => {
+              const taskId = String(task.id ?? task.songKey ?? '')
+              const key = taskId || `${cacheTaskName(task)}-${index}`
+              const name = cacheTaskName(task)
+              const artist = cacheTaskArtist(task)
+              const progress = cacheTaskProgress(task)
+              const rawStatus = cacheTaskText(task.status)
+              const status = cacheTaskStatus(rawStatus)
+              const taskError = cacheTaskText(task.errorMsg)
+              const canPause = ['waiting', 'downloading', 'tagging'].includes(rawStatus)
+              const canResume = rawStatus === 'paused'
+              const canRetry = rawStatus === 'error'
+              const pending = taskId ? pendingTaskActions[taskId] : undefined
+              const pendingAction = pending === 'pause' || pending === 'resume' ? pending : null
+              const taskActionLabel = pendingAction === 'pause' ? '正在暂停' : pendingAction === 'resume' ? '正在继续' : canPause ? '暂停' : canRetry ? '重试' : '继续'
+              return <li key={key} className={`react-cache-task${pending ? ' is-busy' : ''}`} aria-busy={Boolean(pending)}>
+                <span className="react-cache-cover" aria-hidden="true">
+                  <SafeImage src={task.songInfo ? songImage(task.songInfo) : undefined} width="48" height="48" loading="lazy" alt="" />
+                </span>
+                <span className="react-cache-meta">
+                  <strong title={name}>{name}</strong>
+                  <small title={taskError || artist || status}>{artist ? `${artist} · ${status}` : status}{progress === null ? '' : ` · ${progress}%`}</small>
+                  {taskError && <small className="react-cache-error-detail" title={taskError}>{taskError}</small>}
+                  {progress !== null && <progress className="react-task-progress" max="100" value={progress} aria-label={`${name}下载进度`}>{progress}%</progress>}
+                </span>
+                <span className="react-cache-actions">
+                  {(canPause || canResume || canRetry || pendingAction) && <button type="button" className="react-cache-task-action" disabled={!taskId || pending !== undefined || pendingBatchAction !== null} aria-label={`${taskActionLabel} ${name}`} title={`${taskActionLabel}任务`} onClick={() => { if (!taskId) return; void (canPause ? pauseTask(taskId) : resumeTask(taskId)) }}>
+                    <Icon name={pendingAction ? 'spinner' : canPause ? 'pause' : canRetry ? 'rotate' : 'play'} />
+                  </button>}
+                  <button type="button" className="react-cache-remove" disabled={!taskId || pending !== undefined || pendingBatchAction !== null} onClick={() => { if (taskId) void remove(taskId) }} aria-label={`移除${name}`} title="移除任务">
+                    <Icon name={pending === 'remove' ? 'spinner' : 'xmark'} />
+                  </button>
+                </span>
+              </li>
+            })}
+          </ul>
+          : <DrawerState kind="empty" icon="download" title="暂无下载任务" description="加入下载的歌曲会显示在这里。" actionLabel="去搜索音乐" onAction={openSearch} />}
   </Drawer>
 }
 

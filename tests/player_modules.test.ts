@@ -163,6 +163,7 @@ describe('React player module boundaries', () => {
       queue: [song],
       currentIndex: 0,
       currentSong: song,
+      priorityNextSongKey: songKey(song),
       isPlaying: true,
       currentTime: 42,
       duration: 180,
@@ -179,6 +180,7 @@ describe('React player module boundaries', () => {
       queue: [],
       currentIndex: -1,
       currentSong: null,
+      priorityNextSongKey: null,
       isPlaying: false,
       currentTime: 0,
       duration: 0,
@@ -188,6 +190,102 @@ describe('React player module boundaries', () => {
       quality: '320k',
     })
     expect(pauseCalls).toBe(1)
+  })
+
+  it('reorders queue entries without interrupting the current song and persists the one-shot next choice', () => {
+    const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    const values = new Map<string, string>()
+    const storage = {
+      get length() { return values.size },
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => [...values.keys()][index] ?? null,
+      removeItem: (key: string) => { values.delete(key) },
+      setItem: (key: string, value: string) => { values.set(key, String(value)) },
+    } as Storage
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: storage })
+    setSessionScope('queue-persistence-test')
+    const first = { source: 'wy', songmid: 'move-1', name: '第一首' }
+    const second = { source: 'wy', songmid: 'move-2', name: '第二首' }
+    const third = { source: 'wy', songmid: 'move-3', name: '第三首' }
+    try {
+      usePlaybackStore.setState({ queue: [first, second, third], currentIndex: 0, currentSong: first, isPlaying: true, currentTime: 19, mode: 'random', quality: '320k' })
+      usePlaybackStore.getState().moveQueueItem(0, 2)
+      expect(usePlaybackStore.getState()).toMatchObject({ queue: [second, third, first], currentIndex: 2, currentSong: first, isPlaying: true, currentTime: 19 })
+
+      usePlaybackStore.getState().playNext(second)
+      expect(usePlaybackStore.getState()).toMatchObject({ queue: [third, first, second], currentIndex: 1, currentSong: first, isPlaying: true, priorityNextSongKey: songKey(second) })
+
+      usePlaybackStore.getState().reset()
+      usePlaybackStore.getState().hydrate()
+      expect(usePlaybackStore.getState()).toMatchObject({ queue: [third, first, second], currentIndex: 1, currentSong: first, priorityNextSongKey: songKey(second), mode: 'random', quality: '320k', hasHydrated: true })
+    } finally {
+      usePlaybackStore.getState().reset()
+      setSessionScope(null)
+      if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage)
+      else Reflect.deleteProperty(globalThis, 'localStorage')
+    }
+  })
+
+  it('keeps the restored current track and index aligned with the persisted queue', () => {
+    const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    const values = new Map<string, string>()
+    const storage = {
+      get length() { return values.size },
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => [...values.keys()][index] ?? null,
+      removeItem: (key: string) => { values.delete(key) },
+      setItem: (key: string, value: string) => { values.set(key, String(value)) },
+    } as Storage
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: storage })
+    setSessionScope('queue-hydration-test')
+    const savedSong = { source: 'wy', songmid: 'stale-current', name: '残留歌曲' }
+    values.set(scopedStorageKey('lx_playback_state'), JSON.stringify({ song: savedSong, index: 1, time: 92, playlist: [] }))
+    try {
+      usePlaybackStore.getState().reset()
+      usePlaybackStore.getState().hydrate()
+      expect(usePlaybackStore.getState()).toMatchObject({ queue: [], currentSong: null, currentIndex: -1, currentTime: 0, hasHydrated: true })
+    } finally {
+      usePlaybackStore.getState().reset()
+      setSessionScope(null)
+      if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage)
+      else Reflect.deleteProperty(globalThis, 'localStorage')
+    }
+  })
+
+  it('prioritizes a designated next song once in every playback mode', () => {
+    const originalRandom = Math.random
+    Math.random = () => 0
+    const first = { source: 'wy', songmid: 'priority-1', name: '第一首' }
+    const second = { source: 'wy', songmid: 'priority-2', name: '第二首' }
+    const third = { source: 'wy', songmid: 'priority-3', name: '第三首' }
+    try {
+      for (const mode of ['list', 'random', 'single'] as const) {
+        usePlaybackStore.setState({ queue: [first, second, third], currentIndex: 0, currentSong: first, isPlaying: true, mode, priorityNextSongKey: songKey(third) })
+        usePlaybackStore.getState().next()
+        expect(usePlaybackStore.getState()).toMatchObject({ currentSong: third, currentIndex: 2, priorityNextSongKey: null })
+        usePlaybackStore.getState().next()
+        expect(usePlaybackStore.getState().currentSong).toEqual(first)
+      }
+    } finally {
+      Math.random = originalRandom
+      usePlaybackStore.getState().reset()
+    }
+  })
+
+  it('starts a designated next song immediately when playback has no current track and clears removed next choices', () => {
+    const first = { source: 'wy', songmid: 'priority-empty-1', name: '空队列开始' }
+    const second = { source: 'wy', songmid: 'priority-empty-2', name: '待移除下一首' }
+    const current = { source: 'wy', songmid: 'priority-empty-3', name: '当前歌曲' }
+    usePlaybackStore.setState({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, priorityNextSongKey: null })
+    usePlaybackStore.getState().playNext(first)
+    expect(usePlaybackStore.getState()).toMatchObject({ queue: [first], currentIndex: 0, currentSong: first, isPlaying: true })
+
+    usePlaybackStore.setState({ queue: [current, second], currentIndex: 0, currentSong: current, isPlaying: true, priorityNextSongKey: songKey(second) })
+    usePlaybackStore.getState().removeFromQueue(1)
+    expect(usePlaybackStore.getState()).toMatchObject({ queue: [current], currentSong: current, priorityNextSongKey: null })
+    usePlaybackStore.getState().reset()
   })
 
   it('publishes the reference navigation and shared theme contracts', () => {
@@ -202,9 +300,33 @@ describe('React player module boundaries', () => {
     expect(shell).toContain("case 'genres': return <GenresView />")
     expect(shell).toContain('listId: navigation.listId')
     expect(shell).not.toContain('react-global-search')
-    expect(shell).not.toContain('aria-label="播放队列"')
+    expect(shell).toContain('aria-label="播放队列"')
+    expect(shell).toContain('onPointerDown={event => startQueueDrag(event, key)}')
+    expect(shell).toContain('className="react-queue-song"')
+    expect(shell).not.toContain('className="react-queue-reorder"')
+    expect(shell).toContain('按住歌曲行拖动排序')
+    expect(shell).toContain('rowsWithoutDragged = Array.from(queueRows.current.entries())')
+    expect(shell).toContain('event.clientY > bounds.top + bounds.height / 2')
+    expect(shell).toContain('if (queueDrag.current?.active) previousQueuePositions.current = null')
+    expect(shell).toContain('prefers-reduced-motion: reduce')
+    expect(shell).toContain("event.key !== 'ArrowUp' && event.key !== 'ArrowDown'")
+    expect(shell).toContain('priorityNextSongKey')
+    expect(shell).toContain('正在恢复播放列表…')
+    expect(shell).toContain('播放列表为空')
+    expect(shell).toContain('下载任务加载失败')
+    expect(shell).toContain('暂无下载任务')
+    expect(shell).toContain('无法刷新任务：{error}')
     expect(shell).toContain('清理已完成')
     expect(shell).toContain('task.songInfo')
+    const cacheStore = read('frontend/player/src/react/store/cache.ts')
+    const cacheApi = read('frontend/player/src/react/api.ts')
+    expect(cacheStore).toContain('pauseTask: (id: string) => Promise<boolean>')
+    expect(cacheStore).toContain('resumeTask: (id: string) => Promise<boolean>')
+    expect(cacheStore).toContain('pauseAll: () => Promise<boolean>')
+    expect(cacheStore).toContain('resumeAll: () => Promise<boolean>')
+    expect(cacheStore).toContain("notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')")
+    expect(cacheApi).toContain("'/api/music/cache/stop'")
+    expect(cacheApi).toContain("'/api/music/cache/queue/resume'")
     expect(library).toContain('LibraryAlbumsView')
     expect(library).toContain('LibraryArtistsView')
     expect(mediaLibrary).toContain('libraryAlbums')
