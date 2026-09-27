@@ -603,11 +603,13 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
         <button type="button" className="react-queue-song" onClick={() => playSong(song, queue, index)}>
           <span className="react-queue-cover"><SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" /></span>
           <span className="react-queue-meta"><strong title={songTitle(song)}>{songTitle(song)}</strong><small title={songArtist(song)}>{songArtist(song)}</small></span>
+        </button>
+        <span className="react-queue-actions">
           <time className="react-queue-duration">{formatSongDuration(songDurationValue(song))}</time>
-        </button>
-        <button type="button" className="react-queue-remove" aria-label={'移除 ' + songTitle(song)} title="从播放列表移除" onClick={() => remove(index)}>
-          <Icon name="trash" />
-        </button>
+          <button type="button" className="react-queue-remove" aria-label={'移除 ' + songTitle(song)} title="从播放列表移除" onClick={() => remove(index)}>
+            <Icon name="trash" />
+          </button>
+        </span>
       </li>)}
     </ol>
     {!queue.length && <p className="react-empty-text">播放列表为空</p>}
