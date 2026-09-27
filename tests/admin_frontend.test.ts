@@ -2,11 +2,20 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { adminSongId, normalizeAdminData } from '../frontend/admin/src/react/api'
+import { reorderCustomSourceIds } from '../frontend/admin/src/react/custom-source-order'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
 
 describe('React admin frontend', () => {
+  it('moves custom sources before or after a dropped row without corrupting the order', () => {
+    expect(reorderCustomSourceIds(['a', 'b', 'c', 'd'], 'a', 'c', false)).toEqual(['b', 'a', 'c', 'd'])
+    expect(reorderCustomSourceIds(['a', 'b', 'c', 'd'], 'd', 'b', false)).toEqual(['a', 'd', 'b', 'c'])
+    expect(reorderCustomSourceIds(['a', 'b', 'c', 'd'], 'b', 'c', true)).toEqual(['a', 'c', 'b', 'd'])
+    expect(reorderCustomSourceIds(['a', 'b'], 'a', 'a', false)).toBeNull()
+    expect(reorderCustomSourceIds(['a', 'b'], 'x', 'b', false)).toBeNull()
+  })
+
   it('normalizes persisted song metadata so data view can render real playlist entries', () => {
     const data = normalizeAdminData({
       data: {
@@ -57,6 +66,26 @@ describe('React admin frontend', () => {
     expect(customSources).toContain('公共音源')
     expect(customSources).toContain('账户专属音源')
     expect(customSources).not.toContain('window.')
+  })
+
+  it('keeps page titles in the top bar and makes custom-source controls aligned and draggable', () => {
+    const frame = read('frontend/admin/src/react/view_frame.tsx')
+    const entry = read('frontend/admin/src/react/index.tsx')
+    const customSources = read('frontend/admin/src/react/custom-sources-view.tsx')
+    const css = read('frontend/styles/admin.css')
+    expect(entry).toContain('<h1 id="page-title">{title}</h1>')
+    expect(frame).not.toContain('view-header')
+    expect(frame).not.toContain('<h1>')
+    expect(frame).not.toContain('subtitle')
+    expect(customSources).not.toContain('<label className="admin-react-inline-label">作用域<SelectMenu')
+    expect(customSources).toContain('draggable={!action}')
+    expect(customSources).toContain('onDrop={event => {')
+    expect(customSources).toContain('Alt+上/下箭头')
+    expect(customSources).not.toContain('chevron-up')
+    expect(customSources).not.toContain('chevron-down')
+    expect(css).toContain('.admin-custom-source-input-row > .admin-custom-source-url-input')
+    expect(css).toContain('.admin-react-shell .admin-custom-source-url-input:focus-visible')
+    expect(css).toContain('flex-wrap: nowrap;')
   })
 
   it('keeps semantic tables, labelled forms and focus-safe dialogs in the stylesheet', () => {

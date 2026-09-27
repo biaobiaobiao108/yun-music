@@ -4,6 +4,7 @@ import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Modal, Panel, 
 import { ViewFrame } from './view_frame'
 import { useAdminStore } from './store'
 import { formatBytes, formatDate } from '../../../shared/src/runtime'
+import { reorderCustomSourceIds } from './custom-source-order'
 
 function ownerLabel(owner: CustomSourceOwner): string {
   return owner === 'open' ? '公共音源' : `账户：${owner}`
@@ -25,6 +26,8 @@ export function CustomSourcesView() {
   const [url, setUrl] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [action, setAction] = useState('')
+  const [draggingSourceId, setDraggingSourceId] = useState('')
+  const [dragOverSourceId, setDragOverSourceId] = useState('')
   const [removeTarget, setRemoveTarget] = useState<AdminCustomSource | null>(null)
   const [transferTarget, setTransferTarget] = useState<AdminCustomSource | null>(null)
   const [targetOwner, setTargetOwner] = useState<CustomSourceOwner>('open')
@@ -108,13 +111,11 @@ export function CustomSourcesView() {
     }
   }
 
-  const moveSource = async (source: AdminCustomSource, direction: -1 | 1) => {
-    const index = visibleSources.findIndex(item => item.id === source.id)
-    const targetIndex = index + direction
-    if (index < 0 || targetIndex < 0 || targetIndex >= visibleSources.length) return
-    const ids = visibleSources.map(item => item.id)
-    ;[ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]]
-    setAction(`reorder:${source.id}`)
+  const reorderSource = async (sourceId: string, targetId: string, afterTarget: boolean) => {
+    if (!sourceId || sourceId === targetId || action) return
+    const ids = reorderCustomSourceIds(visibleSources.map(item => item.id), sourceId, targetId, afterTarget)
+    if (!ids) return
+    setAction(`reorder:${sourceId}`)
     try {
       await adminApi.reorderCustomSources(sourceOwner, ids)
       await loadView('sources')
@@ -140,14 +141,14 @@ export function CustomSourcesView() {
     }
   }
 
-  return <ViewFrame title="自定义源" subtitle="由管理员配置公共音源和账户专属音源">
+  return <ViewFrame>
     <ErrorPanel message={error} onRetry={refresh} />
-    <Panel className="admin-custom-sources-panel" title="音源范围" actions={<div className="admin-react-toolbar admin-custom-source-scope"><label className="admin-react-inline-label">作用域<SelectMenu label="音源作用域" value={sourceOwner} options={ownerOptions} onChange={setSourceOwner} /></label><Button onClick={refresh} disabled={busy || Boolean(action)}><Icon name="rotate" />刷新</Button></div>}>
+    <Panel className="admin-custom-sources-panel" title="音源范围" actions={<div className="admin-react-toolbar admin-custom-source-scope"><SelectMenu label="音源范围" value={sourceOwner} options={ownerOptions} onChange={setSourceOwner} /><Button onClick={refresh} disabled={busy || Boolean(action)}><Icon name="rotate" />刷新</Button></div>}>
       <p className="admin-custom-source-hint">公共音源对所有播放器用户可用，账户专属音源只会被分配账户读取。</p>
       <div className="admin-custom-source-forms">
         <form className="admin-custom-source-form" onSubmit={importSource}>
           <div><strong>从 URL 导入</strong><small>导入远程 JavaScript 或 JSON 音源脚本</small></div>
-          <div className="admin-custom-source-input-row"><input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com/source.js" aria-label="音源脚本 URL" required /><Button variant="primary" type="submit" disabled={action === 'import'}>{action === 'import' ? '导入中…' : '导入'}</Button></div>
+          <div className="admin-custom-source-input-row"><input className="admin-custom-source-url-input" type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com/source.js" aria-label="音源脚本 URL" required /><Button variant="primary" type="submit" disabled={action === 'import'}>{action === 'import' ? '导入中…' : '导入'}</Button></div>
         </form>
         <form className="admin-custom-source-form" onSubmit={uploadSource}>
           <div><strong>上传脚本</strong><small>选择 .js 或 .json 文件，目标为{ownerLabel(sourceOwner)}</small></div>
@@ -156,7 +157,39 @@ export function CustomSourcesView() {
       </div>
     </Panel>
     <Panel className="admin-custom-sources-list-panel" title={`${ownerLabel(sourceOwner)}列表`} actions={<span className="admin-custom-source-count">{visibleSources.length} 个</span>}>
-      {busy && !sources.length ? <Loading /> : visibleSources.length ? <div className="admin-custom-source-table-wrap"><table className="admin-custom-source-table"><caption className="sr-only">{ownerLabel(sourceOwner)}列表</caption><thead><tr><th scope="col">音源</th><th scope="col">归属</th><th scope="col">支持平台</th><th scope="col">状态</th><th scope="col">大小</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{visibleSources.map((source, index) => <tr key={`${source.owner}-${source.id}`}><th scope="row"><div className="admin-custom-source-name"><span className="admin-custom-source-icon"><Icon name="plug" /></span><span><strong title={sourceName(source)}>{sourceName(source)}</strong><small>{source.author || '未知作者'}{source.version ? ` · v${source.version}` : ''}</small></span></div>{source.error && <p className="admin-custom-source-error">{source.error}</p>}</th><td>{ownerLabel(source.owner)}</td><td>{source.supportedSources?.length ? source.supportedSources.join('、') : '—'}</td><td><span className={`admin-react-status ${source.enabled ? 'is-ok' : ''}`}>{source.enabled ? '已启用' : '已停用'}</span></td><td>{formatBytes(source.size)}</td><td>{formatDate(source.uploadTime)}</td><td className="admin-react-row-actions"><Button onClick={() => void toggleSource(source)} disabled={Boolean(action)}>{source.enabled ? '停用' : '启用'}</Button><Button onClick={() => void moveSource(source, -1)} disabled={index === 0 || Boolean(action)} aria-label={`上移 ${sourceName(source)}`}><Icon name="chevron-up" /></Button><Button onClick={() => void moveSource(source, 1)} disabled={index === visibleSources.length - 1 || Boolean(action)} aria-label={`下移 ${sourceName(source)}`}><Icon name="chevron-down" /></Button><Button onClick={() => { setTransferTarget(source); setTargetOwner(source.owner === 'open' ? (userOptions[0]?.value ?? 'open') : 'open') }} disabled={!transferOptions.length || Boolean(action)}>转移</Button><Button variant="danger" onClick={() => setRemoveTarget(source)} disabled={Boolean(action)}>删除</Button></td></tr>)}</tbody></table></div> : <Empty label={`暂无${ownerLabel(sourceOwner)}`} />}
+      {busy && !sources.length ? <Loading /> : visibleSources.length ? <div className="admin-custom-source-table-wrap"><table className="admin-custom-source-table"><caption className="sr-only">{ownerLabel(sourceOwner)}列表</caption><thead><tr><th scope="col">音源</th><th scope="col">归属</th><th scope="col">支持平台</th><th scope="col">状态</th><th scope="col">大小</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{visibleSources.map((source, index) => {
+        const isDragging = draggingSourceId === source.id
+        const isDropTarget = dragOverSourceId === source.id
+        return <tr key={`${source.owner}-${source.id}`} className={`${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`.trim()} onDragOver={event => {
+          if (!draggingSourceId || draggingSourceId === source.id) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+          setDragOverSourceId(source.id)
+        }} onDrop={event => {
+          event.preventDefault()
+          const draggedId = event.dataTransfer.getData('text/plain') || draggingSourceId
+          const bounds = event.currentTarget.getBoundingClientRect()
+          const afterTarget = event.clientY >= bounds.top + bounds.height / 2
+          setDraggingSourceId('')
+          setDragOverSourceId('')
+          void reorderSource(draggedId, source.id, afterTarget)
+        }}>
+          <th scope="row"><div className="admin-custom-source-name"><button type="button" className="admin-custom-source-drag-handle" draggable={!action} aria-label={`拖动排序 ${sourceName(source)}`} title="拖动排序，也可按 Alt+上/下箭头移动" onDragStart={event => {
+            if (action) { event.preventDefault(); return }
+            event.dataTransfer.effectAllowed = 'move'
+            event.dataTransfer.setData('text/plain', source.id)
+            setDraggingSourceId(source.id)
+          }} onDragEnd={() => { setDraggingSourceId(''); setDragOverSourceId('') }} onKeyDown={event => {
+            if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
+            const target = visibleSources[index + (event.key === 'ArrowUp' ? -1 : 1)]
+            if (!target) return
+            event.preventDefault()
+            void reorderSource(source.id, target.id, event.key === 'ArrowDown')
+          }}><Icon name="bars" /></button><span className="admin-custom-source-icon"><Icon name="plug" /></span><span><strong title={sourceName(source)}>{sourceName(source)}</strong><small>{source.author || '未知作者'}{source.version ? ` · v${source.version}` : ''}</small></span></div>{source.error && <p className="admin-custom-source-error">{source.error}</p>}</th>
+          <td>{ownerLabel(source.owner)}</td><td>{source.supportedSources?.length ? source.supportedSources.join('、') : '—'}</td><td><span className={`admin-react-status ${source.enabled ? 'is-ok' : ''}`}>{source.enabled ? '已启用' : '已停用'}</span></td><td>{formatBytes(source.size)}</td><td>{formatDate(source.uploadTime)}</td>
+          <td className="admin-react-row-actions"><Button onClick={() => void toggleSource(source)} disabled={Boolean(action)}>{source.enabled ? '停用' : '启用'}</Button><Button onClick={() => { setTransferTarget(source); setTargetOwner(source.owner === 'open' ? (userOptions[0]?.value ?? 'open') : 'open') }} disabled={!transferOptions.length || Boolean(action)}>转移</Button><Button variant="danger" onClick={() => setRemoveTarget(source)} disabled={Boolean(action)}>删除</Button></td>
+        </tr>
+      })}</tbody></table></div> : <Empty label={`暂无${ownerLabel(sourceOwner)}`} />}
     </Panel>
     <ConfirmDialog open={Boolean(removeTarget)} title="删除自定义源" message={`确定删除“${removeTarget ? sourceName(removeTarget) : ''}”吗？此操作不可撤销。`} confirmLabel="删除" onClose={() => setRemoveTarget(null)} onConfirm={removeSource} />
     <Modal open={Boolean(transferTarget)} title="转移音源归属" onClose={() => setTransferTarget(null)}>

@@ -38,6 +38,12 @@ describe('Outbound URL network boundaries', () => {
       await expect(assertSafeRemoteHttpUrl('http://198.18.0.1/audio')).rejects.toThrow('Private network URL is not allowed')
       lookup.mockResolvedValue([{ address: 'fdfe:dcba:9876::1', family: 6 }] as any)
       expect((await assertSafeRemoteHttpUrl('https://example.com/audio')).hostname).toBe('example.com')
+      lookup.mockResolvedValue([
+        { address: '198.18.0.34', family: 4 },
+        { address: '2001:2::21', family: 6 },
+      ] as any)
+      expect((await assertSafeRemoteHttpUrl('https://example.com/audio')).hostname).toBe('example.com')
+
       lookup.mockResolvedValue([{ address: '198.18.0.1', family: 4 }, { address: '192.168.1.1', family: 4 }] as any)
       await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow('Private network URL is not allowed')
 

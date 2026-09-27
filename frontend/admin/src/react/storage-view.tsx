@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi, type StorageItem } from './api'
 import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Panel, SelectMenu } from './components'
 import { useAdminStore } from './store'
+import { ViewFrame } from './view_frame'
 import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runtime'
 
 type ConfirmRequest = { title: string; message: string; confirmLabel?: string; onConfirm: () => void | Promise<void> }
@@ -115,7 +116,7 @@ export function StorageView() {
     void audio.play().then(() => setPlayingKey(key)).catch(() => { setPlayingKey(''); notify('试听播放失败') })
   }
 
-  return <ViewFrame title="存储管理" subtitle="查看缓存与下载音乐，执行安全清理"><ErrorPanel message={error} onRetry={() => void loadView('storage')} />
+  return <ViewFrame><ErrorPanel message={error} onRetry={() => void loadView('storage')} />
     <Panel className="admin-storage-panel" title="文件存储" actions={<div className="admin-react-toolbar"><label className="admin-react-inline-label">用户<SelectMenu label="存储用户" value={selectedUser} options={[{ value: '', label: '全部用户' }, { value: '_open', label: '公开空间' }, ...users.filter(user => user.name !== '_open').map(user => ({ value: user.name, label: user.name }))]} onChange={setSelectedUser} /></label><Button onClick={() => void loadView('storage')} disabled={busy}><Icon name="rotate" />刷新</Button></div>}>
       <div className="admin-storage-tabs" role="tablist"><button type="button" role="tab" aria-selected={folder === 'cache'} className={folder === 'cache' ? 'is-active' : ''} onClick={() => setStorageFolder('cache')}>服务端缓存</button><button type="button" role="tab" aria-selected={folder === 'music'} className={folder === 'music' ? 'is-active' : ''} onClick={() => setStorageFolder('music')}>下载音乐</button></div>
       <div className="admin-storage-toolbar"><div className="admin-data-search"><Icon name="magnifying-glass" /><input aria-label="搜索存储歌曲" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索歌曲、歌手或文件名" /></div><SelectMenu label="存储排序" value={sort} options={[{ value: 'default', label: '默认顺序' }, { value: 'name-asc', label: '名称 A-Z' }, { value: 'name-desc', label: '名称 Z-A' }, { value: 'size-desc', label: '文件最大' }, { value: 'time-desc', label: '最近更新' }]} onChange={value => setSort(value as SortMode)} /></div>
@@ -123,8 +124,4 @@ export function StorageView() {
       <div className="admin-react-batch-bar"><label><input type="checkbox" checked={allSelected} ref={element => { if (element) element.indeterminate = selectedCurrent.length > 0 && !allSelected }} onChange={event => setSelected(event.target.checked ? [...new Set([...selected, ...currentKeys])] : selected.filter(key => !currentKeys.includes(key)))} />全选</label><span>已选择 {selectedCurrent.length} 项</span><Button disabled={!selectedCurrent.length} onClick={() => requestMove(currentItems.filter(item => selectedCurrent.includes(storageItemKey(item))))}><Icon name="right-left" />{folder === 'cache' ? '转为下载' : '转为缓存'}</Button><Button variant="danger" disabled={!selectedCurrent.length} onClick={() => requestRemove(currentItems.filter(item => selectedCurrent.includes(storageItemKey(item))))}><Icon name="trash" />删除所选</Button>{folder === 'cache' && <Button variant="danger" onClick={requestClear}>清空缓存</Button>}</div>
       {busy && !storage.length ? <Loading label="正在读取存储文件…" /> : currentItems.length ? <div className="admin-react-table-wrap admin-storage-table-wrap"><table className="admin-react-table admin-storage-table"><caption className="sr-only">{folder === 'cache' ? '服务端缓存' : '下载音乐'}列表</caption><thead><tr><th scope="col">选</th><th scope="col">#</th><th scope="col">歌曲 / 歌手</th><th scope="col">来源</th><th scope="col">大小</th><th scope="col">所属用户</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{currentItems.map((item, index) => { const key = storageItemKey(item); return <StorageSongRow key={key} item={item} index={index} selected={selected.includes(key)} playing={playingKey === key} onSelect={checked => setSelected(current => checked ? [...new Set([...current, key])] : current.filter(itemKey => itemKey !== key))} onPreview={() => preview(item)} onMove={() => requestMove([item])} onDelete={() => requestRemove([item])} /> })}</tbody></table></div> : <Empty label={query ? '没有匹配的存储文件' : `当前${folder === 'cache' ? '缓存' : '下载'}目录暂无文件`} />}
     </Panel><ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title ?? ''} message={confirmation?.message ?? ''} confirmLabel={confirmation?.confirmLabel} onClose={() => setConfirmation(null)} onConfirm={() => confirmation?.onConfirm()} /></ViewFrame>
-}
-
-function ViewFrame({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return <section className="view active admin-react-view"><header className="view-header"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div></header>{children}</section>
 }

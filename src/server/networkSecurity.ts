@@ -63,6 +63,9 @@ const isSyntheticDnsAddress = (value: string): boolean => {
   if (number != null) return number >= 0xc6120000 && number <= 0xc613ffff
 
   const normalized = value.toLowerCase().replace(/^\[|\]$/g, '').split('%')[0]
+  // RFC 5180's 2001:2::/48 benchmarking prefix is another synthetic DNS
+  // answer used by some desktop proxy resolvers alongside 198.18.0.0/15.
+  if (/^2001:2:(?::|0(?::|$))/.test(normalized)) return true
   if (normalized.startsWith('fdfe:dcba:9876:')) return true
 
   // Some resolvers encode the same RFC 2544 fake IPv4 address as

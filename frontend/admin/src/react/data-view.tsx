@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { adminApi, adminSongId, type AdminData, type AdminPlaylist, type AdminSong } from './api'
 import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Modal, Panel, SelectMenu } from './components'
 import { useAdminStore } from './store'
+import { ViewFrame } from './view_frame'
 import { formatBytes, formatDuration, parseByteSize, safeImageUrl } from '../../../shared/src/runtime'
 
 type ListKind = 'all' | 'default' | 'love' | 'user'
@@ -292,8 +293,8 @@ export function DataView() {
     } })
   }
 
-  if (busy && !data) return <ViewFrame title="数据查看" subtitle="浏览用户歌单与歌曲数据"><Loading label="正在读取歌单数据…" /></ViewFrame>
-  return <ViewFrame title="数据查看" subtitle="按用户查看试听列表、收藏和自定义歌单"><ErrorPanel message={error} onRetry={() => void loadView('data')} />
+  if (busy && !data) return <ViewFrame><Loading label="正在读取歌单数据…" /></ViewFrame>
+  return <ViewFrame><ErrorPanel message={error} onRetry={() => void loadView('data')} />
     <Panel className="admin-data-panel" title="用户数据" actions={<div className="admin-react-toolbar"><label className="admin-react-inline-label">用户<SelectMenu label="数据用户" value={selectedUser} options={[{ value: '', label: '请选择用户' }, ...users.map(user => ({ value: user.name, label: user.name === '_open' ? '公开用户' : user.name }))]} onChange={value => { setSelectedUser(value); setActiveId('all') }} /></label><Button onClick={() => void loadView('data')} disabled={busy}><Icon name="rotate" />刷新</Button></div>}>
       {!selectedUser ? <Empty label="请选择用户" /> : !lists.length ? <Empty label="该用户暂无歌单数据" /> : <div className="admin-data-workspace">
         <DataListNavigation lists={lists} activeId={activeList?.id ?? 'all'} onChange={id => { setActiveId(id); setQuery(''); setSelectedKeys([]) }} />
@@ -315,8 +316,4 @@ export function DataView() {
 
 function SummaryMetric({ label, value }: { label: string; value: number }) {
   return <div className="admin-data-summary-metric"><span>{label}</span><strong>{value}</strong></div>
-}
-
-function ViewFrame({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return <section className="view active admin-react-view"><header className="view-header"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div></header>{children}</section>
 }
