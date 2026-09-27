@@ -198,6 +198,11 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-queue-actions > .react-queue-remove {')
     expect(css).toContain('.react-queue-drawer .react-queue-list li:hover .react-queue-duration')
     expect(css).toContain('visibility 0s linear var(--app-motion-fast, 140ms)')
+    const removeStyle = css.slice(css.indexOf('\n.react-queue-remove {'), css.indexOf('\n.react-queue-drawer .react-empty-text'))
+    expect(removeStyle).toContain('justify-content: center;')
+    expect(removeStyle).toContain('background: transparent;')
+    expect(removeStyle).toContain('box-shadow: none;')
+    expect(removeStyle).not.toContain('color-mix')
   })
 
   it('keeps the normal footer order and exposes the portal song action flow', () => {
