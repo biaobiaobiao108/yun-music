@@ -179,7 +179,7 @@ export function CustomSourcesView() {
       </div>
     </Panel>
     <Panel className="admin-custom-sources-list-panel" title={`${ownerLabel(sourceOwner)}列表`} actions={<span className="admin-custom-source-count">{visibleSources.length} 个</span>}>
-      {busy && !sources.length ? <Loading /> : visibleSources.length ? <div className="admin-custom-source-table-wrap"><table className="admin-custom-source-table"><caption className="sr-only">{ownerLabel(sourceOwner)}列表</caption><thead><tr><th scope="col">音源</th><th scope="col">归属</th><th scope="col">支持平台</th><th scope="col">状态</th><th scope="col">大小</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{visibleSources.map((source, index) => {
+      {busy && !sources.length ? <Loading /> : visibleSources.length ? <div className="admin-custom-source-table-wrap"><table className="admin-custom-source-table"><caption className="sr-only">{ownerLabel(sourceOwner)}列表</caption><thead><tr><th scope="col">音源</th><th scope="col">支持平台</th><th scope="col">状态</th><th scope="col">大小</th><th scope="col">更新时间</th><th scope="col">操作</th></tr></thead><tbody>{visibleSources.map((source, index) => {
         const isDragging = draggingSourceId === source.id
         const isDropTarget = dragOverSourceId === source.id
         return <tr key={`${source.owner}-${source.id}`} className={`${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`.trim()} onDragOver={event => {
@@ -208,7 +208,7 @@ export function CustomSourcesView() {
             event.preventDefault()
             void reorderSource(source.id, target.id, event.key === 'ArrowDown')
           }}><Icon name="bars" /></button><span className="admin-custom-source-icon"><Icon name="plug" /></span><span><strong title={sourceName(source)}>{sourceName(source)}</strong><small>{source.author || '未知作者'}{source.version ? ` · v${source.version}` : ''}</small></span></div>{source.error && <p className="admin-custom-source-error">{source.error}</p>}</th>
-          <td>{ownerLabel(source.owner)}</td><td>{source.supportedSources?.length ? source.supportedSources.join('、') : '—'}</td><td><span className={`admin-react-status ${source.enabled ? 'is-ok' : ''}`}>{source.enabled ? '已启用' : '已停用'}</span></td><td>{formatBytes(source.size)}</td><td>{formatDate(source.uploadTime)}</td>
+          <td>{source.supportedSources?.length ? source.supportedSources.join('、') : '—'}</td><td><span className={`admin-react-status ${source.enabled ? 'is-ok' : ''}`}>{source.enabled ? '已启用' : '已停用'}</span></td><td>{formatBytes(source.size)}</td><td>{formatDate(source.uploadTime)}</td>
           <td className="admin-react-row-actions"><Button onClick={() => void toggleSource(source)} disabled={Boolean(action)}>{source.enabled ? '停用' : '启用'}</Button><Button onClick={() => { setUpdateTarget(source); setUpdateUrl('') }} disabled={Boolean(action)} title="更新音源脚本"><Icon name="rotate" />更新</Button><Button onClick={() => { setTransferTarget(source); setTargetOwner(source.owner === 'open' ? (userOptions[0]?.value ?? 'open') : 'open') }} disabled={!transferOptions.length || Boolean(action)}>转移</Button><Button variant="danger" onClick={() => setRemoveTarget(source)} disabled={Boolean(action)}>删除</Button></td>
         </tr>
       })}</tbody></table></div> : <Empty label={`暂无${ownerLabel(sourceOwner)}`} />}

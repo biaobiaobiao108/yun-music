@@ -6652,13 +6652,12 @@ textarea:focus-visible {
 .admin-custom-source-table { width: 100%; min-width: 58rem; border-collapse: collapse; table-layout: fixed; }
 .admin-custom-source-table th,
 .admin-custom-source-table td { padding: .72rem .6rem; border-bottom: 1px solid color-mix(in srgb, var(--app-border) 72%, transparent); color: var(--app-text-muted); font-size: .76rem; text-align: left; vertical-align: middle; }
-.admin-custom-source-table th[scope="row"] { width: 23%; color: var(--app-text); font-weight: 650; }
-.admin-custom-source-table th:nth-child(2) { width: 14%; }
-.admin-custom-source-table th:nth-child(3) { width: 16%; }
-.admin-custom-source-table th:nth-child(4) { width: 10%; }
-.admin-custom-source-table th:nth-child(5) { width: 8%; }
-.admin-custom-source-table th:nth-child(6) { width: 12%; }
-.admin-custom-source-table th:nth-child(7) { width: 17%; }
+.admin-custom-source-table th[scope="row"] { width: 26%; color: var(--app-text); font-weight: 650; }
+.admin-custom-source-table th:nth-child(2) { width: 18%; }
+.admin-custom-source-table th:nth-child(3) { width: 10%; }
+.admin-custom-source-table th:nth-child(4) { width: 8%; }
+.admin-custom-source-table th:nth-child(5) { width: 12%; }
+.admin-custom-source-table th:nth-child(6) { width: 26%; }
 .admin-custom-source-table tbody tr { transition: background var(--app-motion-fast) ease; }
 .admin-custom-source-table tbody tr:hover { background: color-mix(in srgb, var(--app-accent) 5%, transparent); }
 .admin-custom-source-name { display: flex; align-items: center; gap: .55rem; min-inline-size: 0; }

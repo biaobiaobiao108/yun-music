@@ -83,6 +83,8 @@ describe('React admin frontend', () => {
     expect(customSources).toContain('Alt+上/下箭头')
     expect(customSources).not.toContain('chevron-up')
     expect(customSources).not.toContain('chevron-down')
+    expect(customSources).not.toContain('<th scope="col">归属</th>')
+    expect(customSources).not.toContain('<td>{ownerLabel(source.owner)}</td>')
     expect(customSources).toContain('updateCustomSource')
     expect(customSources).toContain('canUpdate')
     expect(customSources).toContain('留空以使用已保存的来源地址')
