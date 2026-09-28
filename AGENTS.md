@@ -19,7 +19,7 @@
     - 全面采用 **`bun:sqlite`** 原生数据库引擎，开启 WAL 模式与外键约束。
     - 结构化管理账户（`users`）、会话（`user_sessions`/`player_sessions`）、列表/黑名单快照（`snapshots`）、用户级设置（`user_settings`）及缓存索引（`cache_index`）。
   - **业务领域路由模块 (`src/server/routes/`)**：
-    - 采用领域驱动划分：`auth`（鉴权与 Session）、`system`（系统信息与配置）、`user`（用户增删改查）、`customSource`（自定义音源管理）、`elfinder`（文件管理器后端）、`music`（聚合搜索、音源解析、歌词服务）、`cache`（歌曲下载、音质转码与 USLT 歌词内嵌）、`static`（前端与 SPA 兜底静态资源分发）。
+    - 采用领域驱动划分：`auth`（鉴权与 Session）、`system`（系统信息与配置）、`user`（用户增删改查）、`customSource`（自定义音源管理）、`music`（聚合搜索、音源解析、歌词服务）、`cache`（本地音乐库管理、歌曲下载、音质转码与 USLT 歌词内嵌）、`static`（前端与 SPA 兜底静态资源分发）。
   - **服务组装入口 (`src/server/server.ts` & `src/server/routes/index.ts`)**：
     - 精简至 70 余行的纯组装器，职责单一，纯净解耦。
 - **前端工程 (`frontend/`)**：

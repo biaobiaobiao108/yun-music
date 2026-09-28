@@ -299,7 +299,7 @@ const saveNow = () => {
     console.log(`[ServerDownloadQueue] Pruned ${removed} old history task(s)`)
   }
   const file = getQueueFile()
-  const tempFile = `${file}.tmp`
+  const tempFile = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`
   const payload = JSON.stringify({
     version: 2,
     concurrencyByUser: Object.fromEntries(concurrencyByUser),
