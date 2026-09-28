@@ -177,7 +177,8 @@ const resolveCacheTarget = (
   if (isAdmin) {
     try { return { ok: true, username: assertSafePathSegment(requested, 'user name') } } catch { return { ok: false, error: ctx.fail(400, '用户名不合法') } }
   }
-  if (!verified || verified !== requested) return { ok: false, error: ctx.fail(401, '登录状态已失效，请重新登录') }
+  if (!verified) return { ok: false, error: ctx.fail(401, '登录状态已失效，请重新登录') }
+  if (verified !== requested) return { ok: false, error: ctx.fail(403, '无权访问其他用户的本地音乐') }
   return { ok: true, username: verified }
 }
 
@@ -659,8 +660,11 @@ export const createCacheRouter = (): Router => {
     if (!isPublic) {
       const isAdmin = verifyAdminAuth(ctx.request)
       const tokenUser = verifyUserAuth(ctx)
-      if (!isAdmin && (!tokenUser || tokenUser !== reqUsername)) {
+      if (!isAdmin && !tokenUser) {
         return ctx.fail(401, '登录状态已失效，请重新登录')
+      }
+      if (!isAdmin && tokenUser !== reqUsername) {
+        return ctx.fail(403, '无权访问其他用户的本地音乐')
       }
       username = reqUsername
     }

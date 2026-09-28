@@ -64,7 +64,7 @@ export class Router {
     // 复制子路由规则并附上前缀
     for (const route of subRouter.routes) {
       const combined = route.pattern === '/'
-        ? normalizedPrefix
+        ? (normalizedPrefix || '/')
         : `${normalizedPrefix}${route.pattern}`
       this.routes.push({
         ...route,

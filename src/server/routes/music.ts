@@ -426,8 +426,9 @@ export const createMusicRouter = (): Router => {
     const rawReqId = ctx.headers.get('x-req-id')?.trim() || ''
     const reqId = /^[A-Za-z0-9_-]{8,128}$/.test(rawReqId) ? rawReqId : undefined
 
-    const pushProgress = async (attempt: any, retries = 10): Promise<void> => {
-      if (!reqId) return
+    let sseActive = true
+    const pushProgress = async (attempt: any, retries = 2): Promise<void> => {
+      if (!reqId || !sseActive) return
       const controller = musicProgressControllers.get(reqId)
       if (controller) {
         try {
@@ -435,14 +436,15 @@ export const createMusicRouter = (): Router => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(attempt)}\n\n`))
         } catch {
           cleanupMusicProgress(reqId, controller)
+          sseActive = false
         }
         return
       }
       if (retries > 0) {
-        await new Promise((r) => setTimeout(r, 300))
+        await new Promise((r) => setTimeout(r, 100))
         await pushProgress(attempt, retries - 1)
       } else {
-        console.warn(`[SSE] ReqId ${reqId} not found after retries (${musicProgressControllers.size} clients registered)`)
+        sseActive = false
       }
     }
 

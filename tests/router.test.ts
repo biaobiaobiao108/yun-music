@@ -44,6 +44,23 @@ describe('Core Router & HttpContext', () => {
     expect(await resPost.json()).toEqual({ success: true })
   })
 
+  test('Subrouter mounting at root path handles root and nested routes', async () => {
+    const subRouter = new Router()
+    subRouter.get('/', (ctx) => ctx.text('sub-root'))
+    subRouter.get('/hello', (ctx) => ctx.text('sub-hello'))
+
+    const rootRouter = new Router()
+    rootRouter.mount('/', subRouter)
+
+    const resRoot = await rootRouter.handle(new Request('http://localhost:9527/'))
+    expect(resRoot.status).toBe(200)
+    expect(await resRoot.text()).toBe('sub-root')
+
+    const resHello = await rootRouter.handle(new Request('http://localhost:9527/hello'))
+    expect(resHello.status).toBe(200)
+    expect(await resHello.text()).toBe('sub-hello')
+  })
+
   test('Middleware onion execution flow', async () => {
     const router = new Router()
     const trail: string[] = []
@@ -179,6 +196,16 @@ describe('Core Router & HttpContext', () => {
         },
       }), { remoteAddress: '172.18.0.2' })
       expect(crossSiteThroughUnlistedProxy.status).toBe(403)
+
+      const spoofedForwardedHost = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
+        headers: {
+          Host: '127.0.0.1:9527',
+          Origin: 'https://attacker.example',
+          'X-Forwarded-Host': 'attacker.example',
+          'X-Forwarded-Proto': 'https',
+        },
+      }), { remoteAddress: '172.18.0.2' })
+      expect(spoofedForwardedHost.status).toBe(403)
     } finally {
       ;(global as any).lx = previousLx
     }

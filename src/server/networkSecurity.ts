@@ -160,6 +160,16 @@ const bodyToBuffer = async (body: BodyInit | null | undefined): Promise<Buffer |
   if (body instanceof ArrayBuffer) return Buffer.from(new Uint8Array(body))
   if (body instanceof URLSearchParams) return Buffer.from(body.toString())
   if (body instanceof Blob) return Buffer.from(await body.arrayBuffer())
+  if (body instanceof ReadableStream) {
+    const reader = body.getReader()
+    const chunks: Uint8Array[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) chunks.push(value)
+    }
+    return Buffer.concat(chunks)
+  }
   throw new Error('Unsupported remote request body')
 }
 

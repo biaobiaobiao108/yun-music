@@ -83,13 +83,18 @@ const isTrustedProxyAddress = (socketAddress: string): boolean => {
   return configured.some(address => normalizeAddress(String(address)) === normalizedSocket)
 }
 
-export const resolveRequestOrigin = (request: Request, internalUrl: URL, trustForwardedHeaders = false): string => {
+export const resolveRequestOrigin = (
+  request: Request,
+  internalUrl: URL,
+  trustForwardedHeaders = false,
+  trustForwardedHost = true,
+): string => {
   if (!trustForwardedHeaders) return internalUrl.origin
 
   const forwardedProtocol = firstHeaderValue(request.headers.get('x-forwarded-proto'))
-    || forwardedParameter(request.headers.get('forwarded'), 'proto')
-  const forwardedHost = firstHeaderValue(request.headers.get('x-forwarded-host'))
-    || forwardedParameter(request.headers.get('forwarded'), 'host')
+    || (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'proto') : null)
+  const forwardedHost = (trustForwardedHost ? firstHeaderValue(request.headers.get('x-forwarded-host')) : null)
+    || (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'host') : null)
     || firstHeaderValue(request.headers.get('host'))
 
   const externalUrl = new URL(internalUrl.href)
@@ -116,22 +121,22 @@ export const resolveRequestOrigin = (request: Request, internalUrl: URL, trustFo
  * 在未配置可信代理地址时，为浏览器请求安全地兼容 HTTPS 反代。
  *
  * 浏览器会发送真实的 Origin，但不会允许网页脚本自行设置
- * X-Forwarded-Proto / X-Forwarded-Host。只有当反代头计算出的 origin
+ * X-Forwarded-Proto / X-Forwarded-Host。只有当基于标准 Host 与协议计算出的 origin
  * 与浏览器声明的 Origin 完全一致时才采用它；跨站 Origin 仍然走内部
- * origin，随后由 CORS 中间件拒绝。可信代理仍优先使用转发头，以兼容
- * 没有 Origin 的服务端请求和 Cookie 安全属性判断。
+ * origin，随后由 CORS 中间件拒绝。未在受信任名单时不采信客户端伪造的
+ * X-Forwarded-Host。
  */
 const resolveContextRequestOrigin = (
   request: Request,
   internalUrl: URL,
   trustedProxy: boolean,
 ): string => {
-  if (trustedProxy) return resolveRequestOrigin(request, internalUrl, true)
+  if (trustedProxy) return resolveRequestOrigin(request, internalUrl, true, true)
 
   const browserOrigin = request.headers.get('origin')
   if (!browserOrigin) return internalUrl.origin
 
-  const forwardedOrigin = resolveRequestOrigin(request, internalUrl, true)
+  const forwardedOrigin = resolveRequestOrigin(request, internalUrl, true, false)
   return browserOrigin === forwardedOrigin ? forwardedOrigin : internalUrl.origin
 }
 
