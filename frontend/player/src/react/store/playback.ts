@@ -231,7 +231,16 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       }
       set({ priorityNextSongKey: null })
     }
-    const index = mode === 'random' ? Math.floor(Math.random() * queue.length) : (currentIndex + 1) % queue.length
+    let index = (currentIndex + 1) % queue.length
+    if (mode === 'random') {
+      if (queue.length > 1) {
+        let nextIndex = Math.floor(Math.random() * (queue.length - 1))
+        if (nextIndex >= currentIndex) nextIndex += 1
+        index = nextIndex
+      } else {
+        index = 0
+      }
+    }
     const song = queue[index]
     if (song) get().playSong(song, queue, index)
   },

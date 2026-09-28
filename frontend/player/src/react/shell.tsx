@@ -5,7 +5,7 @@ import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
 import { formatSongDuration, songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { safeImageUrl } from '../../../shared/src/runtime'
-import { createPlayerHistoryController } from './player_history'
+import { createPlayerHistoryController, type PlayerHistoryPayload } from './player_history'
 import { connectPlayerNavigation, goBack, goForward, parsePlayerHash, VALID_PLAYER_TABS } from './route_state'
 import { emitPlaybackService } from './playback_service'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl, parseCachePlaybackUrl } from './media_url'
@@ -206,7 +206,7 @@ function TopBar() {
   const title = tab === 'favorites' && currentPlaylist ? currentPlaylist.name : ALL_NAV_ITEMS.find(item => item.id === tab)?.label ?? (tab === 'favorites' ? '收藏' : '云音')
   useEffect(() => { document.title = `${title} - 云音` }, [title])
   const toggleTheme = () => { const next = settings.appearance === 'dark' ? 'light' : 'dark'; setSetting('appearance', next) }
-  return <header className="react-player-topbar"><div className="react-history-controls" aria-label="页面历史"><button type="button" className="react-icon-button" aria-label="后退" onClick={goBack}><Icon name="arrow-left" /></button><button type="button" className="react-icon-button" aria-label="前进" onClick={goForward}><Icon name="arrow-right" /></button></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
+  return <header className="react-player-topbar"><div className="react-history-controls" aria-label="页面历史"><button type="button" id="player-history-back" className="react-icon-button" aria-label="后退" onClick={goBack}><Icon name="arrow-left" /></button><button type="button" id="player-history-forward" className="react-icon-button" aria-label="前进" onClick={goForward}><Icon name="arrow-right" /></button></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
 }
 
 function AudioRuntime() {
@@ -947,8 +947,38 @@ export function PlayerShell() {
     const initialRoute = parsePlayerHash(window.location.hash)
     const initialTab = initialRoute.tab
     const historyController = createPlayerHistoryController()
-    historyController.initialize({ page: 'tab', tabId: initialTab, ...(initialTab === 'favorites' ? { listId: initialRoute.listId } : {}) })
-    setTabFromHistory(initialTab, null, initialRoute.listId)
+    const savedState = window.history.state
+    const isSavedDetail = savedState && (savedState.page === 'search-detail' || savedState.page === 'songlist-detail') && savedState.kind && savedState.id
+    const initialDetail = isSavedDetail ? {
+      page: savedState.page,
+      kind: savedState.kind,
+      id: savedState.id,
+      source: savedState.source || 'wy',
+      name: savedState.name,
+      image: savedState.image,
+    } as PlayerDetail : null
+    const targetTab = (savedState?.tabId && VALID_PLAYER_TABS.includes(savedState.tabId as PlayerTab) ? savedState.tabId as PlayerTab : initialTab)
+    const targetListId = savedState?.listId || initialRoute.listId
+
+    const initialPayload: PlayerHistoryPayload = initialDetail
+      ? {
+          page: initialDetail.page,
+          tabId: targetTab,
+          kind: initialDetail.kind,
+          id: initialDetail.id,
+          source: initialDetail.source,
+          name: initialDetail.name,
+          image: initialDetail.image,
+          listId: targetListId,
+        }
+      : {
+          page: 'tab',
+          tabId: targetTab,
+          ...(targetTab === 'favorites' ? { listId: targetListId } : {}),
+        }
+
+    historyController.initialize(initialPayload)
+    setTabFromHistory(targetTab, initialDetail, targetListId)
     const disconnect = connectPlayerNavigation(navigation => {
       const detail = navigation.detail
       historyController.push(detail ? { page: detail.page, tabId: navigation.tab, kind: detail.kind, id: detail.id, source: detail.source, name: detail.name, image: detail.image, listId: navigation.listId } : { page: 'tab', tabId: navigation.tab, listId: navigation.listId })

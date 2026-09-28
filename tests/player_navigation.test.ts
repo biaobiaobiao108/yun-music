@@ -512,4 +512,10 @@ describe('React player navigation and state restoration', () => {
     expect(source).not.toMatch(/\bon(?:click|change|submit)\s*=/)
     expect(source).not.toMatch(/window\.(?:toggle|play|pause|selected|current)\w*\s*=/)
   })
+
+  it('binds DOM IDs to player history back and forward buttons in TopBar', () => {
+    const shellSource = read('frontend/player/src/react/shell.tsx')
+    expect(shellSource).toContain('id="player-history-back"')
+    expect(shellSource).toContain('id="player-history-forward"')
+  })
 })
