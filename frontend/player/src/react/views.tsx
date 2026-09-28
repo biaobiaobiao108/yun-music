@@ -482,6 +482,8 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
   const lyricsListRef = useRef<HTMLElement | null>(null)
   const scrollFrameRef = useRef<number | null>(null)
+  const userScrollUntilRef = useRef<number>(0)
+  const onUserScroll = useCallback(() => { userScrollUntilRef.current = Date.now() + 3500 }, [])
   const [isClosing, setIsClosing] = useState(false)
   useEffect(() => { if (open) void load(song) }, [load, open, song])
   const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
@@ -558,6 +560,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   }, [onFooterHostChange])
   useEffect(() => {
     if (active < 0) return
+    if (Date.now() < userScrollUntilRef.current) return
     const list = lyricsListRef.current
     const line = lineRefs.current[active]
     if (!list || !line) return
@@ -626,7 +629,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
               under the artwork, matching the reference lyrics composition. */}
           <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
         </section>
-        <section ref={lyricsListRef} className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite">
+        <section ref={lyricsListRef} className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite" onWheel={onUserScroll} onTouchMove={onUserScroll}>
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {
             const focusClass = lyricFocusClass(index, active)
             return <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={focusClass} data-lyric-focus={focusClass.replace('is-', '')} aria-current={index === active ? 'true' : undefined} onClick={event => { seek(line.time); if (event.detail > 0) event.currentTarget.blur() }}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>

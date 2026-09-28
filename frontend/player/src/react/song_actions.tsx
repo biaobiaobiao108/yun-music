@@ -69,6 +69,10 @@ export function SongActionsPopover({ song, open, anchorRef, onClose, onAddToList
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
+      const anchor = anchorRef.current
+      if (anchor && anchor.isConnected && !anchor.matches(':disabled')) {
+        anchor.focus()
+      }
     }
   }, [anchorRef, onClose, open, updatePosition])
 

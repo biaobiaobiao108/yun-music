@@ -302,11 +302,71 @@ export function Modal({ open, title, onClose, children, className }: { open: boo
     else window.requestAnimationFrame(restoreFallback)
     lastFocus.current = null
   }, [])
-  return <dialog ref={ref} className={`react-dialog${className ? ` ${className}` : ''}`} aria-labelledby={titleId} onCancel={event => { event.preventDefault(); onClose() }}><div className="react-dialog-content"><header><h2 id={titleId}>{title}</h2><button type="button" className="react-icon-button" aria-label="关闭" onClick={onClose}><Icon name="xmark" /></button></header><div className="react-dialog-body">{children}</div></div></dialog>
+  return <dialog
+    ref={ref}
+    className={`react-dialog${className ? ` ${className}` : ''}`}
+    aria-labelledby={titleId}
+    onCancel={event => { event.preventDefault(); onClose() }}
+    onClick={event => { if (event.target === ref.current) onClose() }}
+  >
+    <div className="react-dialog-content">
+      <header><h2 id={titleId}>{title}</h2><button type="button" className="react-icon-button" aria-label="关闭" onClick={onClose}><Icon name="xmark" /></button></header>
+      <div className="react-dialog-body">{children}</div>
+    </div>
+  </dialog>
 }
 
 export function Drawer({ open, title, titleSuffix, onClose, children, labelledBy, className = '', headerActions }: { open: boolean; title: string; titleSuffix?: ReactNode; onClose: () => void; children: ReactNode; labelledBy?: string; className?: string; headerActions?: ReactNode }) {
-  return <aside className={'react-player-drawer ' + className + (open ? ' is-open' : '')} aria-hidden={!open} aria-labelledby={labelledBy} inert={!open ? true : undefined}><div className="react-drawer-header"><h2 id={labelledBy}>{title}{titleSuffix}</h2><div className="react-drawer-actions">{headerActions}<button type="button" className="react-icon-button" onClick={onClose} aria-label={'关闭' + title}><Icon name="xmark" /></button></div></div><div className="react-drawer-body">{children}</div></aside>
+  const drawerRef = useRef<HTMLElement>(null)
+  const lastFocus = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      lastFocus.current = document.activeElement as HTMLElement | null
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          onClose()
+        }
+      }
+      const onPointerDown = (event: PointerEvent) => {
+        if (!drawerRef.current?.contains(event.target as Node)) {
+          onClose()
+        }
+      }
+      window.addEventListener('keydown', onKeyDown)
+      const timer = setTimeout(() => {
+        window.addEventListener('pointerdown', onPointerDown)
+      }, 0)
+      return () => {
+        clearTimeout(timer)
+        window.removeEventListener('keydown', onKeyDown)
+        window.removeEventListener('pointerdown', onPointerDown)
+      }
+    } else if (lastFocus.current) {
+      const target = lastFocus.current
+      lastFocus.current = null
+      if (target.isConnected && !target.matches(':disabled')) {
+        target.focus()
+      }
+    }
+    return undefined
+  }, [open, onClose])
+
+  return <>
+    {open && <div className="react-drawer-backdrop" onClick={onClose} aria-hidden="true" />}
+    <aside ref={drawerRef} className={'react-player-drawer ' + className + (open ? ' is-open' : '')} aria-hidden={!open} aria-labelledby={labelledBy} inert={!open ? true : undefined}>
+      <div className="react-drawer-header">
+        <h2 id={labelledBy}>{title}{titleSuffix}</h2>
+        <div className="react-drawer-actions">
+          {headerActions}
+          <button type="button" className="react-icon-button" onClick={onClose} aria-label={'关闭' + title}><Icon name="xmark" /></button>
+        </div>
+      </div>
+      <div className="react-drawer-body">{children}</div>
+    </aside>
+  </>
 }
 
 export function DrawerState({ kind, title, description, icon = 'music', actionLabel, onAction }: {

@@ -94,7 +94,13 @@ export function Modal({ open, title, onClose, children, labelledBy, className = 
       previousFocus.current = null
     }
   }, [open])
-  return <dialog ref={ref} className={`admin-react-dialog ${className}`.trim()} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose() }}>
+  return <dialog
+    ref={ref}
+    className={`admin-react-dialog ${className}`.trim()}
+    aria-labelledby={titleId}
+    onCancel={(event) => { event.preventDefault(); onClose() }}
+    onClick={(event) => { if (event.target === ref.current) onClose() }}
+  >
     <div className="admin-react-dialog-content">
       <header><h2 id={titleId}>{title}</h2><button type="button" className="admin-react-icon-button" aria-label="关闭" onClick={onClose}><Icon name="xmark" /></button></header>
       <div className="admin-react-dialog-body">{children}</div>

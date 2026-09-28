@@ -676,12 +676,16 @@ html, body {
 }
 
 .react-select-menu-trigger:hover,
-.react-select-menu-trigger:focus-visible,
 .react-select-menu.is-open .react-select-menu-trigger {
     border-color: var(--app-accent);
     background: var(--app-surface);
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
-    outline: 1px solid transparent;
+}
+
+.react-select-menu-trigger:focus-visible {
+    border-color: var(--app-accent);
+    background: var(--app-surface);
+    outline: 1px solid var(--app-accent);
+    outline-offset: -1px;
 }
 
 .react-select-menu-trigger > span {
@@ -779,7 +783,6 @@ html, body {
 
 .react-search-input:focus-within {
     border-color: var(--app-accent);
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
 }
 
 .react-toolbar-card {
@@ -1252,7 +1255,22 @@ html, body {
 .react-lyrics-dialog { min-height: 300px; max-height: 65vh; overflow: auto; text-align: center; padding: 1rem .3rem; }
 .react-lyrics-dialog p { margin: .8rem 0; color: var(--text-muted); transition: color .18s ease, transform .18s ease; }
 .react-lyrics-dialog p.is-active { color: var(--c-600); transform: scale(1.04); font-weight: 750; }
-.react-lyrics-dialog p small { display: block; margin-top: .25rem; color: var(--text-dim); font-size: .76rem; }
+.react-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 119;
+    background: rgba(0, 0, 0, .4);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    animation: react-fade-in var(--app-motion-fast) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-drawer-backdrop {
+        animation: none;
+    }
+}
+
 .react-player-drawer { position: fixed; inset-block: 0; right: 0; z-index: 120; width: min(430px, 100vw); display: flex; flex-direction: column; background: var(--bg-panel); box-shadow: -18px 0 48px rgba(0,0,0,.18); transform: translateX(102%); transition: transform .24s ease; }
 .react-player-drawer.is-open { transform: translateX(0); }
 .react-drawer-body { flex: 1; min-height: 0; }

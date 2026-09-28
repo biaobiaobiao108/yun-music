@@ -1141,17 +1141,16 @@ select.form-input:hover,
 #log-type-select:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
-.select-input:focus,
-select.form-input:focus,
-#data-user-select:focus,
-#log-type-select:focus {
-    outline: 1px solid transparent;
+.select-input:focus-visible,
+select.form-input:focus-visible,
+#data-user-select:focus-visible,
+#log-type-select:focus-visible {
+    outline: 1px solid var(--accent-primary);
+    outline-offset: -1px;
     background: rgba(255, 255, 255, 0.08);
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 /* 选择框选项样式 */
@@ -1197,7 +1196,6 @@ select.form-input option:checked {
 .selector-trigger:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
 .selector-icon {
@@ -1566,7 +1564,7 @@ select.form-input option:checked {
 .admin-react-upload-form { display: flex; align-items: center; gap: .5rem; }
 .admin-react-upload-form input[type=file] { max-width: 220px; }
 .admin-react-dialog { width: min(480px, calc(100% - 2rem)); padding: 0; border: 0; border-radius: 1rem; background: var(--glass-bg); color: var(--text-primary); box-shadow: var(--shadow-xl); }
-.admin-react-dialog::backdrop { background: rgba(14,23,18,.52); backdrop-filter: blur(4px); }
+.admin-react-dialog::backdrop { background: rgba(14,23,18,.52); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
 .admin-react-dialog-content > header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--glass-border); }
 .admin-react-dialog-content h2 { font-size: 1.1rem; }
 .admin-react-dialog-body { padding: 1.25rem; }
@@ -2382,11 +2380,11 @@ select.form-input option:checked {
     transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
 }
 
-.search-box input:focus {
-    outline: 1px solid transparent;
+.search-box input:focus-visible {
+    outline: 1px solid var(--accent-primary);
+    outline-offset: -1px;
     border-color: var(--accent-primary);
     background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .search-box svg {
@@ -2420,13 +2418,12 @@ select.form-input option:checked {
 .sort-select:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
-.sort-select:focus {
-    outline: 1px solid transparent;
+.sort-select:focus-visible {
+    outline: 1px solid var(--accent-primary);
+    outline-offset: -1px;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
 }
 
 /* 文本截断已统一 */
@@ -2705,9 +2702,9 @@ input:-webkit-autofill:active {
     background: var(--bg-secondary);
     color: var(--text-primary) !important;
     -webkit-text-fill-color: var(--text-primary) !important;
-    outline: 1px solid transparent;
+    outline: 1px solid var(--accent-primary);
+    outline-offset: -1px;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 /* =============== 用户列表布局修复 =============== */
