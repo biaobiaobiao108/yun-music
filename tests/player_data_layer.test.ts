@@ -3,7 +3,7 @@ import { ApiRequestError, clearRequestCache, invalidateRequestCache, requestJson
 import { parsePlayerHash, serializePlayerHash } from '../frontend/player/src/react/route_state'
 import { setSessionScope } from '../frontend/player/src/react/session'
 import { useAuthStore } from '../frontend/player/src/react/store/auth'
-import { useLibraryStore } from '../frontend/player/src/react/store/library'
+import { selectLoveList, selectUserLists, useLibraryStore } from '../frontend/player/src/react/store/library'
 import { useMediaLibraryStore } from '../frontend/player/src/react/store/media_library'
 
 describe('React player data request lifecycle', () => {
@@ -79,6 +79,25 @@ describe('React player URL state boundary', () => {
 })
 
 describe('React player library persistence guard', () => {
+  it('shows local favorites and playlists newest first while preserving source playlist order', () => {
+    const loveList = [{ id: 'love-old' }, { id: 'love-new' }]
+    const userList = [
+      { id: 'local-list', name: '本地歌单', list: [{ id: 'local-old' }, { id: 'local-new' }] },
+      { id: 'online-list', name: '在线歌单', source: 'wy', sourceListId: '123', list: [{ id: 'online-first' }, { id: 'online-second' }] },
+    ]
+    const state = { ...useLibraryStore.getState(), data: { defaultList: [], loveList, userList } }
+
+    const visibleLoveList = selectLoveList(state)
+    const visibleUserLists = selectUserLists(state)
+    expect(visibleLoveList.map(song => song.id)).toEqual(['love-new', 'love-old'])
+    expect(visibleUserLists[0]?.list?.map(song => song.id)).toEqual(['local-new', 'local-old'])
+    expect(visibleUserLists[1]?.list?.map(song => song.id)).toEqual(['online-first', 'online-second'])
+    expect(selectLoveList(state)).toBe(visibleLoveList)
+    expect(selectUserLists(state)).toBe(visibleUserLists)
+    expect(loveList.map(song => song.id)).toEqual(['love-old', 'love-new'])
+    expect(userList[0]?.list?.map(song => song.id)).toEqual(['local-old', 'local-new'])
+  })
+
   it('keeps existing playlist data active during a background refresh', async () => {
     clearRequestCache()
     const originalFetch = globalThis.fetch

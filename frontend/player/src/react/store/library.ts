@@ -27,6 +27,31 @@ export type LibraryState = {
 }
 
 const emptyData: UserListData = { defaultList: [], loveList: [], userList: [] }
+const newestFirstSongsCache = new WeakMap<Song[], Song[]>()
+const newestFirstUserListsCache = new WeakMap<UserPlaylist[], UserPlaylist[]>()
+
+function newestFirstSongs(songs: Song[]): Song[] {
+  if (songs.length < 2) return songs
+  const cached = newestFirstSongsCache.get(songs)
+  if (cached) return cached
+  const newestFirst = [...songs].reverse()
+  newestFirstSongsCache.set(songs, newestFirst)
+  return newestFirst
+}
+
+function newestFirstUserLists(lists: UserPlaylist[]): UserPlaylist[] {
+  const cached = newestFirstUserListsCache.get(lists)
+  if (cached) return cached
+  const newestFirst = lists.map(list => {
+    // Imported online playlists have a source-defined order, so only reverse
+    // songs in playlists whose order comes from the user's add sequence.
+    if (list.source || list.sourceListId !== undefined || !list.list) return list
+    const songs = newestFirstSongs(list.list)
+    return songs === list.list ? list : { ...list, list: songs }
+  })
+  newestFirstUserListsCache.set(lists, newestFirst)
+  return newestFirst
+}
 
 function updateListData(data: UserListData, listId: string, update: (songs: Song[]) => Song[]): UserListData {
   if (listId === 'love') {
@@ -208,8 +233,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 }))
 
-export const selectUserLists = (state: LibraryState): UserPlaylist[] => state.data.userList ?? []
-export const selectLoveList = (state: LibraryState): Song[] => state.data.loveList ?? []
+export const selectUserLists = (state: LibraryState): UserPlaylist[] => newestFirstUserLists(state.data.userList ?? [])
+export const selectLoveList = (state: LibraryState): Song[] => newestFirstSongs(state.data.loveList ?? [])
 export const selectLibraryData = (state: LibraryState): UserListData => state.data
 export const selectLibraryStatus = (state: LibraryState) => ({ loading: state.loading, refreshing: state.refreshing, error: state.error })
 export const selectPlaylist = (listId: string) => (state: LibraryState): UserPlaylist | undefined => selectUserLists(state).find(list => String(list.id) === String(listId))
