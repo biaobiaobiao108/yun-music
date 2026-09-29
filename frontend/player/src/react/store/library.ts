@@ -57,7 +57,7 @@ const ensureLibraryHydrated = async (
   get: () => LibraryState,
 ): Promise<UserListData> => {
   const current = get()
-  if (current.loadedAt === 0 || current.loading) {
+  if (current.loadedAt === 0 || current.loading || current.refreshing) {
     await current.hydrate({ force: true })
   }
   const next = get()
@@ -88,7 +88,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     libraryController = controller
     const requestId = ++libraryRequestId
     const force = options.force ?? hadController
-    set({ loading: true, refreshing: get().loadedAt > 0, error: '' })
+    const hasLoadedData = get().loadedAt > 0
+    set({ loading: !hasLoadedData, refreshing: hasLoadedData, error: '' })
     try {
       const data = await playerApi.listData(undefined, controller.signal, {
         cacheKey: 'library:lists',
@@ -97,7 +98,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       })
       if (!controller.signal.aborted && requestId === libraryRequestId) set({ data: data || emptyData, error: '', loadedAt: Date.now() })
     } catch (error) {
-      if (!controller.signal.aborted && requestId === libraryRequestId && !isAbortError(error)) {
+      if (!controller.signal.aborted && requestId === libraryRequestId && get().loadedAt === 0 && !isAbortError(error)) {
         set({ error: error instanceof Error ? error.message : '歌单加载失败' })
       }
     } finally {

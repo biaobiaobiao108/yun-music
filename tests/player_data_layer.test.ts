@@ -78,6 +78,34 @@ describe('React player URL state boundary', () => {
 })
 
 describe('React player library persistence guard', () => {
+  it('keeps existing playlist data active during a background refresh', async () => {
+    clearRequestCache()
+    const originalFetch = globalThis.fetch
+    const existing = {
+      defaultList: [],
+      loveList: [{ id: 'song-1', name: '已收藏歌曲', singer: '歌手', source: 'wy' }],
+      userList: [{ id: 'old-list', name: '旧歌单', list: [] }],
+    }
+    let resolveResponse: ((response: Response) => void) | undefined
+    globalThis.fetch = ((_input, init) => new Promise<Response>((resolve, reject) => {
+      resolveResponse = resolve
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')), { once: true })
+    })) as typeof fetch
+
+    useLibraryStore.setState({ data: existing, loading: false, refreshing: false, error: '', loadedAt: Date.now() })
+    try {
+      const refreshing = useLibraryStore.getState().hydrate({ force: true })
+      expect(useLibraryStore.getState()).toMatchObject({ data: existing, loading: false, refreshing: true })
+      resolveResponse?.(new Response(JSON.stringify(existing), { status: 200 }))
+      await refreshing
+      expect(useLibraryStore.getState()).toMatchObject({ loading: false, refreshing: false, error: '' })
+    } finally {
+      globalThis.fetch = originalFetch
+      clearRequestCache()
+      useLibraryStore.getState().reset()
+    }
+  })
+
   it('hydrates before a full playlist save can overwrite existing lists', async () => {
     clearRequestCache()
     const originalFetch = globalThis.fetch
