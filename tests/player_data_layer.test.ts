@@ -4,6 +4,7 @@ import { parsePlayerHash, serializePlayerHash } from '../frontend/player/src/rea
 import { setSessionScope } from '../frontend/player/src/react/session'
 import { useAuthStore } from '../frontend/player/src/react/store/auth'
 import { useLibraryStore } from '../frontend/player/src/react/store/library'
+import { useMediaLibraryStore } from '../frontend/player/src/react/store/media_library'
 
 describe('React player data request lifecycle', () => {
   it('deduplicates concurrent reads and serves a short-lived cache', async () => {
@@ -144,6 +145,33 @@ describe('React player library persistence guard', () => {
       globalThis.fetch = originalFetch
       clearRequestCache()
       useLibraryStore.getState().reset()
+    }
+  })
+})
+
+describe('React player media library refresh', () => {
+  it('keeps existing albums and artists available during a background refresh', async () => {
+    clearRequestCache()
+    const originalFetch = globalThis.fetch
+    const existingAlbums = [{ id: 'album-1', name: '专辑', source: 'wy' }]
+    const existingArtists = [{ id: 'artist-1', name: '歌手', source: 'wy' }]
+    const resolvers: Array<(response: Response) => void> = []
+    globalThis.fetch = ((_input, init) => new Promise<Response>((resolve, reject) => {
+      resolvers.push(resolve)
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')), { once: true })
+    })) as typeof fetch
+
+    useMediaLibraryStore.setState({ albums: existingAlbums, artists: existingArtists, loading: false, refreshing: false, error: '', loadedAt: Date.now() })
+    try {
+      const refreshing = useMediaLibraryStore.getState().hydrate({ force: true })
+      expect(useMediaLibraryStore.getState()).toMatchObject({ albums: existingAlbums, artists: existingArtists, loading: false, refreshing: true })
+      for (const resolve of resolvers) resolve(new Response(JSON.stringify([]), { status: 200 }))
+      await refreshing
+      expect(useMediaLibraryStore.getState()).toMatchObject({ albums: [], artists: [], loading: false, refreshing: false, error: '' })
+    } finally {
+      globalThis.fetch = originalFetch
+      clearRequestCache()
+      useMediaLibraryStore.getState().reset()
     }
   })
 })

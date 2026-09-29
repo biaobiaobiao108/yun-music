@@ -60,7 +60,8 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
     mediaController = controller
     const requestId = ++mediaRequestId
     const force = options.force ?? hadController
-    set({ loading: true, refreshing: get().albums.length > 0 || get().artists.length > 0, error: '' })
+    const hasLoadedData = get().loadedAt > 0
+    set({ loading: !hasLoadedData, refreshing: hasLoadedData, error: '' })
     try {
       const [albums, artists] = await Promise.all([
         playerApi.libraryAlbums(controller.signal, { cacheKey: 'media-library:albums', cacheTtlMs: 60_000, force }),
@@ -68,7 +69,7 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
       ])
       if (!controller.signal.aborted && requestId === mediaRequestId) set({ albums: normalizeLibraryItems(albums), artists: normalizeLibraryItems(artists), loadedAt: Date.now() })
     } catch (error) {
-      if (!controller.signal.aborted && requestId === mediaRequestId && !isAbortError(error)) set({ error: error instanceof Error ? error.message : '媒体库加载失败' })
+      if (!controller.signal.aborted && requestId === mediaRequestId && get().loadedAt === 0 && !isAbortError(error)) set({ error: error instanceof Error ? error.message : '媒体库加载失败' })
     } finally {
       if (mediaController === controller) {
         mediaController = null
