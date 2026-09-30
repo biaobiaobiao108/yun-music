@@ -2777,7 +2777,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
     )
     if (result.exists && !result.isCollision) {
         const targetFolder: 'cache' | 'music' = isOnlyDownload ? 'music' : 'cache'
-        if (result.folder === targetFolder && result.path) {
+        if (result.folder === targetFolder && result.path && (!isOnlyDownload || result.foundIn === normalizeCacheUsername(username))) {
             const existingPath = result.path
             await withCachePostProcess(signal, 'existing cache', async () => {
                 await ensureCachedLyrics(songInfo, quality || result.quality, username, isOnlyDownload, existingPath, targetFolder, shouldCacheLyric, shouldEmbedLyric)
@@ -2799,7 +2799,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             return Promise.resolve()
         }
 
-        if (isOnlyDownload && result.folder === 'cache' && result.path) {
+        if (isOnlyDownload && result.path) {
             if (signal?.aborted) throw new Error('Aborted')
             const promoted = await promoteCachedSongToMusic(songInfo, quality || result.quality, username)
             if (promoted.successCount < 1) throw new Error('缓存文件尚未准备好，请稍后再试')
@@ -3881,16 +3881,16 @@ export const switchFolder = async (filenames: string[], username: string | undef
  * them instead of removing the shared copy. Private cache -> music moves
  * continue to use switchFolder and remain a zero-copy rename.
  */
-export const promoteCacheFile = async (filename: string, sourceUsername: string | undefined, targetUsername: string | undefined) => {
+export const promoteCacheFile = async (filename: string, sourceUsername: string | undefined, targetUsername: string | undefined, sourceFolder: CacheFolder = 'cache') => {
     const normalizedSource = normalizeCacheUsername(sourceUsername)
     const normalizedTarget = normalizeCacheUsername(targetUsername)
     if (normalizedSource === normalizedTarget) return switchFolder([filename], normalizedTarget, 'music')
 
     for (const location of getCacheLocations()) {
-        const item = indexManager.getAll(normalizedSource, 'cache', location).find(entry => entry.filename === filename)
+        const item = indexManager.getAll(normalizedSource, sourceFolder, location).find(entry => entry.filename === filename)
         if (!item) continue
 
-        const sourceDir = getCacheDir(normalizedSource, false, location)
+        const sourceDir = getCacheDir(normalizedSource, sourceFolder === 'music', location)
         const targetDir = getCacheDir(normalizedTarget, true, location)
         const sourcePath = resolveCacheRelativePath(sourceDir, filename)
         const targetPath = resolveCacheRelativePath(targetDir, filename)
@@ -3898,7 +3898,7 @@ export const promoteCacheFile = async (filename: string, sourceUsername: string 
 
         if (fs.existsSync(targetPath)) {
             const targetItem = indexManager.getAll(normalizedTarget, 'music', location).find(entry => entry.filename === filename)
-            if (targetItem) return { successCount: 1, failCount: 0, moved: [{ filename, from: 'cache' as CacheFolder, to: 'music' as CacheFolder }] }
+            if (targetItem) return { successCount: 1, failCount: 0, moved: [{ filename, from: sourceFolder, to: 'music' as CacheFolder }] }
             return { successCount: 0, failCount: 1, moved: [] }
         }
 
@@ -3919,7 +3919,7 @@ export const promoteCacheFile = async (filename: string, sourceUsername: string 
             invalidateCacheListSync(normalizedSource)
             invalidateCacheListSync(normalizedTarget)
             invalidateGlobalCacheStats()
-            return { successCount: 1, failCount: 0, moved: [{ filename, from: 'cache' as CacheFolder, to: 'music' as CacheFolder }] }
+            return { successCount: 1, failCount: 0, moved: [{ filename, from: sourceFolder, to: 'music' as CacheFolder }] }
         } catch (error) {
             try { if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath) } catch { }
             console.error(`[FileCache] Failed to promote public cache file ${filename}:`, error)
@@ -3943,14 +3943,13 @@ export const promoteCachedSongToMusic = async (songInfo: any, quality: string | 
         { ignoreActiveProgress: true, preferredFolder: 'music' },
     )
     if (!result.exists || result.isCollision || !result.filename) return { successCount: 0, failCount: 1, moved: [] }
-    if (result.folder === 'music') return { successCount: 1, failCount: 0, moved: [] }
-
     const normalizedTarget = normalizeCacheUsername(username)
+    if (result.folder === 'music' && result.foundIn === normalizedTarget) return { successCount: 1, failCount: 0, moved: [] }
     const sourceUsername = result.foundIn || normalizedTarget
     if (sourceUsername === normalizedTarget) {
         return switchFolder([result.filename], normalizedTarget, 'music')
     }
-    return promoteCacheFile(result.filename, sourceUsername, normalizedTarget)
+    return promoteCacheFile(result.filename, sourceUsername, normalizedTarget, result.folder === 'music' ? 'music' : 'cache')
 }
 
 /** Remove a stale private cache copy after a durable music file is confirmed. */

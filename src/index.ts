@@ -169,7 +169,7 @@ const mergeConfigFileEnv = (config: Partial<Record<ENV_PARAMS_Value_Type, string
   if (envLog.length) console.log(`Load config file env:\n  ${envLog.join('\n  ')}`)
 }
 
-const margeConfig = (p: string) => {
+const margeConfig = (p: string, preserveUsers = false) => {
   let config
   try {
     config = parseConfigFile(p)
@@ -180,7 +180,7 @@ const margeConfig = (p: string) => {
   const newConfig = { ...global.lx.config }
   for (const key of Object.keys(defaultConfig) as Array<keyof LX.Config>) {
     // @ts-expect-error
-    if (config[key] !== undefined) newConfig[key] = config[key]
+    if (config[key] !== undefined && !(preserveUsers && key === 'users')) newConfig[key] = config[key]
   }
   for (const [plainKey, hashKey] of [
     ['frontend.password', 'frontend.passwordHash'],
@@ -196,7 +196,7 @@ const margeConfig = (p: string) => {
   }
 
   console.log('Load config: ' + p)
-  if (newConfig.users.length) {
+  if (!preserveUsers && newConfig.users.length) {
     const users: LX.UserConfig[] = []
     for (const user of newConfig.users) {
       users.push({
@@ -509,7 +509,7 @@ if (fs.existsSync(rootConfigPath)) {
         const previousConfig = { ...global.lx.config }
         void (async () => {
           try {
-            if (!margeConfig(rootConfigPath)) return
+            if (!margeConfig(rootConfigPath, true)) return
             normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
             normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
             await saveConfigToFile()

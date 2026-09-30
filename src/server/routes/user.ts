@@ -18,7 +18,11 @@ import { startupLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { assertSnapshotId } from '@/modules/list/snapshotDataManage'
+import type { PlaylistMutation } from '@/modules/list/listDataManage'
 import { deleteUserCacheData } from '@/server/fileCache'
+import * as downloadQueue from '@/server/serverDownloadQueue'
+
+let accountChangeInProgress = false
 
 const MAX_USER_SETTING_BODY_BYTES = 2 * 1024 * 1024
 const RESERVED_USER_NAMES = new Set(['default', 'open', '_open'])
@@ -137,6 +141,7 @@ export const createUserRouter = (): Router => {
       if (typeof name !== 'string' || !name.trim() || typeof password !== 'string' || !password.trim()) {
         return ctx.fail(400, '请填写用户名和密码')
       }
+      if (accountChangeInProgress) return ctx.fail(409, '账户数据正在迁移或删除，请稍后重试')
       const normalizedName = name.trim()
       if (password.length > 1024) return ctx.fail(422, '密码长度不能超过 1024 个字符')
       try {
@@ -175,6 +180,7 @@ export const createUserRouter = (): Router => {
   })
 
   router.put('/api/users', async (ctx) => {
+    const suspendedNames: string[] = []
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const { name, newName, password } = await ctx.bodyJson<{ name?: string; newName?: string; password?: string }>()
@@ -185,6 +191,7 @@ export const createUserRouter = (): Router => {
         return ctx.fail(422, '密码不能为空')
       }
       if (typeof password === 'string' && password.length > 1024) return ctx.fail(422, '密码长度不能超过 1024 个字符')
+      if (accountChangeInProgress) return ctx.fail(409, '账户数据正在迁移或删除，请稍后重试')
       const normalizedName = name.trim()
       const normalizedNewName = typeof newName === 'string' ? newName.trim() : newName
       if (normalizedNewName !== undefined) {
@@ -208,6 +215,9 @@ export const createUserRouter = (): Router => {
           return ctx.fail(409, '新用户名已存在')
         }
 
+        accountChangeInProgress = true
+        suspendedNames.push(normalizedName, normalizedNewName)
+        await Promise.all(suspendedNames.map(name => downloadQueue.suspendUser(name)))
         const previousUser = { ...user }
         let migrationCompleted = false
         renameUserSpace(normalizedName)
@@ -224,6 +234,7 @@ export const createUserRouter = (): Router => {
             user.password = ''
           }
           saveUsers()
+          await downloadQueue.renameUser(normalizedName, normalizedNewName)
           return ctx.json({ success: true })
         } catch (err: any) {
           if (migrationCompleted) {
@@ -255,10 +266,14 @@ export const createUserRouter = (): Router => {
       }
     } catch {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
+    } finally {
+      for (const name of suspendedNames) downloadQueue.releaseUser(name)
+      if (suspendedNames.length) accountChangeInProgress = false
     }
   })
 
   router.delete('/api/users', async (ctx) => {
+    const suspendedNames: string[] = []
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const body = await ctx.bodyJson<{ name?: string; names?: string[]; deleteData?: boolean }>()
@@ -282,6 +297,10 @@ export const createUserRouter = (): Router => {
         if (targetName === '_open') return ctx.fail(422, '不能删除系统保留用户')
       }
 
+      if (accountChangeInProgress) return ctx.fail(409, '账户数据正在迁移或删除，请稍后重试')
+      accountChangeInProgress = true
+      suspendedNames.push(...targets)
+      await Promise.all(targets.map(name => downloadQueue.suspendUser(name)))
       let deletedCount = 0
       const deletedUsers: { name: string; dataPath?: string }[] = []
       const previousUsers = [...global.lx.config.users]
@@ -311,6 +330,7 @@ export const createUserRouter = (): Router => {
         if (deletedUsers.length > 0) {
           for (const user of deletedUsers) {
             try {
+              await downloadQueue.removeUser(user.name)
               deleteUserCacheData(user.name)
               releaseUserSpace(user.name, true)
               if (body.deleteData && user.dataPath && fs.existsSync(user.dataPath)) {
@@ -327,6 +347,9 @@ export const createUserRouter = (): Router => {
       return ctx.fail(404, '用户不存在')
     } catch {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
+    } finally {
+      for (const name of suspendedNames) downloadQueue.releaseUser(name)
+      if (suspendedNames.length) accountChangeInProgress = false
     }
   })
 
@@ -349,6 +372,33 @@ export const createUserRouter = (): Router => {
       })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
+    }
+  })
+
+  router.post('/api/user/playlists', async (ctx) => {
+    const username = resolveTargetUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '公共歌单修改需要管理员权限')
+    try {
+      const mutation = await ctx.bodyJson<PlaylistMutation>(MAX_USER_SETTING_BODY_BYTES)
+      if (!mutation || !['create', 'toggle', 'rename', 'delete'].includes(mutation.action)) return ctx.fail(400, '歌单操作无效')
+      if (mutation.action === 'create' || mutation.action === 'toggle') {
+        const playlist = mutation.playlist
+        if (!playlist || typeof playlist.id !== 'string' || !playlist.id.trim() || ['default', 'love', 'temp'].includes(playlist.id)
+          || typeof playlist.name !== 'string' || !playlist.name.trim() || playlist.name.length > 80
+          || !Array.isArray(playlist.list) || playlist.list.some(song => !song || typeof song !== 'object' || Array.isArray(song))) return ctx.fail(400, '歌单数据无效')
+        if (mutation.action === 'toggle' && (!['wy', 'tx'].includes(String(playlist.source)) || typeof playlist.sourceListId !== 'string' || !playlist.sourceListId)) return ctx.fail(400, '在线歌单来源无效')
+      } else {
+        if (typeof mutation.id !== 'string' || !mutation.id) return ctx.fail(400, '歌单 ID 无效')
+        if (mutation.action === 'rename' && (typeof mutation.name !== 'string' || !mutation.name.trim() || mutation.name.length > 80)) return ctx.fail(400, '歌单名称无效')
+      }
+      const manager = getUserSpace(username).listManage
+      const result = await manager.listDataManage.mutatePlaylist(mutation)
+      if (!result) return ctx.fail(404, '歌单不存在')
+      await manager.createSnapshot()
+      return ctx.json({ success: true, ...result })
+    } catch (err: any) {
+      return ctx.fail(400, toUserMessage(err, '歌单操作失败，请稍后重试'))
     }
   })
 

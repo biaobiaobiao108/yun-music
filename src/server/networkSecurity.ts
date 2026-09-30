@@ -1,6 +1,9 @@
 import dns from 'node:dns/promises'
 import http from 'node:http'
 import https from 'node:https'
+import { Transform, Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib'
 import { isIP, type LookupFunction } from 'node:net'
 
 const ipv4ToNumber = (value: string): number | null => {
@@ -175,6 +178,20 @@ const bodyToBuffer = async (body: BodyInit | null | undefined): Promise<Buffer |
 
 const responseBody = (body: Uint8Array): BodyInit => body as unknown as BodyInit
 
+const hasNoResponseBody = (method: string, status: number): boolean =>
+  method.toUpperCase() === 'HEAD' || [204, 205, 304].includes(status)
+
+const responseDecoders = (encoding: string | undefined): Transform[] => {
+  const codings = (encoding || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean)
+  return codings.reverse().flatMap(coding => {
+    if (coding === 'identity') return []
+    if (coding === 'gzip' || coding === 'x-gzip') return [createGunzip()]
+    if (coding === 'deflate') return [createInflate()]
+    if (coding === 'br') return [createBrotliDecompress()]
+    throw new Error(`Unsupported remote content encoding: ${coding}`)
+  })
+}
+
 const readResponseBody = async (response: Response, maxBytes: number): Promise<Buffer> => {
   const declaredLength = Number(response.headers.get('content-length') || 0)
   if (declaredLength > maxBytes) {
@@ -218,10 +235,15 @@ const fetchViaBunProxy = async (
     redirect: 'manual',
     proxy,
   } as RequestInit & { proxy: string })
-  const body = await readResponseBody(response, maxBytes)
+  const noBody = hasNoResponseBody(options.method || 'GET', response.status)
+  const body = noBody ? null : await readResponseBody(response, maxBytes)
   const headers = new Headers(response.headers)
-  headers.delete('content-length')
-  return new Response(responseBody(body), {
+  if (!noBody) {
+    headers.delete('content-length')
+    // Bun fetch has already decompressed its response stream.
+    headers.delete('content-encoding')
+  }
+  return new Response(body ? responseBody(body) : null, {
     status: response.status,
     statusText: response.statusText,
     headers,
@@ -300,38 +322,65 @@ export const fetchSafeRemote = async (
       agent: false,
     }, (incomingResponse) => {
       response = incomingResponse
+      const status = incomingResponse.statusCode || 0
+      const headers = responseHeaderEntries(incomingResponse.headers)
+      if (hasNoResponseBody(normalizedMethod, status)) {
+        incomingResponse.resume()
+        finish(() => resolve(new Response(null, {
+          status,
+          statusText: incomingResponse.statusMessage || '',
+          headers,
+        })))
+        return
+      }
       const declaredLength = Number(incomingResponse.headers['content-length'] || 0)
       if (declaredLength > maxBytes) {
-        incomingResponse.resume()
         fail(new Error('Remote response is too large'))
+        incomingResponse.destroy()
         request.destroy()
         return
       }
 
+      let decoders: Transform[]
+      try {
+        decoders = responseDecoders(incomingResponse.headers['content-encoding'])
+      } catch (error) {
+        fail(error)
+        incomingResponse.destroy()
+        request.destroy()
+        return
+      }
       const chunks: Buffer[] = []
       let received = 0
-      incomingResponse.on('data', (chunk: Buffer | Uint8Array | string) => {
-        const buffer = Buffer.from(chunk)
-        received += buffer.byteLength
-        if (received > maxBytes) {
-          incomingResponse.destroy()
-          fail(new Error('Remote response is too large'))
-          return
-        }
-        chunks.push(buffer)
+      let decodedBytes = 0
+      const wireLimit = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          received += chunk.byteLength
+          callback(received > maxBytes ? new Error('Remote response is too large') : null, chunk)
+        },
       })
-      incomingResponse.on('aborted', () => fail(new Error('Remote response aborted')))
-      incomingResponse.on('error', fail)
-      incomingResponse.on('end', () => {
-        const bodyBuffer = Buffer.concat(chunks)
-        const headers = responseHeaderEntries(incomingResponse.headers)
+      const collector = new Writable({
+        write(chunk: Buffer, _encoding, callback) {
+          decodedBytes += chunk.byteLength
+          if (decodedBytes > maxBytes) {
+            callback(new Error('Remote response is too large'))
+            return
+          }
+          chunks.push(Buffer.from(chunk))
+          callback()
+        },
+      })
+      // Stream decompression enforces both wire and decoded limits without first
+      // materializing an unbounded expanded response in memory.
+      void pipeline([incomingResponse, wireLimit, ...decoders, collector]).then(() => {
         headers.delete('content-length')
-        finish(() => resolve(new Response(responseBody(bodyBuffer), {
-          status: incomingResponse.statusCode || 0,
+        if (decoders.length) headers.delete('content-encoding')
+        finish(() => resolve(new Response(responseBody(Buffer.concat(chunks)), {
+          status,
           statusText: incomingResponse.statusMessage || '',
           headers,
         })))
-      })
+      }).catch(fail)
     })
 
     request.on('error', fail)

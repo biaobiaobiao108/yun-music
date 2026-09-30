@@ -217,6 +217,7 @@ function AudioRuntime() {
   const setPlaying = usePlaybackStore(state => state.setPlaying)
   const setResolvedUrl = usePlaybackStore(state => state.setResolvedUrl)
   const volume = usePlaybackStore(state => state.volume)
+  const muted = usePlaybackStore(state => state.muted)
   const setQuality = usePlaybackStore(state => state.setQuality)
   const previousPlayback = usePlaybackStore(state => state.previous)
   const nextPlayback = usePlaybackStore(state => state.next)
@@ -334,7 +335,7 @@ function AudioRuntime() {
       seek: time => { if (Number.isFinite(time)) audio.currentTime = Math.max(0, time) },
       volume: next => { audio.volume = next },
     })
-    audio.volume = volume
+    audio.volume = muted ? 0 : volume
     const onPlay = () => {
       setMediaSessionPlaybackState('playing')
       emitPlaybackService({ type: 'play' })
@@ -445,7 +446,7 @@ function AudioRuntime() {
     }
     audio.addEventListener('play', onPlay); audio.addEventListener('playing', onPlaying); audio.addEventListener('pause', onPause); audio.addEventListener('timeupdate', onTime); audio.addEventListener('loadedmetadata', onLoaded); audio.addEventListener('ended', onEnded); audio.addEventListener('error', onError)
     return () => { audio.removeEventListener('play', onPlay); audio.removeEventListener('playing', onPlaying); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
-  }, [currentSong, enqueueCache, notify, notifyPlayback, playbackTraceName, quality, recordRecent, settings, setPlaying, setQuality, songId, volume])
+  }, [currentSong, enqueueCache, notify, notifyPlayback, playbackTraceName, quality, recordRecent, settings, setPlaying, setQuality, songId, volume, muted])
 
   useEffect(() => {
     const audio = audioRef.current

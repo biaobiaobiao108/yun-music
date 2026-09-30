@@ -183,7 +183,7 @@ export const createAuthRouter = (): Router => {
   router.post('/api/user/login', async (ctx) => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
-      if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
+      if (isLoginRateLimited(ip, 'user')) return loginRateLimitedResponse(ctx)
       const { username, password } = await ctx.bodyJson<{ username?: string; password?: string }>(64 * 1024)
       if (typeof username !== 'string' || username.length > 128 || typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '用户名或密码格式错误')
@@ -194,11 +194,11 @@ export const createAuthRouter = (): Router => {
         return verifyUserPassword(row?.password_hash || item.passwordHash, password)
       })
       if (!user) {
-        recordLoginFailure(ip)
+        recordLoginFailure(ip, 'user')
         loginLog.warn(`User login failed: ${escapeLogControls(username || '[unknown]')} from ${ctx.remoteAddress}`)
         return ctx.fail(401, '用户名或密码错误')
       }
-      clearLoginFailures(ip)
+      clearLoginFailures(ip, 'user')
       const sessionId = issueUserSession(user.name)
       loginLog.info(`User login success: ${escapeLogControls(user.name)} from ${ctx.remoteAddress}`)
       return ctx.json({ success: true, username: user.name }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, sessionId, USER_SESSION_TTL / 1000, ctx.isSecure) })
@@ -221,17 +221,17 @@ export const createAuthRouter = (): Router => {
   router.post('/api/music/auth', async (ctx) => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
-      if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
+      if (isLoginRateLimited(ip, 'player')) return loginRateLimitedResponse(ctx)
       const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
       if (typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '密码格式错误')
       }
       if (!verifyConfiguredPassword(password, global.lx.config['player.passwordHash'], global.lx.config['player.password'])) {
-        recordLoginFailure(ip)
+        recordLoginFailure(ip, 'player')
         loginLog.warn(`Player login failed from ${ctx.remoteAddress}`)
         return ctx.fail(401, '播放器密码错误，请重新输入')
       }
-      clearLoginFailures(ip)
+      clearLoginFailures(ip, 'player')
       const sessionId = createPlayerSession()
       loginLog.info(`Player login success from ${ctx.remoteAddress}`)
       return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, sessionId, PLAYER_SESSION_TTL / 1000, ctx.isSecure) })

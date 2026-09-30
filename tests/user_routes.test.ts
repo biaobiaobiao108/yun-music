@@ -7,6 +7,9 @@ import { closeDb, getDb, initDatabase } from '@/database'
 import { getUserDirname, getUserSpace, releaseUserSpace, syncUsersToDatabase } from '@/user'
 import { createUserRouter } from '@/server/routes/user'
 import { createAuthRouter, revokeUserAuth, userSessions, verifyUserAuth } from '@/server/routes/auth'
+import * as downloadQueue from '@/server/serverDownloadQueue'
+import * as fileCache from '@/server/fileCache'
+import { spyOn } from 'bun:test'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
 describe('User snapshot permissions', () => {
@@ -249,17 +252,44 @@ describe('Deleted account credentials', () => {
     adminHeaders = { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`, 'content-type': 'application/json' }
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     revokeUserAuth(username)
     releaseUserSpace(username, true)
+    await downloadQueue.removeUser(username)
+    await new Promise(resolve => setTimeout(resolve, 220))
     closeDb()
     global.lx = previousLx
-    // Only these files/directories are created by the account routes in this fixture.
-    const userDir = path.join(tempDir, getUserDirname(username))
-    if (fs.existsSync(userDir)) fs.rmdirSync(userDir)
-    const usersFile = path.join(tempDir, 'users.json')
-    if (fs.existsSync(usersFile)) fs.unlinkSync(usersFile)
-    fs.rmdirSync(tempDir)
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  test('deletion drains active downloads, rejects recreation during cleanup and removes old tasks', async () => {
+    const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+    let settle!: () => void
+    const pending = new Promise<void>(resolve => { settle = resolve })
+    try {
+      downloadQueue.initialize(async () => { await pending; return { url: 'https://example.com/audio.mp3' } })
+      downloadQueue.enqueue(username, [{ songInfo: { id: 'old-account-download' } }])
+      const router = createUserRouter()
+      let deleted = false
+      const removal = router.handle(new Request('http://localhost/api/users', {
+        method: 'DELETE', headers: adminHeaders, body: JSON.stringify({ name: username }),
+      })).then(response => { deleted = true; return response })
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(deleted).toBe(false)
+      expect((await router.handle(new Request('http://localhost/api/users', {
+        method: 'POST', headers: adminHeaders, body: JSON.stringify({ name: username, password: 'new-password' }),
+      }))).status).toBe(409)
+      settle()
+      expect((await removal).status).toBe(200)
+      expect(downloadQueue.list(username)).toEqual([])
+      expect((await router.handle(new Request('http://localhost/api/users', {
+        method: 'POST', headers: adminHeaders, body: JSON.stringify({ name: username, password: 'new-password' }),
+      }))).status).toBe(200)
+      expect(downloadQueue.list(username)).toEqual([])
+    } finally {
+      settle()
+      checkCache.mockRestore()
+    }
   })
 
   test('deleting and recreating an account does not revive old sessions', async () => {

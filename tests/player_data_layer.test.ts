@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test'
-import { ApiRequestError, clearRequestCache, invalidateRequestCache, requestJson } from '../frontend/player/src/react/data/request'
+import { ApiRequestError, clearRequestCache, invalidateRequestCache, requestCacheKeys, requestJson } from '../frontend/player/src/react/data/request'
 import { parsePlayerHash, serializePlayerHash } from '../frontend/player/src/react/route_state'
-import { setSessionScope } from '../frontend/player/src/react/session'
+import { scopedStorageKey, setSessionScope } from '../frontend/player/src/react/session'
+import { usePlaybackStore } from '../frontend/player/src/react/store/playback'
+import { useSettingsStore } from '../frontend/player/src/react/store/settings'
 import { useAuthStore } from '../frontend/player/src/react/store/auth'
 import { selectLoveList, selectUserLists, useLibraryStore } from '../frontend/player/src/react/store/library'
 import { useMediaLibraryStore } from '../frontend/player/src/react/store/media_library'
@@ -25,6 +27,57 @@ describe('React player data request lifecycle', () => {
     invalidateRequestCache('test:dedupe')
     expect(await requestJson<{ value: number }>('/api/test', { cacheKey: 'test:dedupe', cacheTtlMs: 10_000, fetcher })).toEqual({ value: 2 })
     expect(second).toEqual({ value: 1 })
+  })
+
+  it('bounds cached search results and evicts expired entries from unrelated keys', async () => {
+    clearRequestCache()
+    const originalNow = Date.now
+    let now = originalNow()
+    Date.now = () => now
+    const fetcher: typeof fetch = async input => new Response(JSON.stringify({ input: String(input) }))
+    try {
+      for (let index = 0; index < 128; index += 1) {
+        await requestJson(`/search/${index}`, { cacheKey: `bounded:${index}`, cacheTtlMs: 1000, fetcher })
+      }
+      await requestJson('/search/0', { cacheKey: 'bounded:0', cacheTtlMs: 1000, fetcher })
+      await requestJson('/search/new', { cacheKey: 'bounded:new', cacheTtlMs: 1000, fetcher })
+      const keys = requestCacheKeys()
+      expect(keys).toHaveLength(128)
+      expect(keys.some(key => key.startsWith('bounded:0@'))).toBe(true)
+      expect(keys.some(key => key.startsWith('bounded:1@'))).toBe(false)
+      now += 1001
+      await requestJson('/search/fresh', { cacheKey: 'bounded:fresh', cacheTtlMs: 1000, fetcher })
+      expect(requestCacheKeys()).toHaveLength(1)
+      expect(requestCacheKeys()[0]).toStartWith('bounded:fresh@')
+    } finally {
+      Date.now = originalNow
+      clearRequestCache()
+    }
+  })
+
+  it('does not cache an invalidated response when its fetcher ignores abort', async () => {
+    clearRequestCache()
+    let resolveOld: ((response: Response) => void) | undefined
+    const staleFetcher: typeof fetch = () => new Promise(resolve => { resolveOld = resolve })
+    const oldRequest = requestJson('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: staleFetcher })
+    invalidateRequestCache('stale:')
+    await requestJson('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: async () => new Response('{"version":"fresh"}') })
+    resolveOld?.(new Response('{"version":"stale"}'))
+    await oldRequest
+    expect(await requestJson('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: staleFetcher })).toEqual({ version: 'fresh' })
+    clearRequestCache()
+  })
+
+  it('keeps a forced refresh when an older read completes later', async () => {
+    clearRequestCache()
+    let resolveOld: ((response: Response) => void) | undefined
+    const staleFetcher: typeof fetch = () => new Promise(resolve => { resolveOld = resolve })
+    const oldRequest = requestJson('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, fetcher: staleFetcher })
+    await requestJson('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, force: true, fetcher: async () => new Response('{"version":"fresh"}') })
+    resolveOld?.(new Response('{"version":"stale"}'))
+    await oldRequest
+    expect(await requestJson('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, fetcher: staleFetcher })).toEqual({ version: 'fresh' })
+    clearRequestCache()
   })
 
   it('rejects only the cancelled caller and exposes typed API errors', async () => {
@@ -126,46 +179,38 @@ describe('React player library persistence guard', () => {
     }
   })
 
-  it('hydrates before a full playlist save can overwrite existing lists', async () => {
+  it('creates playlists incrementally without sending stale favorites or unrelated lists', async () => {
     clearRequestCache()
     const originalFetch = globalThis.fetch
-    const existing = {
-      defaultList: [],
-      loveList: [{ id: 'song-1', name: '已收藏歌曲', singer: '歌手', source: 'wy' }],
-      userList: [{ id: 'old-list', name: '旧歌单', list: [] }],
-    }
-    let getCount = 0
-    let saved: Record<string, unknown> | undefined
+    const existing = { defaultList: [], loveList: [{ id: 'song-1' }], userList: [{ id: 'old-list', name: '旧歌单', list: [] }] }
+    const mutations: any[] = []
     globalThis.fetch = (async (_input, init) => {
-      if (String(init?.method || 'GET').toUpperCase() === 'POST') {
-        saved = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>
-        return new Response(JSON.stringify({ success: true }), { status: 200 })
+      if (init?.method === 'POST') {
+        const mutation = JSON.parse(String(init.body))
+        mutations.push(mutation)
+        existing.userList.push(mutation.playlist)
+        return Response.json({ success: true, added: true })
       }
-      getCount += 1
-      const payload = getCount > 1 && saved ? saved : existing
-      return new Response(JSON.stringify(payload), { status: 200 })
+      return Response.json(existing)
     }) as typeof fetch
-
-    useLibraryStore.setState({
-      data: { defaultList: [], loveList: [], userList: [] },
-      loading: true,
-      refreshing: false,
-      error: '',
-      loadedAt: 0,
-    })
+    useLibraryStore.setState({ data: { defaultList: [], loveList: [], userList: [] }, loading: false, loadedAt: 0 })
     try {
-      await useLibraryStore.getState().createList('新歌单', 'cloud-rain')
-      expect(saved).toMatchObject({
-        loveList: existing.loveList,
-        userList: [existing.userList[0], { name: '新歌单', icon: 'cloud-rain', list: [] }],
-      })
-      expect(getCount).toBe(2)
+      await Promise.all([
+        useLibraryStore.getState().createList('first', 'cloud-rain'),
+        useLibraryStore.getState().createList('second'),
+      ])
+      expect(mutations).toHaveLength(2)
+      expect(mutations[0]).toMatchObject({ action: 'create', playlist: { name: 'first', icon: 'cloud-rain' } })
+      expect(mutations.every(mutation => !('loveList' in mutation) && !('userList' in mutation))).toBe(true)
+      expect(existing.userList.map(list => list.name)).toEqual(['旧歌单', 'first', 'second'])
+      expect(existing.loveList).toEqual([{ id: 'song-1' }])
     } finally {
       globalThis.fetch = originalFetch
       clearRequestCache()
       useLibraryStore.getState().reset()
     }
   })
+
 })
 
 describe('React player media library refresh', () => {
@@ -225,6 +270,40 @@ describe('React player authentication lifecycle', () => {
       globalThis.fetch = originalFetch
       setSessionScope(null)
       useAuthStore.setState({ checking: true, error: '', userName: null, userAuthenticated: false })
+    }
+  })
+})
+
+
+describe('React player settings reset', () => {
+  it('preserves an account playback snapshot until hydration restores its song, queue and progress', () => {
+    const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    const values = new Map<string, string>()
+    const storage = {
+      get length() { return values.size },
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => [...values.keys()][index] ?? null,
+      removeItem: (key: string) => { values.delete(key) },
+      setItem: (key: string, value: string) => { values.set(key, String(value)) },
+    } as Storage
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage })
+    setSessionScope('settings-reset-test')
+    const song = { source: 'wy', songmid: 'restored-song', name: '恢复歌曲' }
+    const saved = JSON.stringify({ song, index: 0, time: 42, playlist: [song], quality: '320k' })
+    const key = scopedStorageKey('lx_playback_state')
+    values.set(key, saved)
+    try {
+      usePlaybackStore.getState().reset()
+      useSettingsStore.getState().reset()
+      expect(values.get(key)).toBe(saved)
+      usePlaybackStore.getState().hydrate()
+      expect(usePlaybackStore.getState()).toMatchObject({ currentSong: song, currentIndex: 0, currentTime: 42, queue: [song], quality: '320k' })
+    } finally {
+      usePlaybackStore.getState().reset()
+      setSessionScope(null)
+      if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage)
+      else Reflect.deleteProperty(globalThis, 'localStorage')
     }
   })
 })

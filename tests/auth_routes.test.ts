@@ -58,6 +58,23 @@ describe('Web Cookie Authentication', () => {
     expect((await verify('admin123')).status).toBe(429)
   })
 
+  test('user and player logins cannot clear or consume the administrator failure budget', async () => {
+    const router = createAuthRouter()
+    const ip = '192.0.2.45'
+    const post = (route: string, body: object) => router.handle(new Request(`http://localhost${route}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }), { remoteAddress: ip })
+    for (let i = 0; i < 9; i++) expect((await post('/api/login', { password: 'wrong' })).status).toBe(401)
+    expect((await post('/api/user/login', { username: 'test_user', password: 'password123' })).status).toBe(200)
+    expect((await post('/api/music/auth', { password: 'player456' })).status).toBe(200)
+    expect((await post('/api/login', { password: 'wrong' })).status).toBe(401)
+    expect((await post('/api/admin/verify', { password: 'admin123' })).status).toBe(429)
+    expect((await post('/api/user/login', { username: 'test_user', password: 'password123' })).status).toBe(200)
+    for (let i = 0; i < 10; i++) expect((await post('/api/music/auth', { password: 'wrong' })).status).toBe(401)
+    expect((await post('/api/music/auth', { password: 'player456' })).status).toBe(429)
+    expect((await post('/api/user/login', { username: 'test_user', password: 'password123' })).status).toBe(200)
+  })
+
   test('admin and player login issue HttpOnly SameSite cookies', async () => {
     const router = createAuthRouter()
     const admin = await router.handle(new Request('http://localhost/api/login', {

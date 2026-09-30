@@ -2,6 +2,12 @@ import { arrPush, arrPushByPosition, arrUnshift } from '@/utils/common'
 import { LIST_IDS } from '@/constants'
 import { type SnapshotDataManage } from './snapshotDataManage'
 
+export type PlaylistMutation =
+  | { action: 'create'; playlist: LX.List.UserListInfo & { list: LX.Music.MusicInfo[]; img?: string } }
+  | { action: 'toggle'; playlist: LX.List.UserListInfo & { list: LX.Music.MusicInfo[]; img?: string } }
+  | { action: 'rename'; id: string; name: string }
+  | { action: 'delete'; id: string }
+
 function musicInfoId(musicInfo: LX.Music.MusicInfo): string {
   const record = musicInfo as unknown as Record<string, unknown>
   const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
@@ -50,6 +56,35 @@ export class ListDataManage {
       loveList: this.allMusicList.get(LIST_IDS.LOVE) ?? [],
       userList: this.userLists.map(l => ({ ...l, list: this.allMusicList.get(l.id) ?? [] })),
     }
+  }
+
+  /** Apply one intent to the current state, without replacing unrelated lists
+   * or favorites with a browser's potentially stale full snapshot. */
+  mutatePlaylist = async (mutation: PlaylistMutation): Promise<{ added: boolean } | null> => {
+    await this.initPromise
+    if (mutation.action === 'create' || mutation.action === 'toggle') {
+      const { list, ...info } = mutation.playlist
+      const existing = this.userLists.find(item => mutation.action === 'toggle'
+        ? item.source === info.source && String(item.sourceListId) === String(info.sourceListId)
+        : item.id === info.id)
+      if (existing) {
+        if (mutation.action === 'create') return { added: false }
+        this.removeUserList(existing.id)
+        this.removeMusicList(existing.id)
+        return { added: false }
+      }
+      this.userLists.push(info)
+      this.setMusicList(info.id, list)
+      return { added: true }
+    }
+    const existing = this.userLists.find(item => item.id === mutation.id)
+    if (!existing) return null
+    if (mutation.action === 'rename') existing.name = mutation.name
+    else {
+      this.removeUserList(mutation.id)
+      this.removeMusicList(mutation.id)
+    }
+    return { added: false }
   }
 
 

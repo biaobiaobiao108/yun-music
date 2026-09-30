@@ -68,7 +68,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const settings = sanitizeSettings(DEFAULT_SETTINGS)
     set({ settings })
     applyAppearance(settings)
-    usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
+    // Session reset happens before playback hydration; preserve the saved queue.
+    usePlaybackStore.setState({ quality: String(settings.preferredQuality || 'flac') })
   },
 }))
 

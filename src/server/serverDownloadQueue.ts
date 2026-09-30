@@ -69,6 +69,8 @@ const tasks = new Map<string, ServerDownloadTask>()
 const controllers = new Map<string, AbortController>()
 // Removed tasks keep their execution slot until their resolver/download settles.
 const activeTasks = new Map<string, ServerDownloadTask>()
+const suspendedUsers = new Set<string>()
+const activeSettled = new Map<string, Promise<void>>()
 const concurrencyByUser = new Map<string, number>()
 const taskIdentityIndex = new Map<string, string>()
 const pendingCountByUser = new Map<string, number>()
@@ -480,6 +482,8 @@ const runTask = async (task: ServerDownloadTask) => {
   const controller = new AbortController()
   controllers.set(key, controller)
   activeTasks.set(key, task)
+  let settle!: () => void
+  activeSettled.set(key, new Promise<void>(resolve => { settle = resolve }))
   task.progressKey = undefined
   task.status = 'downloading'
   task.progress = 0
@@ -496,7 +500,7 @@ const runTask = async (task: ServerDownloadTask) => {
       { ...requestedSongInfo, quality: task.quality, exactQuality: true }, task.username, false,
       { ignoreActiveProgress: true, preferredFolder: targetOnlyDownloadMode ? 'music' : 'cache' },
     )
-    const hasPrivateCache = cached.exists && !cached.isCollision && cached.foundIn === task.username
+    const hasReusableCache = cached.exists && !cached.isCollision && (cached.foundIn === task.username || targetOnlyDownloadMode)
     const suppliedUrl = task.resolvedUrl && task.resolvedUrlAt && Date.now() - task.resolvedUrlAt <= RESOLVED_URL_TTL
       ? task.resolvedUrl
       : undefined
@@ -504,7 +508,7 @@ const runTask = async (task: ServerDownloadTask) => {
     task.resolvedUrl = undefined
     task.resolvedUrlAt = undefined
     scheduleSave()
-    let resolved = hasPrivateCache
+    let resolved = hasReusableCache
       ? { url: '', quality: task.quality, songInfo: task.songInfo }
       : suppliedUrl && suppliedUrlAt && Date.now() - suppliedUrlAt <= RESOLVED_URL_TTL
       ? {
@@ -517,7 +521,7 @@ const runTask = async (task: ServerDownloadTask) => {
       }
       : await resolver(task)
     if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
-    if (!resolved || (!resolved.url && !hasPrivateCache)) throw new Error('无法解析下载地址')
+    if (!resolved || (!resolved.url && !hasReusableCache)) throw new Error('无法解析下载地址')
 
     const applyResolvedTarget = (nextResolved: ResolveResult) => {
       task.songInfo = requestedSongInfo
@@ -544,7 +548,7 @@ const runTask = async (task: ServerDownloadTask) => {
     } catch (firstError: any) {
       // A local cache can disappear before promotion, and a browser URL can
       // expire. Resolve once more before marking the task as failed.
-      if ((!suppliedUrl && !hasPrivateCache) || controller.signal.aborted) throw firstError
+      if ((!suppliedUrl && !hasReusableCache) || controller.signal.aborted) throw firstError
       console.warn(`[ServerDownloadQueue] Local cache or supplied URL failed for ${task.songKey}; refreshing source once`)
       resolved = await resolver(task)
       if (!resolved?.url) throw firstError
@@ -590,6 +594,8 @@ const runTask = async (task: ServerDownloadTask) => {
   } finally {
     controllers.delete(key)
     activeTasks.delete(key)
+    activeSettled.delete(key)
+    settle()
     task.progressKey = undefined
     task.updatedAt = Date.now()
     scheduleSave()
@@ -615,6 +621,7 @@ const processQueue = async () => {
       }
       let next: ServerDownloadTask | undefined
       for (const task of tasks.values()) {
+        if (suspendedUsers.has(task.username)) continue
         if (!isDownloadTaskRunnable(
           task,
           activeByUser.get(task.username) || 0,
@@ -666,7 +673,7 @@ const hasRequestedTarget = (username: string, input: QueueInput, quality: string
       false,
       { preferredFolder: targetFolder },
     )
-    return cached.exists === true && cached.isCollision !== true && cached.folder === targetFolder
+    return cached.exists === true && cached.isCollision !== true && cached.folder === targetFolder && (targetFolder !== 'music' || cached.foundIn === username)
   } catch {
     return false
   }
@@ -701,6 +708,7 @@ const markTaskAsExisting = (task: ServerDownloadTask, username: string, input: Q
 }
 
 export const enqueue = (username: string, inputs: QueueInput[]) => {
+  if (suspendedUsers.has(username)) throw new Error('用户数据正在迁移或删除')
   if (inputs.length > 100) throw new Error('Too many tasks in one request')
   deduplicateTasksInMemory()
   const pendingCount = pendingCountByUser.get(username) || 0
@@ -961,4 +969,50 @@ export const remove = (username: string, options: { id?: string; all?: boolean; 
   saveNow()
   notifyQueueListeners(username)
   void processQueue()
+}
+
+/** Block new work and drain all workers before changing a user's files or identity. */
+export const suspendUser = async (username: string) => {
+  suspendedUsers.add(username)
+  if (Array.from(tasks.values()).some(task => task.username === username)) pause(username)
+  for (const [key, task] of activeTasks) {
+    if (task.username === username) controllers.get(key)?.abort()
+  }
+  await Promise.all(Array.from(activeTasks.entries())
+    .filter(([, task]) => task.username === username)
+    .map(([key]) => activeSettled.get(key)))
+}
+
+export const releaseUser = (username: string) => {
+  suspendedUsers.delete(username)
+  void processQueue()
+}
+
+/** Only called after workers settle; pending work remains paused for explicit resume. */
+export const renameUser = async (username: string, newName: string) => {
+  if (!Array.from(tasks.values()).some(task => task.username === username) && !concurrencyByUser.has(username)) return
+  for (const [key, task] of tasks) {
+    if (task.username !== username) continue
+    tasks.delete(key)
+    task.username = newName
+    task.resolvedUrl = undefined
+    task.resolvedUrlAt = undefined
+    tasks.set(taskMapKey(newName, task.id), task)
+  }
+  const concurrency = concurrencyByUser.get(username)
+  concurrencyByUser.delete(username)
+  if (concurrency !== undefined) concurrencyByUser.set(newName, concurrency)
+  rebuildTaskIndexes()
+  saveNow()
+  notifyQueueListeners(username)
+  notifyQueueListeners(newName)
+  await saveChain
+}
+
+export const removeUser = async (username: string) => {
+  if (!Array.from(tasks.values()).some(task => task.username === username) && !concurrencyByUser.has(username)) return
+  remove(username, { all: true })
+  concurrencyByUser.delete(username)
+  saveNow()
+  await saveChain
 }

@@ -79,7 +79,13 @@ const getActiveLoginFailures = (ip: string, now: number): number[] => {
   return active
 }
 
-export const isLoginRateLimited = (ip: string): boolean => {
+export type LoginDomain = 'admin' | 'user' | 'player'
+// Keep legacy administrator keys valid; other authentication domains use
+// separate keys so their successful logins cannot clear the admin budget.
+const loginFailureKey = (ip: string, domain: LoginDomain): string => domain === 'admin' ? ip : `${domain}:${ip}`
+
+export const isLoginRateLimited = (address: string, domain: LoginDomain = 'admin'): boolean => {
+  const ip = loginFailureKey(address, domain)
   const now = Date.now()
   try {
     const row = getDb().query<{ count: number }, [string, number]>(
@@ -94,7 +100,8 @@ export const isLoginRateLimited = (ip: string): boolean => {
   return failures.length >= MAX_LOGIN_FAILURES
 }
 
-export const recordLoginFailure = (ip: string): void => {
+export const recordLoginFailure = (address: string, domain: LoginDomain = 'admin'): void => {
+  const ip = loginFailureKey(address, domain)
   const now = Date.now()
   try {
     const db = getDb()
@@ -111,7 +118,8 @@ export const recordLoginFailure = (ip: string): void => {
   trimLoginFailureKeys()
 }
 
-export const clearLoginFailures = (ip: string): void => {
+export const clearLoginFailures = (address: string, domain: LoginDomain = 'admin'): void => {
+  const ip = loginFailureKey(address, domain)
   loginFailures.delete(ip)
   try { getDb().run('DELETE FROM login_failures WHERE ip = ?', [ip]) } catch { }
 }

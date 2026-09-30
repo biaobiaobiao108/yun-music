@@ -3,10 +3,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as fileCache from '@/server/fileCache'
-import { closeDb } from '@/database'
+import { closeDb, initDatabase } from '@/database'
 import {
   deduplicateDownloadTasks,
   enqueue,
+  suspendUser, releaseUser, renameUser, removeUser,
   initialize,
   isDownloadTaskRunnable,
   list,
@@ -205,6 +206,7 @@ describe('Server download queue deduplication', () => {
       exists: true,
       isCollision: false,
       folder: 'music',
+      foundIn: 'existing-download-user',
       filename: 'already-downloaded.flac',
       quality: 'flac',
       path: '/tmp/already-downloaded.flac',
@@ -335,4 +337,95 @@ describe('Server download queue deduplication', () => {
       fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
     }
   })
+})
+
+
+test('shared music is copied by the worker rather than counted as a personal download', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-shared-download-'))
+  const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
+    exists: true, foundIn: '_open', folder: 'music', filename: 'shared.flac',
+    path: '/tmp/shared.flac', quality: 'flac',
+  } as any)
+  const worker = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => { throw new Error('Shared file needs no remote URL') })
+    const added = enqueue('shared-copy-user', [{ songInfo: { id: 'shared-copy-song' }, quality: 'flac', enableOnlyDownloadMode: true }])
+    expect(added[0]?.status).not.toBe('exists')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(worker).toHaveBeenCalled()
+    expect(list('shared-copy-user')[0]?.status).toBe('finished')
+    await removeUser('shared-copy-user')
+  } finally {
+    await new Promise(resolve => setTimeout(resolve, 220))
+    checkCache.mockRestore()
+    worker.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('account suspension drains workers, blocks new work and migrates paused tasks', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-drain-download-'))
+  const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+  let finishResolver!: () => void
+  const pending = new Promise<void>(resolve => { finishResolver = resolve })
+  const worker = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => { await pending; return { url: 'https://example.com/song' } })
+    enqueue('drain-old', [{ songInfo: { id: 'drain-song' }, quality: 'flac' }])
+    let drained = false
+    const draining = suspendUser('drain-old').then(() => { drained = true })
+    await Promise.resolve()
+    expect(drained).toBe(false)
+    expect(() => enqueue('drain-old', [{ songInfo: { id: 'blocked' } }])).toThrow()
+    finishResolver()
+    await draining
+    expect(worker).not.toHaveBeenCalled()
+    await renameUser('drain-old', 'drain-new')
+    expect(list('drain-old')).toEqual([])
+    expect(list('drain-new')[0]?.status).toBe('paused')
+    await removeUser('drain-new')
+    expect(list('drain-new')).toEqual([])
+  } finally {
+    releaseUser('drain-old')
+    await new Promise(resolve => setTimeout(resolve, 220))
+    checkCache.mockRestore()
+    worker.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+
+test('promotion copies shared music and lyrics into the private library while preserving the originals', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-shared-music-promote-'))
+  closeDb()
+  initDatabase(':memory:')
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    const source = fileCache.getCacheDir('_open', true, 'data')
+    fs.writeFileSync(path.join(source, 'shared.mp3'), 'test-audio')
+    fs.writeFileSync(path.join(source, 'shared.lrc'), '[00:01]lyrics')
+    fileCache.indexManager.update('_open', {
+      id: 'wy_shared-promotion', songmid: 'shared-promotion', name: 'Shared', singer: 'Singer',
+      albumName: '', source: 'wy', quality: '320k', filename: 'shared.mp3', folder: 'music',
+      mtime: Date.now(), size: 10, ext: 'mp3', lyricFilename: 'shared.lrc',
+    }, 'music', 'data')
+    const promoted = await fileCache.promoteCachedSongToMusic({ source: 'wy', songmid: 'shared-promotion' }, '320k', 'copy-target')
+    expect(promoted.successCount).toBe(1)
+    const target = fileCache.getCacheDir('copy-target', true, 'data')
+    expect(fs.readFileSync(path.join(target, 'shared.mp3'), 'utf8')).toBe('test-audio')
+    expect(fs.readFileSync(path.join(target, 'shared.lrc'), 'utf8')).toBe('[00:01]lyrics')
+    expect(fs.existsSync(path.join(source, 'shared.mp3'))).toBe(true)
+    expect(fileCache.indexManager.getAll('copy-target', 'music', 'data')).toHaveLength(1)
+  } finally {
+    closeDb()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })

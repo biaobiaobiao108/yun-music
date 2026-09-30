@@ -78,18 +78,6 @@ function removeSongsFromList(songs: Song[], targets: Song[]): Song[] {
   return songs.filter(song => !songMatchSetHas(targetSet, song))
 }
 
-const ensureLibraryHydrated = async (
-  get: () => LibraryState,
-): Promise<UserListData> => {
-  const current = get()
-  if (current.loadedAt === 0 || current.loading || current.refreshing) {
-    await current.hydrate({ force: true })
-  }
-  const next = get()
-  if (next.loadedAt === 0) throw new Error(next.error || '歌单数据尚未加载完成，请稍后重试')
-  return next.data
-}
-
 function scheduleLibraryHydrate(get: () => LibraryState): void {
   if (libraryHydrateTimer) clearTimeout(libraryHydrateTimer)
   libraryHydrateTimer = setTimeout(() => {
@@ -167,29 +155,20 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
   createList: async (name, icon = 'music') => {
-    const data = await ensureLibraryHydrated(get)
     const list: UserPlaylist = {
       id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       name,
       icon,
       list: [],
     }
-    await playerApi.saveListData({ ...data, userList: [...(data.userList ?? []), list] })
+    await playerApi.mutatePlaylist({ action: 'create', playlist: list })
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
     return list
   },
   toggleRemotePlaylist: async (detail, songs) => {
-    const data = await ensureLibraryHydrated(get)
     const source = String(detail.source || '').trim() || 'wy'
     const sourceListId = String(detail.id)
-    const existing = (data.userList ?? []).find(list => String(list.source || '') === source && String(list.sourceListId ?? '') === sourceListId)
-    if (existing) {
-      await playerApi.saveListData({ ...data, userList: (data.userList ?? []).filter(list => String(list.id) !== String(existing.id)) })
-      invalidateRequestCache('library:lists')
-      await get().hydrate({ force: true })
-      return false
-    }
     const list: UserPlaylist = {
       id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       name: detail.name || '在线歌单',
@@ -198,21 +177,18 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       img: detail.image,
       list: songs.map(normalizeSongForList),
     }
-    await playerApi.saveListData({ ...data, userList: [...(data.userList ?? []), list] })
+    const result = await playerApi.mutatePlaylist({ action: 'toggle', playlist: list })
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
-    return true
+    return result.added
   },
   renameList: async (listId, name) => {
-    const data = await ensureLibraryHydrated(get)
-    const userList = (data.userList ?? []).map(list => String(list.id) === String(listId) ? { ...list, name } : list)
-    await playerApi.saveListData({ ...data, userList })
+    await playerApi.mutatePlaylist({ action: 'rename', id: listId, name })
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
   },
   deleteList: async listId => {
-    const data = await ensureLibraryHydrated(get)
-    await playerApi.saveListData({ ...data, userList: (data.userList ?? []).filter(list => String(list.id) !== String(listId)) })
+    await playerApi.mutatePlaylist({ action: 'delete', id: listId })
     invalidateRequestCache('library:lists')
     await get().hydrate({ force: true })
   },

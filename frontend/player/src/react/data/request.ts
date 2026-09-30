@@ -32,6 +32,14 @@ export class ApiRequestError extends Error {
 type CacheEntry = { value: unknown; expiresAt: number }
 
 const responseCache = new Map<string, CacheEntry>()
+const MAX_CACHE_ENTRIES = 128
+
+function pruneExpiredCache(): void {
+  const now = Date.now()
+  for (const [key, entry] of responseCache) {
+    if (entry.expiresAt <= now) responseCache.delete(key)
+  }
+}
 type PendingRequest = { promise: Promise<unknown>; controller: AbortController; consumers: number; settled: boolean }
 const inFlight = new Map<string, PendingRequest>()
 
@@ -75,16 +83,25 @@ function joinPending<T>(entry: PendingRequest, signal?: AbortSignal): Promise<T>
 
 function cacheValue<T>(key: string, value: T, ttl: number): void {
   if (ttl <= 0) return
+  pruneExpiredCache()
+  responseCache.delete(key)
+  while (responseCache.size >= MAX_CACHE_ENTRIES) {
+    responseCache.delete(responseCache.keys().next().value as string)
+  }
   responseCache.set(key, { value, expiresAt: Date.now() + ttl })
 }
 
 function readCached<T>(key: string): T | undefined {
+  pruneExpiredCache()
   const entry = responseCache.get(key)
   if (!entry) return undefined
   if (entry.expiresAt <= Date.now()) {
     responseCache.delete(key)
     return undefined
   }
+  // Recently used entries stay at the end of the bounded LRU cache.
+  responseCache.delete(key)
+  responseCache.set(key, entry)
   return entry.value as T
 }
 
@@ -138,7 +155,12 @@ export async function requestJson<T>(input: RequestInfo | URL, init: PlayerReque
   if (requestCacheKey) {
     const pending: PendingRequest = { promise: request, controller: requestController as AbortController, consumers: 0, settled: false }
     inFlight.set(requestCacheKey, pending)
-    void request.then(value => cacheValue(requestCacheKey, value, cacheTtlMs), () => undefined).finally(() => {
+    void request.then(value => {
+      // Invalidated or superseded requests may finish even if fetch ignores abort.
+      if (inFlight.get(requestCacheKey) === pending && !pending.controller.signal.aborted) {
+        cacheValue(requestCacheKey, value, cacheTtlMs)
+      }
+    }, () => undefined).finally(() => {
       pending.settled = true
       if (inFlight.get(requestCacheKey) === pending) inFlight.delete(requestCacheKey)
     })
@@ -172,6 +194,7 @@ export function clearRequestCache(): void {
 }
 
 export function requestCacheKeys(): string[] {
+  pruneExpiredCache()
   return [...responseCache.keys()]
 }
 
