@@ -16,7 +16,7 @@ describe('React admin frontend', () => {
     expect(reorderCustomSourceIds(['a', 'b'], 'x', 'b', false)).toBeNull()
   })
 
-  it('normalizes persisted song metadata so data view can render real playlist entries', () => {
+  it('normalizes persisted song metadata for snapshot exports', () => {
     const data = normalizeAdminData({
       data: {
         defaultList: [{ id: 7, name: '试听歌曲', singer: '歌手', albumName: '专辑', album: '旧专辑字段', meta: { picUrl: 'https://example.com/cover.jpg', songId: 7 } }],
@@ -49,18 +49,18 @@ describe('React admin frontend', () => {
     const entry = read('frontend/admin/src/react/index.tsx')
     const store = read('frontend/admin/src/react/store.ts')
     const customSources = read('frontend/admin/src/react/custom-sources-view.tsx')
-    const sources = [entry, store, customSources, read('frontend/admin/src/react/views.tsx'), read('frontend/admin/src/react/data-view.tsx'), read('frontend/admin/src/react/components.tsx')].join('\n')
+    const views = read('frontend/admin/src/react/views.tsx')
+    const sources = [entry, store, customSources, views, read('frontend/admin/src/react/components.tsx')].join('\n')
     expect(entry).toContain('createRoot')
     expect(entry).toContain('LoginGate')
-    for (const view of ['DashboardView', 'UsersView', 'StorageView', 'DataView', 'ConfigView', 'LogsView', 'SnapshotsView', 'CustomSourcesView']) expect(sources).toContain(view)
+    for (const view of ['DashboardView', 'UsersView', 'StorageView', 'ConfigView', 'LogsView', 'SnapshotsView', 'CustomSourcesView']) expect(sources).toContain(view)
+    expect(entry).not.toContain('DataView')
     expect(store).toContain("from 'zustand'")
     expect(sources).toContain('<dialog')
     expect(sources).toContain('role="alert"')
     expect(sources).not.toMatch(/window\.app\s*=/)
     expect(sources).not.toMatch(/data-admin-action/)
     expect(sources).not.toMatch(/\bon(click|change|submit)\s*=/)
-    expect(sources).toContain('admin-data-workspace')
-    expect(sources).toContain('batchDeleteSongs')
     expect(entry).toContain("id: 'sources'")
     expect(customSources).toContain('assignCustomSource')
     expect(customSources).toContain('公共音源')
@@ -99,7 +99,6 @@ describe('React admin frontend', () => {
       read('frontend/admin/src/react/index.tsx'),
       read('frontend/admin/src/react/api.ts'),
       read('frontend/admin/src/react/views.tsx'),
-      read('frontend/admin/src/react/data-view.tsx'),
       read('frontend/admin/src/react/storage-view.tsx'),
       read('frontend/admin/src/react/config-view.tsx'),
       read('frontend/admin/src/react/components.tsx'),
@@ -132,14 +131,13 @@ describe('React admin frontend', () => {
     const adminViews = [
       read('frontend/admin/src/react/views.tsx'),
       read('frontend/admin/src/react/storage-view.tsx'),
-      read('frontend/admin/src/react/data-view.tsx'),
     ].join('\n')
     const playerViews = [
       read('frontend/player/src/react/views.tsx'),
       read('frontend/player/src/react/heavy_views.tsx'),
     ].join('\n')
     const css = read('frontend/styles/admin.css') + read('frontend/styles/player.css')
-    for (const panel of ['admin-users-panel', 'admin-storage-panel', 'admin-data-panel']) expect(adminViews).toContain(panel)
+    for (const panel of ['admin-users-panel', 'admin-storage-panel']) expect(adminViews).toContain(panel)
     expect(adminViews).toContain('admin-react-search-field')
     expect(playerViews).toContain('react-global-search react-search-input')
     expect(playerViews).toContain('react-global-search react-local-search')

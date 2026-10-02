@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { adminApi, login, logout, verifySession, type AdminConfig, type AdminCustomSource, type AdminData, type AdminStatus, type AdminUser, type CustomSourceOwner, type Snapshot, type StorageItem } from './api'
+import { adminApi, login, logout, verifySession, type AdminConfig, type AdminCustomSource, type AdminStatus, type AdminUser, type CustomSourceOwner, type Snapshot, type StorageItem } from './api'
 
-export type AdminView = 'dashboard' | 'users' | 'storage' | 'data' | 'config' | 'logs' | 'snapshots' | 'sources'
+export type AdminView = 'dashboard' | 'users' | 'storage' | 'config' | 'logs' | 'snapshots' | 'sources'
 
 type AdminState = {
   authenticated: boolean
@@ -12,7 +12,6 @@ type AdminState = {
   selectedUser: string
   status: AdminStatus | null
   config: AdminConfig | null
-  data: AdminData | null
   storage: StorageItem[]
   storageFolder: 'cache' | 'music'
   snapshots: Snapshot[]
@@ -55,7 +54,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   selectedUser: '',
   status: null,
   config: null,
-  data: null,
   storage: [],
   storageFolder: 'cache',
   snapshots: [],
@@ -95,7 +93,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     loadSequence += 1
     activeLoadController?.abort()
     activeLoadController = null
-    set({ authenticated: false, checking: false, busy: false, users: [], selectedUser: '', status: null, config: null, data: null, storage: [], snapshots: [], sources: [], logs: [], error: '', toast: '' })
+    set({ authenticated: false, checking: false, busy: false, users: [], selectedUser: '', status: null, config: null, storage: [], snapshots: [], sources: [], logs: [], error: '', toast: '' })
   },
   setView: (view) => {
     set({ view, error: '' })
@@ -105,11 +103,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     const view = get().view
     set({
       selectedUser,
-      ...(view === 'data' ? { data: null } : {}),
       ...(view === 'snapshots' ? { snapshots: [] } : {}),
       ...(view === 'storage' ? { storage: [] } : {}),
     })
-    if (get().view === 'data' || get().view === 'storage' || get().view === 'snapshots') void get().loadView()
+    if (get().view === 'storage' || get().view === 'snapshots') void get().loadView()
   },
   setLogType: (logType) => {
     set({ logType })
@@ -137,13 +134,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         const users = await adminApi.users(signal)
         if (sequence !== loadSequence) return
         set({ users })
-      } else if (view === 'data') {
-        const user = get().selectedUser || get().users.find(item => item.name !== '_open')?.name || ''
-        if (user) {
-          const data = await adminApi.userData(user)
-          if (sequence !== loadSequence) return
-          set({ selectedUser: user, data })
-        } else if (sequence === loadSequence) set({ data: null })
       } else if (view === 'storage') {
         const user = get().selectedUser || 'all'
         const result = await adminApi.cacheList(user)
@@ -158,11 +148,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         if (sequence !== loadSequence) return
         set({ logs: result.logs ?? result.lines ?? [] })
       } else if (view === 'snapshots') {
-        const user = get().selectedUser || get().users.find(item => item.name !== '_open')?.name || ''
+        const user = get().selectedUser
         if (user) {
           const snapshots = await adminApi.snapshots(user)
           if (sequence !== loadSequence) return
-          set({ selectedUser: user, snapshots })
+          set({ snapshots })
         } else if (sequence === loadSequence) set({ snapshots: [] })
       } else if (view === 'sources') {
         const owner = get().sourceOwner

@@ -16,6 +16,11 @@ services:
     pids_limit: 256
     ports:
       - "9527:9527"
+    # Pass the rest of the configured server variables (including LX_USER_*)
+    # through to the container. Compose's .env file alone only supplies values
+    # for interpolation and is not automatically added to the container env.
+    env_file:
+      - .env
     volumes:
       # 数据目录：SQLite 数据库、账户、歌单快照、config.js 与日志
       - ./data:/server/data

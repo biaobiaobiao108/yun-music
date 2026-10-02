@@ -7,7 +7,6 @@ import { useAdminStore, type AdminView } from './store'
 
 const ConfigView = lazy(() => import('./views').then(module => ({ default: module.ConfigView })))
 const DashboardView = lazy(() => import('./views').then(module => ({ default: module.DashboardView })))
-const DataView = lazy(() => import('./views').then(module => ({ default: module.DataView })))
 const LogsView = lazy(() => import('./views').then(module => ({ default: module.LogsView })))
 const SnapshotsView = lazy(() => import('./views').then(module => ({ default: module.SnapshotsView })))
 const StorageView = lazy(() => import('./views').then(module => ({ default: module.StorageView })))
@@ -18,7 +17,6 @@ const NAV_ITEMS: { id: AdminView; label: string; icon: string }[] = [
   { id: 'dashboard', label: '仪表盘', icon: 'chart-line' },
   { id: 'users', label: '用户管理', icon: 'users' },
   { id: 'storage', label: '存储管理', icon: 'hard-drive' },
-  { id: 'data', label: '数据查看', icon: 'database' },
   { id: 'config', label: '系统配置', icon: 'gear' },
   { id: 'logs', label: '系统日志', icon: 'file-lines' },
   { id: 'snapshots', label: '快照管理', icon: 'clock-rotate-left' },
@@ -39,7 +37,6 @@ function viewFor(view: AdminView) {
   switch (view) {
     case 'users': return <UsersView />
     case 'storage': return <StorageView />
-    case 'data': return <DataView />
     case 'config': return <ConfigView />
     case 'logs': return <LogsView />
     case 'snapshots': return <SnapshotsView />

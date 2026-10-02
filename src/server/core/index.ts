@@ -138,7 +138,10 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
   if (!response.body || typeof CompressionStream !== 'function') return response
 
   const etag = response.headers.get('etag')
-  const cacheKey = etag ? `${etag}|gzip` : ''
+  // Static validators are intentionally inexpensive (size + mtime), so two
+  // different files can share an ETag. Include the request path to keep their
+  // compressed representations isolated in the process-wide cache.
+  const cacheKey = etag ? `${ctx.pathname}|${etag}|gzip` : ''
   if (cacheKey) {
     const cached = readCompressedCache(cacheKey)
     if (cached) {

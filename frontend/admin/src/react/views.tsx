@@ -118,7 +118,6 @@ function UserDialog({ open, mode, user, onClose }: { open: boolean; mode: 'add' 
 
 export { StorageView } from './storage-view'
 
-export { DataView } from './data-view'
 export { ConfigView } from './config-view'
 
 export function LogsView() {

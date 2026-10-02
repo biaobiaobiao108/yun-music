@@ -4,6 +4,12 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/* Suppress the browser's default focus frame; component focus-visible styles
+   below provide the compact project treatment for keyboard navigation. */
+:focus {
+    outline: 0;
+}
+
 /* Custom scrollbar */
 :root {
     --space-1: 0.25rem;

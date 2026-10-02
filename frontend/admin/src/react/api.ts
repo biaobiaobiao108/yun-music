@@ -252,7 +252,6 @@ export async function verifySession(): Promise<AdminStatus> {
 export const adminApi = {
   status: () => adminRequest<AdminStatus>('/api/status'),
   users: (signal?: AbortSignal) => adminRequest<AdminUser[]>('/api/users', { signal }),
-  userData: async (user: string) => normalizeAdminData(await adminRequest<unknown>(`/api/data?user=${encodeURIComponent(user)}`)),
   config: () => adminRequest<AdminConfig>('/api/config'),
   saveConfig: (config: Record<string, unknown>) => adminRequest<{ success: boolean; warning?: string }>('/api/config', { method: 'POST', body: JSON.stringify(config) }),
   logs: (type: string) => adminRequest<{ logs?: string[]; lines?: string[] }>(`/api/logs?type=${encodeURIComponent(type)}&lines=300`),
@@ -266,10 +265,6 @@ export const adminApi = {
   removeCache: (items: Array<{ filename: string; folder?: 'cache' | 'music'; user?: string }>) => adminRequest('/api/music/cache/remove', { method: 'POST', body: JSON.stringify({ items }) }),
   moveCache: (items: Array<{ filename: string; user?: string }>) => adminRequest('/api/music/cache/move', { method: 'POST', body: JSON.stringify({ items }) }),
   clearCache: (user: string) => adminRequest(`/api/music/cache/clear?user=${encodeURIComponent(user)}`, { method: 'POST' }),
-  deletePlaylist: (username: string, playlistId: string) => adminRequest('/api/data/delete-playlist', { method: 'POST', body: JSON.stringify({ username, playlistId }) }),
-  deleteSong: (username: string, playlistId: string, songId: string) => adminRequest('/api/data/delete-song', { method: 'POST', body: JSON.stringify({ username, playlistId, songId }) }),
-  batchDeleteSongs: (username: string, playlistId: string, songIndices: number[]) => adminRequest('/api/data/batch-delete-songs', { method: 'POST', body: JSON.stringify({ username, playlistId, songIndices }) }),
-  renamePlaylist: (username: string, playlistId: string, newName: string) => adminRequest('/api/data/rename-playlist', { method: 'POST', body: JSON.stringify({ username, playlistId, newName }) }),
   addUser: (name: string, password: string) => adminRequest('/api/users', { method: 'POST', body: JSON.stringify({ name, password }) }),
   updateUser: (name: string, payload: { newName?: string; password?: string }) => adminRequest('/api/users', { method: 'PUT', body: JSON.stringify({ name, ...payload }) }),
   deleteUsers: (names: string[], deleteData: boolean) => adminRequest('/api/users', { method: 'DELETE', body: JSON.stringify({ names, deleteData }) }),

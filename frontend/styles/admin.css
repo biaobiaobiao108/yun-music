@@ -38,6 +38,12 @@
     box-sizing: border-box;
 }
 
+/* Suppress the browser's default focus frame; component focus-visible styles
+   below provide the compact project treatment for keyboard navigation. */
+:focus {
+    outline: 0;
+}
+
 body {
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
