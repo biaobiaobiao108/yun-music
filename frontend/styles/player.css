@@ -12929,6 +12929,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 .react-home-playlists { display: block; grid-template-columns: none; gap: 0; }
 .react-home-playlists > li { min-width: 0; }
 @media (min-width: 721px) {
+    .react-home-playlists-section { display: none; }
     .react-player-main::before {
         content: "";
         position: absolute;

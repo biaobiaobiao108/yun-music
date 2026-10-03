@@ -385,6 +385,8 @@ describe('React player navigation and state restoration', () => {
     const homeView = libraryViews.slice(libraryViews.indexOf('export function HomeView()'), libraryViews.indexOf('export function RecentView()'))
     expect(homeView).toContain('<ul className="react-playlist-catalog-list react-home-playlists">')
     expect(homeView).toContain('className="react-playlist-catalog-row"')
+    expect(homeView).toContain('react-home-playlists-section')
+    expect(css).toContain('.react-home-playlists-section { display: none; }')
     expect(homeView.indexOf('<h2>艺人</h2>')).toBeLessThan(homeView.indexOf('<h2>我的歌单</h2>'))
     expect(libraryViews).toContain('react-artwork-cover ${kind === \'artist\' ? \'is-artist\' : \'\'}')
     expect(views).not.toContain('hideActionsOnMobile')
