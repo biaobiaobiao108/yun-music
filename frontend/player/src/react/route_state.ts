@@ -24,6 +24,13 @@ export function serializePlayerHash(route: Pick<PlayerNavigation, 'tab' | 'listI
   return `#${encodeURIComponent(route.tab)}`
 }
 
+/** Desktop navigation has separate entries for the love list, playlists and charts. */
+export function getSidebarActiveTab(tab: PlayerTab, listId = 'love'): PlayerTab | null {
+  if (tab === 'favorites' && listId !== 'love') return null
+  // Legacy category routes render the discovery page.
+  return tab === 'genres' ? 'songlist' : tab
+}
+
 let routeWriter: ((navigation: PlayerNavigation) => void) | null = null
 
 /**
