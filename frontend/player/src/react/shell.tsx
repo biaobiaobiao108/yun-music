@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
 import { Button, Drawer, DrawerState, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
-import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
+import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, MobileLibraryView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
 import { formatSongDuration, songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { safeImageUrl } from '../../../shared/src/runtime'
@@ -155,13 +155,24 @@ function PlayerView({ tab, detail }: { tab: PlayerTab; detail: PlayerDetail | nu
       case 'songlist': return <SongListView detail={detail?.page === 'songlist-detail' ? detail : null} />
       case 'leaderboard': return <LeaderboardView />
       case 'favorites': return <FavoritesView />
-      case 'library': return <LocalMusicView />
+      case 'library': return <MobileLibraryRoute />
       case 'localmusic': return <LocalMusicView />
       case 'settings': return <SettingsView />
       default: return <SearchView detail={detail?.page === 'search-detail' ? detail : null} />
     }
   })()
   return <Suspense fallback={<Loading label="正在加载页面…" />}>{view}</Suspense>
+}
+
+function MobileLibraryRoute() {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 720px)').matches)
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 720px)')
+    const update = () => setMobile(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  return mobile ? <MobileLibraryView /> : <LocalMusicView />
 }
 
 class PlayerErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -193,10 +204,32 @@ function Sidebar() {
   return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><nav className="react-sidebar-nav"><p className="react-sidebar-label">我的空间</p>{NAV_ITEMS.map(item => { const isActive = item.id === 'favorites' ? tab === 'favorites' && favoriteListId === 'love' : tab === item.id; return <button type="button" key={item.id} className={`netease-nav-item ${isActive ? 'active-tab' : ''}`} aria-current={isActive ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button> })}<div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">歌单</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map((list, index) => { const id = String(list.id); const isActive = tab === 'favorites' && favoriteListId === id; return <button type="button" className={`react-sidebar-playlist ${isActive ? 'is-active' : ''}`} aria-current={isActive ? 'page' : undefined} key={`${id}-${index}`} onClick={() => openFavoriteList(id)}><Icon name={playlistIcon(list.icon)} /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button> })}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">更多功能</p>{MORE_NAV_ITEMS.map(item => <button type="button" key={item.id} className={`netease-nav-item ${tab === item.id ? 'active-tab' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav></aside></>
 }
 
+const MOBILE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string; activeTabs: PlayerTab[] }[] = [
+  { id: 'home', label: '首页', icon: 'house', activeTabs: ['home'] },
+  { id: 'songlist', label: '发现', icon: 'compass', activeTabs: ['songlist', 'leaderboard', 'genres'] },
+  { id: 'recent', label: '最近', icon: 'clock', activeTabs: ['recent'] },
+  { id: 'library', label: '资料库', icon: 'folder-open', activeTabs: ['library', 'favorites', 'albums', 'artists', 'localmusic'] },
+  { id: 'search', label: '搜索', icon: 'search', activeTabs: ['search'] },
+]
+
+function MobileNavigation() {
+  const tab = usePlayerUiStore(state => state.tab)
+  const setTab = usePlayerUiStore(state => state.setTab)
+  return <nav className="react-mobile-navigation" aria-label="移动端主导航">
+    {MOBILE_NAV_ITEMS.map(item => {
+      const active = item.activeTabs.includes(tab)
+      return <button key={item.id} type="button" className={`react-mobile-navigation-item${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined} onClick={() => setTab(item.id)}>
+        <Icon name={item.icon} /><span>{item.label}</span>
+      </button>
+    })}
+  </nav>
+}
+
 function TopBar() {
   const tab = usePlayerUiStore(state => state.tab)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const setDialog = usePlayerUiStore(state => state.setDialog)
+  const setTab = usePlayerUiStore(state => state.setTab)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const userName = useAuthStore(state => state.userName)
   const settings = useSettingsStore(state => state.settings)
@@ -206,7 +239,7 @@ function TopBar() {
   const title = tab === 'favorites' && currentPlaylist ? currentPlaylist.name : ALL_NAV_ITEMS.find(item => item.id === tab)?.label ?? (tab === 'favorites' ? '收藏' : '云音')
   useEffect(() => { document.title = `${title} - 云音` }, [title])
   const toggleTheme = () => { const next = settings.appearance === 'dark' ? 'light' : 'dark'; setSetting('appearance', next) }
-  return <header className="react-player-topbar"><div className="react-history-controls" aria-label="页面历史"><button type="button" id="player-history-back" className="react-icon-button" aria-label="后退" onClick={goBack}><Icon name="arrow-left" /></button><button type="button" id="player-history-forward" className="react-icon-button" aria-label="前进" onClick={goForward}><Icon name="arrow-right" /></button></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
+  return <header className="react-player-topbar"><div className="react-history-controls" aria-label="页面历史"><button type="button" id="player-history-back" className="react-icon-button" aria-label="后退" onClick={goBack}><Icon name="arrow-left" /></button><button type="button" id="player-history-forward" className="react-icon-button" aria-label="前进" onClick={goForward}><Icon name="arrow-right" /></button></div><div className="react-topbar-actions"><button type="button" className="player-secondary-action" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={settings.appearance === 'dark' ? 'sun' : 'moon'} /></button><button type="button" className="player-secondary-action" aria-label="缓存任务" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /></button><button type="button" className="player-secondary-action react-mobile-settings-button" aria-label="设置" onClick={() => setTab('settings')}><Icon name="gear" /></button>{userName ? <span className="react-user-chip"><Icon name="circle-user" />{userName}</span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
 }
 
 function AudioRuntime() {
@@ -908,6 +941,10 @@ export function PlayerShell() {
     setImmersiveLyricsMounted(true)
     setImmersiveLyrics(false)
   }, [setImmersiveLyrics])
+  const openQueueFromPlayer = useCallback(() => {
+    closeImmersiveLyrics()
+    setDrawer('queue')
+  }, [closeImmersiveLyrics, setDrawer])
   const unmountImmersiveLyrics = useCallback(() => setImmersiveLyricsMounted(false), [])
   useEffect(() => { if (immersiveLyrics) setImmersiveLyricsMounted(true) }, [immersiveLyrics])
   useEffect(() => { hydratePlayback(); hydrateRecent(); void hydrateSettings(); void hydrateLibrary(); void hydrateMediaLibrary() }, [hydrateLibrary, hydrateMediaLibrary, hydratePlayback, hydrateRecent, hydrateSettings])
@@ -998,7 +1035,7 @@ export function PlayerShell() {
     window.addEventListener('hashchange', onPop)
     return () => { disconnect(); window.removeEventListener('popstate', onPop); window.removeEventListener('hashchange', onPop) }
   }, [setTabFromHistory])
-  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveFooterHost !== 'normal'} /></div>{drawer === 'queue' && <QueueDrawer open onClose={() => setDrawer(null)} />}{(drawer === 'cache' || drawer === 'download') && <CacheDrawer open onClose={() => setDrawer(null)} />}<Suspense fallback={null}>{dialog === 'login' && <LoginDialog open onClose={() => setDialog(null)} />}{dialog === 'userLogin' && <UserLoginDialog open onClose={() => setDialog(null)} />}{dialog === 'createList' && <CreateListDialog open onClose={() => setDialog(null)} />}{dialog === 'addToList' && <AddToListDialog open onClose={closeAddToList} />}{dialog === 'sleep' && <SleepTimerDialog open onClose={() => setDialog(null)} />}{(immersiveLyricsMounted || immersiveLyrics) && <ImmersiveLyricsView open={immersiveLyrics} footerHost={immersiveFooterHost} onFooterHostChange={setImmersiveFooterHost} onClose={closeImmersiveLyrics} onClosed={unmountImmersiveLyrics} />}{dialog === 'comments' && <CommentsDialog open onClose={() => setDialog(null)} />}</Suspense><ToastRegion /></div>
+  return <div className="react-player-shell"><AudioRuntime /><Sidebar /><div className="react-player-main"><TopBar /><main id="player-main-content" className="react-player-content" tabIndex={-1}><PlayerErrorBoundary><PlayerView tab={tab} detail={detail} /></PlayerErrorBoundary></main><PlayerFooter hidden={immersiveFooterHost !== 'normal'} /></div><MobileNavigation />{drawer === 'queue' && <QueueDrawer open onClose={() => setDrawer(null)} />}{(drawer === 'cache' || drawer === 'download') && <CacheDrawer open onClose={() => setDrawer(null)} />}<Suspense fallback={null}>{dialog === 'login' && <LoginDialog open onClose={() => setDialog(null)} />}{dialog === 'userLogin' && <UserLoginDialog open onClose={() => setDialog(null)} />}{dialog === 'createList' && <CreateListDialog open onClose={() => setDialog(null)} />}{dialog === 'addToList' && <AddToListDialog open onClose={closeAddToList} />}{dialog === 'sleep' && <SleepTimerDialog open onClose={() => setDialog(null)} />}{(immersiveLyricsMounted || immersiveLyrics) && <ImmersiveLyricsView open={immersiveLyrics} footerHost={immersiveFooterHost} onFooterHostChange={setImmersiveFooterHost} onClose={closeImmersiveLyrics} onOpenQueue={openQueueFromPlayer} onClosed={unmountImmersiveLyrics} />}{dialog === 'comments' && <CommentsDialog open onClose={() => setDialog(null)} />}</Suspense><ToastRegion /></div>
 }
 
 export function PlayerAuthGate() {

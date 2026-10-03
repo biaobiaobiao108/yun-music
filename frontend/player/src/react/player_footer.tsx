@@ -120,6 +120,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   const removeSong = useLibraryStore(state => state.removeSong)
   const isLiked = useLibraryStore(state => isSongInLoveList(state, currentSong))
   const [songMenuOpen, setSongMenuOpen] = useState(false)
+  const [mobileViewport, setMobileViewport] = useState(() => window.matchMedia('(max-width: 720px)').matches)
   const songMenuButtonRef = useRef<HTMLButtonElement>(null)
   const modeLabel = mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'
   const footerId = isActive ? 'player-footer' : immersive ? 'player-footer-immersive-hidden' : 'player-footer-normal-hidden'
@@ -138,6 +139,13 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   useEffect(() => {
     if (!isActive) setSongMenuOpen(false)
   }, [isActive])
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 720px)')
+    const update = () => setMobileViewport(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
 
   const download = useCallback(async () => {
     if (!currentSong) return
@@ -256,10 +264,13 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
         <div className="react-footer-song-section">
           <div className="react-footer-song">
             <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label="打开沉浸式歌词" disabled={!currentSong}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
-            <div className="react-footer-song-meta">
+            {mobileViewport ? <button type="button" className="react-footer-song-meta react-footer-open-player" onClick={openLyrics} aria-label="打开全屏播放器" disabled={!currentSong}>
               <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
               <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
-            </div>
+            </button> : <div className="react-footer-song-meta">
+              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
+              <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
+            </div>}
           </div>
           <PlayerProgressRow seek={seek} />
         </div>

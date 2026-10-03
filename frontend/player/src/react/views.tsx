@@ -453,7 +453,7 @@ export function SettingsView() {
 
 type ImmersiveFooterHost = 'normal' | 'immersive'
 
-export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterHost; onFooterHostChange: (host: ImmersiveFooterHost) => void; onClose: () => void; onClosed?: () => void }
+export type ImmersiveLyricsProps = { open: boolean; footerHost: ImmersiveFooterHost; onFooterHostChange: (host: ImmersiveFooterHost) => void; onClose: () => void; onOpenQueue?: () => void; onClosed?: () => void }
 
 function lyricFocusClass(index: number, active: number): string {
   if (active < 0) return 'is-idle'
@@ -464,7 +464,7 @@ function lyricFocusClass(index: number, active: number): string {
   return 'is-distant'
 }
 
-export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose, onClosed }: ImmersiveLyricsProps) {
+export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose, onOpenQueue, onClosed }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
   const time = usePlaybackStore(state => (open ? state.currentTime : 0))
   const seek = usePlaybackStore(state => state.seek)
@@ -485,6 +485,8 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const userScrollUntilRef = useRef<number>(0)
   const onUserScroll = useCallback(() => { userScrollUntilRef.current = Date.now() + 3500 }, [])
   const [isClosing, setIsClosing] = useState(false)
+  const [mobileLyricsOpen, setMobileLyricsOpen] = useState(false)
+  useEffect(() => { if (open) setMobileLyricsOpen(false) }, [open])
   useEffect(() => { if (open) void load(song) }, [load, open, song])
   const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
@@ -616,7 +618,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     } catch (error) { notify(error instanceof Error ? error.message : '喜欢操作失败') }
   }
   return <dialog ref={dialogRef} className={`react-immersive-lyrics-dialog ${isClosing ? 'is-closing' : ''}`} aria-labelledby="immersive-lyrics-title" onCancel={event => { event.preventDefault(); onClose() }}>
-    <div className="react-immersive-lyrics" style={immersiveStyle}>
+    <div className={`react-immersive-lyrics${mobileLyricsOpen ? ' is-mobile-lyrics' : ''}`} style={immersiveStyle}>
       <header className="react-immersive-lyrics-header">
         <button type="button" className="react-immersive-nav-button" data-immersive-close aria-label="关闭沉浸式歌词" onClick={onClose}><Icon name="chevron-down" /></button>
         <button type="button" className="react-immersive-nav-button" aria-label="切换全屏" onClick={toggleFullscreen}><Icon name="expand" /></button>
@@ -625,11 +627,16 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
         <section className="react-immersive-cover-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
           <div className="react-immersive-cover-wrap"><SafeImage className="react-immersive-cover" src={artwork} width="560" height="560" alt={song ? `${title}封面` : ''} /></div>
           <div className="react-immersive-meta"><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button></div>
+          <nav className="react-immersive-mobile-actions" aria-label="播放详情">
+            <button type="button" onClick={() => setMobileLyricsOpen(true)}><Icon name="quote-left" />歌词</button>
+            <button type="button" onClick={onOpenQueue}><Icon name="list" />播放队列</button>
+          </nav>
           {/* The normal footer is suppressed while this local transport stays
               under the artwork, matching the reference lyrics composition. */}
           <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
         </section>
         <section ref={lyricsListRef} className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite" onWheel={onUserScroll} onTouchMove={onUserScroll}>
+          <header className="react-immersive-mobile-lyric-header"><button type="button" onClick={() => setMobileLyricsOpen(false)} aria-label="返回播放器"><Icon name="chevron-left" />返回播放器</button><button type="button" onClick={onOpenQueue}><Icon name="list" />播放队列</button></header>
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {
             const focusClass = lyricFocusClass(index, active)
             return <button type="button" key={`${line.time}-${index}`} ref={element => { lineRefs.current[index] = element }} className={focusClass} data-lyric-focus={focusClass.replace('is-', '')} aria-current={index === active ? 'true' : undefined} onClick={event => { seek(line.time); if (event.detail > 0) event.currentTarget.blur() }}><span>{line.text}</span>{Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}{Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}</button>

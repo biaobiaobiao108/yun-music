@@ -11771,3 +11771,471 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     outline: 0 !important;
     box-shadow: none !important;
 }
+
+/* The song metadata is an additional entry point into the now-playing view. */
+.react-footer-open-player {
+    box-sizing: border-box;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.react-footer-open-player:disabled { cursor: default; }
+.react-mobile-settings-button { display: none !important; }
+.react-mobile-navigation { display: none; }
+.react-mobile-discover-links,
+.react-mobile-library-links,
+.react-mobile-library-recent,
+.react-immersive-mobile-actions,
+.react-immersive-mobile-lyric-header { display: none; }
+
+@media (max-width: 720px) {
+    html,
+    body,
+    #root {
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    body { overscroll-behavior: none; }
+
+    .react-player-shell {
+        display: block !important;
+        width: 100%;
+        height: 100dvh;
+        min-height: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    #main-sidebar.react-sidebar,
+    .react-sidebar-backdrop { display: none !important; }
+
+    .react-player-main {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    #player-main-content.react-player-content {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding: max(3.85rem, calc(3.25rem + env(safe-area-inset-top, 0px))) .85rem calc(9rem + env(safe-area-inset-bottom, 0px));
+        overflow-x: hidden;
+        overscroll-behavior-y: contain;
+        scrollbar-width: none;
+    }
+
+    #player-main-content.react-player-content::-webkit-scrollbar { display: none; }
+
+    .react-player-topbar {
+        inset-block-start: env(safe-area-inset-top, 0px);
+        z-index: 70;
+    }
+
+    .react-player-topbar::before {
+        height: 4.8rem;
+        background: linear-gradient(to bottom, color-mix(in srgb, var(--app-bg) 94%, transparent), color-mix(in srgb, var(--app-bg) 72%, transparent) 72%, transparent);
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+    }
+
+    .react-player-topbar .react-topbar-actions {
+        inset-block-start: .55rem;
+        inset-inline-end: .7rem;
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        pointer-events: auto;
+    }
+
+    .react-player-topbar .react-history-controls { display: none !important; }
+
+    .react-topbar-actions > .player-secondary-action {
+        display: none !important;
+        width: 2.55rem;
+        height: 2.55rem;
+        border: 1px solid var(--app-border);
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--app-surface-solid) 82%, transparent);
+        color: var(--app-text-muted);
+    }
+
+    .react-topbar-actions > .react-mobile-settings-button { display: grid !important; }
+    .react-topbar-actions > .react-secondary-button { min-height: 2.55rem; }
+
+    .react-mobile-navigation {
+        position: fixed;
+        z-index: 75;
+        inset: auto 0 0;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        align-items: stretch;
+        gap: .1rem;
+        padding: .4rem max(.35rem, env(safe-area-inset-left, 0px)) calc(.38rem + env(safe-area-inset-bottom, 0px)) max(.35rem, env(safe-area-inset-right, 0px));
+        border-top: 1px solid color-mix(in srgb, var(--app-border) 88%, transparent);
+        background: color-mix(in srgb, var(--app-surface-solid) 87%, transparent);
+        -webkit-backdrop-filter: blur(20px) saturate(145%);
+        backdrop-filter: blur(20px) saturate(145%);
+    }
+
+    .react-mobile-navigation-item {
+        display: grid;
+        min-width: 0;
+        min-height: 3.2rem;
+        place-content: center;
+        justify-items: center;
+        gap: .18rem;
+        padding: .22rem .1rem;
+        border: 0;
+        border-radius: .8rem;
+        background: transparent;
+        color: var(--app-text-muted);
+        font: inherit;
+        font-size: .65rem;
+        font-weight: 550;
+        line-height: 1.1;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .react-mobile-navigation-item > i { font-size: 1.08rem; }
+    .react-mobile-navigation-item.is-active { color: var(--app-accent); }
+    .react-mobile-navigation-item:focus-visible { outline: 1px solid var(--app-accent); outline-offset: -2px; }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
+        position: fixed !important;
+        z-index: 80;
+        inset: auto .65rem calc(4.2rem + env(safe-area-inset-bottom, 0px)) !important;
+        display: grid !important;
+        box-sizing: border-box;
+        width: auto !important;
+        min-height: 3.55rem !important;
+        min-block-size: 3.55rem !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .45rem;
+        padding: .38rem .55rem;
+        border: 1px solid var(--app-border);
+        border-radius: 1rem !important;
+        background: color-mix(in srgb, var(--app-surface-solid) 93%, transparent) !important;
+        box-shadow: var(--app-shadow-soft);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
+        backdrop-filter: blur(18px) saturate(140%);
+        transform: none !important;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-section { display: contents; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song { display: flex !important; min-width: 0; min-height: 0; gap: .55rem; padding: .08rem; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-cover-button { width: 2.65rem; height: 2.65rem; flex: 0 0 2.65rem; border-radius: .55rem; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-meta { min-width: 0; flex: 1; gap: .12rem; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-title-row strong { font-size: .78rem; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-meta small { font-size: .66rem; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls { display: flex; grid-column: 2; grid-row: 1; align-items: center; gap: .12rem; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls > button:first-child,
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls > button:nth-child(3),
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls > .react-like-button,
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions,
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-progress-row { display: none !important; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls #btn-play { width: 2.55rem; height: 2.55rem; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-open-player { min-height: 2.8rem; text-align: start; }
+
+    .react-view-header {
+        flex-direction: row !important;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 1rem;
+        padding: .2rem 0 .1rem;
+    }
+
+    .react-view-header > div { flex: 1; min-width: 0; text-align: start; }
+    .react-view-header h1 { font-size: 1.8rem; line-height: 1.16; letter-spacing: -.035em; text-align: start; }
+    .react-view-header-actions { width: auto; gap: .35rem; }
+    .react-view-header .react-mobile-create-list { width: 2.55rem; min-height: 2.55rem; padding: 0; border-radius: 50%; }
+    .react-home-page { gap: 1.55rem; }
+    .react-home-shortcuts { gap: .5rem; }
+    .react-home-shortcut { min-height: 5.5rem; padding: .75rem; border-radius: .9rem; }
+    .react-home-shortcut-copy strong { font-size: .84rem; }
+    .react-home-shortcut-copy small { font-size: .7rem; }
+    .react-home-section { min-width: 0; }
+    .react-home-section-heading { align-items: end; gap: .5rem; margin-bottom: .7rem; }
+    .react-home-section-heading h2 { font-size: 1.15rem; }
+    .react-home-section-heading .react-eyebrow { font-size: .64rem; }
+    .react-home-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: auto; gap: .75rem .55rem; overflow: visible; }
+    .react-home-rail > .react-artwork-card:nth-child(n + 5) { display: none; }
+    .react-artwork-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .55rem; }
+    .react-artwork-card { min-width: 0; }
+    .react-artwork-cover { border-radius: .8rem; }
+    .react-artwork-card strong { font-size: .78rem; line-height: 1.25; }
+    .react-artwork-card small { font-size: .68rem; }
+    .react-artwork-play-button { width: 2.25rem; height: 2.25rem; }
+    .react-content-card,
+    .react-toolbar-card { padding: .8rem; border-radius: .9rem; }
+    .react-detail-header { padding: .8rem; border-radius: .9rem; }
+    .react-detail-hero { align-items: center; gap: .75rem; }
+    .react-detail-hero img { width: 5.25rem; border-radius: .7rem; }
+    .react-detail-hero h1 { font-size: 1.2rem; }
+    .react-detail-header .react-secondary-button { min-height: 2.6rem; }
+
+    .react-mobile-library { display: grid; gap: 1.45rem; }
+    .react-mobile-library-links { display: grid; }
+    .react-mobile-library-link {
+        display: grid;
+        min-height: 4.05rem;
+        grid-template-columns: 2.45rem minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .72rem;
+        padding: .42rem .1rem;
+        border: 0;
+        border-bottom: 1px solid var(--app-border);
+        background: transparent;
+        color: var(--app-text);
+        text-align: start;
+        cursor: pointer;
+    }
+    .react-mobile-library-link:last-child { border-bottom: 0; }
+    .react-mobile-library-link-icon { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .68rem; background: var(--app-accent-soft); color: var(--app-accent); font-size: 1.05rem; }
+    .react-mobile-library-link-copy { display: grid; min-width: 0; gap: .16rem; }
+    .react-mobile-library-link-copy strong { font-size: .96rem; font-weight: 600; }
+    .react-mobile-library-link-copy small { color: var(--app-text-muted); font-size: .72rem; }
+    .react-mobile-library-link > i:last-child { color: var(--app-text-dim); font-size: .72rem; }
+    .react-mobile-library-recent { display: block; }
+    .react-mobile-library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .react-mobile-discover-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-bottom: .8rem; }
+    .react-mobile-discover-links > button {
+        display: grid;
+        min-width: 0;
+        grid-template-columns: 2rem minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        align-items: center;
+        gap: .08rem .5rem;
+        padding: .7rem;
+        border: 1px solid var(--app-border);
+        border-radius: .85rem;
+        background: var(--app-surface-solid);
+        color: var(--app-text);
+        text-align: start;
+        cursor: pointer;
+    }
+    .react-mobile-discover-links > button > span { display: grid; grid-row: 1 / 3; width: 2rem; height: 2rem; place-items: center; border-radius: .6rem; background: var(--app-accent-soft); color: var(--app-accent); }
+    .react-mobile-discover-links > button > strong { overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+    .react-mobile-discover-links > button > small { overflow: hidden; color: var(--app-text-muted); font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
+    .react-mobile-discover-links > button > i:last-child { grid-column: 3; grid-row: 1 / 3; color: var(--app-text-dim); font-size: .68rem; }
+
+    .react-toolbar-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: .45rem; }
+    .react-toolbar-field { min-width: 0; }
+    .react-toolbar-field > span { font-size: .68rem; }
+    .react-toolbar-field :is(button, select) { min-height: 2.55rem; max-width: 100%; }
+    .react-playlist-grid,
+    .react-entity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem .5rem; }
+    .react-playlist-card button { gap: .35rem; }
+    .react-playlist-card img { border-radius: .7rem; }
+    .react-playlist-card strong { font-size: .78rem; line-height: 1.25; }
+    .react-playlist-card small { font-size: .66rem; }
+    .react-search-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+    .react-search-input { grid-column: 1 / -1; min-height: 2.9rem; }
+    .react-search-filter { min-width: 0; }
+    .react-search-filter > * { width: 100%; }
+    .react-search-form > .admin-react-button,
+    .react-search-form > button { grid-column: 1 / -1; min-height: 2.75rem; }
+    .react-search-card { padding: .75rem; border-radius: .9rem; }
+    .react-hot-search > div { gap: .4rem; }
+    .react-hot-search button { min-height: 2.25rem; padding-inline: .6rem; }
+    .react-song-row { min-height: 4.15rem; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem; padding-inline: .15rem; }
+    .react-song-main { min-width: 0; gap: .55rem; }
+    .react-song-main img { width: 2.85rem; height: 2.85rem; border-radius: .5rem; }
+    .react-song-text strong { font-size: .82rem; }
+    .react-song-text small { font-size: .7rem; }
+    .react-song-actions { gap: .05rem; }
+    .react-song-actions > * { width: 2.45rem; height: 2.45rem; }
+    .react-song-row.is-selectable { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .react-local-cache-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .react-local-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+    .react-local-toolbar .react-local-search.react-global-search { grid-column: 1 / -1; grid-row: 1; }
+    .react-local-toolbar .react-toolbar-field { grid-column: 1; grid-row: 2; }
+    .react-local-toolbar > .react-player-button { grid-column: 2; grid-row: 2; }
+    .react-local-cache-row .react-song-album,
+    .react-local-cache-row .react-song-duration,
+    .react-local-cache-row .react-song-size,
+    .react-local-cache-row .react-song-quality { display: none; }
+    .react-favorites-layout,
+    .react-settings-grid { grid-template-columns: minmax(0, 1fr); }
+    .react-list-sidebar { display: flex; gap: .3rem; overflow-x: auto; padding: .25rem 0 .6rem; scrollbar-width: none; }
+    .react-list-sidebar::-webkit-scrollbar { display: none; }
+    .react-list-sidebar h2 { display: none; }
+    .react-list-entry,
+    .react-list-sidebar > button { width: auto; min-width: max-content; min-height: 2.45rem; }
+    .react-create-list { margin-top: 0; border-top: 0 !important; border-left: 1px dashed var(--app-border) !important; }
+    .react-pagination { gap: .55rem; }
+    .react-pagination button { min-width: 2.65rem; min-height: 2.65rem; }
+
+    .react-dialog {
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-width: none;
+        max-height: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px)));
+        margin: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        border-radius: 1.1rem 1.1rem 0 0;
+    }
+    .react-dialog-content > header,
+    .react-dialog-body { padding-inline: .9rem; }
+    .react-dialog input,
+    .react-dialog textarea,
+    .react-dialog select { font-size: 16px; }
+
+    .react-immersive-lyrics-dialog[open] {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100dvh;
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        border: 0;
+        border-radius: 0;
+        background: var(--app-bg);
+    }
+    .react-immersive-lyrics-dialog[open]::backdrop { background: var(--app-bg); }
+    .react-immersive-lyrics { min-height: 0; height: 100%; background: var(--app-bg); }
+    .react-immersive-lyrics-header {
+        min-height: 3.4rem;
+        justify-content: space-between;
+        padding: max(.45rem, env(safe-area-inset-top, 0px)) .8rem .35rem;
+        border: 0;
+        background: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+    .react-immersive-nav-button { width: 2.55rem; height: 2.55rem; }
+    .react-immersive-lyrics-grid {
+        display: block;
+        width: 100%;
+        height: calc(100% - 3.4rem);
+        min-height: 0;
+        padding: .4rem 1.15rem max(.65rem, env(safe-area-inset-bottom, 0px));
+        overflow: hidden;
+    }
+    .react-immersive-cover-panel {
+        display: grid;
+        height: 100%;
+        grid-template-rows: minmax(0, 1fr) auto auto auto;
+        align-content: stretch;
+        gap: .75rem;
+    }
+    .react-immersive-cover-wrap {
+        width: min(76vw, 390px, 40dvh);
+        max-width: 100%;
+        max-height: 100%;
+        align-self: center;
+        border-radius: 1rem;
+        box-shadow: var(--app-shadow-soft);
+    }
+    .react-immersive-meta { width: 100%; align-items: center; gap: .5rem; }
+    .react-immersive-meta h2 { font-size: 1.08rem; line-height: 1.3; }
+    .react-immersive-meta span { font-size: .82rem; }
+    .react-immersive-like { width: 2.65rem; height: 2.65rem; }
+    .react-immersive-mobile-actions { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+    .react-immersive-mobile-actions button,
+    .react-immersive-mobile-lyric-header button {
+        display: inline-flex;
+        min-height: 2.65rem;
+        align-items: center;
+        justify-content: center;
+        gap: .45rem;
+        padding: .3rem .75rem;
+        border: 1px solid var(--app-border);
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--app-surface-solid) 65%, transparent);
+        color: var(--app-text-muted);
+        font-size: .78rem;
+        cursor: pointer;
+    }
+    .react-immersive-mobile-actions button:active,
+    .react-immersive-mobile-lyric-header button:active { color: var(--app-accent); }
+    .react-immersive-lyrics footer.react-player-footer.react-immersive-detail-controls#player-footer {
+        position: relative !important;
+        inset: auto !important;
+        width: 100% !important;
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: .75rem;
+        margin: .1rem 0 0;
+        padding: 0;
+        border: 0;
+        background: transparent !important;
+        box-shadow: none;
+        transform: none !important;
+    }
+    .react-immersive-detail-controls .react-immersive-detail-progress { grid-row: 1; }
+    .react-immersive-detail-controls .react-progress-row { gap: .45rem; }
+    .react-immersive-detail-controls .react-progress-time { font-size: .68rem; }
+    .react-immersive-detail-controls .react-progress-row input[type="range"] { height: 1.4rem; }
+    .react-immersive-detail-controls .react-immersive-detail-transport {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        padding: 0 .1rem;
+    }
+    .react-immersive-detail-controls .react-immersive-detail-transport > .react-mode-button,
+    .react-immersive-detail-controls .react-immersive-detail-transport > .react-volume-control { display: none; }
+    .react-immersive-detail-controls .react-immersive-detail-transport > .player-secondary-action { width: 3.2rem; height: 3.2rem; font-size: 1.25rem; }
+    .react-immersive-detail-controls .react-play-button { width: 4rem; height: 4rem; font-size: 1.45rem; }
+    .react-immersive-lyrics-list { display: none; }
+    .react-immersive-lyrics.is-mobile-lyrics .react-immersive-cover-panel { display: none; }
+    .react-immersive-lyrics.is-mobile-lyrics .react-immersive-lyrics-list {
+        display: block;
+        height: 100%;
+        padding: 1rem .25rem 2.5rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        mask-image: none;
+        -webkit-mask-image: none;
+    }
+    .react-immersive-mobile-lyric-header { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: 1rem; }
+    .react-immersive-lyrics.is-mobile-lyrics .react-immersive-lyrics-list > button { padding-block: .85rem; font-size: var(--react-lyric-size, 1.2rem); }
+
+    .react-player-drawer.react-glass-drawer {
+        inset: auto 0 0 !important;
+        width: 100vw !important;
+        max-width: none !important;
+        max-height: min(84dvh, calc(100dvh - env(safe-area-inset-top, 0px))) !important;
+        border-radius: 1rem 1rem 0 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+}
+
+@media (max-width: 359px) {
+    #player-main-content.react-player-content { padding-inline: .65rem; }
+    .react-mobile-navigation-item { font-size: .6rem; }
+    .react-immersive-cover-wrap { width: min(70vw, 34dvh); }
+    .react-immersive-lyrics-grid { padding-inline: .85rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-mobile-navigation-item,
+    .react-mobile-library-link,
+    .react-mobile-discover-links > button,
+    .react-player-drawer.react-glass-drawer,
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open) { transition: none; }
+
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
+}

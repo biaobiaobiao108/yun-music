@@ -74,6 +74,40 @@ export function RecentView() {
   return <ViewFrame title="最近"><section className="react-content-card t-bg-panel react-recent-view"><SongList songs={recent} empty="还没有播放历史，去搜索一首歌吧" /></section></ViewFrame>
 }
 
+export function MobileLibraryView() {
+  const setTab = usePlayerUiStore(state => state.setTab)
+  const setDialog = usePlayerUiStore(state => state.setDialog)
+  const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
+  const userLists = useLibraryStore(selectUserLists)
+  const favoriteCount = useLibraryStore(state => selectLoveList(state).length)
+  const albums = useMediaLibraryStore(state => state.albums)
+  const artists = useMediaLibraryStore(state => state.artists)
+  const recent = useRecentStore(state => state.items)
+  const playSong = usePlaybackStore(state => state.playSong)
+  const rows = [
+    { icon: 'list', title: '播放列表', detail: `${userLists.length} 个歌单`, onClick: () => openFavoriteList(userLists[0] ? String(userLists[0].id) : 'love') },
+    { icon: 'user', title: '艺人', detail: `${artists.length} 位`, onClick: () => setTab('artists') },
+    { icon: 'compact-disc', title: '专辑', detail: `${albums.length} 张`, onClick: () => setTab('albums') },
+    { icon: 'music', title: '歌曲', detail: `${favoriteCount} 首已收藏`, onClick: () => openFavoriteList('love') },
+    { icon: 'download', title: '已下载', detail: '本地音乐', onClick: () => setTab('localmusic') },
+  ]
+  return <ViewFrame title="资料库" actions={<button type="button" className="react-player-button react-mobile-create-list" onClick={() => setDialog('createList')} aria-label="新建歌单"><Icon name="plus" /></button>}>
+    <section className="react-mobile-library" aria-label="音乐资料库">
+      <nav className="react-mobile-library-links" aria-label="资料库分类">
+        {rows.map(row => <button key={row.title} type="button" className="react-mobile-library-link" onClick={row.onClick}>
+          <span className="react-mobile-library-link-icon"><Icon name={row.icon} /></span>
+          <span className="react-mobile-library-link-copy"><strong>{row.title}</strong><small>{row.detail}</small></span>
+          <Icon name="chevron-right" />
+        </button>)}
+      </nav>
+      <section className="react-home-section react-mobile-library-recent">
+        <div className="react-home-section-heading"><h2>最近添加</h2><button type="button" className="react-text-button" onClick={() => setTab('recent')}>查看全部 <Icon name="arrow-right" /></button></div>
+        {recent.length ? <div className="react-artwork-grid react-mobile-library-grid">{recent.slice(0, 8).map((song, index) => <ArtworkCard key={`${songKey(song)}-${index}`} song={song} onPlay={() => playSong(song, recent, index)} />)}</div> : <div className="react-home-empty"><Icon name="clock" /><p>播放歌曲后，这里会显示最近添加</p><button type="button" className="react-text-button" onClick={() => setTab('search')}>去搜索音乐</button></div>}
+      </section>
+    </section>
+  </ViewFrame>
+}
+
 function MediaGrid({ kind }: { kind: 'album' | 'artist' }) {
   const albums = useMediaLibraryStore(state => state.albums)
   const artists = useMediaLibraryStore(state => state.artists)
