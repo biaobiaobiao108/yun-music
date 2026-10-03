@@ -11789,10 +11789,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 .react-mobile-navigation { display: none; }
 .react-mobile-discover-links,
 .react-mobile-library-links,
-.react-mobile-library-recent,
-.react-immersive-mobile-actions,
-.react-immersive-mobile-lyric-header { display: none; }
-
+.react-mobile-library-recent { display: none; }
 @media (max-width: 720px) {
     html,
     body,
@@ -11973,6 +11970,8 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-section-heading .react-eyebrow { font-size: .64rem; }
     .react-home-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: auto; gap: .75rem .55rem; overflow: visible; }
     .react-home-rail > .react-artwork-card:nth-child(n + 5) { display: none; }
+    .react-home-fixed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .55rem; }
+    .react-home-fixed-grid > .react-artwork-card:nth-child(n + 5) { display: none; }
     .react-artwork-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .55rem; }
     .react-artwork-card { min-width: 0; }
     .react-artwork-cover { border-radius: .8rem; }
@@ -12125,50 +12124,36 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     }
     .react-immersive-nav-button { width: 2.55rem; height: 2.55rem; }
     .react-immersive-lyrics-grid {
-        display: block;
+        display: flex;
+        flex-direction: column;
         width: 100%;
         height: calc(100% - 3.4rem);
         min-height: 0;
         padding: .4rem 1.15rem max(.65rem, env(safe-area-inset-bottom, 0px));
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
     .react-immersive-cover-panel {
         display: grid;
-        height: 100%;
-        grid-template-rows: minmax(0, 1fr) auto auto auto;
-        align-content: stretch;
-        gap: .75rem;
+        flex: 0 0 auto;
+        height: auto;
+        grid-template-rows: none;
+        align-content: start;
+        gap: .55rem;
     }
     .react-immersive-cover-wrap {
-        width: min(76vw, 390px, 40dvh);
+        width: min(64vw, 30dvh, 320px);
         max-width: 100%;
-        max-height: 100%;
+        max-height: none;
         align-self: center;
-        border-radius: 1rem;
+        border-radius: .9rem;
         box-shadow: var(--app-shadow-soft);
     }
     .react-immersive-meta { width: 100%; align-items: center; gap: .5rem; }
     .react-immersive-meta h2 { font-size: 1.08rem; line-height: 1.3; }
     .react-immersive-meta span { font-size: .82rem; }
     .react-immersive-like { width: 2.65rem; height: 2.65rem; }
-    .react-immersive-mobile-actions { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
-    .react-immersive-mobile-actions button,
-    .react-immersive-mobile-lyric-header button {
-        display: inline-flex;
-        min-height: 2.65rem;
-        align-items: center;
-        justify-content: center;
-        gap: .45rem;
-        padding: .3rem .75rem;
-        border: 1px solid var(--app-border);
-        border-radius: 999px;
-        background: color-mix(in srgb, var(--app-surface-solid) 65%, transparent);
-        color: var(--app-text-muted);
-        font-size: .78rem;
-        cursor: pointer;
-    }
-    .react-immersive-mobile-actions button:active,
-    .react-immersive-mobile-lyric-header button:active { color: var(--app-accent); }
     .react-immersive-lyrics footer.react-player-footer.react-immersive-detail-controls#player-footer {
         position: relative !important;
         inset: auto !important;
@@ -12197,19 +12182,21 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-immersive-detail-controls .react-immersive-detail-transport > .react-volume-control { display: none; }
     .react-immersive-detail-controls .react-immersive-detail-transport > .player-secondary-action { width: 3.2rem; height: 3.2rem; font-size: 1.25rem; }
     .react-immersive-detail-controls .react-play-button { width: 4rem; height: 4rem; font-size: 1.45rem; }
-    .react-immersive-lyrics-list { display: none; }
-    .react-immersive-lyrics.is-mobile-lyrics .react-immersive-cover-panel { display: none; }
-    .react-immersive-lyrics.is-mobile-lyrics .react-immersive-lyrics-list {
+    .react-immersive-lyrics-list {
         display: block;
-        height: 100%;
-        padding: 1rem .25rem 2.5rem;
+        flex: 1 0 10rem;
+        width: 100%;
+        min-height: 10rem;
+        max-height: 28dvh;
+        align-self: stretch;
+        padding: .65rem .1rem 1.5rem;
         overflow-y: auto;
         overscroll-behavior: contain;
         mask-image: none;
         -webkit-mask-image: none;
+        text-align: center;
     }
-    .react-immersive-mobile-lyric-header { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: 1rem; }
-    .react-immersive-lyrics.is-mobile-lyrics .react-immersive-lyrics-list > button { padding-block: .85rem; font-size: var(--react-lyric-size, 1.2rem); }
+    .react-immersive-lyrics-list > button { padding-block: .55rem; font-size: var(--react-lyric-size, 1.2rem); }
 
     .react-player-drawer.react-glass-drawer {
         inset: auto 0 0 !important;
@@ -12224,8 +12211,17 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 @media (max-width: 359px) {
     #player-main-content.react-player-content { padding-inline: .65rem; }
     .react-mobile-navigation-item { font-size: .6rem; }
-    .react-immersive-cover-wrap { width: min(70vw, 34dvh); }
+    .react-immersive-cover-wrap { width: min(58vw, 26dvh); }
     .react-immersive-lyrics-grid { padding-inline: .85rem; }
+}
+
+@media (min-width: 561px) and (max-width: 900px) {
+    .react-home-fixed-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .react-home-fixed-grid > .react-artwork-card:nth-child(n + 7) { display: none; }
+}
+
+@media (min-width: 901px) {
+    .react-home-fixed-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -140,6 +140,23 @@ describe('React player navigation and state restoration', () => {
     expect(shell).not.toContain('react-sidebar-close')
   })
 
+  it('shows lyrics inline on mobile and gives home fixed two-row favorites and artists', () => {
+    const views = read('frontend/player/src/react/views.tsx')
+    const library = read('frontend/player/src/react/library_views.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(views).toContain('className="react-immersive-lyrics-list"')
+    expect(views).not.toContain('react-immersive-mobile-actions')
+    expect(views).not.toContain('react-immersive-mobile-lyric-header')
+    expect(views).not.toContain('is-mobile-lyrics')
+    expect(css).toContain('flex-direction: column;')
+    expect(css).toContain('.react-immersive-lyrics-list {\n        display: block;\n        flex: 1 0 10rem;')
+    expect(library).toContain('favoriteSongs.slice(0, 8)')
+    expect(library).toContain('visibleArtists.slice(0, 8)')
+    expect(library.match(/react-home-fixed-grid/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(css).toContain('.react-home-fixed-grid > .react-artwork-card:nth-child(n + 5) { display: none; }')
+    expect(css).toContain('.react-home-fixed-grid > .react-artwork-card:nth-child(n + 7) { display: none; }')
+  })
+
   it('removes redundant page header descriptions', () => {
     const library = read('frontend/player/src/react/library_views.tsx')
     const heavyViews = read('frontend/player/src/react/heavy_views.tsx')
