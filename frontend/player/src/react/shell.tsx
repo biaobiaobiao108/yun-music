@@ -395,7 +395,10 @@ function AudioRuntime() {
           cacheQueued.current.add(cacheKey)
           // Reuse the URL that started playback. Resolving the source again
           // here would consume a second custom-source quota for the same song.
-          void enqueueCache(currentSong, quality, cacheUrl).catch(() => cacheQueued.current.delete(cacheKey))
+          void enqueueCache(currentSong, quality, cacheUrl, {
+            cacheLyric: settings.enableServerLyricCache !== false,
+            embedLyric: settings.embedLyricToFile !== false,
+          }).catch(() => cacheQueued.current.delete(cacheKey))
         }
       }
     }

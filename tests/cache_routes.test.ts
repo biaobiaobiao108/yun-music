@@ -10,7 +10,7 @@ import { Readable } from 'node:stream'
 import * as identify from '@/server/utils/identify'
 import * as fileCache from '@/server/fileCache'
 import * as serverDownloadQueue from '@/server/serverDownloadQueue'
-import { createCacheRouter, createProxyResponseStream } from '@/server/routes/cache'
+import { createCacheRouter, createProxyResponseStream, createTempFileResponseStream } from '@/server/routes/cache'
 import { createMusicRouter, normalizeSongListId } from '@/server/routes/music'
 import { userSessions } from '@/server/routes/auth'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
@@ -543,6 +543,68 @@ test('cover routes forward the requested folder and return public cache headers 
     userSessions.delete(sessionId)
     closeDb()
     global.lx = previousLx
+  }
+})
+
+test('tagged file response bounds unread data and cleans up after cancellation', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-tagged-response-'))
+  const tempPath = path.join(directory, 'audio.mp3')
+  fs.writeFileSync(tempPath, Buffer.alloc(4 * 1024 * 1024, 7))
+  let source: fs.ReadStream | undefined
+  const originalCreateReadStream = fs.createReadStream
+  const readFile = spyOn(fs, 'createReadStream').mockImplementation((...args) => {
+    source = originalCreateReadStream(...args)
+    return source
+  })
+  let releases = 0
+  let finish!: () => void
+  const finished = new Promise<void>(resolve => { finish = resolve })
+  try {
+    const stream = createTempFileResponseStream(tempPath, () => {
+      releases++
+      expect(source?.closed).toBe(true)
+      fs.unlinkSync(tempPath)
+      finish()
+    })
+    await Bun.sleep(30)
+    expect(source?.bytesRead).toBeLessThan(512 * 1024)
+    expect(releases).toBe(0)
+    await stream.cancel()
+    await finished
+    await stream.cancel()
+    expect(releases).toBe(1)
+    expect(source?.destroyed).toBe(true)
+    expect(fs.existsSync(tempPath)).toBe(false)
+  } finally {
+    readFile.mockRestore()
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('tagged file response delivers bytes and releases resources on completion and read errors', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-tagged-response-'))
+  const tempPath = path.join(directory, 'audio.mp3')
+  const content = Buffer.alloc(192 * 1024, 23)
+  try {
+    for (const missing of [false, true]) {
+      if (!missing) fs.writeFileSync(tempPath, content)
+      let releases = 0
+      let finish!: () => void
+      const finished = new Promise<void>(resolve => { finish = resolve })
+      const stream = createTempFileResponseStream(tempPath, () => {
+        releases++
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+        finish()
+      })
+      const response = new Response(stream)
+      if (missing) await expect(response.arrayBuffer()).rejects.toThrow('ENOENT')
+      else expect(Buffer.from(await response.arrayBuffer())).toEqual(content)
+      await finished
+      expect(releases).toBe(1)
+      expect(fs.existsSync(tempPath)).toBe(false)
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
   }
 })
 

@@ -6,6 +6,7 @@ import { usePlayerUiStore } from './ui'
 
 export type CacheTaskAction = 'pause' | 'resume' | 'remove'
 export type CacheBatchAction = 'pause' | 'resume' | 'removeCompleted' | null
+export type PlaybackCacheOptions = { cacheLyric?: boolean; embedLyric?: boolean }
 
 export type CacheState = {
   tasks: CacheTask[]
@@ -17,7 +18,7 @@ export type CacheState = {
   pendingBatchAction: CacheBatchAction
   load: (options?: { force?: boolean }) => Promise<void>
   applyQueue: (tasks: CacheTask[]) => void
-  enqueue: (song: Song, quality?: string, resolvedUrl?: string) => Promise<void>
+  enqueue: (song: Song, quality?: string, resolvedUrl?: string, options?: PlaybackCacheOptions) => Promise<void>
   enqueueDownloads: (songs: Song[], quality?: string) => Promise<number>
   pauseTask: (id: string) => Promise<boolean>
   resumeTask: (id: string) => Promise<boolean>
@@ -62,9 +63,17 @@ export const useCacheStore = create<CacheState>((set, get) => ({
     }
   },
   applyQueue: tasks => set({ tasks, loadedAt: Date.now(), error: '' }),
-  enqueue: async (song, quality = 'flac', resolvedUrl) => {
+  enqueue: async (song, quality = 'flac', resolvedUrl, options = {}) => {
     const key = songKey(song)
-    await playerApi.queueTasks([{ id: key, songInfo: song, quality, ...(resolvedUrl ? { resolvedUrl } : {}) }])
+    await playerApi.queueTasks([{
+      id: key,
+      songInfo: song,
+      quality,
+      background: true,
+      cacheLyric: options.cacheLyric ?? true,
+      embedLyric: options.embedLyric ?? true,
+      ...(resolvedUrl ? { resolvedUrl } : {}),
+    }])
     await get().load({ force: true })
   },
   enqueueDownloads: async (songs, quality = 'flac') => {

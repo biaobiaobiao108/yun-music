@@ -11917,8 +11917,11 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls > button:first-child,
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls > button:nth-child(3),
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls > .react-like-button,
-    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions,
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-progress-row { display: none !important; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) { grid-template-columns: minmax(0, 1fr) auto auto !important; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions { display: flex !important; grid-column: 3; grid-row: 1; padding: 0; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > :not(.react-queue-button) { display: none !important; }
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > .react-queue-button { display: grid !important; width: 2.55rem; height: 2.55rem; }
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls #btn-play { width: 2.55rem; height: 2.55rem; }
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-open-player { min-height: 2.8rem; text-align: start; }
 
@@ -11933,6 +11936,9 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-view-header > div { flex: 1; min-width: 0; text-align: start; }
     .react-view-header h1 { font-size: 1.8rem; line-height: 1.16; letter-spacing: -.035em; text-align: start; }
     .react-view-header-actions { width: auto; gap: .35rem; }
+    .react-view-header:has(.react-playlist-header-actions) { flex-wrap: wrap; }
+    .react-view-header > .react-playlist-header-actions { flex: 0 0 100%; display: flex; flex-wrap: wrap; justify-content: flex-start; margin-top: .5rem; }
+    .react-playlist-header-actions > button { min-height: 2.75rem; }
     .react-view-hide-actions-mobile > .react-view-header > .react-view-header-actions { display: none !important; }
     .react-view-hide-actions-mobile > .react-view-header { margin-bottom: .65rem; }
     .react-view-hide-actions-mobile > .react-view-header > div { flex-basis: 100%; }
@@ -12100,8 +12106,10 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         background: var(--app-bg);
     }
     .react-immersive-lyrics-dialog[open]::backdrop { background: var(--app-bg); }
-    .react-immersive-lyrics { min-height: 0; height: 100%; background: var(--app-bg); }
+    .react-immersive-lyrics { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--app-bg); }
     .react-immersive-lyrics-header {
+        flex: 0 0 auto;
+        box-sizing: border-box;
         min-height: 3.4rem;
         justify-content: space-between;
         padding: max(.45rem, env(safe-area-inset-top, 0px)) .8rem .35rem;
@@ -12111,13 +12119,16 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         backdrop-filter: none;
     }
     .react-immersive-nav-button { width: 2.55rem; height: 2.55rem; }
-    .react-immersive-lyrics-grid {
+    .react-immersive-lyrics > .react-immersive-lyrics-grid {
         display: flex;
         flex-direction: column;
+        flex: 1 1 0;
         width: 100%;
-        height: calc(100% - 3.4rem);
+        height: auto;
         min-height: 0;
         padding: .4rem 1.15rem max(.65rem, env(safe-area-inset-bottom, 0px));
+        padding-block-end: max(.65rem, env(safe-area-inset-bottom, 0px)) !important;
+        gap: .75rem;
         overflow: hidden;
     }
     .react-immersive-cover-panel {
@@ -12126,6 +12137,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-immersive-cover-wrap { display: none; }
     .react-immersive-meta {
         order: 0;
+        flex: 0 0 auto;
         display: grid;
         width: 100%;
         grid-template-columns: 3.6rem minmax(0, 1fr) auto auto;
@@ -12169,6 +12181,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-immersive-more-button:disabled { opacity: .4; cursor: default; }
     .react-immersive-lyrics footer.react-player-footer.react-immersive-detail-controls#player-footer {
         order: 2;
+        flex: 0 0 auto;
         position: relative !important;
         inset: auto !important;
         width: 100% !important;
@@ -12187,15 +12200,15 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-immersive-detail-controls .react-progress-time { font-size: .68rem; }
     .react-immersive-detail-controls .react-progress-row input[type="range"] { height: 1.4rem; }
     .react-immersive-detail-controls .react-immersive-detail-transport {
-        display: flex;
-        justify-content: center;
-        gap: clamp(1.8rem, 10vw, 3.5rem);
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        justify-items: center;
+        gap: .25rem;
         padding: 0 .1rem;
     }
-    .react-immersive-detail-controls .react-immersive-detail-transport > .react-mode-button,
     .react-immersive-detail-controls .react-immersive-detail-transport > .react-volume-control { display: none; }
     .react-immersive-detail-controls .react-immersive-detail-transport > .player-secondary-action { width: 3.2rem; height: 3.2rem; font-size: 1.25rem; }
-    .react-immersive-detail-controls .react-play-button { width: 4rem; height: 4rem; font-size: 1.45rem; }
+    .react-immersive-lyrics .react-immersive-detail-controls#player-footer .react-play-button { width: 3.5rem; height: 3.5rem; font-size: 1.45rem; }
     .react-immersive-volume-row {
         display: grid;
         grid-template-columns: 1.25rem minmax(0, 1fr) 1.5rem;
@@ -12269,8 +12282,9 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         width: 100%;
         min-height: 0;
         max-height: none;
+        min-block-size: 0;
         align-self: stretch;
-        padding: clamp(3.5rem, 16vh, 7rem) .1rem clamp(3.5rem, 16vh, 7rem);
+        padding: clamp(.5rem, 4dvh, 2rem) .1rem;
         overflow-y: auto;
         overscroll-behavior: contain;
         scroll-padding-block: 42%;

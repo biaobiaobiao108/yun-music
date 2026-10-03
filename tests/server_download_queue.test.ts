@@ -12,6 +12,7 @@ import {
   isDownloadTaskRunnable,
   list,
   markDownloadTaskPausedIfAborted,
+  pause, resume,
   pruneDownloadHistory,
   serializeDownloadTask,
   type ServerDownloadTask,
@@ -42,6 +43,103 @@ const makeTask = (
   createdAt: updatedAt,
   updatedAt,
 })
+
+test('playback caching preserves an explicit music download across active, paused and completed states', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-target-'))
+  const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+  const worker = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
+  let finishResolver!: () => void
+  const pending = new Promise<void>(resolve => { finishResolver = resolve })
+  const username = 'download-target-user'
+  const songInfo = { source: 'wy', songmid: 'target-song', name: 'Target Song' }
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => { await pending; return { url: 'https://example.com/song' } })
+    enqueue(username, [{ id: 'target', songInfo, quality: 'flac', enableOnlyDownloadMode: true }])
+    const cacheInput = { songInfo, quality: 'flac', background: true, enableOnlyDownloadMode: false }
+    enqueue(username, [cacheInput])
+    expect(list(username)[0]).toMatchObject({ status: 'downloading', enableOnlyDownloadMode: true, background: false })
+    pause(username)
+    enqueue(username, [cacheInput])
+    expect(list(username)[0]).toMatchObject({ status: 'paused', enableOnlyDownloadMode: true, background: false })
+    resume(username)
+    finishResolver()
+    const deadline = Date.now() + 3000
+    while (list(username)[0]?.status !== 'finished' && Date.now() < deadline) await Bun.sleep(10)
+    expect(worker.mock.calls[0]?.[5]).toBe(true)
+    expect(list(username)[0]?.status).toBe('finished')
+    enqueue(username, [cacheInput])
+    expect(list(username)[0]).toMatchObject({ status: 'finished', enableOnlyDownloadMode: true, background: false })
+    expect(worker).toHaveBeenCalledTimes(1)
+  } finally {
+    finishResolver()
+    await suspendUser(username)
+    await removeUser(username)
+    releaseUser(username)
+    await Bun.sleep(220)
+    checkCache.mockRestore()
+    worker.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+for (const cancellationPhase of ['resolver', 'download'] as const) {
+  test(`quick resume survives cancellation while the previous ${cancellationPhase} settles`, async () => {
+    const previousLx = global.lx
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-resume-'))
+    const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+    let releaseCancelled!: () => void
+    let firstEntered!: () => void
+    const pending = new Promise<void>(resolve => { releaseCancelled = resolve })
+    const entered = new Promise<void>(resolve => { firstEntered = resolve })
+    let workerCalls = 0
+    let resolverCalls = 0
+    const worker = spyOn(fileCache, 'downloadAndCache').mockImplementation(async () => {
+      workerCalls++
+      if (cancellationPhase === 'download' && workerCalls === 1) {
+        firstEntered()
+        await pending
+        throw new Error('Aborted')
+      }
+    })
+    const username = `quick-resume-${cancellationPhase}`
+    try {
+      global.lx = { dataPath: root, config: {} } as typeof global.lx
+      initialize(async () => {
+        resolverCalls++
+        if (cancellationPhase === 'resolver' && resolverCalls === 1) {
+          firstEntered()
+          await pending
+        }
+        return { url: 'https://example.com/song' }
+      })
+      enqueue(username, [{ id: 'resume-task', songInfo: { id: `resume-${cancellationPhase}` }, quality: 'flac' }])
+      await entered
+      pause(username)
+      resume(username)
+      expect(list(username)[0]?.status).toBe('waiting')
+      expect(resolverCalls).toBe(1)
+      releaseCancelled()
+      const deadline = Date.now() + 3000
+      while (list(username)[0]?.status !== 'finished' && Date.now() < deadline) await Bun.sleep(10)
+      expect(list(username)[0]).toMatchObject({ status: 'finished', errorMsg: '' })
+      expect(resolverCalls).toBe(2)
+      expect(workerCalls).toBe(cancellationPhase === 'resolver' ? 1 : 2)
+    } finally {
+      releaseCancelled()
+      await suspendUser(username)
+      await removeUser(username)
+      releaseUser(username)
+      await Bun.sleep(220)
+      checkCache.mockRestore()
+      worker.mockRestore()
+      global.lx = previousLx
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+}
 
 describe('Server download queue retention', () => {
   test('caps terminal history per user while retaining active and resumable tasks', () => {

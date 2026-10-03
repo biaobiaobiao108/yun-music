@@ -137,6 +137,7 @@ export async function navigateToSongEntity(song: Song, kind: SongEntityKind, opt
   const ui = getPlayerUiActions()
   const detail = songEntityDetail(song, kind, options)
   if (detail) {
+    ui.setImmersiveLyrics(false)
     ui.openLibraryDetail(kind === 'artist' ? 'artists' : 'albums', detail)
     return
   }
@@ -167,6 +168,7 @@ export async function navigateToSongEntity(song: Song, kind: SongEntityKind, opt
       ?? (Array.isArray(results) ? results[0] : undefined)
     const resolved = result && songEntityDetail(result, kind, { allowGenericId: true, allowGenericName: true })
     if (resolved) {
+      ui.setImmersiveLyrics(false)
       ui.openLibraryDetail(kind === 'artist' ? 'artists' : 'albums', resolved)
       return
     }
@@ -180,5 +182,6 @@ export async function navigateToSongEntity(song: Song, kind: SongEntityKind, opt
   // entity record, while ensuring the normal successful path never shows it.
   prepareSearch(songSource(song), type, query)
   void search.search(query, 1)
+  ui.setImmersiveLyrics(false)
   ui.setTab('search')
 }

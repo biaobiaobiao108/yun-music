@@ -71,6 +71,30 @@ async function withCacheApi<T>(initialTasks: CacheTask[], run: (api: ReturnType<
 }
 
 describe('React player download queue controls', () => {
+  it('marks playback caching as background and preserves disabled lyric preferences', async () => {
+    await withCacheApi([], async api => {
+      const song = { id: 123, source: 'wy', name: '测试歌曲' }
+      await useCacheStore.getState().enqueue(song, '128k', 'https://example.com/audio', { cacheLyric: false, embedLyric: false })
+      const request = api.requests.find(request => request.method === 'POST' && request.path === '/api/music/cache/queue')
+      expect(request?.body.tasks).toEqual([{
+        id: 'wy:123', songInfo: song, quality: '128k', resolvedUrl: 'https://example.com/audio',
+        background: true, cacheLyric: false, embedLyric: false,
+      }])
+    })
+  })
+
+  it('keeps explicit downloads separate from background playback caching', async () => {
+    await withCacheApi([], async api => {
+      const song = { id: 'download', source: 'wy', name: '测试下载' }
+      expect(await useCacheStore.getState().enqueueDownloads([song, song], 'flac')).toBe(1)
+      const request = api.requests.find(request => request.method === 'POST' && request.path === '/api/music/cache/queue')
+      expect(request?.body.tasks).toEqual([{
+        id: 'wy:download', songInfo: song, quality: 'flac', enableOnlyDownloadMode: true,
+        cacheLyric: true, embedLyric: true,
+      }])
+    })
+  })
+
   it('pauses, resumes, retries and removes tasks through the existing queue API', async () => {
     await withCacheApi([
       { id: 'active', status: 'downloading', progress: 42 },

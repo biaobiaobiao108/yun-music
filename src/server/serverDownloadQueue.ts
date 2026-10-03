@@ -89,6 +89,9 @@ const terminalStatuses = new Set<ServerDownloadStatus>(['finished', 'exists'])
 
 export const markDownloadTaskPausedIfAborted = (task: ServerDownloadTask, aborted: boolean) => {
   if (!aborted) return false
+  // resume() can request another run before the aborted worker has unwound.
+  // Keep that request intact; the execution slot is released in finally.
+  if (task.status === 'waiting') return true
   task.status = 'paused'
   task.speed = 0
   task.errorMsg = '已暂停'
@@ -551,6 +554,7 @@ const runTask = async (task: ServerDownloadTask) => {
       if ((!suppliedUrl && !hasReusableCache) || controller.signal.aborted) throw firstError
       console.warn(`[ServerDownloadQueue] Local cache or supplied URL failed for ${task.songKey}; refreshing source once`)
       resolved = await resolver(task)
+      if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
       if (!resolved?.url) throw firstError
       await downloadResolvedSong(resolved)
     }
@@ -582,10 +586,7 @@ const runTask = async (task: ServerDownloadTask) => {
     task.speed = 0
     task.errorMsg = ''
   } catch (err: any) {
-    if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted) || err?.message === 'Aborted') {
-      task.status = 'paused'
-      task.errorMsg = '已暂停'
-    } else {
+    if (!markDownloadTaskPausedIfAborted(task, controller.signal.aborted || err?.message === 'Aborted')) {
       task.status = 'error'
       task.errorMsg = err?.message || '下载失败'
       console.error(`[ServerDownloadQueue] Task failed ${task.songKey}: ${task.errorMsg}`)
@@ -738,14 +739,17 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
     const targetFolder = targetFolderForInput(input)
     const targetExists = hasRequestedTarget(username, input, quality)
     if (existing) {
+      // Automatic playback caching must not alter an explicit library request,
+      // including paused and completed downloads.
+      if (existing.enableOnlyDownloadMode && input.background === true && !input.enableOnlyDownloadMode) continue
       if (['waiting', 'downloading', 'tagging'].includes(existing.status)) {
         // Keep one queue record per song/quality (and therefore one public ID),
         // but remember a newly requested /music target even when the current
         // download is already running. runTask will perform the second step
         // after the current target finishes.
         const targetOnlyDownloadMode = input.enableOnlyDownloadMode === true
-        if (existing.enableOnlyDownloadMode !== targetOnlyDownloadMode) {
-          existing.enableOnlyDownloadMode = targetOnlyDownloadMode
+        if (targetOnlyDownloadMode && !existing.enableOnlyDownloadMode) {
+          existing.enableOnlyDownloadMode = true
           existing.updatedAt = Date.now()
           scheduleSave()
         }

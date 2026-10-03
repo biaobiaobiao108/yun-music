@@ -403,7 +403,7 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
   }
   const headerActions = <><Button variant="primary" onClick={playRandom} disabled={!songs.length}><Icon name="play" />随机漫游</Button>{onRename && <Button onClick={() => { setRenameValue(name); setRenameOpen(true) }}><Icon name="pen" />重命名</Button>}{onDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Icon name="trash" />删除</Button>}</>
   const listActions = <>{batchMode && selectedSongs.size > 0 && <span className="react-header-selection-count">已选择 {selectedSongs.size} 首</span>}{batchMode && <><Button onClick={selectAll} disabled={!songs.length}>全选</Button><Button onClick={() => setSelectedSongs(new Set())} disabled={!selectedSongs.size}>取消选择</Button><Button variant="primary" onClick={() => void downloadBatch()} disabled={!selectedSongs.size || downloadBusy}><Icon name={downloadBusy ? 'spinner' : 'download'} />{downloadBusy ? '加入中…' : '批量下载'}</Button><Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selectedSongs.size || downloadBusy}>批量移除</Button></>}<Button onClick={() => { setBatchMode(value => !value); setSelectedSongs(new Set()) }} disabled={downloadBusy}>{batchMode ? '退出多选' : '多选操作'}</Button></>
-  return <ViewFrame title={name} actions={<div className="react-view-header-actions">{listActions}{headerActions}</div>} hideActionsOnMobile><section className="react-content-card t-bg-panel react-playlist-page">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} listId={listId} selected={batchMode ? selectedSongs : undefined} onSelect={batchMode ? toggleSong : undefined} showFileMetadata={false} empty={listId === 'love' ? '还没有喜欢的歌曲，去搜索音乐吧' : '歌单还是空的，去搜索音乐吧'} />}<Modal open={confirmOpen} title="批量移除歌曲" onClose={() => setConfirmOpen(false)}><p>确定从“{name}”移除选中的 {selectedSongs.size} 首歌曲吗？</p><div className="react-dialog-actions"><Button onClick={() => setConfirmOpen(false)}>取消</Button><Button variant="danger" onClick={() => void removeBatch()}>确认移除</Button></div></Modal><Modal open={renameOpen} title="重命名歌单" onClose={() => setRenameOpen(false)}><form className="react-dialog-form" onSubmit={submitRename}><label htmlFor="rename-list-name">新的歌单名称</label><input id="rename-list-name" value={renameValue} onChange={event => setRenameValue(event.target.value)} maxLength={80} required /><div className="react-dialog-actions"><Button type="button" onClick={() => setRenameOpen(false)}>取消</Button><Button variant="primary" type="submit">保存</Button></div></form></Modal><Modal open={deleteOpen} title="删除歌单" onClose={() => setDeleteOpen(false)}><p>确定删除歌单“{name}”吗？其中的歌曲也会从该歌单移除。</p><div className="react-dialog-actions"><Button type="button" onClick={() => setDeleteOpen(false)}>取消</Button><Button variant="danger" type="button" onClick={() => void confirmDelete()}>确认删除</Button></div></Modal></section></ViewFrame>
+  return <ViewFrame title={name} actions={<div className="react-view-header-actions react-playlist-header-actions">{listActions}{headerActions}</div>}><section className="react-content-card t-bg-panel react-playlist-page">{loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} listId={listId} selected={batchMode ? selectedSongs : undefined} onSelect={batchMode ? toggleSong : undefined} showFileMetadata={false} empty={listId === 'love' ? '还没有喜欢的歌曲，去搜索音乐吧' : '歌单还是空的，去搜索音乐吧'} />}<Modal open={confirmOpen} title="批量移除歌曲" onClose={() => setConfirmOpen(false)}><p>确定从“{name}”移除选中的 {selectedSongs.size} 首歌曲吗？</p><div className="react-dialog-actions"><Button onClick={() => setConfirmOpen(false)}>取消</Button><Button variant="danger" onClick={() => void removeBatch()}>确认移除</Button></div></Modal><Modal open={renameOpen} title="重命名歌单" onClose={() => setRenameOpen(false)}><form className="react-dialog-form" onSubmit={submitRename}><label htmlFor="rename-list-name">新的歌单名称</label><input id="rename-list-name" value={renameValue} onChange={event => setRenameValue(event.target.value)} maxLength={80} required /><div className="react-dialog-actions"><Button type="button" onClick={() => setRenameOpen(false)}>取消</Button><Button variant="primary" type="submit">保存</Button></div></form></Modal><Modal open={deleteOpen} title="删除歌单" onClose={() => setDeleteOpen(false)}><p>确定删除歌单“{name}”吗？其中的歌曲也会从该歌单移除。</p><div className="react-dialog-actions"><Button type="button" onClick={() => setDeleteOpen(false)}>取消</Button><Button variant="danger" type="button" onClick={() => void confirmDelete()}>确认删除</Button></div></Modal></section></ViewFrame>
 }
 
 function LoveListView({ songs, loading, error }: { songs: Song[]; loading: boolean; error: string }) {
@@ -486,6 +486,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const onUserScroll = useCallback(() => { userScrollUntilRef.current = Date.now() + 3500 }, [])
   const [isClosing, setIsClosing] = useState(false)
   const [songActionsOpen, setSongActionsOpen] = useState(false)
+  const [lyricsViewportSize, setLyricsViewportSize] = useState('')
   const songActionsAnchorRef = useRef<HTMLButtonElement>(null)
   useEffect(() => { if (!open) setSongActionsOpen(false) }, [open])
   useEffect(() => { if (open) void load(song) }, [load, open, song])
@@ -562,6 +563,20 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     onFooterHostChange('normal')
   }, [onFooterHostChange])
   useEffect(() => {
+    const list = lyricsListRef.current
+    if (!open || !list) return
+    const measure = () => setLyricsViewportSize(`${list.clientWidth}:${list.clientHeight}`)
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(list)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [open])
+  useEffect(() => {
+    if (!open) return
     if (active < 0) return
     if (Date.now() < userScrollUntilRef.current) return
     const list = lyricsListRef.current
@@ -595,7 +610,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
         scrollFrameRef.current = null
       }
     }
-  }, [active, lines])
+  }, [active, lines, lyricsViewportSize, open])
   useEffect(() => () => {
     if (scrollFrameRef.current !== null) window.cancelAnimationFrame(scrollFrameRef.current)
   }, [])

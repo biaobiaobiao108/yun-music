@@ -41,6 +41,15 @@ const upstreamHttpsAgent = new https.Agent({
 
 const getUpstreamAgent = (protocol: string): http.Agent | https.Agent => protocol === 'https:' ? upstreamHttpsAgent : upstreamHttpAgent
 
+/** Read tagged files on downstream demand and release resources only after the file handle closes. */
+export const createTempFileResponseStream = (tempPath: string, onFinished: () => void): ReadableStream => {
+  const source = fs.createReadStream(tempPath, { highWaterMark: 64 * 1024 })
+  source.once('close', onFinished)
+  return Readable.toWeb(source, {
+    strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
+  }) as unknown as ReadableStream
+}
+
 /** Keep upstream buffers bounded by downstream demand; cancellation tears down the whole pipeline. */
 export const createProxyResponseStream = (
   source: Readable,
@@ -1557,30 +1566,9 @@ export const createCacheRouter = (): Router => {
 
                   let tagger: any = null
                   const createTempFileResponse = () => {
-                    const readStream = fs.createReadStream(tempPath)
-                    let cleaned = false
-                    const cleanup = () => {
-                      if (cleaned) return
-                      cleaned = true
+                    const stream = createTempFileResponseStream(tempPath, () => {
                       releaseProxySlot()
-                      readStream.destroy()
                       cleanupActiveTempFile()
-                    }
-                    const stream = new ReadableStream({
-                      start(controller) {
-                        readStream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)))
-                        readStream.on('end', () => {
-                          cleanup()
-                          controller.close()
-                        })
-                        readStream.on('error', (error) => {
-                          cleanup()
-                          controller.error(error)
-                        })
-                      },
-                      cancel() {
-                        cleanup()
-                      },
                     })
                     return new Response(stream, { status: 200, headers })
                   }
