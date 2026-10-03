@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
 import { Button, Drawer, DrawerState, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
-import { HomeView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
+import { HomeView, LibraryAlbumsView, LibraryArtistsView, MobileLibraryView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
 import { formatSongDuration, songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { safeImageUrl } from '../../../shared/src/runtime'
@@ -130,7 +130,7 @@ const NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'home', label: '首页', icon: 'home' },
   { id: 'songlist', label: '发现', icon: 'compass' },
   { id: 'recent', label: '最近', icon: 'clock' },
-  { id: 'library', label: '收藏', icon: 'heart' },
+  { id: 'library', label: '资料库', icon: 'folder-open' },
   { id: 'search', label: '搜索', icon: 'search' },
 ]
 
@@ -157,7 +157,7 @@ function PlayerView({ tab, detail }: { tab: PlayerTab; detail: PlayerDetail | nu
       case 'songlist': return <SongListView detail={detail?.page === 'songlist-detail' ? detail : null} />
       case 'leaderboard': return <LeaderboardView />
       case 'favorites': return <FavoritesView />
-      case 'library': return <FavoritesView />
+      case 'library': return <MobileLibraryView />
       case 'localmusic': return <LocalMusicView />
       case 'settings': return <SettingsView />
       default: return <SearchView detail={detail?.page === 'search-detail' ? detail : null} />
@@ -199,7 +199,7 @@ const MOBILE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string; activeTabs
   { id: 'home', label: '首页', icon: 'house', activeTabs: ['home'] },
   { id: 'songlist', label: '发现', icon: 'compass', activeTabs: ['songlist', 'leaderboard', 'genres'] },
   { id: 'recent', label: '最近', icon: 'clock', activeTabs: ['recent'] },
-  { id: 'library', label: '收藏', icon: 'heart', activeTabs: ['library', 'favorites', 'albums', 'artists', 'localmusic'] },
+  { id: 'library', label: '资料库', icon: 'folder-open', activeTabs: ['library', 'favorites', 'albums', 'artists', 'localmusic'] },
   { id: 'search', label: '搜索', icon: 'search', activeTabs: ['search'] },
 ]
 

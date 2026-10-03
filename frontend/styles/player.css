@@ -11947,6 +11947,37 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-section-heading { align-items: end; gap: .5rem; margin-bottom: .7rem; }
     .react-home-section-heading h2 { font-size: 1.15rem; }
     .react-home-section-heading .react-eyebrow { font-size: .64rem; }
+    .react-mobile-library { display: grid; gap: 1.35rem; }
+    .react-mobile-library-links {
+        display: grid;
+        overflow: hidden;
+        padding: .2rem .75rem;
+        border: 1px solid var(--app-border);
+        border-radius: .95rem;
+        background: var(--app-surface-solid);
+    }
+    .react-mobile-library-link {
+        display: grid;
+        min-height: 4.05rem;
+        grid-template-columns: 2.45rem minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .72rem;
+        padding: .42rem .1rem;
+        border: 0;
+        border-bottom: 1px solid var(--app-border);
+        background: transparent;
+        color: var(--app-text);
+        text-align: start;
+        cursor: pointer;
+    }
+    .react-mobile-library-link:last-child { border-bottom: 0; }
+    .react-mobile-library-link-icon { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .68rem; background: var(--app-accent-soft); color: var(--app-accent); font-size: 1.05rem; }
+    .react-mobile-library-link-copy { display: grid; min-width: 0; gap: .16rem; }
+    .react-mobile-library-link-copy strong { font-size: .96rem; font-weight: 600; }
+    .react-mobile-library-link-copy small { color: var(--app-text-muted); font-size: .72rem; }
+    .react-mobile-library-link > i:last-child { color: var(--app-text-dim); font-size: .72rem; }
+    .react-mobile-library-recent { display: block; }
+    .react-mobile-library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .react-home-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; grid-auto-rows: auto; gap: .75rem .55rem; overflow: visible; }
     .react-home-rail > .react-artwork-card:nth-child(n + 5) { display: none; }
     .react-home-fixed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .55rem; }
@@ -12312,7 +12343,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         grid-template-columns: none;
         grid-template-rows: auto;
         grid-auto-flow: column;
-        grid-auto-columns: clamp(3.65rem, 4.4vw, 5.25rem);
+        grid-auto-columns: clamp(5.25rem, 5.6vw, 6.75rem);
         grid-auto-rows: auto;
         gap: 1rem .8rem;
         overflow-x: auto;
