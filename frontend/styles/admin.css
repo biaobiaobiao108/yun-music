@@ -5,23 +5,23 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 :root {
-    --bg-primary: #f5f8f6;
-    --bg-secondary: #eef3f0;
-    --bg-tertiary: #e4ece8;
-    --text-primary: #17211d;
-    --text-secondary: #5f7067;
-    --text-muted: #87968f;
-    --accent-primary: #0f9f6e;
-    --accent-secondary: #0f766e;
-    --accent-success: #10b981;
+    --bg-primary: var(--app-bg, #ffffff);
+    --bg-secondary: var(--app-bg-raised, #f5f5f7);
+    --bg-tertiary: var(--app-surface-soft, #f0eff5);
+    --text-primary: var(--app-text, #1c1927);
+    --text-secondary: var(--app-text-muted, #6d6879);
+    --text-muted: var(--app-text-dim, #9d98a9);
+    --accent-primary: var(--app-accent, #fa243c);
+    --accent-secondary: var(--app-accent, #fa243c);
+    --accent-success: #248a5a;
     --accent-warning: #f59e0b;
     --accent-error: #ef4444;
-    --glass-bg: rgba(255, 255, 255, 0.86);
-    --glass-border: rgba(23, 33, 29, 0.1);
-    --shadow-sm: 0 1px 2px 0 rgba(23, 33, 29, 0.06);
-    --shadow-md: 0 4px 12px -3px rgba(23, 33, 29, 0.1);
-    --shadow-lg: 0 12px 28px -8px rgba(23, 33, 29, 0.16);
-    --shadow-xl: 0 24px 46px -12px rgba(23, 33, 29, 0.2);
+    --glass-bg: var(--app-surface, rgba(255, 255, 255, 0.82));
+    --glass-border: var(--app-border, rgba(32, 28, 48, 0.11));
+    --shadow-sm: var(--app-shadow-soft, 0 1px 2px rgba(31, 25, 48, 0.06));
+    --shadow-md: var(--app-shadow-soft, 0 4px 12px rgba(31, 25, 48, 0.08));
+    --shadow-lg: var(--app-shadow-soft, 0 12px 28px rgba(31, 25, 48, 0.1));
+    --shadow-xl: var(--app-shadow, 0 24px 46px rgba(31, 25, 48, 0.16));
     --space-1: 0.25rem;
     --space-2: 0.5rem;
     --space-3: 0.75rem;
@@ -1585,19 +1585,8 @@ select.form-input option:checked {
 .admin-react-login-form { display: grid; gap: .8rem; }
 .admin-react-login-submit { width: 100%; }
 @keyframes admin-react-spin { to { transform: rotate(360deg); } }
-@media (max-width: 900px) {
-  .admin-react-shell { padding: .75rem; }
-  .admin-react-shell > .sidebar { position: fixed; z-index: 1002; inset: .75rem auto .75rem .75rem; height: calc(100vh - 1.5rem); transform: translateX(calc(-100% - 1.5rem)); transition: transform .24s ease; }
-  .admin-react-shell > .sidebar.active { transform: translateX(0); }
-  .admin-react-mobile-close, .admin-react-menu-button { display: inline-grid; }
-  .admin-react-menu-button { flex: 0 0 auto; }
-  .admin-react-topbar { padding-inline: .75rem; }
-  .admin-react-top-actions .admin-react-button { font-size: 0; padding-inline: .6rem; }
-  .admin-react-top-actions .admin-react-button i { font-size: .95rem; }
-  .admin-react-stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .admin-react-two-column { grid-template-columns: 1fr; }
-  .mobile-sidebar-overlay { position: fixed; inset: 0; z-index: 1001; background: rgba(0,0,0,.5); }
-}
+
+
 @media (max-width: 620px) {
   .admin-react-shell { display: block; padding: .5rem; }
   .admin-react-main { gap: .5rem; }
@@ -7103,4 +7092,296 @@ textarea:focus-visible {
     .admin-data-panel .admin-data-table tbody td:nth-child(4) { width: 20%; }
     .admin-data-panel .admin-data-table thead th:nth-child(5),
     .admin-data-panel .admin-data-table tbody td:nth-child(5) { width: 0; }
+}
+
+/* Apple Music inspired administration surface. The React console owns these
+   overrides so its chrome follows the shared fixed-accent theme. */
+body:has(.admin-react-shell),
+body:has(.admin-react-login) {
+    background: var(--app-bg, #fff);
+    color: var(--app-text, #1c1927);
+}
+.admin-react-shell {
+    min-height: 100svh;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    background: var(--app-bg, #fff);
+    color: var(--app-text, #1c1927);
+    font-family: var(--font-sans, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+.admin-react-shell > .sidebar {
+    width: 15.25rem;
+    min-width: 15.25rem;
+    height: calc(100svh - 2.5rem);
+    padding: 1.1rem .75rem .85rem;
+    gap: 1rem;
+    border: 1px solid var(--app-border, rgba(32, 28, 48, .11));
+    border-radius: 1.15rem;
+    background: var(--app-sidebar, #f5f5f7);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+.admin-react-shell .sidebar-header {
+    justify-content: flex-start;
+    padding: .15rem .55rem 1rem;
+    border-bottom-color: var(--app-border, rgba(32, 28, 48, .11));
+}
+.admin-react-shell .sidebar-header .sidebar-brand { justify-content: flex-start; gap: .65rem; }
+.admin-react-shell .sidebar-header .logo-icon {
+    width: 2.1rem;
+    height: 2.1rem;
+    margin: 0;
+    border-radius: .65rem;
+    box-shadow: none;
+}
+.admin-react-shell .sidebar-header h2 { color: var(--app-text, #1c1927); font-size: 1.08rem; letter-spacing: -.025em; }
+.admin-react-shell .sidebar-nav { gap: .85rem; padding: .1rem .1rem .4rem; }
+.admin-react-nav-group { display: grid; gap: .18rem; }
+.admin-react-nav-label {
+    padding: .25rem .72rem .28rem;
+    color: var(--app-text-dim, #9d98a9);
+    font-size: .68rem;
+    font-weight: 750;
+    letter-spacing: .075em;
+    text-transform: uppercase;
+}
+.admin-react-shell .sidebar-nav .nav-item {
+    display: flex;
+    align-items: center;
+    min-height: 2.55rem;
+    padding: .48rem .68rem;
+    gap: .7rem;
+    border: 0;
+    border-radius: .72rem;
+    background: transparent;
+    color: var(--app-text-muted, #6d6879);
+    font-size: .86rem;
+    font-weight: 570;
+    transition: color var(--app-motion-fast, 140ms) ease, background-color var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease;
+}
+.admin-react-shell .sidebar-nav .nav-item:hover {
+    transform: translateX(2px);
+    background: color-mix(in srgb, var(--app-text) 5%, transparent);
+    color: var(--app-text, #1c1927);
+}
+.admin-react-shell .sidebar-nav .nav-item.active {
+    background: var(--app-accent-soft, rgba(250, 36, 60, .14));
+    color: var(--app-accent, #fa243c);
+    font-weight: 700;
+}
+.admin-react-shell .nav-item.active .admin-react-nav-icon { color: var(--app-accent, #fa243c); }
+.admin-react-nav-icon { width: 1.15rem; color: var(--app-text-dim, #9d98a9); text-align: center; }
+.admin-react-shell .sidebar-footer { padding: .7rem .15rem 0; border-top: 1px solid var(--app-border, rgba(32, 28, 48, .11)); }
+.admin-react-shell .sidebar-footer .admin-react-button { width: 100%; justify-content: flex-start; background: transparent; border-color: transparent; color: var(--app-text-muted, #6d6879); }
+.admin-react-shell .sidebar-footer .admin-react-button:hover { background: color-mix(in srgb, var(--app-text) 5%, transparent); color: var(--app-text, #1c1927); }
+.admin-react-main { gap: .8rem; max-width: 100%; }
+.admin-react-topbar {
+    position: sticky;
+    inset-block-start: 1.25rem;
+    z-index: 20;
+    min-height: 4.45rem;
+    padding: .6rem .9rem .6rem 1.25rem;
+    gap: 1rem;
+    border: 1px solid var(--app-border, rgba(32, 28, 48, .11));
+    border-radius: 1.05rem;
+    background: color-mix(in srgb, var(--app-surface) 86%, transparent);
+    box-shadow: 0 .3rem 1.2rem color-mix(in srgb, var(--app-text) 4%, transparent);
+    backdrop-filter: blur(22px) saturate(1.35);
+    -webkit-backdrop-filter: blur(22px) saturate(1.35);
+}
+.admin-react-topbar h1 { color: var(--app-text, #1c1927); font-size: 1.15rem; font-weight: 720; letter-spacing: -.025em; }
+.admin-react-eyebrow { color: var(--app-text-dim, #9d98a9); font-size: .66rem; font-weight: 650; letter-spacing: .03em; }
+.admin-react-top-actions { gap: .3rem; }
+.admin-react-icon-button,
+.admin-react-menu-button { color: var(--app-text-muted, #6d6879); border-radius: .75rem; }
+.admin-react-icon-button:hover,
+.admin-react-menu-button:hover { background: var(--app-accent-soft, rgba(250, 36, 60, .14)); color: var(--app-accent, #fa243c); }
+.admin-react-content { padding: 0 0 2.5rem; }
+.admin-react-view { padding: .55rem 0 1rem; }
+.admin-react-view > .view-header { padding: 0 0 1.1rem; border-bottom: 1px solid var(--app-border, rgba(32, 28, 48, .11)); }
+.admin-react-view > .view-header h1 { color: var(--app-text, #1c1927); font-size: 1.6rem; letter-spacing: -.035em; }
+.admin-react-view > .view-header p { color: var(--app-text-muted, #6d6879); }
+.admin-react-button {
+    min-height: 2.55rem;
+    padding: .62rem .95rem;
+    border-color: var(--app-border, rgba(32, 28, 48, .11));
+    border-radius: .75rem;
+    background: var(--app-surface-solid, #fff);
+    color: var(--app-text, #1c1927);
+    font-size: .84rem;
+    font-weight: 650;
+    transition: color var(--app-motion-fast, 140ms) ease, background-color var(--app-motion-fast, 140ms) ease, border-color var(--app-motion-fast, 140ms) ease, transform var(--app-motion-fast, 140ms) ease;
+}
+.admin-react-button:hover:not(:disabled) { transform: translateY(-1px); border-color: color-mix(in srgb, var(--app-accent) 40%, var(--app-border)); }
+.admin-react-button-primary { background: var(--app-accent, #fa243c); color: #fff; border-color: var(--app-accent, #fa243c); box-shadow: 0 .22rem .7rem color-mix(in srgb, var(--app-accent) 22%, transparent); }
+.admin-react-button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--app-accent) 88%, #000); }
+.admin-react-button-danger { color: var(--accent-error); background: color-mix(in srgb, var(--accent-error) 7%, var(--app-surface-solid)); border-color: color-mix(in srgb, var(--accent-error) 20%, var(--app-border)); }
+.admin-react-stats-grid { gap: .8rem; margin-bottom: .8rem; }
+.admin-react-stat,
+.admin-react-panel,
+.admin-react-storage-stat {
+    border: 1px solid var(--app-border, rgba(32, 28, 48, .11));
+    border-radius: 1rem;
+    background: var(--app-surface, rgba(255, 255, 255, .82));
+    box-shadow: 0 .3rem 1.1rem color-mix(in srgb, var(--app-text) 4%, transparent);
+}
+.admin-react-stat { padding: 1.05rem; gap: .8rem; }
+.admin-react-stat-icon,
+.admin-react-storage-icon { background: var(--app-accent-soft, rgba(250, 36, 60, .14)); color: var(--app-accent, #fa243c); }
+.admin-react-stat p,
+.admin-react-storage-stat > div > span,
+.admin-react-definition-list dt { color: var(--app-text-muted, #6d6879); }
+.admin-react-stat strong { color: var(--app-text, #1c1927); letter-spacing: -.02em; }
+.admin-react-storage-summary { gap: .8rem; margin-bottom: .8rem; }
+.admin-react-storage-stat { padding: .9rem 1rem; }
+.admin-react-storage-stat strong { color: var(--app-text, #1c1927); }
+.admin-react-two-column { gap: .8rem; }
+.admin-react-panel { padding: 1.1rem; margin-bottom: .8rem; }
+.admin-react-panel-header { gap: .75rem; margin-bottom: .9rem; }
+.admin-react-panel-header h2 { color: var(--app-text, #1c1927); font-size: 1rem; font-weight: 720; letter-spacing: -.018em; }
+.admin-react-definition-list { gap: .55rem; }
+.admin-react-definition-list div { background: var(--app-surface-soft, #f0eff5); border-radius: .72rem; }
+.admin-react-definition-list dd { color: var(--app-text, #1c1927); }
+.admin-react-quick-actions { gap: .55rem; }
+.admin-react-batch-bar { background: var(--app-surface-soft, #f0eff5); color: var(--app-text-muted, #6d6879); }
+.admin-react-table-wrap { border-color: var(--app-border, rgba(32, 28, 48, .11)); border-radius: .85rem; background: var(--app-surface-solid, #fff); }
+.admin-react-table th,
+.admin-react-table td { border-bottom-color: var(--app-border, rgba(32, 28, 48, .11)); }
+.admin-react-table thead th { background: var(--app-surface-soft, #f0eff5); color: var(--app-text-muted, #6d6879); font-weight: 700; }
+.admin-react-table tbody tr:hover { background: color-mix(in srgb, var(--app-accent) 4%, transparent); }
+.admin-react-tabs { border-color: var(--app-border, rgba(32, 28, 48, .11)); }
+.admin-react-tabs button.is-active { color: var(--app-accent, #fa243c); border-color: var(--app-accent, #fa243c); }
+.admin-react-form input,
+.admin-react-config-form input,
+.admin-react-form select,
+.admin-react-config-form select,
+.admin-react-toolbar input,
+.admin-react-toolbar select,
+.admin-react-inline-label select {
+    min-height: 2.65rem;
+    border-color: var(--app-border, rgba(32, 28, 48, .11));
+    border-radius: .7rem;
+    background: var(--app-surface-solid, #fff);
+    color: var(--app-text, #1c1927);
+}
+.admin-react-form :where(input, select, textarea):focus-visible,
+.admin-react-config-form :where(input, select, textarea):focus-visible,
+.admin-react-toolbar :where(input, select):focus-visible { outline: 1px solid var(--app-accent, #fa243c); outline-offset: -1px; }
+.admin-react-dialog { border: 1px solid var(--app-border, rgba(32, 28, 48, .11)); border-radius: 1.1rem; background: var(--app-surface-solid, #fff); color: var(--app-text, #1c1927); }
+.admin-react-dialog-content > header { border-bottom-color: var(--app-border, rgba(32, 28, 48, .11)); }
+.admin-react-dialog-content h2 { color: var(--app-text, #1c1927); }
+.admin-react-dialog::backdrop { background: color-mix(in srgb, #13111a 42%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.admin-react-login.overlay { background: var(--app-bg, #fff); }
+.admin-react-login .login-box { border: 1px solid var(--app-border, rgba(32, 28, 48, .11)); border-radius: 1.25rem; background: var(--app-surface, rgba(255,255,255,.82)); box-shadow: var(--app-shadow-soft, 0 .7rem 2rem rgba(31,25,48,.08)); }
+.admin-react-login .login-box h1 { background: none; color: var(--app-text, #1c1927); -webkit-text-fill-color: currentColor; }
+.admin-react-login .login-subtitle { color: var(--app-text-muted, #6d6879); }
+.admin-react-login .login-box input { border-color: var(--app-border, rgba(32, 28, 48, .11)); border-radius: .75rem; background: var(--app-surface-soft, #f0eff5); }
+.admin-react-toast { border: 1px solid var(--app-border, rgba(32, 28, 48, .11)); border-radius: .85rem; background: var(--app-surface-solid, #fff); color: var(--app-text, #1c1927); box-shadow: var(--app-shadow-soft, 0 .7rem 2rem rgba(31,25,48,.08)); }
+.admin-react-log-view { border: 1px solid var(--app-border, rgba(32, 28, 48, .11)); }
+
+@media (max-width: 900px) {
+  .admin-react-shell { padding: .75rem; }
+  .admin-react-shell > .sidebar { position: fixed; z-index: 1002; inset: .75rem auto .75rem .75rem; height: calc(100vh - 1.5rem); transform: translateX(calc(-100% - 1.5rem)); transition: transform .24s ease; }
+  .admin-react-shell > .sidebar.active { transform: translateX(0); }
+  .admin-react-mobile-close, .admin-react-menu-button { display: inline-grid; }
+  .admin-react-menu-button { flex: 0 0 auto; }
+  .admin-react-topbar { padding-inline: .75rem; }
+  .admin-react-top-actions .admin-react-button { font-size: 0; padding-inline: .6rem; }
+  .admin-react-top-actions .admin-react-button i { font-size: .95rem; }
+  .admin-react-stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .admin-react-two-column { grid-template-columns: 1fr; }
+  .mobile-sidebar-overlay { position: fixed; inset: 0; z-index: 1001; background: rgba(0,0,0,.5); }
+}
+
+@media (max-width: 1100px) {
+    .admin-react-shell { gap: .85rem; padding: .85rem; }
+    .admin-react-shell > .sidebar { width: 14.25rem; min-width: 14.25rem; }
+    .admin-react-topbar { inset-block-start: .85rem; }
+    .admin-react-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+    .admin-react-shell { display: flex; gap: .65rem; padding: .65rem; }
+    .admin-react-shell > .sidebar {
+        inset: max(.65rem, env(safe-area-inset-top)) auto max(.65rem, env(safe-area-inset-bottom)) max(.65rem, env(safe-area-inset-left));
+        width: min(18rem, calc(100vw - 2rem));
+        min-width: 0;
+        height: auto;
+        max-height: none;
+        padding: 1rem .75rem .8rem;
+        border-radius: 1rem;
+    }
+    .admin-react-shell .sidebar-header { justify-content: space-between; }
+    .admin-react-mobile-close { display: inline-grid; }
+    .admin-react-main { gap: .65rem; }
+    .admin-react-topbar { position: sticky; inset-block-start: max(.65rem, env(safe-area-inset-top)); min-height: 4rem; padding: .4rem .55rem; border-radius: .9rem; }
+    .admin-react-menu-button { display: inline-grid; }
+    .admin-react-top-actions .admin-react-button { font-size: 0; padding-inline: .62rem; }
+    .admin-react-top-actions .admin-react-button i { font-size: .95rem; }
+    .admin-react-content { padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
+    .admin-react-view { padding-top: .35rem; }
+    .mobile-sidebar-overlay.active { position: fixed; inset: 0; z-index: 1001; display: block !important; background: color-mix(in srgb, #111 40%, transparent); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+    .admin-react-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .admin-react-two-column { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+    .admin-react-shell { display: block; min-height: 100svh; padding: max(.5rem, env(safe-area-inset-top)) max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); }
+    .admin-react-main { gap: .45rem; }
+    .admin-react-topbar { inset-block-start: max(.5rem, env(safe-area-inset-top)); min-height: 3.7rem; padding: .35rem .4rem; }
+    .admin-react-topbar h1 { font-size: 1.02rem; }
+    .admin-react-eyebrow { display: none; }
+    .admin-react-content { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+    .admin-react-view { padding-top: .25rem; }
+    .admin-react-view > .view-header { padding-bottom: .8rem; margin-bottom: .9rem; }
+    .admin-react-view > .view-header h1 { font-size: 1.35rem; }
+    .admin-react-top-actions { gap: .08rem; }
+    .admin-react-top-actions > .admin-react-button { min-width: 2.45rem; min-height: 2.45rem; }
+    .admin-react-stats-grid { gap: .5rem; }
+    .admin-react-stat { align-items: flex-start; padding: .75rem; gap: .55rem; }
+    .admin-react-stat-icon { width: 2rem; height: 2rem; flex: 0 0 auto; font-size: .9rem; }
+    .admin-react-stat p { font-size: .7rem; }
+    .admin-react-stat strong { font-size: .92rem; overflow-wrap: anywhere; }
+    .admin-react-storage-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+    .admin-react-storage-stat { min-width: 0; padding: .7rem; gap: .55rem; }
+    .admin-react-storage-stat strong { font-size: .92rem; }
+    .admin-react-storage-icon { width: 2rem; height: 2rem; flex: 0 0 auto; }
+    .admin-react-panel { padding: .8rem; border-radius: .9rem; }
+    .admin-react-panel-header, .admin-react-subheader { align-items: stretch; flex-direction: column; }
+    .admin-react-panel-header h2 { font-size: .96rem; }
+    .admin-react-toolbar { width: 100%; gap: .4rem; }
+    .admin-react-toolbar > * { min-width: 0; }
+    .admin-react-toolbar .admin-react-button { flex: 0 0 auto; }
+    .admin-react-definition-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; }
+    .admin-react-definition-list div { min-width: 0; padding: .65rem; }
+    .admin-react-definition-list dd { font-size: .84rem; }
+    .admin-react-quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; }
+    .admin-react-quick-actions .admin-react-button { padding-inline: .45rem; font-size: .75rem; }
+    .admin-react-batch-bar { gap: .5rem; padding: .6rem; }
+    .admin-react-batch-bar label { font-size: .75rem; }
+    .admin-react-table { min-width: 36rem; }
+    .admin-react-table th, .admin-react-table td { padding: .65rem .55rem; }
+    .admin-react-row-actions { flex-wrap: wrap; }
+    .admin-react-config-form { grid-template-columns: 1fr; }
+    .admin-react-config-form .admin-react-form-actions { grid-column: auto; }
+    .admin-react-upload-form { flex-direction: column; align-items: stretch; }
+    .admin-react-upload-form input[type=file] { max-width: 100%; }
+    .admin-react-dialog { width: calc(100% - 1rem); max-height: calc(100svh - 1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); border-radius: 1rem; }
+    .admin-react-dialog-content { max-height: inherit; overflow: auto; overscroll-behavior: contain; }
+    .admin-react-dialog-content > header { padding: .8rem .9rem; }
+    .admin-react-dialog-body { padding: .9rem; }
+    .admin-react-login.overlay { padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
+    .admin-react-login .login-box { width: min(26rem, 100%); max-width: 100%; padding: 2rem 1.2rem; }
+}
+@media (max-width: 360px) {
+    .admin-react-shell { padding-inline: max(.4rem, env(safe-area-inset-left)) max(.4rem, env(safe-area-inset-right)); }
+    .admin-react-stats-grid { gap: .35rem; }
+    .admin-react-stat { padding: .58rem; gap: .42rem; }
+    .admin-react-stat-icon { width: 1.8rem; height: 1.8rem; }
+    .admin-react-storage-stat { padding: .55rem; }
+    .admin-react-top-actions .admin-react-button { display: none; }
+    .admin-react-definition-list { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .admin-react-shell *, .admin-react-dialog *, .admin-react-login * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    .admin-react-shell .sidebar-nav .nav-item:hover, .admin-react-button:hover:not(:disabled) { transform: none; }
 }

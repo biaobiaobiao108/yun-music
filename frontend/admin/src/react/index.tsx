@@ -13,14 +13,18 @@ const StorageView = lazy(() => import('./views').then(module => ({ default: modu
 const UsersView = lazy(() => import('./views').then(module => ({ default: module.UsersView })))
 const CustomSourcesView = lazy(() => import('./custom-sources-view').then(module => ({ default: module.CustomSourcesView })))
 
-const NAV_ITEMS: { id: AdminView; label: string; icon: string }[] = [
-  { id: 'dashboard', label: '仪表盘', icon: 'chart-line' },
-  { id: 'users', label: '用户管理', icon: 'users' },
-  { id: 'storage', label: '存储管理', icon: 'hard-drive' },
-  { id: 'config', label: '系统配置', icon: 'gear' },
-  { id: 'logs', label: '系统日志', icon: 'file-lines' },
-  { id: 'snapshots', label: '快照管理', icon: 'clock-rotate-left' },
-  { id: 'sources', label: '自定义源', icon: 'plug' },
+const NAV_GROUPS: { label: string; items: { id: AdminView; label: string; icon: string }[] }[] = [
+  { label: '概览', items: [{ id: 'dashboard', label: '仪表盘', icon: 'chart-line' }] },
+  { label: '账户', items: [{ id: 'users', label: '用户管理', icon: 'users' }] },
+  { label: '音乐库', items: [
+    { id: 'storage', label: '存储管理', icon: 'hard-drive' },
+    { id: 'snapshots', label: '快照管理', icon: 'clock-rotate-left' },
+    { id: 'sources', label: '自定义音源', icon: 'plug' },
+  ] },
+  { label: '系统', items: [
+    { id: 'config', label: '系统配置', icon: 'gear' },
+    { id: 'logs', label: '系统日志', icon: 'file-lines' },
+  ] },
 ]
 
 function LoginGate() {
@@ -57,7 +61,7 @@ function AdminShell() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [appearance, setAppearance] = useState<Appearance>(() => (readThemePreferences().appearance || 'system') as Appearance)
   const config = runtimeConfig()
-  const title = NAV_ITEMS.find(item => item.id === view)?.label ?? '管理控制台'
+  const title = NAV_GROUPS.flatMap(group => group.items).find(item => item.id === view)?.label ?? '管理控制台'
 
   useEffect(() => {
     document.title = `${title} - 云音`
@@ -87,7 +91,7 @@ function AdminShell() {
   const closeMobile = () => { setMobileOpen(false); window.requestAnimationFrame(() => menuButtonRef.current?.focus()) }
   const selectView = (next: AdminView) => { setView(next); closeMobile() }
   const toggleTheme = () => { const next: Appearance = appearance === 'dark' ? 'light' : 'dark'; setAppearance(next); updateThemePreferences({ appearance: next }) }
-  return <div className="admin-react-shell"><div className={`mobile-sidebar-overlay ${mobileOpen ? 'active' : 'hidden'}`} onClick={closeMobile} aria-hidden="true" /><aside className={`sidebar glass ${mobileOpen ? 'active' : ''}`} aria-label="管理导航"><div className="sidebar-header"><div className="sidebar-brand"><img src="/assets/yun-yin.png" className="logo-icon" width="42" height="42" alt="云音图标" /><h2>云音</h2></div><button type="button" className="admin-react-icon-button admin-react-mobile-close" aria-label="关闭导航菜单" onClick={closeMobile}><Icon name="xmark" /></button></div><nav className="sidebar-nav"><p className="admin-react-nav-label">管理控制台</p>{NAV_ITEMS.map(item => <button key={item.id} type="button" className={`nav-item ${view === item.id ? 'active' : ''}`} aria-current={view === item.id ? 'page' : undefined} onClick={() => selectView(item.id)}><span className="admin-react-nav-icon"><Icon name={item.icon} /></span><span className="admin-react-nav-text">{item.label}</span></button>)}<a className="nav-item" href={String(config['player.path'] || '/music')}><span className="admin-react-nav-icon"><Icon name="music" /></span><span className="admin-react-nav-text">打开播放器</span></a></nav><div className="sidebar-footer"><Button onClick={() => void signOut()} className="btn-logout"><Icon name="right-from-bracket" />退出登录</Button></div></aside><div className="admin-react-main"><header className="admin-react-topbar"><button ref={menuButtonRef} type="button" className="admin-react-menu-button" aria-label="打开导航菜单" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Icon name="bars" /></button><div><p className="admin-react-eyebrow">云音管理后台</p><h1 id="page-title">{title}</h1></div><div className="admin-react-top-actions"><button type="button" className="admin-react-icon-button" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={appearance === 'dark' ? 'sun' : 'moon'} /></button>{installPrompt && <Button onClick={() => void install()}><Icon name="download" />安装应用</Button>}<Button variant="secondary" onClick={() => void signOut()}><Icon name="right-from-bracket" />退出</Button></div></header><main id="admin-main" className="admin-react-content" tabIndex={-1}><Suspense fallback={<Loading label="正在加载页面…" />}>{viewFor(view)}</Suspense></main></div>{toast && <div className={`admin-react-toast is-${toastPhase}`} role="status" aria-live="polite"><Icon name="circle-info" /><span>{toast}</span></div>}</div>
+  return <div className="admin-react-shell"><div className={`mobile-sidebar-overlay ${mobileOpen ? 'active' : 'hidden'}`} onClick={closeMobile} aria-hidden="true" /><aside className={`sidebar glass ${mobileOpen ? 'active' : ''}`} aria-label="管理导航"><div className="sidebar-header"><div className="sidebar-brand"><img src="/assets/yun-yin.png" className="logo-icon" width="42" height="42" alt="云音图标" /><h2>云音</h2></div><button type="button" className="admin-react-icon-button admin-react-mobile-close" aria-label="关闭导航菜单" onClick={closeMobile}><Icon name="xmark" /></button></div><nav className="sidebar-nav">{NAV_GROUPS.map(group => <div className="admin-react-nav-group" key={group.label}><p className="admin-react-nav-label">{group.label}</p>{group.items.map(item => <button key={item.id} type="button" className={`nav-item ${view === item.id ? 'active' : ''}`} aria-current={view === item.id ? 'page' : undefined} onClick={() => selectView(item.id)}><span className="admin-react-nav-icon"><Icon name={item.icon} /></span><span className="admin-react-nav-text">{item.label}</span></button>)}</div>)}<div className="admin-react-nav-group admin-react-nav-tools"><p className="admin-react-nav-label">云音</p><a className="nav-item" href={String(config['player.path'] || '/music')}><span className="admin-react-nav-icon"><Icon name="music" /></span><span className="admin-react-nav-text">打开播放器</span></a></div></nav><div className="sidebar-footer"><Button onClick={() => void signOut()} className="btn-logout"><Icon name="right-from-bracket" />退出登录</Button></div></aside><div className="admin-react-main"><header className="admin-react-topbar"><button ref={menuButtonRef} type="button" className="admin-react-menu-button" aria-label="打开导航菜单" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><Icon name="bars" /></button><div><p className="admin-react-eyebrow">云音管理后台</p><h1 id="page-title">{title}</h1></div><div className="admin-react-top-actions"><button type="button" className="admin-react-icon-button" aria-label="切换主题" title="切换深浅色" onClick={toggleTheme}><Icon name={appearance === 'dark' ? 'sun' : 'moon'} /></button>{installPrompt && <Button onClick={() => void install()}><Icon name="download" />安装应用</Button>}<Button variant="secondary" onClick={() => void signOut()}><Icon name="right-from-bracket" />退出</Button></div></header><main id="admin-main" className="admin-react-content" tabIndex={-1}><Suspense fallback={<Loading label="正在加载页面…" />}>{viewFor(view)}</Suspense></main></div>{toast && <div className={`admin-react-toast is-${toastPhase}`} role="status" aria-live="polite"><Icon name="circle-info" /><span>{toast}</span></div>}</div>
 }
 
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }

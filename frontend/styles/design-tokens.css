@@ -1,75 +1,74 @@
-/* Shared 云音 visual language. Entrypoint stylesheets consume these tokens so
-   the player and admin shell stay visually aligned without sharing markup. */
+/* Shared visual system for the player and admin surfaces. */
 :root {
     color-scheme: light dark;
     --font-sans: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --app-bg: #f4f3f8;
-    --app-bg-raised: #ffffff;
-    --app-sidebar: #ffffff;
-    --app-surface: rgba(255, 255, 255, .82);
+
+    --app-bg: #ffffff;
+    --app-bg-raised: #f5f5f7;
+    --app-sidebar: #f5f5f7;
+    --app-surface: rgba(255, 255, 255, .88);
     --app-surface-solid: #ffffff;
-    --app-surface-glass: rgba(255, 255, 255, .42);
-    --app-surface-soft: #f0eff5;
-    --app-border: rgba(32, 28, 48, .11);
-    --app-border-strong: rgba(32, 28, 48, .18);
-    --app-text: #1c1927;
-    --app-text-muted: #6d6879;
-    --app-text-dim: #9d98a9;
+    --app-surface-glass: rgba(255, 255, 255, .72);
+    --app-surface-soft: #f5f5f7;
+    --app-border: rgba(60, 60, 67, .12);
+    --app-border-strong: rgba(60, 60, 67, .22);
+    --app-text: #1d1d1f;
+    --app-text-muted: #6e6e73;
+    --app-text-dim: #86868b;
     --app-on-accent: #ffffff;
-    --app-shadow: 0 1.4rem 3.5rem rgba(31, 25, 48, .12);
-    --app-shadow-soft: 0 .7rem 2rem rgba(31, 25, 48, .08);
-    --app-radius-sm: .65rem;
-    --app-radius-md: .9rem;
-    --app-radius-lg: 1.25rem;
-    --app-radius-xl: 1.5rem;
-    --app-sidebar-width: 17.5rem;
-    --app-topbar-height: 5rem;
+    --app-shadow: 0 1.25rem 3.5rem rgba(0, 0, 0, .11);
+    --app-shadow-soft: 0 .45rem 1.5rem rgba(0, 0, 0, .075);
+    --app-radius-sm: .5rem;
+    --app-radius-md: .7rem;
+    --app-radius-lg: .9rem;
+    --app-radius-xl: 1.15rem;
+    --app-sidebar-width: 15.5rem;
+    --app-topbar-height: 4.5rem;
     --app-control-height: 2.75rem;
-    --app-accent: #e83b68;
-    --app-accent-soft: rgba(232, 59, 104, .14);
+
+    /* Fixed Apple Music-inspired red accent. Legacy themeColor preferences
+       remain readable for compatibility but no longer affect this token. */
+    --app-accent: #fa243c;
+    --app-accent-soft: rgba(250, 36, 60, .12);
     --app-motion-fast: 140ms;
     --app-motion: 220ms;
 }
 
 :root[data-appearance="dark"] {
-    --app-bg: #1b1827;
-    --app-bg-raised: #201d2d;
-    --app-sidebar: #211e2e;
-    --app-surface: rgba(39, 35, 54, .78);
-    --app-surface-solid: #292538;
-    --app-surface-glass: rgba(41, 37, 56, .42);
-    --app-surface-soft: #302b42;
-    --app-border: rgba(239, 235, 250, .105);
-    --app-border-strong: rgba(239, 235, 250, .18);
-    --app-text: #f6f3fb;
-    --app-text-muted: #b7b1c3;
-    --app-text-dim: #80798e;
-    --app-shadow: 0 1.6rem 4rem rgba(0, 0, 0, .28);
-    --app-shadow-soft: 0 .8rem 2.2rem rgba(0, 0, 0, .2);
+    color-scheme: dark;
+    --app-bg: #1c1c1e;
+    --app-bg-raised: #242426;
+    --app-sidebar: #242426;
+    --app-surface: rgba(44, 44, 46, .9);
+    --app-surface-solid: #2c2c2e;
+    --app-surface-glass: rgba(44, 44, 46, .74);
+    --app-surface-soft: #343436;
+    --app-border: rgba(235, 235, 245, .14);
+    --app-border-strong: rgba(235, 235, 245, .22);
+    --app-text: #f5f5f7;
+    --app-text-muted: #a1a1a6;
+    --app-text-dim: #737378;
+    --app-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .34);
+    --app-shadow-soft: 0 .7rem 2rem rgba(0, 0, 0, .24);
 }
-
-:root[data-theme="emerald"] { --app-accent: #18a779; --app-accent-soft: rgba(24, 167, 121, .14); }
-:root[data-theme="blue"] { --app-accent: #4d83ea; --app-accent-soft: rgba(77, 131, 234, .14); }
-:root[data-theme="amber"] { --app-accent: #d9922e; --app-accent-soft: rgba(217, 146, 46, .16); }
-:root[data-theme="violet"] { --app-accent: #8d6bea; --app-accent-soft: rgba(141, 107, 234, .15); }
-:root[data-theme="rose"] { --app-accent: #e95d93; --app-accent-soft: rgba(233, 93, 147, .15); }
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-appearance="light"]) {
-        --app-bg: #1b1827;
-        --app-bg-raised: #201d2d;
-        --app-sidebar: #211e2e;
-        --app-surface: rgba(39, 35, 54, .78);
-        --app-surface-solid: #292538;
-        --app-surface-glass: rgba(41, 37, 56, .42);
-        --app-surface-soft: #302b42;
-        --app-border: rgba(239, 235, 250, .105);
-        --app-border-strong: rgba(239, 235, 250, .18);
-        --app-text: #f6f3fb;
-        --app-text-muted: #b7b1c3;
-        --app-text-dim: #80798e;
-        --app-shadow: 0 1.6rem 4rem rgba(0, 0, 0, .28);
-        --app-shadow-soft: 0 .8rem 2.2rem rgba(0, 0, 0, .2);
+        color-scheme: dark;
+        --app-bg: #1c1c1e;
+        --app-bg-raised: #242426;
+        --app-sidebar: #242426;
+        --app-surface: rgba(44, 44, 46, .9);
+        --app-surface-solid: #2c2c2e;
+        --app-surface-glass: rgba(44, 44, 46, .74);
+        --app-surface-soft: #343436;
+        --app-border: rgba(235, 235, 245, .14);
+        --app-border-strong: rgba(235, 235, 245, .22);
+        --app-text: #f5f5f7;
+        --app-text-muted: #a1a1a6;
+        --app-text-dim: #737378;
+        --app-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .34);
+        --app-shadow-soft: 0 .7rem 2rem rgba(0, 0, 0, .24);
     }
 }
 

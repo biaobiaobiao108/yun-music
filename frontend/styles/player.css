@@ -12239,3 +12239,193 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
 }
+/* Apple Music inspired player composition: editorial home, library overview and calmer desktop chrome. */
+@media (min-width: 721px) {
+    .react-sidebar {
+        width: 16.25rem;
+        flex-basis: 16.25rem;
+        padding: 1rem .72rem 1.2rem;
+        background: var(--app-surface-solid);
+        border-color: var(--app-border);
+    }
+
+    .react-sidebar-nav { gap: .16rem; }
+    .react-sidebar-label { padding-inline: .72rem; }
+    .react-sidebar-nav > .netease-nav-item {
+        min-height: 2.65rem;
+        padding-inline: .78rem;
+        border-radius: .8rem;
+        font-weight: 560;
+    }
+    .react-sidebar-nav > .netease-nav-item.active-tab {
+        background: var(--app-accent-soft);
+        color: var(--app-accent);
+    }
+    .react-sidebar-playlists-heading { padding-inline: .62rem; }
+    .react-sidebar-playlist { min-height: 2.55rem; border-radius: .72rem; }
+    .react-player-topbar {
+        min-height: 4.15rem;
+        padding-inline: clamp(1.25rem, 3vw, 2.8rem);
+        background: color-mix(in srgb, var(--app-bg) 88%, transparent);
+        border-color: transparent;
+        backdrop-filter: blur(22px) saturate(150%);
+        -webkit-backdrop-filter: blur(22px) saturate(150%);
+    }
+    #player-main-content.react-player-content {
+        padding: 1.3rem clamp(1.35rem, 4vw, 4rem) 9rem;
+        scroll-padding-top: 1.5rem;
+    }
+    #player-main-content .react-view { max-width: 112rem; margin-inline: auto; }
+    #player-main-content .react-view-header { margin-bottom: 1.45rem; }
+    #player-main-content .react-view-header h1 { font-size: clamp(2rem, 3vw, 2.75rem); letter-spacing: -.045em; }
+
+    .react-home-page { gap: 2.35rem; }
+    .react-home-feature {
+        position: relative;
+        display: grid;
+        min-height: clamp(14rem, 26vw, 23rem);
+        grid-template-columns: minmax(13rem, .82fr) minmax(18rem, 1fr);
+        align-items: center;
+        gap: clamp(1.5rem, 4vw, 4.5rem);
+        overflow: hidden;
+        padding: clamp(1.2rem, 3vw, 2.75rem);
+        border: 1px solid var(--app-border);
+        border-radius: 1.45rem;
+        background: var(--app-surface-soft);
+        color: var(--app-text);
+        text-align: start;
+        cursor: pointer;
+        isolation: isolate;
+    }
+    .react-home-feature::before {
+        position: absolute;
+        z-index: -1;
+        inset: 0;
+        content: "";
+        background: radial-gradient(ellipse at 82% 22%, var(--app-accent-soft), transparent 55%);
+        opacity: .9;
+    }
+    .react-home-feature-art {
+        display: block;
+        width: min(100%, 21rem);
+        aspect-ratio: 1;
+        justify-self: end;
+        overflow: hidden;
+        border-radius: 1.1rem;
+        box-shadow: var(--app-shadow-soft);
+        transform: rotate(-2deg);
+    }
+    .react-home-feature-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .react-home-feature-copy { display: grid; justify-items: start; gap: .62rem; min-width: 0; }
+    .react-home-feature-copy > small,
+    .react-home-welcome .react-eyebrow { color: var(--app-accent); font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .react-home-feature-copy > strong { max-width: 18ch; font-size: clamp(1.7rem, 3.5vw, 3.25rem); line-height: 1.06; letter-spacing: -.045em; }
+    .react-home-feature-copy > span { color: var(--app-text-muted); font-size: 1.08rem; }
+    .react-home-feature-copy > em {
+        display: inline-flex;
+        min-height: 2.8rem;
+        align-items: center;
+        gap: .55rem;
+        margin-top: .5rem;
+        padding: .65rem 1.15rem;
+        border-radius: 99px;
+        background: var(--app-accent);
+        color: var(--app-text-on-accent, #fff);
+        font-style: normal;
+        font-weight: 650;
+    }
+    .react-home-feature:hover .react-home-feature-art { transform: rotate(0) scale(1.01); }
+    .react-home-welcome {
+        display: grid;
+        min-height: 17rem;
+        align-content: center;
+        justify-items: start;
+        gap: .55rem;
+        padding: clamp(1.4rem, 4vw, 3.2rem);
+        border: 1px solid var(--app-border);
+        border-radius: 1.45rem;
+        background: linear-gradient(120deg, var(--app-surface-solid), var(--app-surface-soft));
+    }
+    .react-home-welcome h2 { margin: 0; font-size: clamp(2rem, 4vw, 3.5rem); letter-spacing: -.05em; }
+    .react-home-welcome > p:not(.react-eyebrow) { margin: 0 0 .6rem; color: var(--app-text-muted); }
+    .react-home-shortcuts { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
+    .react-home-shortcut { min-height: 6.6rem; border-radius: 1rem; }
+    .react-home-section-heading h2 { font-size: 1.45rem; letter-spacing: -.025em; }
+    .react-home-rail { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-columns: initial; overflow: visible; }
+    .react-home-playlists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .react-mobile-library {
+        display: grid;
+        grid-template-columns: minmax(16rem, .68fr) minmax(0, 1.32fr);
+        align-items: start;
+        gap: 1.5rem clamp(1.4rem, 3vw, 3rem);
+    }
+    .react-mobile-library-links {
+        display: grid;
+        grid-column: 1;
+        overflow: hidden;
+        padding: .2rem .85rem;
+        border: 1px solid var(--app-border);
+        border-radius: 1rem;
+        background: var(--app-surface-solid);
+    }
+    .react-mobile-library-link { min-height: 4.3rem; }
+    .react-mobile-library-link:hover { color: var(--app-accent); }
+    .react-mobile-library-playlists { grid-column: 1; }
+    .react-mobile-library-playlists .react-home-section-heading { align-items: center; }
+    .react-mobile-library-playlists .react-home-playlists { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
+    .react-mobile-library-recent { display: block; grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+    .react-mobile-library-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.react-home-feature,
+.react-home-feature-art,
+.react-sidebar-nav > .netease-nav-item {
+    transition: background-color var(--app-motion-fast), border-color var(--app-motion-fast), color var(--app-motion-fast), transform var(--app-motion-fast);
+}
+
+@media (max-width: 720px) {
+    .react-home-feature {
+        position: relative;
+        display: grid;
+        min-height: 9.5rem;
+        grid-template-columns: 6.7rem minmax(0, 1fr);
+        align-items: center;
+        gap: .9rem;
+        overflow: hidden;
+        padding: .75rem;
+        border: 1px solid var(--app-border);
+        border-radius: 1rem;
+        background: var(--app-surface-solid);
+        color: var(--app-text);
+        text-align: start;
+    }
+    .react-home-feature-art { display: block; width: 6.7rem; aspect-ratio: 1; overflow: hidden; border-radius: .7rem; }
+    .react-home-feature-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .react-home-feature-copy { display: grid; justify-items: start; min-width: 0; gap: .25rem; }
+    .react-home-feature-copy > small { color: var(--app-accent); font-size: .66rem; font-weight: 700; }
+    .react-home-feature-copy > strong { display: -webkit-box; overflow: hidden; font-size: .95rem; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .react-home-feature-copy > span { color: var(--app-text-muted); font-size: .75rem; }
+    .react-home-feature-copy > em { display: inline-flex; align-items: center; gap: .4rem; margin-top: .22rem; color: var(--app-accent); font-size: .75rem; font-style: normal; font-weight: 650; }
+    .react-home-welcome { display: grid; justify-items: start; gap: .45rem; padding: 1.05rem; border: 1px solid var(--app-border); border-radius: 1rem; background: var(--app-surface-solid); }
+    .react-home-welcome h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.035em; }
+    .react-home-welcome > p:not(.react-eyebrow) { margin: 0 0 .3rem; color: var(--app-text-muted); font-size: .82rem; }
+    .react-home-welcome .react-eyebrow { margin: 0; color: var(--app-accent); font-size: .62rem; font-weight: 700; letter-spacing: .1em; }
+    .react-home-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .react-mobile-library-playlists { display: block; }
+    .react-mobile-library-playlists .react-home-playlists { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-home-feature,
+    .react-home-feature-art,
+    .react-sidebar-nav > .netease-nav-item,
+    .react-player-drawer.react-glass-drawer,
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open) {
+        transition-duration: 0.01ms !important;
+    }
+    .react-home-feature:hover .react-home-feature-art { transform: none; }
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
+}

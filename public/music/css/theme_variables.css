@@ -9,172 +9,91 @@
     /* Base Transition */
     --theme-transition: 0.3s ease;
 
-    /* Light Mode Grays (Default NetEase style) */
-    --bg-main: #f6f6f8;
+    /* Apple Music-inspired neutral surfaces. */
+    --bg-main: #ffffff;
     --bg-panel: #ffffff;
-    --bg-item-hover: #f0f1f4;
-    --bg-header: rgba(255, 255, 255, 0.95);
-    --bg-glass: rgba(255, 255, 255, 0.85);
+    --bg-item-hover: #f5f5f7;
+    --bg-header: rgba(255, 255, 255, 0.92);
+    --bg-glass: rgba(255, 255, 255, 0.78);
 
-    --text-main: #1f2226;
-    --text-muted: #5c626e;
-    --text-dim: #99a0ad;
+    --text-main: #1d1d1f;
+    --text-muted: #6e6e73;
+    --text-dim: #86868b;
 
-    --border-main: #e7e8eb;
-    --border-dim: #d8d9de;
+    --border-main: #e5e5ea;
+    --border-dim: #d2d2d7;
 
-    --shadow-main: 0 2px 8px 0 rgb(0 0 0 / 0.06), 0 1px 3px 0 rgb(0 0 0 / 0.04);
+    --shadow-main: 0 10px 30px 0 rgb(0 0 0 / 0.07), 0 2px 5px 0 rgb(0 0 0 / 0.04);
 
     /* Default NetEase Red Brand Colors */
-    --c-50: #fef2f2;
-    --c-100: #fee2e2;
-    --c-200: #fecaca;
-    --c-300: #fca5a5;
-    --c-400: #f87171;
-    --c-500: #ec4141;
-    --c-600: #d73535;
-    --c-700: #b91c1c;
-    --c-800: #991b1b;
-    --c-900: #7f1d1d;
-    --c-950: #450a0a;
-    --logo-filter: hue-rotate(210deg) saturate(140%);
+    --c-50: #fff1f2;
+    --c-100: #ffe4e6;
+    --c-200: #fecdd3;
+    --c-300: #fda4af;
+    --c-400: #fb7185;
+    --c-500: #fa243c;
+    --c-600: #e51e38;
+    --c-700: #c81932;
+    --c-800: #a8182c;
+    --c-900: #8e1b2d;
+    --c-950: #4c0d18;
+    --logo-filter: none;
 }
 
 /* Dark Mode Overrides */
 :root[data-appearance="dark"] {
     color-scheme: dark;
-    --bg-main: #16161a;
-    --bg-panel: #212127;
-    --bg-item-hover: #2d2e35;
-    --bg-header: rgba(25, 25, 30, 0.95);
-    --bg-glass: rgba(33, 33, 39, 0.85);
+    --bg-main: #1c1c1e;
+    --bg-panel: #2c2c2e;
+    --bg-item-hover: #343436;
+    --bg-header: rgba(36, 36, 38, 0.94);
+    --bg-glass: rgba(44, 44, 46, 0.82);
 
-    --text-main: #f0f1f5;
-    --text-muted: #a5aab5;
-    --text-dim: #6d727f;
+    --text-main: #f5f5f7;
+    --text-muted: #a1a1a6;
+    --text-dim: #737378;
 
-    --border-main: #2b2c34;
-    --border-dim: #3a3b45;
+    --border-main: #3a3a3c;
+    --border-dim: #48484a;
 
-    --shadow-main: 0 4px 12px 0 rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.25);
+    --shadow-main: 0 12px 34px 0 rgb(0 0 0 / 0.3), 0 2px 5px -2px rgb(0 0 0 / 0.2);
 }
 
 /* System Preference (Default if no data-appearance is set) */
 @media (prefers-color-scheme: dark) {
     :root:not([data-appearance="light"]) {
         color-scheme: dark;
-        --bg-main: #16161a;
-        --bg-panel: #212127;
-        --bg-item-hover: #2d2e35;
-        --bg-header: rgba(25, 25, 30, 0.95);
-        --bg-glass: rgba(33, 33, 39, 0.85);
+        --bg-main: #1c1c1e;
+        --bg-panel: #2c2c2e;
+        --bg-item-hover: #343436;
+        --bg-header: rgba(36, 36, 38, 0.94);
+        --bg-glass: rgba(44, 44, 46, 0.82);
 
-        --text-main: #f0f1f5;
-        --text-muted: #a5aab5;
-        --text-dim: #6d727f;
+        --text-main: #f5f5f7;
+        --text-muted: #a1a1a6;
+        --text-dim: #737378;
 
-        --border-main: #2b2c34;
-        --border-dim: #3a3b45;
+        --border-main: #3a3a3c;
+        --border-dim: #48484a;
 
-        --shadow-main: 0 4px 12px 0 rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.25);
+        --shadow-main: 0 12px 34px 0 rgb(0 0 0 / 0.3), 0 2px 5px -2px rgb(0 0 0 / 0.2);
     }
 }
 
-/* 网易云经典红 (NetEase Red) */
-:root[data-theme="netease"] {
-    --c-50: #fef2f2;
-    --c-100: #fee2e2;
-    --c-200: #fecaca;
-    --c-300: #fca5a5;
-    --c-400: #f87171;
-    --c-500: #ec4141;
-    --c-600: #d73535;
-    --c-700: #b91c1c;
-    --c-800: #991b1b;
-    --c-900: #7f1d1d;
-    --c-950: #450a0a;
-    --logo-filter: hue-rotate(210deg) saturate(140%);
-}
-
-/* 默认主题: 森之韵 (Forest Rhythm) - Emerald */
-:root[data-theme="emerald"],
-:root:not([data-theme]) {
-    --c-50: #ecfdf5;
-    --c-100: #d1fae5;
-    --c-200: #a7f3d0;
-    --c-300: #6ee7b7;
-    --c-400: #34d399;
-    --c-500: #10b981;
-    --c-600: #059669;
-    --c-700: #047857;
-    --c-800: #065f46;
-    --c-900: #064e3b;
-    --c-950: #022c22;
-    --logo-filter: hue-rotate(0deg);
-}
-
-/* 深海谧 (Deep Sea) - Blue */
-:root[data-theme="blue"] {
-    --c-50: #eff6ff;
-    --c-100: #dbeafe;
-    --c-200: #bfdbfe;
-    --c-300: #93c5fd;
-    --c-400: #60a5fa;
-    --c-500: #3b82f6;
-    --c-600: #2563eb;
-    --c-700: #1d4ed8;
-    --c-800: #1e40af;
-    --c-900: #1e3a8a;
-    --c-950: #172554;
-    --logo-filter: hue-rotate(60deg);
-}
-
-/* 暖阳愿 (Warm Sun) - Amber/Orange Mix */
-:root[data-theme="amber"] {
-    --c-50: #fffbeb;
-    --c-100: #fef3c7;
-    --c-200: #fde68a;
-    --c-300: #fcd34d;
-    --c-400: #fbbf24;
-    --c-500: #f59e0b;
-    --c-600: #d97706;
-    --c-700: #b45309;
-    --c-800: #92400e;
-    --c-900: #78350f;
-    --c-950: #451a03;
-    --logo-filter: hue-rotate(-115deg);
-}
-
-/* 紫微星 (Nebula) - Violet */
-:root[data-theme="violet"] {
-    --c-50: #f5f3ff;
-    --c-100: #ede9fe;
-    --c-200: #ddd6fe;
-    --c-300: #c4b5fd;
-    --c-400: #a78bfa;
-    --c-500: #8b5cf6;
-    --c-600: #7c3aed;
-    --c-700: #6d28d9;
-    --c-800: #5b21b6;
-    --c-900: #4c1d95;
-    --c-950: #2e1065;
-    --logo-filter: hue-rotate(110deg);
-}
-
-/* 绯红月 (Crimson) - Rose */
-:root[data-theme="rose"] {
+/* Fixed Apple Music-inspired red palette; stored legacy accent values are ignored. */
+:root {
     --c-50: #fff1f2;
     --c-100: #ffe4e6;
     --c-200: #fecdd3;
     --c-300: #fda4af;
     --c-400: #fb7185;
-    --c-500: #f43f5e;
-    --c-600: #e11d48;
-    --c-700: #be123c;
-    --c-800: #9f1239;
-    --c-900: #881337;
-    --c-950: #4c0519;
-    --logo-filter: hue-rotate(190deg);
+    --c-500: #fa243c;
+    --c-600: #e51e38;
+    --c-700: #c81932;
+    --c-800: #a8182c;
+    --c-900: #8e1b2d;
+    --c-950: #4c0d18;
+    --logo-filter: none;
 }
 
 /* Utilities for transition */

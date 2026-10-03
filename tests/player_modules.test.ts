@@ -296,6 +296,7 @@ describe('React player module boundaries', () => {
     const mediaLibrary = read('frontend/player/src/react/store/media_library.ts')
     const admin = read('frontend/admin/src/react/index.tsx')
     const tokens = read('frontend/styles/design-tokens.css')
+    const sharedTheme = read('frontend/shared/src/theme.ts')
     for (const label of ['home', 'favorites', 'recent', 'albums', 'artists', 'library', 'search', 'songlist', 'leaderboard']) expect(shell).toContain(`id: '${label}'`)
     expect(shell).not.toContain("{ id: 'genres', label: '风格'")
     expect(shell).toContain("case 'genres': return <GenresView />")
@@ -345,7 +346,9 @@ describe('React player module boundaries', () => {
     expect(mediaLibrary).toContain('libraryArtists')
     expect(admin).toContain('updateThemePreferences')
     expect(tokens).toContain('--app-sidebar-width')
-    expect(tokens).toContain('[data-theme="violet"]')
+    expect(tokens).toContain('--app-accent: #fa243c')
+    expect(tokens).not.toContain('[data-theme="violet"]')
+    expect(sharedTheme).toContain("element.dataset.theme = 'netease'")
   })
 
   it('keeps the React-only build free of retired player bridges and jumpy artwork motion', () => {
