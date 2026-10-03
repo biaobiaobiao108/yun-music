@@ -12211,25 +12211,24 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         height: 1.4rem;
         margin: 0;
         padding: 0;
+        -webkit-appearance: none;
         appearance: none;
         border: 0;
         border-radius: 999px;
         outline: 1px solid transparent;
-        background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);
-        background-position: center;
-        background-repeat: no-repeat;
-        background-size: 100% .22rem;
+        background: transparent;
         cursor: pointer;
     }
     .react-immersive-volume-row input[type="range"]::-webkit-slider-runnable-track {
         height: .22rem;
         border-radius: 999px;
-        background: transparent;
+        background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);
     }
     .react-immersive-volume-row input[type="range"]::-webkit-slider-thumb {
         width: .5rem;
         height: .5rem;
         margin-top: -.14rem;
+        -webkit-appearance: none;
         appearance: none;
         border: 0;
         border-radius: 50%;
