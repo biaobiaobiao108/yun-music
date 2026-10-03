@@ -12759,30 +12759,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-mobile-library-link-copy small { font-size: .72rem; }
     .react-mobile-library-link > i:last-child { padding-inline: .25rem; color: var(--app-text-dim); font-size: .88rem; }
 
-    .react-my-playlists .react-home-playlists {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 0;
-    }
-
-    .react-my-playlists .react-home-playlist {
-        min-height: 4.3rem;
-        gap: .8rem;
-        padding: .45rem .1rem;
-        border: 0;
-        border-bottom: 1px solid color-mix(in srgb, var(--app-border) 82%, transparent);
-        border-radius: 0;
-        background: transparent;
-        box-shadow: none;
-    }
-
-    .react-my-playlists .react-home-playlist:last-child { border-bottom: 0; }
-    .react-my-playlists .react-home-playlist-media { width: 2.65rem; height: 2.65rem; border-radius: .55rem; }
-    .react-my-playlists .react-home-playlist-media.is-icon { background: var(--app-accent-soft); }
-    .react-my-playlists .react-home-playlist-copy { gap: .12rem; }
-    .react-my-playlists .react-home-playlist strong { font-size: .91rem; font-weight: 600; }
-    .react-my-playlists .react-home-playlist small { font-size: .73rem; }
-    .react-my-playlists .react-home-playlist-arrow { opacity: 1; transform: none; }
-
     .react-mobile-library .react-home-section-heading { margin-bottom: .65rem; }
 
     .react-library-grid,
@@ -12916,6 +12892,42 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         letter-spacing: -.035em;
         text-align: start;
     }
-    #player-main-content .react-view-title-brand > img { display: none; }
-    #player-main-content .react-view-title-brand { gap: 0; }
+    #player-main-content .react-view-title-brand > img { display: block; width: 2.15rem; height: 2.15rem; border-radius: .6rem; }
+    #player-main-content .react-view-title-brand { gap: .6rem; }
+}
+
+/* Playlist catalog: cover-led rows, two-line names and inset separators. */
+.react-playlist-catalog-actions { display: flex; align-items: center; gap: .5rem; }
+.react-playlist-catalog-actions .react-select-menu { min-width: 0; }
+.react-playlist-catalog-actions .react-select-menu-trigger { min-height: 2.55rem; border-radius: 2rem; padding-inline: .85rem; }
+.react-playlist-catalog-search { display: flex; align-items: center; gap: .65rem; min-height: 3rem; padding-inline: 1rem; margin-bottom: .8rem; border-radius: 2rem; background: var(--app-surface-soft); color: var(--app-text-muted); }
+.react-playlist-catalog-search input { width: 100%; min-width: 0; padding: .65rem 0; border: 0; background: transparent; color: var(--app-text); outline: 1px solid transparent; outline-offset: -1px; }
+.react-playlist-catalog-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.react-playlist-catalog-search:has(input:focus-visible) { outline: 1px solid var(--app-accent); outline-offset: -1px; }
+.react-playlist-catalog-search button { display: grid; place-items: center; flex: 0 0 2rem; width: 2rem; height: 2rem; border: 0; border-radius: 50%; background: transparent; color: var(--app-text-muted); cursor: pointer; }
+.react-playlist-catalog-list { margin: 0; padding: 0; list-style: none; }
+.react-playlist-catalog-row { position: relative; display: grid; grid-template-columns: 3.8rem minmax(0, 1fr) 1rem; align-items: center; gap: .85rem; width: 100%; min-height: 4.9rem; padding: .55rem 0; border: 0; background: transparent; color: var(--app-text); text-align: start; cursor: pointer; }
+.react-playlist-catalog-row::after { content: ''; position: absolute; inset-inline: 4.65rem 0; bottom: 0; height: 1px; background: var(--app-border); }
+.react-playlist-catalog-list > li:last-child .react-playlist-catalog-row::after { display: none; }
+.react-playlist-catalog-cover { display: grid; width: 3.8rem; height: 3.8rem; place-items: center; overflow: hidden; border-radius: .45rem; background: var(--app-accent-soft); color: var(--app-accent); font-size: 1.5rem; }
+.react-playlist-catalog-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.react-playlist-catalog-copy { display: grid; min-width: 0; gap: .2rem; }
+.react-playlist-catalog-copy strong { display: -webkit-box; overflow: hidden; font-size: 1.02rem; font-weight: 500; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.react-playlist-catalog-copy small { color: var(--app-text-muted); font-size: .76rem; }
+.react-playlist-catalog-row > i { color: var(--app-text-dim); font-size: .8rem; }
+.react-playlist-catalog-row:hover { background: color-mix(in srgb, var(--app-accent) 3%, transparent); }
+
+.react-sidebar-tools { flex: 0 0 auto; padding: .2rem .65rem .8rem; border-bottom: 1px solid var(--app-border); margin-bottom: .5rem; }
+.react-sidebar-brand-row { display: flex; align-items: center; gap: .65rem; margin-bottom: .8rem; color: var(--app-text); }
+.react-sidebar-brand-row img { border-radius: .55rem; }
+.react-sidebar-brand-row strong { font-size: 1rem; font-weight: 700; }
+.react-sidebar-history { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+.react-sidebar-history button { display: flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.4rem; border: 1px solid var(--app-border); border-radius: .65rem; background: var(--app-surface-solid); color: var(--app-text-muted); font-size: .78rem; cursor: pointer; transition: background var(--app-motion-fast), color var(--app-motion-fast); }
+.react-sidebar-history button:hover { background: var(--app-accent-soft); color: var(--app-accent); }
+@media (min-width: 721px) {
+    .react-player-topbar { display: none !important; }
+    .react-player-main { grid-template-rows: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .react-sidebar-history button { transition: none; }
 }

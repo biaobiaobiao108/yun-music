@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { playlistIcon } from './api'
-import { Icon, Loading, SafeImage, SongList } from './components'
+import { Icon, Loading, SafeImage, SelectMenu, SongList } from './components'
+import { filterPlaylistCatalog, type PlaylistSort } from './playlist_catalog'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { selectLoveList, selectUserLists, useAuthStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore } from './store'
 import type { Song } from './types'
@@ -87,17 +88,21 @@ export function MyPlaylistsView() {
   const error = useLibraryStore(state => state.error)
   const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
   const setDialog = usePlayerUiStore(state => state.setDialog)
-  return <ViewFrame title="歌单" actions={<button type="button" className="react-player-button react-mobile-create-list" onClick={() => setDialog('createList')} aria-label="新建歌单"><Icon name="plus" /></button>}>
+  const [keyword, setKeyword] = useState('')
+  const [sort, setSort] = useState<PlaylistSort>('default')
+  const visibleLists = useMemo(() => filterPlaylistCatalog(userLists, keyword, sort), [userLists, keyword, sort])
+  return <ViewFrame title="歌单" actions={<div className="react-playlist-catalog-actions"><button type="button" className="react-player-button react-mobile-create-list" onClick={() => setDialog('createList')} aria-label="新建歌单"><Icon name="plus" /></button><SelectMenu label="歌单排序" value={sort} options={[{ value: 'default', label: '默认顺序' }, { value: 'name', label: '按名称' }, { value: 'songs', label: '歌曲最多' }]} onChange={value => setSort(value as PlaylistSort)} /></div>}>
     <section className="react-my-playlists" aria-label="自建歌单">
-      {loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : userLists.length ? <div className="react-playlist-grid react-home-playlists">{userLists.map(list => {
+      <label className="react-playlist-catalog-search"><Icon name="search" /><input type="search" aria-label="搜索歌单" placeholder="搜索歌单" value={keyword} onChange={event => setKeyword(event.target.value)} />{keyword && <button type="button" aria-label="清空歌单搜索" onClick={() => setKeyword('')}><Icon name="xmark" /></button>}</label>
+      {loading ? <Loading label="正在加载歌单…" /> : error ? <p className="react-error" role="alert">{error}</p> : visibleLists.length ? <ul className="react-playlist-catalog-list">{visibleLists.map(list => {
         const first = list.list?.[0]
-        const showIcon = Boolean(list.icon) || !first
-        return <button type="button" className="react-home-playlist" key={String(list.id)} onClick={() => openFavoriteList(String(list.id))}>
-          <span className={`react-home-playlist-media ${showIcon ? 'is-icon' : ''}`}>{showIcon ? <Icon name={playlistIcon(list.icon)} /> : <SafeImage src={songImage(first)} width="112" height="112" loading="lazy" alt="" />}</span>
-          <span className="react-home-playlist-copy"><strong>{list.name}</strong><small>{list.list?.length ?? 0} 首歌曲</small></span>
-          <span className="react-home-playlist-arrow" aria-hidden="true"><Icon name="chevron-right" /></span>
-        </button>
-      })}</div> : <div className="react-home-empty"><Icon name="list" /><p>还没有自建歌单</p><button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 创建歌单</button></div>}
+        const cover = list.img || list.pic || list.picUrl || list.image || (first && songImage(first))
+        return <li key={String(list.id)}><button type="button" className="react-playlist-catalog-row" onClick={() => openFavoriteList(String(list.id))}>
+          <span className={`react-playlist-catalog-cover ${cover ? '' : 'is-icon'}`}>{cover ? <SafeImage src={cover} width="64" height="64" loading="lazy" alt="" /> : <Icon name={playlistIcon(list.icon)} />}</span>
+          <span className="react-playlist-catalog-copy"><strong>{list.name}</strong><small>{list.list?.length ?? 0} 首歌曲</small></span>
+          <Icon name="chevron-right" />
+        </button></li>
+      })}</ul> : <div className="react-home-empty"><Icon name="list" /><p>{keyword ? '没有匹配的歌单' : '还没有自建歌单'}</p>{keyword ? <button type="button" className="react-text-button" onClick={() => setKeyword('')}>清空搜索</button> : <button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 创建歌单</button>}</div>}
     </section>
   </ViewFrame>
 }
