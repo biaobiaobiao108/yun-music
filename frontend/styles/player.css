@@ -11791,9 +11791,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 .react-footer-open-player:disabled { cursor: default; }
 .react-mobile-settings-button { display: none !important; }
 .react-mobile-navigation { display: none; }
-.react-mobile-discover-links,
-.react-mobile-library-links,
-.react-mobile-library-recent { display: none; }
+.react-mobile-discover-links { display: none; }
 @media (max-width: 720px) {
     html,
     body,
@@ -11996,31 +11994,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-detail-hero img { width: 5.25rem; border-radius: .7rem; }
     .react-detail-hero h1 { font-size: 1.2rem; }
     .react-detail-header .react-secondary-button { min-height: 2.6rem; }
-
-    .react-mobile-library { display: grid; gap: 1.45rem; }
-    .react-mobile-library-links { display: grid; }
-    .react-mobile-library-link {
-        display: grid;
-        min-height: 4.05rem;
-        grid-template-columns: 2.45rem minmax(0, 1fr) auto;
-        align-items: center;
-        gap: .72rem;
-        padding: .42rem .1rem;
-        border: 0;
-        border-bottom: 1px solid var(--app-border);
-        background: transparent;
-        color: var(--app-text);
-        text-align: start;
-        cursor: pointer;
-    }
-    .react-mobile-library-link:last-child { border-bottom: 0; }
-    .react-mobile-library-link-icon { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .68rem; background: var(--app-accent-soft); color: var(--app-accent); font-size: 1.05rem; }
-    .react-mobile-library-link-copy { display: grid; min-width: 0; gap: .16rem; }
-    .react-mobile-library-link-copy strong { font-size: .96rem; font-weight: 600; }
-    .react-mobile-library-link-copy small { color: var(--app-text-muted); font-size: .72rem; }
-    .react-mobile-library-link > i:last-child { color: var(--app-text-dim); font-size: .72rem; }
-    .react-mobile-library-recent { display: block; }
-    .react-mobile-library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
     .react-mobile-discover-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-bottom: .8rem; }
     .react-mobile-discover-links > button {
@@ -12340,7 +12313,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 
 @media (prefers-reduced-motion: reduce) {
     .react-mobile-navigation-item,
-    .react-mobile-library-link,
     .react-mobile-discover-links > button,
     .react-player-drawer.react-glass-drawer,
     .react-player-drawer.react-glass-drawer.is-open,
@@ -12348,6 +12320,45 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
+}
+
+/* Align desktop home artwork grids while keeping their density responsive. */
+@media (min-width: 721px) {
+    .react-artwork-grid.react-home-songs-grid {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, auto));
+        grid-auto-rows: 0;
+        gap: 1rem .8rem;
+        overflow: hidden;
+    }
+
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 7) { display: block; }
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 25) { display: none; }
+
+    .react-artwork-grid.react-home-artist-row {
+        grid-template-columns: none;
+        grid-template-rows: auto;
+        grid-auto-flow: column;
+        grid-auto-columns: clamp(3.65rem, 4.4vw, 5.25rem);
+        grid-auto-rows: auto;
+        gap: 1rem .8rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: none;
+    }
+
+    .react-artwork-grid.react-home-artist-row::-webkit-scrollbar { display: none; }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+    .react-artwork-grid.react-home-songs-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 13) { display: none; }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+    .react-artwork-grid.react-home-songs-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 17) { display: none; }
 }
 
 /* Apple Music inspired player composition: editorial home, library overview and calmer desktop chrome. */
@@ -12465,28 +12476,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-rail { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-columns: initial; overflow: visible; }
     .react-home-playlists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-    .react-mobile-library {
-        display: grid;
-        grid-template-columns: minmax(16rem, .68fr) minmax(0, 1.32fr);
-        align-items: start;
-        gap: 1.5rem clamp(1.4rem, 3vw, 3rem);
-    }
-    .react-mobile-library-links {
-        display: grid;
-        grid-column: 1;
-        overflow: hidden;
-        padding: .2rem .85rem;
-        border: 1px solid var(--app-border);
-        border-radius: 1rem;
-        background: var(--app-surface-solid);
-    }
-    .react-mobile-library-link { min-height: 4.3rem; }
-    .react-mobile-library-link:hover { color: var(--app-accent); }
-    .react-mobile-library-playlists { grid-column: 1; }
-    .react-mobile-library-playlists .react-home-section-heading { align-items: center; }
-    .react-mobile-library-playlists .react-home-playlists { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
-    .react-mobile-library-recent { display: block; grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
-    .react-mobile-library-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 .react-home-feature,
@@ -12523,8 +12512,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-welcome > p:not(.react-eyebrow) { margin: 0 0 .3rem; color: var(--app-text-muted); font-size: .82rem; }
     .react-home-welcome .react-eyebrow { margin: 0; color: var(--app-accent); font-size: .62rem; font-weight: 700; letter-spacing: .1em; }
     .react-home-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .react-mobile-library-playlists { display: block; }
-    .react-mobile-library-playlists .react-home-playlists { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
