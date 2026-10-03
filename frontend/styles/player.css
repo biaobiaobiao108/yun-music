@@ -12668,6 +12668,33 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     }
 }
 
+.react-view-header-brand { align-items: center; }
+.react-view-title-brand { display: flex; min-width: 0; align-items: center; gap: .82rem; }
+.react-view-title-brand > img {
+    display: block;
+    width: clamp(2.65rem, 3.6vw, 3.15rem);
+    height: clamp(2.65rem, 3.6vw, 3.15rem);
+    flex: 0 0 auto;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 82%, transparent);
+    border-radius: .82rem;
+    object-fit: cover;
+    box-shadow: var(--app-shadow-soft);
+}
+.react-view-title-brand h1 {
+    min-width: 0;
+    font-size: clamp(1.9rem, 3vw, 2.4rem);
+    font-weight: 760;
+    line-height: 1.08;
+    letter-spacing: -.055em;
+}
+
+@media (max-width: 760px) {
+    .react-view-header-brand { align-items: center; }
+    .react-view-title-brand { gap: .68rem; }
+    .react-view-title-brand > img { width: 2.55rem; height: 2.55rem; border-radius: .68rem; }
+    .react-view-title-brand h1 { font-size: clamp(1.8rem, 8vw, 2.2rem); line-height: 1.1; }
+}
+
 /* Mobile lists: lightweight navigation rows and artwork-first music entries. */
 @media (max-width: 760px) {
     .react-view:has(.react-mobile-library) > .react-view-header {
