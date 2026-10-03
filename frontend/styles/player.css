@@ -12239,6 +12239,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
 }
+
 /* Apple Music inspired player composition: editorial home, library overview and calmer desktop chrome. */
 @media (min-width: 721px) {
     .react-sidebar {
@@ -12426,6 +12427,93 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         transition-duration: 0.01ms !important;
     }
     .react-home-feature:hover .react-home-feature-art { transform: none; }
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
+}
+
+/* A compact album-led continuation row keeps recent listening in focus. */
+.react-home-page { gap: 1.7rem; padding-block-end: 7rem; }
+.react-home-feature {
+    min-height: 8rem;
+    grid-template-columns: 6.5rem minmax(0, 1fr) 2.8rem;
+    gap: 1rem;
+    padding: .75rem 1rem;
+    border-radius: 1rem;
+    background: var(--app-surface-soft);
+    box-shadow: none;
+}
+.react-home-feature::before {
+    background: radial-gradient(ellipse at 100% 0, var(--app-accent-soft), transparent 48%);
+    opacity: .45;
+}
+.react-home-feature-art {
+    width: 6.5rem;
+    justify-self: start;
+    border-radius: .75rem;
+    box-shadow: none;
+    transform: none;
+}
+.react-home-feature-copy { gap: .28rem; }
+.react-home-feature-copy > small {
+    color: var(--app-accent);
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .025em;
+    text-transform: none;
+}
+.react-home-feature-copy > strong {
+    display: -webkit-box;
+    overflow: hidden;
+    max-width: none;
+    font-size: clamp(1.05rem, 1.65vw, 1.45rem);
+    line-height: 1.24;
+    letter-spacing: -.025em;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+.react-home-feature-copy > span { font-size: .88rem; }
+.react-home-feature-play {
+    display: grid;
+    width: 2.8rem;
+    height: 2.8rem;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--app-accent);
+    color: var(--app-on-accent, #fff);
+    font-size: .95rem;
+}
+.react-home-feature:hover .react-home-feature-art { transform: none; }
+.react-home-welcome { min-height: 12rem; padding: clamp(1.1rem, 2.5vw, 2rem); border-radius: 1rem; }
+
+@media (max-width: 720px) {
+    .react-home-page { gap: 1.25rem; padding-block-end: 0; }
+    .react-home-feature {
+        min-height: 0;
+        grid-template-columns: 4.5rem minmax(0, 1fr) 2.5rem;
+        gap: .7rem;
+        padding: .6rem;
+        border-radius: .9rem;
+    }
+    .react-home-feature-art { width: 4.5rem; border-radius: .62rem; }
+    .react-home-feature-copy { gap: .2rem; }
+    .react-home-feature-copy > small { font-size: .63rem; }
+    .react-home-feature-copy > strong { font-size: .92rem; line-height: 1.2; }
+    .react-home-feature-copy > span { overflow: hidden; font-size: .73rem; text-overflow: ellipsis; white-space: nowrap; }
+    .react-home-feature-play { width: 2.45rem; height: 2.45rem; font-size: .82rem; }
+}
+@media (max-width: 360px) {
+    .react-home-feature { grid-template-columns: 3.8rem minmax(0, 1fr) 2.3rem; gap: .55rem; padding: .5rem; }
+    .react-home-feature-art { width: 3.8rem; }
+    .react-home-feature-play { width: 2.25rem; height: 2.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-home-feature,
+    .react-home-feature-art,
+    .react-player-drawer.react-glass-drawer,
+    .react-player-drawer.react-glass-drawer.is-open,
+    .react-player-drawer.react-glass-drawer:not(.is-open) { transition: none; }
+    .react-home-feature:hover .react-home-feature-art,
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
 }

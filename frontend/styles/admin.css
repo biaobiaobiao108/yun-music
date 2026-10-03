@@ -7385,3 +7385,38 @@ body:has(.admin-react-login) {
     .admin-react-shell *, .admin-react-dialog *, .admin-react-login * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     .admin-react-shell .sidebar-nav .nav-item:hover, .admin-react-button:hover:not(:disabled) { transform: none; }
 }
+
+/* Keep the console header aligned with its content instead of floating above it. */
+.admin-react-shell .admin-react-topbar {
+    position: relative;
+    inset-block-start: auto;
+    z-index: 1;
+    box-sizing: border-box;
+    display: flex;
+    min-width: 0;
+    min-height: 4rem;
+    align-items: center;
+    gap: .8rem;
+    padding: .55rem 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: .85rem;
+    background: var(--app-surface-solid);
+    box-shadow: none;
+    color: var(--app-text);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.admin-react-shell .admin-react-topbar > div:nth-child(2) { min-width: 0; flex: 1 1 auto; margin: 0; }
+.admin-react-shell .admin-react-topbar h1 { margin: 0; color: var(--app-text); font-size: 1.12rem; line-height: 1.2; }
+.admin-react-shell .admin-react-topbar .admin-react-eyebrow { margin: 0 0 .12rem; line-height: 1.2; }
+.admin-react-shell .admin-react-top-actions { flex: 0 0 auto; margin-inline-start: auto; }
+
+@media (max-width: 900px) {
+    .admin-react-shell .admin-react-topbar { position: relative; inset-block-start: auto; min-height: 3.85rem; padding: .4rem .55rem; }
+}
+@media (max-width: 620px) {
+    .admin-react-shell .admin-react-topbar { min-height: 3.65rem; gap: .4rem; padding: .32rem .42rem; }
+    .admin-react-shell .admin-react-topbar h1 { font-size: 1rem; }
+    .admin-react-shell .admin-react-topbar .admin-react-eyebrow { display: none; }
+    .admin-react-shell .admin-react-top-actions { gap: .08rem; }
+}
