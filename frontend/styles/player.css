@@ -6891,33 +6891,6 @@ textarea:focus-visible {
     box-shadow: 0 0 0 .2rem var(--app-accent-soft);
 }
 
-.react-tag-list {
-    display: flex;
-    flex: 1 1 18rem;
-    gap: .35rem;
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
-}
-
-.react-tag-list button {
-    flex: 0 0 auto;
-    min-height: 2.2rem;
-    padding: .4rem .75rem;
-    border: 1px solid var(--app-border);
-    border-radius: 999px;
-    background: transparent;
-    color: var(--app-text-muted);
-    cursor: pointer;
-}
-
-.react-tag-list button:hover,
-.react-tag-list button.is-active {
-    border-color: var(--app-accent);
-    background: var(--app-accent-soft);
-    color: var(--app-accent);
-}
-
 .react-song-list {
     display: grid;
     gap: 0;
@@ -12322,10 +12295,10 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
 }
 
-/* Align desktop home artwork grids while keeping their density responsive. */
+/* Desktop recent and favorite art uses the same six-column, two-row grid. */
 @media (min-width: 721px) {
     .react-artwork-grid.react-home-songs-grid {
-        grid-template-columns: repeat(12, minmax(0, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         grid-template-rows: repeat(2, minmax(0, auto));
         grid-auto-rows: 0;
         gap: 1rem .8rem;
@@ -12333,7 +12306,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     }
 
     .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 7) { display: block; }
-    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 25) { display: none; }
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 13) { display: none; }
 
     .react-artwork-grid.react-home-artist-row {
         grid-template-columns: none;
@@ -12349,16 +12322,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     }
 
     .react-artwork-grid.react-home-artist-row::-webkit-scrollbar { display: none; }
-}
-
-@media (min-width: 721px) and (max-width: 900px) {
-    .react-artwork-grid.react-home-songs-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 13) { display: none; }
-}
-
-@media (min-width: 901px) and (max-width: 1100px) {
-    .react-artwork-grid.react-home-songs-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 17) { display: none; }
 }
 
 /* Apple Music inspired player composition: editorial home, library overview and calmer desktop chrome. */

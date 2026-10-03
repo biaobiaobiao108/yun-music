@@ -1,19 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { playerApi, playlistIcon } from './api'
-import { Button, Icon, Loading, SafeImage, SelectMenu, SongList } from './components'
+import { playlistIcon } from './api'
+import { Icon, Loading, SafeImage, SongList } from './components'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import { selectLoveList, selectUserLists, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore } from './store'
 import type { Song } from './types'
 import { songAlbum, songArtist, songImage, songKey, songTitle } from './types'
 import { ViewFrame } from './view_frame'
-
-function listOf(payload: unknown, keys: string[] = ['list', 'data', 'result', 'songs']): Song[] {
-  if (Array.isArray(payload)) return payload as Song[]
-  if (!payload || typeof payload !== 'object') return []
-  const record = payload as Record<string, unknown>
-  for (const key of keys) if (Array.isArray(record[key])) return record[key] as Song[]
-  return []
-}
 
 function sourceOf(song: Song): string {
   return String(song.source || song.platform || 'wy')
@@ -82,32 +74,3 @@ function MediaGrid({ kind }: { kind: 'album' | 'artist' }) {
 
 export function LibraryAlbumsView() { return <MediaGrid kind="album" /> }
 export function LibraryArtistsView() { return <MediaGrid kind="artist" /> }
-
-type GenreTag = { id: string; name: string }
-
-export function GenresView() {
-  const [source, setSource] = useState('wy')
-  const [tags, setTags] = useState<GenreTag[]>([])
-  const [selected, setSelected] = useState('')
-  const [songs, setSongs] = useState<Song[]>([])
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    const controller = new AbortController()
-    let active = true
-    void playerApi.songListTags(source, controller.signal, { cacheKey: `songlist:tags:${source}`, cacheTtlMs: 300_000 }).then(payload => {
-      const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
-      const values = Array.isArray(record.tags) ? record.tags : Array.isArray(record.categories) ? record.categories : Array.isArray(payload) ? payload : []
-      if (active) setTags(values.map((value, index) => typeof value === 'string' ? { id: value, name: value } : { id: String((value as Record<string, unknown>).id ?? (value as Record<string, unknown>).tagId ?? index), name: String((value as Record<string, unknown>).name ?? (value as Record<string, unknown>).title ?? '未命名') }))
-    }).catch(() => { if (active) setTags([]) })
-    return () => { active = false; controller.abort() }
-  }, [source])
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true); setError('')
-    void playerApi.songList(source, selected, 'hot', page, controller.signal, { cacheKey: `songlist:${source}:${selected}:hot:${page}`, cacheTtlMs: 60_000 }).then(payload => { if (!controller.signal.aborted) setSongs(listOf(payload)) }).catch(cause => { if (!controller.signal.aborted) { setSongs([]); setError(cause instanceof Error ? cause.message : '风格内容加载失败') } }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
-    return () => controller.abort()
-  }, [page, selected, source])
-  return <ViewFrame title="风格"><section className="react-genres-view"><div className="react-toolbar-card t-bg-panel"><div className="react-toolbar-field"><span>音源</span><SelectMenu label="音源" value={source} options={[{ value: 'wy', label: '网易云' }, { value: 'tx', label: 'QQ音乐' }]} onChange={value => { setSource(value); setSelected(''); setPage(1) }} /></div><div className="react-tag-list" aria-label="风格分类"><button type="button" className={!selected ? 'is-active' : ''} onClick={() => { setSelected(''); setPage(1) }}>全部</button>{tags.map(tag => <button type="button" key={tag.id} className={selected === tag.id ? 'is-active' : ''} onClick={() => { setSelected(tag.id); setPage(1) }}>{tag.name}</button>)}</div></div><section className="react-content-card t-bg-panel"><div className="react-section-heading"><div><h2>{selected ? tags.find(tag => tag.id === selected)?.name ?? '风格歌单' : '热门歌单'}</h2><p>第 {page} 页</p></div></div>{loading ? <Loading /> : error ? <p className="react-error" role="alert">{error}</p> : <SongList songs={songs} empty="这个风格暂时没有歌单" />}<div className="react-pagination react-pagination-bottom"><Button aria-label="上一页" disabled={page <= 1 || loading} onClick={() => setPage(value => value - 1)}><Icon name="chevron-left" /></Button><span>第 {page} 页</span><Button aria-label="下一页" disabled={loading || songs.length < 20} onClick={() => setPage(value => value + 1)}><Icon name="chevron-right" /></Button></div></section></section></ViewFrame>
-}

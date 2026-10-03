@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { playerApi, playlistIcon, type CacheTask } from './api'
 import { Button, Drawer, DrawerState, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
-import { HomeView, GenresView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
+import { HomeView, LibraryAlbumsView, LibraryArtistsView, RecentView } from './library_views'
 import { connectAudioCommands, connectPlaybackServiceStore, selectUserLists, useAuthStore, useCacheStore, useLibraryStore, useMediaLibraryStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore, useSleepTimerStore } from './store'
 import { formatSongDuration, songAlbum, songArtist, songDurationValue, songImage, songKey, songTitle, type PlayerDetail, type PlayerTab, type Song } from './types'
 import { safeImageUrl } from '../../../shared/src/runtime'
@@ -136,7 +136,6 @@ const NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
 
 const MORE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'leaderboard', label: '排行榜', icon: 'chart-line' },
-  { id: 'genres', label: '分类', icon: 'shapes' },
   { id: 'favorites', label: '我的收藏', icon: 'heart' },
   { id: 'albums', label: '专辑', icon: 'compact-disc' },
   { id: 'artists', label: '艺人', icon: 'user' },
@@ -153,7 +152,8 @@ function PlayerView({ tab, detail }: { tab: PlayerTab; detail: PlayerDetail | nu
       case 'recent': return <RecentView />
       case 'albums': return detail?.page === 'search-detail' ? <SearchDetailView detail={detail} /> : <LibraryAlbumsView />
       case 'artists': return detail?.page === 'search-detail' ? <SearchDetailView detail={detail} /> : <LibraryArtistsView />
-      case 'genres': return <GenresView />
+      // Route old category links into discovery after retiring the old page.
+      case 'genres': return <SongListView detail={detail?.page === 'songlist-detail' ? detail : null} />
       case 'songlist': return <SongListView detail={detail?.page === 'songlist-detail' ? detail : null} />
       case 'leaderboard': return <LeaderboardView />
       case 'favorites': return <FavoritesView />
