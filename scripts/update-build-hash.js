@@ -55,7 +55,10 @@ window.CONFIG = {
 `;
 
 if (await configFile.exists()) {
-    configContent = await configFile.text();
+    // Concurrent watch builds can leave an empty file after an interrupted
+    // write. Regenerate the template instead of preserving that empty output.
+    const existingContent = await configFile.text();
+    if (existingContent.trim()) configContent = existingContent;
 
     if (configContent.includes('buildHash:')) {
         configContent = configContent.replace(/buildHash:\s*['"][^'"]*['"]/, `buildHash: '${finalHash}'`);

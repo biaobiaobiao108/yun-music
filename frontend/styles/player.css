@@ -11803,13 +11803,22 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         width: 100%;
         height: 100%;
         min-height: 0;
-        padding: max(3.85rem, calc(3.25rem + env(safe-area-inset-top, 0px))) .85rem calc(9rem + env(safe-area-inset-bottom, 0px));
+        padding: max(3.85rem, calc(3.25rem + env(safe-area-inset-top, 0px))) .85rem 0;
+        scroll-padding-block-end: calc(9rem + env(safe-area-inset-bottom, 0px));
         overflow-x: hidden;
         overscroll-behavior-y: contain;
         scrollbar-width: none;
     }
 
     #player-main-content.react-player-content::-webkit-scrollbar { display: none; }
+    /* A real final block remains in Safari's scrollable overflow even when
+       the last view has its own sizing or the footer floats above content. */
+    #player-main-content.react-player-content::after {
+        content: '';
+        display: block;
+        block-size: calc(9rem + env(safe-area-inset-bottom, 0px));
+        flex-shrink: 0;
+    }
 
     .react-player-topbar {
         inset-block-start: env(safe-area-inset-top, 0px);
@@ -11943,7 +11952,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-view-hide-actions-mobile > .react-view-header > .react-view-header-actions { display: none !important; }
     .react-view-hide-actions-mobile > .react-view-header { margin-bottom: .65rem; }
     .react-view-hide-actions-mobile > .react-view-header > div { flex-basis: 100%; }
-    .react-view-hide-actions-mobile > .react-view-header h1 { font-size: clamp(1.3rem, 6vw, 1.55rem); line-height: 1.25; }
     .react-view-header .react-mobile-create-list { width: 2.55rem; min-height: 2.55rem; padding: 0; border-radius: 50%; }
     .react-home-page { gap: 1.55rem; }
     .react-home-shortcuts { gap: .5rem; }
@@ -12007,22 +12015,22 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-detail-header .react-secondary-button { min-height: 2.6rem; }
 
     .react-mobile-discover-links { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; margin-bottom: .8rem; }
-    #view-songlist > .react-toolbar-card,
-    #view-songlist > .react-content-card {
+    #react-view-songlist > .react-toolbar-card,
+    #react-view-songlist > .react-content-card {
         padding: 0;
         border: 0 !important;
         border-radius: 0 !important;
         background: transparent !important;
         box-shadow: none;
     }
-    #view-songlist > .react-toolbar-card { gap: .65rem; margin-block: 1rem; }
-    #view-songlist > .react-content-card { margin-top: 1.25rem; }
-    #view-songlist .react-playlist-grid { gap: 1rem .75rem; }
-    #view-songlist .react-playlist-card > button { padding: 0; border: 0; box-shadow: none; transform: none; }
-    #view-songlist .react-playlist-card img { height: auto; aspect-ratio: 1; transform: none; }
-    #view-songlist .react-mobile-discover-links > button { min-height: 4rem; padding: .8rem; gap: .15rem .75rem; }
-    #view-songlist .react-mobile-discover-links > button > strong { font-size: .9rem; }
-    #view-songlist .react-mobile-discover-links > button > small { font-size: .72rem; }
+    #react-view-songlist > .react-toolbar-card { gap: .65rem; margin-block: 1rem; }
+    #react-view-songlist > .react-content-card { margin-top: 1.25rem; }
+    #react-view-songlist .react-playlist-grid { gap: 1rem .75rem; }
+    #react-view-songlist .react-playlist-card > button { padding: 0; border: 0; box-shadow: none; transform: none; }
+    #react-view-songlist .react-playlist-card img { height: auto; aspect-ratio: 1; transform: none; }
+    #react-view-songlist .react-mobile-discover-links > button { min-height: 4rem; padding: .8rem; gap: .15rem .75rem; }
+    #react-view-songlist .react-mobile-discover-links > button > strong { font-size: .9rem; }
+    #react-view-songlist .react-mobile-discover-links > button > small { font-size: .72rem; }
     .react-mobile-discover-links > button {
         display: grid;
         min-width: 0;
@@ -12709,22 +12717,10 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-view-header-brand { align-items: center; }
     .react-view-title-brand { gap: .68rem; }
     .react-view-title-brand > img { width: 2.55rem; height: 2.55rem; border-radius: .68rem; }
-    .react-view-title-brand h1 { font-size: clamp(1.8rem, 8vw, 2.2rem); line-height: 1.1; }
 }
 
 /* Mobile lists: lightweight navigation rows and artwork-first music entries. */
 @media (max-width: 760px) {
-    .react-view:has(.react-mobile-library) > .react-view-header {
-        margin-bottom: 1.15rem;
-        padding-top: .12rem;
-    }
-
-    .react-view:has(.react-mobile-library) > .react-view-header h1 {
-        font-size: clamp(2.15rem, 9vw, 2.8rem);
-        line-height: 1.05;
-        letter-spacing: -.055em;
-    }
-
     .react-mobile-library { gap: 1.75rem; }
 
     .react-mobile-library-links {
@@ -12763,12 +12759,12 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-mobile-library-link-copy small { font-size: .72rem; }
     .react-mobile-library-link > i:last-child { padding-inline: .25rem; color: var(--app-text-dim); font-size: .88rem; }
 
-    .react-mobile-library-playlists .react-home-playlists {
+    .react-my-playlists .react-home-playlists {
         grid-template-columns: minmax(0, 1fr);
         gap: 0;
     }
 
-    .react-mobile-library-playlists .react-home-playlist {
+    .react-my-playlists .react-home-playlist {
         min-height: 4.3rem;
         gap: .8rem;
         padding: .45rem .1rem;
@@ -12779,14 +12775,13 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         box-shadow: none;
     }
 
-    .react-mobile-library-playlists .react-home-playlist:last-child { border-bottom: 0; }
-    .react-mobile-library-playlists .react-home-playlist-surface { display: none; }
-    .react-mobile-library-playlists .react-home-playlist-media { width: 2.65rem; height: 2.65rem; border-radius: .55rem; }
-    .react-mobile-library-playlists .react-home-playlist-media.is-icon { background: var(--app-accent-soft); }
-    .react-mobile-library-playlists .react-home-playlist-copy { gap: .12rem; }
-    .react-mobile-library-playlists .react-home-playlist strong { font-size: .91rem; font-weight: 600; }
-    .react-mobile-library-playlists .react-home-playlist small { font-size: .73rem; }
-    .react-mobile-library-playlists .react-home-playlist-arrow { opacity: 1; transform: none; }
+    .react-my-playlists .react-home-playlist:last-child { border-bottom: 0; }
+    .react-my-playlists .react-home-playlist-media { width: 2.65rem; height: 2.65rem; border-radius: .55rem; }
+    .react-my-playlists .react-home-playlist-media.is-icon { background: var(--app-accent-soft); }
+    .react-my-playlists .react-home-playlist-copy { gap: .12rem; }
+    .react-my-playlists .react-home-playlist strong { font-size: .91rem; font-weight: 600; }
+    .react-my-playlists .react-home-playlist small { font-size: .73rem; }
+    .react-my-playlists .react-home-playlist-arrow { opacity: 1; transform: none; }
 
     .react-mobile-library .react-home-section-heading { margin-bottom: .65rem; }
 
@@ -12899,4 +12894,28 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-local-cache-row { grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem !important; }
     .react-local-cache-row .react-song-main { grid-column: 2; }
     .react-local-cache-row .react-song-actions { grid-column: 3; }
+}
+
+/* One heading contract for mobile navigation pages, including branded home
+   and views with toolbar actions. Content supplies the common left inset. */
+@media (max-width: 720px) {
+    #player-main-content .react-view > .react-view-header {
+        align-items: flex-start;
+        justify-content: space-between;
+        min-height: 2.75rem;
+        margin: 0 0 1rem;
+        padding: .2rem 0 .1rem;
+    }
+    #player-main-content .react-view > .react-view-header h1 {
+        margin: 0;
+        color: var(--app-text);
+        font-family: var(--font-sans);
+        font-size: 1.8rem;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -.035em;
+        text-align: start;
+    }
+    #player-main-content .react-view-title-brand > img { display: none; }
+    #player-main-content .react-view-title-brand { gap: 0; }
 }

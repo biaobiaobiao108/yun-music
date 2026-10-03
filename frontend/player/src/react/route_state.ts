@@ -3,7 +3,7 @@ import type { PlayerDetail, PlayerTab } from './types'
 export type PlayerNavigation = { tab: PlayerTab; detail: PlayerDetail | null; listId?: string }
 
 export const VALID_PLAYER_TABS: PlayerTab[] = [
-  'home', 'favorites', 'recent', 'albums', 'artists', 'genres', 'library',
+  'home', 'favorites', 'playlists', 'recent', 'albums', 'artists', 'genres', 'library',
   'search', 'songlist', 'leaderboard', 'localmusic', 'settings',
 ]
 

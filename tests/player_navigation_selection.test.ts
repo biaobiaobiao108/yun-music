@@ -1,11 +1,26 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { getSidebarActiveTab, parsePlayerHash, VALID_PLAYER_TABS } from '../frontend/player/src/react/route_state'
+import { getSidebarActiveTab, parsePlayerHash, serializePlayerHash, VALID_PLAYER_TABS } from '../frontend/player/src/react/route_state'
 import { usePlayerUiStore } from '../frontend/player/src/react/store/ui'
 
 const initialUi = usePlayerUiStore.getState()
 afterEach(() => usePlayerUiStore.setState(initialUi))
 
 describe('Player sidebar selection', () => {
+  it('opens the playlist collection separately from favorites and restores it from history', () => {
+    const ui = usePlayerUiStore.getState()
+    ui.openFavoriteList('playlist-1')
+    ui.setTab('playlists')
+    expect(usePlayerUiStore.getState()).toMatchObject({ tab: 'playlists', detail: null, favoriteListId: 'playlist-1' })
+    const route = parsePlayerHash(serializePlayerHash({ tab: 'playlists' }))
+    expect(route.tab).toBe('playlists')
+    ui.setTab('library')
+    ui.setTabFromHistory(route.tab)
+    expect(usePlayerUiStore.getState().tab).toBe('playlists')
+    ui.openFavoriteList('playlist-2')
+    expect(usePlayerUiStore.getState()).toMatchObject({ tab: 'favorites', favoriteListId: 'playlist-2' })
+    ui.openFavoriteList('love')
+    expect(usePlayerUiStore.getState()).toMatchObject({ tab: 'favorites', favoriteListId: 'love' })
+  })
   it('selects a custom playlist without selecting the love list, then switches back', () => {
     const ui = usePlayerUiStore.getState()
     ui.openFavoriteList('playlist-1')
