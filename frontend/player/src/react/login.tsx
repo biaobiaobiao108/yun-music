@@ -56,8 +56,8 @@ function LoginPage() {
   return (
     <main className="react-player-login-page">
       <div className="react-player-login-card">
-        <img src="assets/yun-yin.png" width="80" height="80" alt="云音图标" />
-        <h1>云音</h1>
+        <img src="assets/yun-yin.png" width="80" height="80" alt="云鹿音乐图标" />
+        <h1>云鹿音乐</h1>
         <p>输入密码以访问播放器</p>
         <form onSubmit={submit}>
           <label htmlFor="auth-password-input">访问密码</label>

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.10
-# Multi-stage Dockerfile for 云音 (Ultra-slim Bun Architecture)
+# Multi-stage Dockerfile for 云鹿音乐 (Ultra-slim Bun Architecture)
 
 ARG BUN_VERSION=1.4.2
 
@@ -54,7 +54,7 @@ COPY --from=builder /app/public ./public
 # 将系统 chromaprint (fpcalc) 直接软链接至播放器二进制目录，免去容器内外部下载
 RUN mkdir -p /server/public/music/bin && ln -sf /usr/bin/fpcalc /server/public/music/bin/fpcalc
 
-# 云音按 root 用户运行，以兼容宿主机挂载目录的权限模型。
+# 云鹿音乐按 root 用户运行，以兼容宿主机挂载目录的权限模型。
 RUN mkdir -p /server/data /server/cache /server/music /server/cover_cache
 USER root
 

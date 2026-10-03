@@ -265,10 +265,10 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
           <div className="react-footer-song">
             <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label="打开沉浸式歌词" disabled={!currentSong}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
             {mobileViewport ? <button type="button" className="react-footer-song-meta react-footer-open-player" onClick={openLyrics} aria-label="打开全屏播放器" disabled={!currentSong}>
-              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
+              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云鹿音乐'}</strong></div>
               <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
             </button> : <div className="react-footer-song-meta">
-              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云音'}</strong></div>
+              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云鹿音乐'}</strong></div>
               <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
             </div>}
           </div>

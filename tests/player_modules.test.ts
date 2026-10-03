@@ -345,7 +345,7 @@ describe('React player module boundaries', () => {
     expect(library).toContain('LibraryArtistsView')
     expect(library).not.toContain('react-home-shortcuts')
     expect(library).not.toContain('react-home-shortcut')
-    expect(library).toContain('react-home-feature-play')
+    expect(library).not.toContain('react-home-feature')
     expect(mediaLibrary).toContain('libraryAlbums')
     expect(mediaLibrary).toContain('libraryArtists')
     expect(adminCss).toContain('.admin-react-shell .admin-react-topbar {')

@@ -12517,3 +12517,28 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) { transform: none; }
 }
+
+/* History is nested in the single desktop action capsule. */
+.react-player-topbar .react-history-controls {
+    position: static;
+    inset: auto;
+    min-height: 0;
+    margin: 0 !important;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.react-player-topbar .react-topbar-actions {
+    inset-inline-start: auto;
+    inset-inline-end: 1.25rem;
+    gap: .2rem;
+}
+
+@media (max-width: 720px) {
+    .react-player-topbar .react-topbar-actions {
+        display: none !important;
+    }
+}

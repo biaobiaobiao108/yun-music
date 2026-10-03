@@ -44,6 +44,7 @@ test('external config reload preserves SQLite users and subsequent account write
   } finally {
     child.kill('SIGTERM')
     await child.exited
+    await Bun.sleep(200)
     fs.rmSync(directory, { recursive: true, force: true })
   }
 }, 10_000)

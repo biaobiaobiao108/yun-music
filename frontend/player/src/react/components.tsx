@@ -441,6 +441,6 @@ export function DescriptionDisclosure({ text }: { text: string }) {
 
 export function Loading({ label = '加载中…' }: { label?: string }) { return <div className="react-loading" role="status"><Icon name="spinner" /><span>{label}</span></div> }
 
-export function SongMeta({ song }: { song: Song | null }) { return <>{song ? <><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></> : <><strong>云音</strong><small>选择一首歌曲开始播放</small></>}</> }
+export function SongMeta({ song }: { song: Song | null }) { return <>{song ? <><strong>{songTitle(song)}</strong><small>{songArtist(song)}</small></> : <><strong>云鹿音乐</strong><small>选择一首歌曲开始播放</small></>}</> }
 
 export function Time({ value }: { value: number }) { return <span>{formatDuration(value)}</span> }

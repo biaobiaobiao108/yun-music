@@ -51,11 +51,7 @@ export function HomeView() {
   const visibleUserLists = userLists.slice(0, 6)
   const recentQueueIndex = (song: Song) => recent.findIndex(candidate => songKey(candidate) === songKey(song))
   return <ViewFrame title="首页"><section className="react-home-page">
-    {recent[0] ? <button type="button" className="react-home-feature" onClick={() => playSong(recent[0], recent, 0)} aria-label={`继续播放 ${songTitle(recent[0])}`}>
-      <span className="react-home-feature-art"><SafeImage src={songImage(recent[0])} width="560" height="560" alt="" /></span>
-      <span className="react-home-feature-copy"><small>继续聆听</small><strong>{songTitle(recent[0])}</strong><span>{songArtist(recent[0])}</span></span>
-      <span className="react-home-feature-play" aria-hidden="true"><Icon name="play" /></span>
-    </button> : <div className="react-home-welcome"><p className="react-eyebrow">云音 · MUSIC FOR EVERY MOMENT</p><h2>今天想听些什么？</h2><p>搜索一首歌，开启你的音乐时刻。</p><button type="button" className="react-player-button" onClick={() => setTab('search')}><Icon name="search" /> 搜索音乐</button></div>}
+    {!recent.length && <div className="react-home-welcome"><p className="react-eyebrow">云鹿音乐 · MUSIC FOR EVERY MOMENT</p><h2>今天想听些什么？</h2><p>搜索一首歌，开启你的音乐时刻。</p><button type="button" className="react-player-button" onClick={() => setTab('search')}><Icon name="search" /> 搜索音乐</button></div>}
     <section className="react-home-section"><div className="react-home-section-heading"><div><p className="react-eyebrow">最近听过</p><h2>最近播放</h2></div><button type="button" className="react-text-button" onClick={() => setTab('recent')}>查看全部 <Icon name="arrow-right" /></button></div>{recentAlbums.length ? <div className="react-artwork-grid react-home-rail">{recentAlbums.slice(0, 8).map(song => <ArtworkCard key={songKey(song)} song={song} onPlay={() => playSong(song, recent, recentQueueIndex(song))} />)}</div> : <div className="react-home-empty"><Icon name="clock" /><p>播放歌曲后，这里会显示你的最近播放</p><button type="button" className="react-text-button" onClick={() => setTab('search')}>去搜索音乐</button></div>}</section>
     <section className="react-home-section"><div className="react-home-section-heading"><div><p className="react-eyebrow">你的收藏</p><h2>我的歌单</h2></div><button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 新建歌单</button></div>{visibleUserLists.length ? <div className="react-playlist-grid react-home-playlists">{visibleUserLists.map((list, index) => { const first = list.list?.[0]; const showIcon = Boolean(list.icon) || !first; return <button type="button" className="react-home-playlist" key={`${list.id}-${index}`} onClick={() => openFavoriteList(String(list.id))}><span className="react-home-playlist-surface" aria-hidden="true" /><span className={`react-home-playlist-media ${showIcon ? 'is-icon' : ''}`}>{showIcon ? <Icon name={playlistIcon(list.icon)} /> : <SafeImage src={songImage(first)} width="112" height="112" loading="lazy" alt="" />}</span><span className="react-home-playlist-copy"><strong>{list.name}</strong><small>{list.list?.length ?? 0} 首歌曲</small></span><span className="react-home-playlist-arrow" aria-hidden="true"><Icon name="arrow-right" /></span></button> })}</div> : <div className="react-home-empty"><Icon name="list" /><p>还没有自定义歌单</p><button type="button" className="react-text-button" onClick={() => setDialog('createList')}><Icon name="plus" /> 创建歌单</button></div>}</section>
   </section></ViewFrame>
@@ -68,6 +64,7 @@ export function RecentView() {
 
 export function MobileLibraryView() {
   const setTab = usePlayerUiStore(state => state.setTab)
+  const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const openFavoriteList = usePlayerUiStore(state => state.openFavoriteList)
   const userLists = useLibraryStore(selectUserLists)
@@ -82,6 +79,8 @@ export function MobileLibraryView() {
     { icon: 'user', title: '艺人', detail: `${artists.length} 位`, onClick: () => setTab('artists') },
     { icon: 'compact-disc', title: '专辑', detail: `${albums.length} 张`, onClick: () => setTab('albums') },
     { icon: 'download', title: '本地音乐', detail: '已下载的歌曲', onClick: () => setTab('localmusic') },
+    { icon: 'cloud-arrow-down', title: '缓存任务', detail: '查看后台缓存进度', onClick: () => setDrawer('cache') },
+    { icon: 'gear', title: '设置', detail: '外观、播放与账户', onClick: () => setTab('settings') },
   ]
   return <ViewFrame title="资料库" actions={<button type="button" className="react-player-button react-mobile-create-list" onClick={() => setDialog('createList')} aria-label="新建歌单"><Icon name="plus" /></button>}>
     <section className="react-mobile-library" aria-label="音乐资料库">

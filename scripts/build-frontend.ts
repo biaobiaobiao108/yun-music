@@ -42,7 +42,9 @@ async function build() {
   const playerEntry = path.join(import.meta.dir, '../frontend/player/src/react/index.tsx')
   const playerLoginEntry = path.join(import.meta.dir, '../frontend/player/src/react/login.tsx')
   const adminHtmlSource = path.join(import.meta.dir, '../frontend/admin/index.html')
+  const adminManifestSource = path.join(import.meta.dir, '../frontend/admin/manifest.json')
   const playerHtmlSource = path.join(import.meta.dir, '../frontend/player/index.html')
+  const playerManifestSource = path.join(import.meta.dir, '../frontend/player/manifest.json')
   const playerLoginSource = path.join(import.meta.dir, '../frontend/player/login.html')
   const pageRuntimeSource = path.join(import.meta.dir, '../frontend/shared/src/page-runtime.js')
   const pageRuntimeTarget = path.join(publicRoot, 'js/page-runtime.js')
@@ -71,6 +73,12 @@ async function build() {
   }
   fs.mkdirSync(path.dirname(pageRuntimeTarget), { recursive: true })
   fs.copyFileSync(pageRuntimeSource, pageRuntimeTarget)
+
+  const brandIconSource = path.join(import.meta.dir, '../docs/assets/yun-yin.png')
+  for (const iconDirectory of [path.join(publicRoot, 'assets'), path.join(publicMusicRoot, 'assets')]) {
+    fs.mkdirSync(iconDirectory, { recursive: true })
+    fs.copyFileSync(brandIconSource, path.join(iconDirectory, 'yun-yin.png'))
+  }
 
   // These files belonged to the retired command-driven player. Remove stale
   // local build output so a previous build cannot keep shipping dead runtime
@@ -168,7 +176,9 @@ async function build() {
   const playerFileName = path.basename(playerOutput.path)
   const loginFileName = path.basename(loginOutput.path)
   copyHtml(adminHtmlSource, path.join(publicRoot, 'index.html'), adminFileName)
+  fs.copyFileSync(adminManifestSource, path.join(publicRoot, 'manifest.json'))
   copyHtml(playerHtmlSource, path.join(publicMusicRoot, 'index.html'), playerFileName)
+  fs.copyFileSync(playerManifestSource, path.join(publicMusicRoot, 'manifest.json'))
   copyHtml(playerLoginSource, path.join(publicMusicRoot, 'login.html'), loginFileName)
 
   // Keep old assets available until every new bundle and HTML reference has
