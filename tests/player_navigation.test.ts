@@ -366,6 +366,7 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('grid-template-columns: 6.5rem minmax(0, 1fr) 2.8rem;')
     expect(css).toContain('margin-top: .45rem;')
     expect(css).toContain('background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);')
+    expect(css).toContain('background-size: 100% .22rem;')
     expect(playerManifest).toContain('"sizes": "128x128"')
     expect(adminManifest).toContain('"sizes": "128x128"')
     expect(css).toContain('@keyframes react-home-playlist-drift')
