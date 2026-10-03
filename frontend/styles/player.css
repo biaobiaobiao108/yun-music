@@ -6907,6 +6907,7 @@ textarea:focus-visible {
 }
 
 .react-song-list.is-virtualized > .react-song-row {
+    box-sizing: border-box;
     position: absolute;
     inset-inline: 0;
     block-size: var(--react-song-row-height);
@@ -12005,7 +12006,23 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-detail-hero h1 { font-size: 1.2rem; }
     .react-detail-header .react-secondary-button { min-height: 2.6rem; }
 
-    .react-mobile-discover-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-bottom: .8rem; }
+    .react-mobile-discover-links { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; margin-bottom: .8rem; }
+    #view-songlist > .react-toolbar-card,
+    #view-songlist > .react-content-card {
+        padding: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none;
+    }
+    #view-songlist > .react-toolbar-card { gap: .65rem; margin-block: 1rem; }
+    #view-songlist > .react-content-card { margin-top: 1.25rem; }
+    #view-songlist .react-playlist-grid { gap: 1rem .75rem; }
+    #view-songlist .react-playlist-card > button { padding: 0; border: 0; box-shadow: none; transform: none; }
+    #view-songlist .react-playlist-card img { height: auto; aspect-ratio: 1; transform: none; }
+    #view-songlist .react-mobile-discover-links > button { min-height: 4rem; padding: .8rem; gap: .15rem .75rem; }
+    #view-songlist .react-mobile-discover-links > button > strong { font-size: .9rem; }
+    #view-songlist .react-mobile-discover-links > button > small { font-size: .72rem; }
     .react-mobile-discover-links > button {
         display: grid;
         min-width: 0;
@@ -12836,14 +12853,21 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-entity-grid .react-entity-open small { min-width: 0; text-align: start; }
     .react-entity-grid .react-entity-favorite { opacity: 1; }
 
+}
+
+/* Keep every song-table variant on the same mobile grid. Parent-qualified
+   desktop rules must not squeeze the title into the former index column. */
+@media (max-width: 760px) {
     .react-song-table { overflow: visible; }
     .react-song-head { display: none !important; }
-    .react-song-list { gap: 0; }
+    .react-song-list { --react-song-row-height: 4.55rem; gap: 0; }
 
     .react-song-row,
-    .react-song-row.is-selectable {
-        min-height: 4.55rem;
-        grid-template-columns: minmax(0, 1fr) 2.45rem 2.45rem;
+    .react-song-table--without-file-metadata .react-song-row,
+    .react-playlist-page .react-song-row.is-selectable,
+    .react-playlist-page .react-song-table--without-file-metadata .react-song-row.is-selectable {
+        min-height: var(--react-song-row-height);
+        grid-template-columns: minmax(0, 1fr) 2.45rem auto;
         column-gap: .25rem;
         padding: .4rem .05rem;
         border-bottom: 1px solid color-mix(in srgb, var(--app-border) 82%, transparent);
@@ -12851,7 +12875,10 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         background: transparent;
     }
 
-    .react-song-row.is-selectable { grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem 2.45rem; }
+    .react-song-row.is-selectable,
+    .react-song-table--without-file-metadata .react-song-row.is-selectable { grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem auto; }
+    .react-playlist-page .react-song-row.is-selectable,
+    .react-playlist-page .react-song-table--without-file-metadata .react-song-row.is-selectable { grid-template-columns: minmax(0, 1fr) 2.45rem auto; }
     .react-song-row:last-child { border-bottom: 0; }
     .react-song-index,
     .react-song-album,
@@ -12861,7 +12888,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 
     .react-song-main { min-height: 3.5rem; gap: .7rem; padding: 0; }
     .react-song-main > img { width: 3.05rem; height: 3.05rem; border-radius: .58rem; }
-    .react-song-text { gap: .18rem; }
+    .react-song-text { flex: 1; gap: .18rem; }
     .react-song-text strong { font-size: .87rem; font-weight: 600; }
     .react-song-text small { font-size: .73rem; }
     .react-song-favorite { width: 2.35rem; height: 2.7rem; border-radius: .7rem; }
