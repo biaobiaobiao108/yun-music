@@ -60,7 +60,10 @@ export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promi
   // 304 缓存协商
   const ifNoneMatch = ctx.headers.get('if-none-match')
   const ifModifiedSince = ctx.headers.get('if-modified-since')
-  if (ifNoneMatch === etag || (ifModifiedSince && ifModifiedSince === lastModified)) {
+  const notModified = ifNoneMatch !== null
+    ? ifNoneMatch.split(',').map(value => value.trim()).some(value => value === '*' || value === etag || value === etag.replace(/^W\//, ''))
+    : Boolean(ifModifiedSince && ifModifiedSince === lastModified)
+  if (notModified) {
     return new Response(null, { status: 304, headers: responseHeaders })
   }
 

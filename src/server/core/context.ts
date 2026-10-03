@@ -44,10 +44,10 @@ const normalizeForwardedAddress = (value: string | undefined): string | null => 
 
 const HTTP_TOKEN_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
 
-// Request bodies are buffered before JSON/FormData parsing. Reserve each
-// request's maximum while reading so many large concurrent bodies cannot
-// multiply their peak memory usage. The 128 MiB pool still leaves room for
-// the supported 100 MiB administrator backup upload plus small requests.
+// Request bodies are buffered before JSON/FormData parsing. Track their
+// declared size when available, then grow the reservation as chunked bodies
+// arrive. This bounds aggregate buffered input without charging every small
+// request for its route's full maximum body size.
 const MAX_BUFFERED_REQUEST_BODY_BYTES = 128 * 1024 * 1024
 let bufferedRequestBodyBudgetBytes = 0
 
@@ -164,6 +164,7 @@ export class HttpContext {
   readonly requestId: string
 
   private _cookies: Record<string, string> | null = null
+  private _reservedBodyBudgetBytes = 0
 
   constructor(request: Request, options?: ContextOptions) {
     this.request = request
@@ -250,16 +251,31 @@ export class HttpContext {
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > MAX_BUFFERED_REQUEST_BODY_BYTES) {
       throw new Error('Request body is too large')
     }
-    if (bufferedRequestBodyBudgetBytes + maxBytes > MAX_BUFFERED_REQUEST_BODY_BYTES) {
-      throw new Error('Concurrent request body buffering limit exceeded')
+    const contentLength = this.headers.get('content-length')
+    if (contentLength !== null) {
+      const declaredLength = Number(contentLength)
+      if (Number.isSafeInteger(declaredLength) && declaredLength >= 0) {
+        if (declaredLength > maxBytes) throw new Error('Request body is too large')
+        this.reserveBodyBufferBudget(declaredLength)
+      }
     }
 
-    bufferedRequestBodyBudgetBytes += maxBytes
     try {
       return await read()
     } finally {
-      bufferedRequestBodyBudgetBytes -= maxBytes
+      bufferedRequestBodyBudgetBytes -= this._reservedBodyBudgetBytes
+      this._reservedBodyBudgetBytes = 0
     }
+  }
+
+  private reserveBodyBufferBudget(totalBytes: number): void {
+    const additionalBytes = totalBytes - this._reservedBodyBudgetBytes
+    if (additionalBytes <= 0) return
+    if (bufferedRequestBodyBudgetBytes + additionalBytes > MAX_BUFFERED_REQUEST_BODY_BYTES) {
+      throw new Error('Concurrent request body buffering limit exceeded')
+    }
+    bufferedRequestBodyBudgetBytes += additionalBytes
+    this._reservedBodyBudgetBytes = totalBytes
   }
 
   private async readBodyBytes(maxBytes = 20 * 1024 * 1024): Promise<Uint8Array> {
@@ -281,6 +297,12 @@ export class HttpContext {
         if (total > maxBytes) {
           await reader.cancel()
           throw new Error('Request body is too large')
+        }
+        try {
+          this.reserveBodyBufferBudget(total)
+        } catch (error) {
+          try { await reader.cancel(error) } catch { }
+          throw error
         }
         chunks.push(chunk)
       }

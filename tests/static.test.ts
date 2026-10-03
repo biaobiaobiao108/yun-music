@@ -83,6 +83,17 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
 
     const html = await router.handle(new Request('http://localhost:9527/'))
     expect(html.headers.get('Cache-Control')).toContain('no-cache')
+    const htmlEtag = html.headers.get('ETag')
+    const lastModified = html.headers.get('Last-Modified')
+    expect(htmlEtag).toBeTruthy()
+    expect(lastModified).toBeTruthy()
+    const staleValidator = await router.handle(new Request('http://localhost:9527/', {
+      headers: {
+        'if-none-match': 'W/"stale"',
+        'if-modified-since': lastModified!,
+      },
+    }))
+    expect(staleValidator.status).toBe(200)
     const head = await router.handle(new Request(`http://localhost:9527/${adminEntry}`, { method: 'HEAD' }))
     expect(head.status).toBe(200)
     expect(await head.arrayBuffer()).toHaveLength(0)
