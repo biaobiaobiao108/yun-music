@@ -12929,6 +12929,24 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 .react-home-playlists { display: block; grid-template-columns: none; gap: 0; }
 .react-home-playlists > li { min-width: 0; }
 @media (min-width: 721px) {
+    .react-player-main::before {
+        content: "";
+        position: absolute;
+        z-index: 55;
+        inset: 0 0 auto;
+        height: 5.5rem;
+        pointer-events: none;
+        background: linear-gradient(
+            to bottom,
+            color-mix(in srgb, var(--app-bg) 68%, transparent) 0%,
+            color-mix(in srgb, var(--app-bg) 38%, transparent) 56%,
+            transparent 100%
+        );
+        -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
+        mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+    }
     .react-player-topbar { display: none !important; }
     .react-player-main { grid-template-rows: minmax(0, 1fr); }
 }
