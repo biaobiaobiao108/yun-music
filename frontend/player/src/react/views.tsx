@@ -485,6 +485,9 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const userScrollUntilRef = useRef<number>(0)
   const onUserScroll = useCallback(() => { userScrollUntilRef.current = Date.now() + 3500 }, [])
   const [isClosing, setIsClosing] = useState(false)
+  const [songActionsOpen, setSongActionsOpen] = useState(false)
+  const songActionsAnchorRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { if (!open) setSongActionsOpen(false) }, [open])
   useEffect(() => { if (open) void load(song) }, [load, open, song])
   const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
@@ -624,10 +627,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
       <div className="react-immersive-lyrics-grid">
         <section className="react-immersive-cover-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
           <div className="react-immersive-cover-wrap"><SafeImage className="react-immersive-cover" src={artwork} width="560" height="560" alt={song ? `${title}封面` : ''} /></div>
-          <div className="react-immersive-meta"><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button></div>
+          <div className="react-immersive-meta"><span className="react-immersive-meta-cover"><SafeImage src={artwork} width="72" height="72" alt="" /></span><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button><button ref={songActionsAnchorRef} type="button" className="react-immersive-more-button" aria-label="歌曲更多操作" aria-expanded={songActionsOpen} aria-controls="song-actions-popover" disabled={!song} onClick={() => setSongActionsOpen(value => !value)}><Icon name="ellipsis" /></button></div>
           {/* The normal footer is suppressed while this local transport stays
               under the artwork, matching the reference lyrics composition. */}
-          <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
+          <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} songActionsAnchorRef={songActionsAnchorRef} songActionsOpen={songActionsOpen} onSongActionsClose={() => setSongActionsOpen(false)} />
         </section>
         <section ref={lyricsListRef} className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite" onWheel={onUserScroll} onTouchMove={onUserScroll}>
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
 import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
@@ -90,7 +90,7 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
 
 export type PlayerFooterVariant = 'normal' | 'immersive'
 
-export function PlayerFooterBar({ variant = 'normal', isActive = true }: { variant?: PlayerFooterVariant; isActive?: boolean }) {
+export function PlayerFooterBar({ variant = 'normal', isActive = true, songActionsAnchorRef, songActionsOpen = false, onSongActionsClose }: { variant?: PlayerFooterVariant; isActive?: boolean; songActionsAnchorRef?: RefObject<HTMLButtonElement | null>; songActionsOpen?: boolean; onSongActionsClose?: () => void }) {
   const immersive = variant === 'immersive'
   const currentSong = usePlaybackStore(state => state.currentSong)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
@@ -128,8 +128,8 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
 
   const closeSongMenu = useCallback(() => {
     setSongMenuOpen(false)
-    window.requestAnimationFrame(() => songMenuButtonRef.current?.focus())
-  }, [])
+    window.requestAnimationFrame(() => (songActionsAnchorRef ?? songMenuButtonRef).current?.focus())
+  }, [songActionsAnchorRef])
 
   const toggleSongMenu = () => {
     if (!currentSong) { notify('请选择歌曲后再查看歌曲操作'); return }
@@ -254,6 +254,11 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
           <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
           <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} />
         </div>
+        <div className="react-immersive-volume-row" style={{ '--volume': `${Math.round((muted ? 0 : volume) * 100)}%` } as CSSProperties}>
+          <Icon name={muted || volume <= 0 ? 'volume-xmark' : 'volume-low'} />
+          <input type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" />
+          <Icon name="volume-high" />
+        </div>
       </> : <>
         <div className="react-footer-controls">
           <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
@@ -282,6 +287,6 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
         </div>
       </>}
     </footer>
-    {!immersive && <SongActionsPopover song={currentSong} open={isActive && songMenuOpen} anchorRef={songMenuButtonRef} onClose={closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />}
+    <SongActionsPopover song={currentSong} open={isActive && (immersive ? songActionsOpen : songMenuOpen)} anchorRef={immersive ? songActionsAnchorRef ?? songMenuButtonRef : songMenuButtonRef} onClose={immersive ? onSongActionsClose ?? closeSongMenu : closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />
   </>
 }
