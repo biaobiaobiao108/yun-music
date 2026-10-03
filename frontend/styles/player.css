@@ -12667,3 +12667,182 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         display: none !important;
     }
 }
+
+/* Mobile lists: lightweight navigation rows and artwork-first music entries. */
+@media (max-width: 760px) {
+    .react-view:has(.react-mobile-library) > .react-view-header {
+        margin-bottom: 1.15rem;
+        padding-top: .12rem;
+    }
+
+    .react-view:has(.react-mobile-library) > .react-view-header h1 {
+        font-size: clamp(2.15rem, 9vw, 2.8rem);
+        line-height: 1.05;
+        letter-spacing: -.055em;
+    }
+
+    .react-mobile-library { gap: 1.75rem; }
+
+    .react-mobile-library-links {
+        overflow: visible;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .react-mobile-library-link {
+        position: relative;
+        min-height: 4.45rem;
+        grid-template-columns: 2.55rem minmax(0, 1fr) auto;
+        gap: .75rem;
+        padding: .5rem .1rem;
+        border: 0;
+        background: transparent;
+    }
+
+    .react-mobile-library-link::after {
+        position: absolute;
+        inset-inline-start: 3.3rem;
+        inset-block-end: 0;
+        width: calc(100% - 3.3rem);
+        height: 1px;
+        background: color-mix(in srgb, var(--app-border) 82%, transparent);
+        content: '';
+        pointer-events: none;
+    }
+
+    .react-mobile-library-link:last-child::after { display: none; }
+    .react-mobile-library-link-icon { width: 2.2rem; height: 2.2rem; border-radius: 0; background: transparent; color: var(--app-accent); font-size: 1.35rem; }
+    .react-mobile-library-link-copy { gap: .08rem; }
+    .react-mobile-library-link-copy strong { font-size: 1.02rem; font-weight: 600; letter-spacing: -.015em; }
+    .react-mobile-library-link-copy small { font-size: .72rem; }
+    .react-mobile-library-link > i:last-child { padding-inline: .25rem; color: var(--app-text-dim); font-size: .88rem; }
+
+    .react-mobile-library-playlists .react-home-playlists {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+
+    .react-mobile-library-playlists .react-home-playlist {
+        min-height: 4.3rem;
+        gap: .8rem;
+        padding: .45rem .1rem;
+        border: 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--app-border) 82%, transparent);
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .react-mobile-library-playlists .react-home-playlist:last-child { border-bottom: 0; }
+    .react-mobile-library-playlists .react-home-playlist-surface { display: none; }
+    .react-mobile-library-playlists .react-home-playlist-media { width: 2.65rem; height: 2.65rem; border-radius: .55rem; }
+    .react-mobile-library-playlists .react-home-playlist-media.is-icon { background: var(--app-accent-soft); }
+    .react-mobile-library-playlists .react-home-playlist-copy { gap: .12rem; }
+    .react-mobile-library-playlists .react-home-playlist strong { font-size: .91rem; font-weight: 600; }
+    .react-mobile-library-playlists .react-home-playlist small { font-size: .73rem; }
+    .react-mobile-library-playlists .react-home-playlist-arrow { opacity: 1; transform: none; }
+
+    .react-mobile-library .react-home-section-heading { margin-bottom: .65rem; }
+
+    .react-library-grid,
+    .react-entity-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+
+    .react-library-grid .react-artwork-card,
+    .react-entity-grid .react-entity-card {
+        display: grid;
+        min-height: 4.55rem;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        border-bottom: 1px solid color-mix(in srgb, var(--app-border) 82%, transparent);
+    }
+
+    .react-library-grid .react-artwork-card:last-child,
+    .react-entity-grid .react-entity-card:last-child { border-bottom: 0; }
+
+    .react-library-grid .react-artwork-button {
+        display: grid;
+        grid-template-columns: 3.15rem minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        align-items: center;
+        gap: .08rem .75rem;
+        padding: .4rem 0;
+    }
+
+    .react-library-grid .react-artwork-cover {
+        width: 3.15rem;
+        grid-row: 1 / span 2;
+        overflow: hidden;
+        border-radius: .58rem;
+        box-shadow: none;
+    }
+
+    .react-library-grid .react-artwork-card.is-artist .react-artwork-cover { border-radius: 50%; }
+    .react-library-grid .react-artwork-button strong { font-size: .9rem; }
+    .react-library-grid .react-artwork-button small { font-size: .73rem; }
+
+    .react-entity-grid .react-entity-open {
+        display: grid;
+        min-height: 4.45rem;
+        grid-template-columns: 3.15rem minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        align-items: center;
+        gap: .08rem .75rem;
+        padding: .4rem 0;
+        border: 0;
+        border-radius: 0;
+        text-align: start;
+    }
+
+    .react-entity-grid .react-entity-open img {
+        width: 3.15rem;
+        height: 3.15rem;
+        grid-row: 1 / span 2;
+        border-radius: .58rem;
+    }
+
+    .react-entity-grid .react-entity-open strong,
+    .react-entity-grid .react-entity-open small { min-width: 0; text-align: start; }
+    .react-entity-grid .react-entity-favorite { opacity: 1; }
+
+    .react-song-table { overflow: visible; }
+    .react-song-head { display: none !important; }
+    .react-song-list { gap: 0; }
+
+    .react-song-row,
+    .react-song-row.is-selectable {
+        min-height: 4.55rem;
+        grid-template-columns: minmax(0, 1fr) 2.45rem 2.45rem;
+        column-gap: .25rem;
+        padding: .4rem .05rem;
+        border-bottom: 1px solid color-mix(in srgb, var(--app-border) 82%, transparent);
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .react-song-row.is-selectable { grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem 2.45rem; }
+    .react-song-row:last-child { border-bottom: 0; }
+    .react-song-index,
+    .react-song-album,
+    .react-song-duration,
+    .react-song-size,
+    .react-song-quality { display: none !important; }
+
+    .react-song-main { min-height: 3.5rem; gap: .7rem; padding: 0; }
+    .react-song-main > img { width: 3.05rem; height: 3.05rem; border-radius: .58rem; }
+    .react-song-text { gap: .18rem; }
+    .react-song-text strong { font-size: .87rem; font-weight: 600; }
+    .react-song-text small { font-size: .73rem; }
+    .react-song-favorite { width: 2.35rem; height: 2.7rem; border-radius: .7rem; }
+    .react-song-actions { gap: 0; opacity: 1; }
+    .react-song-actions > * { display: grid !important; width: 2.35rem; height: 2.7rem; place-items: center; border-radius: .7rem; }
+    .react-song-actions button:first-child { display: grid; }
+
+    .react-local-cache-row { grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem !important; }
+    .react-local-cache-row .react-song-main { grid-column: 2; }
+    .react-local-cache-row .react-song-actions { grid-column: 3; }
+}

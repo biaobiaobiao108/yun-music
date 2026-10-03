@@ -171,6 +171,11 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-artwork-grid.react-home-artist-row {')
     expect(css).toContain('grid-auto-columns: clamp(5.25rem, 5.6vw, 6.75rem);')
     expect(css).toContain('.react-mobile-library-link {')
+    expect(css).toContain('.react-mobile-library-link::after {')
+    expect(css).toContain('.react-mobile-library-playlists .react-home-playlist-surface { display: none; }')
+    expect(css).toContain('.react-library-grid,\n    .react-entity-grid {\n        grid-template-columns: minmax(0, 1fr);')
+    expect(css).toContain('.react-song-row.is-selectable { grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem 2.45rem; }')
+    expect(css).toContain('.react-song-actions button:first-child { display: grid; }')
   })
 
   it('keeps the desktop account capsule icon-only and uses a lyric-first mobile player layout', () => {
