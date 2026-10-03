@@ -5,5 +5,5 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",
-  "icons": [{ "src": "./assets/yun-yin.png", "sizes": "256x256", "type": "image/png" }]
+  "icons": [{ "src": "./assets/yun-yin.png", "sizes": "128x128", "type": "image/png" }]
 }

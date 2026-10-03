@@ -12220,35 +12220,59 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         padding: 0 .2rem;
         color: var(--app-text-muted);
         font-size: .88rem;
+        margin-top: .45rem;
     }
     .react-immersive-volume-row input[type="range"] {
         width: 100%;
-        height: 1.35rem;
+        height: 1.4rem;
         margin: 0;
+        padding: 0;
         appearance: none;
         border: 0;
-        border-radius: 999px;
-        background: linear-gradient(to right, var(--app-text) var(--volume), color-mix(in srgb, var(--app-text) 28%, transparent) var(--volume));
+        outline: 1px solid transparent;
+        background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);
         cursor: pointer;
     }
+    .react-immersive-volume-row input[type="range"]::-webkit-slider-runnable-track {
+        height: .22rem;
+        border-radius: 999px;
+        background: transparent;
+    }
     .react-immersive-volume-row input[type="range"]::-webkit-slider-thumb {
-        width: .7rem;
-        height: .7rem;
+        width: .5rem;
+        height: .5rem;
+        margin-top: -.14rem;
         appearance: none;
         border: 0;
         border-radius: 50%;
-        background: var(--app-text);
-        box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--app-text) 15%, transparent);
+        background: var(--app-accent);
+        opacity: 0;
+        transition: opacity var(--app-motion-fast, 140ms) ease;
+    }
+    .react-immersive-volume-row input[type="range"]:hover::-webkit-slider-thumb,
+    .react-immersive-volume-row input[type="range"]:focus-visible::-webkit-slider-thumb { opacity: 1; }
+    .react-immersive-volume-row input[type="range"]::-moz-range-track {
+        height: .22rem;
+        border: 0;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--app-text) 20%, transparent);
+    }
+    .react-immersive-volume-row input[type="range"]::-moz-range-progress {
+        height: .22rem;
+        border-radius: 999px;
+        background: var(--app-accent);
     }
     .react-immersive-volume-row input[type="range"]::-moz-range-thumb {
-        width: .7rem;
-        height: .7rem;
+        width: .5rem;
+        height: .5rem;
         border: 0;
         border-radius: 50%;
-        background: var(--app-text);
+        background: var(--app-accent);
+        opacity: 0;
     }
+    .react-immersive-volume-row input[type="range"]:hover::-moz-range-thumb,
+    .react-immersive-volume-row input[type="range"]:focus-visible::-moz-range-thumb { opacity: 1; }
     .react-immersive-volume-row input[type="range"]:focus-visible { outline: 1px solid var(--app-accent); outline-offset: -2px; }
-    .react-immersive-volume-row input[type="range"]::-moz-range-progress { height: 100%; border-radius: inherit; background: var(--app-text); }
     .react-immersive-volume-row { order: 3; }
     .react-immersive-detail-controls .react-volume-control { display: none !important; }
     .react-immersive-lyrics-list {
