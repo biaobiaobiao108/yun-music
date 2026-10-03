@@ -12314,6 +12314,27 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-fixed-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
+@media (max-width: 720px) {
+    .react-artwork-grid.react-home-songs-grid {
+        grid-template-columns: none;
+        grid-template-rows: auto;
+        grid-auto-flow: column;
+        grid-auto-columns: calc((100% - .55rem) / 2);
+        grid-auto-rows: auto;
+        gap: .75rem .55rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-inline: contain;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .react-artwork-grid.react-home-songs-grid::-webkit-scrollbar { display: none; }
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card { scroll-snap-align: start; }
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 5) { display: block; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .react-mobile-navigation-item,
     .react-mobile-discover-links > button,
