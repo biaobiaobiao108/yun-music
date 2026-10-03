@@ -11926,7 +11926,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         gap: .45rem;
-        padding: .38rem .55rem;
+        padding: .38rem .55rem !important;
         border: 1px solid var(--app-border);
         border-radius: 1rem !important;
         background: color-mix(in srgb, var(--app-surface-solid) 93%, transparent) !important;
@@ -11962,6 +11962,10 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-view-header > div { flex: 1; min-width: 0; text-align: start; }
     .react-view-header h1 { font-size: 1.8rem; line-height: 1.16; letter-spacing: -.035em; text-align: start; }
     .react-view-header-actions { width: auto; gap: .35rem; }
+    .react-view-hide-actions-mobile > .react-view-header > .react-view-header-actions { display: none !important; }
+    .react-view-hide-actions-mobile > .react-view-header { margin-bottom: .65rem; }
+    .react-view-hide-actions-mobile > .react-view-header > div { flex-basis: 100%; }
+    .react-view-hide-actions-mobile > .react-view-header h1 { font-size: clamp(1.3rem, 6vw, 1.55rem); line-height: 1.25; }
     .react-view-header .react-mobile-create-list { width: 2.55rem; min-height: 2.55rem; padding: 0; border-radius: 50%; }
     .react-home-page { gap: 1.55rem; }
     .react-home-shortcuts { gap: .5rem; }
@@ -11976,6 +11980,9 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-rail > .react-artwork-card:nth-child(n + 5) { display: none; }
     .react-home-fixed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .55rem; }
     .react-home-fixed-grid > .react-artwork-card:nth-child(n + 5) { display: none; }
+    .react-home-fixed-grid.react-artist-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem .4rem; }
+    .react-home-fixed-grid.react-artist-grid > .react-artwork-card:nth-child(n + 5) { display: block; }
+    .react-home-fixed-grid.react-artist-grid > .react-artwork-card:nth-child(n + 9) { display: none; }
     .react-artwork-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .55rem; }
     .react-artwork-card { min-width: 0; }
     .react-artwork-cover { border-radius: .8rem; }
@@ -12322,6 +12329,9 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 @media (min-width: 561px) and (max-width: 900px) {
     .react-home-fixed-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .react-home-fixed-grid > .react-artwork-card:nth-child(n + 7) { display: none; }
+    .react-home-fixed-grid.react-artist-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .react-home-fixed-grid.react-artist-grid > .react-artwork-card:nth-child(n + 7) { display: block; }
+    .react-home-fixed-grid.react-artist-grid > .react-artwork-card:nth-child(n + 9) { display: none; }
 }
 
 @media (min-width: 901px) {
