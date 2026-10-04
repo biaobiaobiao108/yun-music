@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
@@ -90,7 +90,7 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
 
 export type PlayerFooterVariant = 'normal' | 'immersive'
 
-export function PlayerFooterBar({ variant = 'normal', isActive = true, songActionsAnchorRef, songActionsOpen = false, onSongActionsClose }: { variant?: PlayerFooterVariant; isActive?: boolean; songActionsAnchorRef?: RefObject<HTMLButtonElement | null>; songActionsOpen?: boolean; onSongActionsClose?: () => void }) {
+export function PlayerFooterBar({ variant = 'normal', isActive = true }: { variant?: PlayerFooterVariant; isActive?: boolean }) {
   const immersive = variant === 'immersive'
   const currentSong = usePlaybackStore(state => state.currentSong)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
@@ -128,8 +128,8 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true, songActio
 
   const closeSongMenu = useCallback(() => {
     setSongMenuOpen(false)
-    window.requestAnimationFrame(() => (songActionsAnchorRef ?? songMenuButtonRef).current?.focus())
-  }, [songActionsAnchorRef])
+    window.requestAnimationFrame(() => songMenuButtonRef.current?.focus())
+  }, [])
 
   const toggleSongMenu = () => {
     if (!currentSong) { notify('请选择歌曲后再查看歌曲操作'); return }
@@ -290,6 +290,6 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true, songActio
         </div>
       </>}
     </footer>
-    <SongActionsPopover song={currentSong} open={isActive && (immersive ? songActionsOpen : songMenuOpen)} anchorRef={immersive ? songActionsAnchorRef ?? songMenuButtonRef : songMenuButtonRef} onClose={immersive ? onSongActionsClose ?? closeSongMenu : closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />
+    {!immersive && <SongActionsPopover song={currentSong} open={isActive && songMenuOpen} anchorRef={songMenuButtonRef} onClose={closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />}
   </>
 }

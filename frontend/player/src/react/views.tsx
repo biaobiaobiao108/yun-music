@@ -481,14 +481,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const closeTimer = useRef<number | null>(null)
   const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
   const lyricsListRef = useRef<HTMLElement | null>(null)
-  const scrollFrameRef = useRef<number | null>(null)
   const userScrollUntilRef = useRef<number>(0)
   const onUserScroll = useCallback(() => { userScrollUntilRef.current = Date.now() + 3500 }, [])
   const [isClosing, setIsClosing] = useState(false)
-  const [songActionsOpen, setSongActionsOpen] = useState(false)
   const [lyricsViewportSize, setLyricsViewportSize] = useState('')
-  const songActionsAnchorRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => { if (!open) setSongActionsOpen(false) }, [open])
   useEffect(() => { if (open) void load(song) }, [load, open, song])
   const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
@@ -586,34 +582,13 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     const lineRect = line.getBoundingClientRect()
     const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight)
     const targetTop = Math.min(maxScrollTop, Math.max(0, list.scrollTop + lineRect.top - listRect.top - (list.clientHeight - line.clientHeight) / 2))
-    const startTop = list.scrollTop
-    const distance = targetTop - startTop
-    if (Math.abs(distance) < 1) return
+    if (Math.abs(targetTop - list.scrollTop) < 1) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       list.scrollTop = targetTop
       return
     }
-    const duration = 320
-    let startTime = 0
-    const step = (time: number) => {
-      if (startTime === 0) startTime = time
-      const progress = Math.min(1, (time - startTime) / duration)
-      const eased = progress * progress * (3 - 2 * progress)
-      list.scrollTop = startTop + distance * eased
-      if (progress < 1) scrollFrameRef.current = window.requestAnimationFrame(step)
-      else scrollFrameRef.current = null
-    }
-    scrollFrameRef.current = window.requestAnimationFrame(step)
-    return () => {
-      if (scrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollFrameRef.current)
-        scrollFrameRef.current = null
-      }
-    }
+    list.scrollTo({ top: targetTop, behavior: 'smooth' })
   }, [active, lines, lyricsViewportSize, open])
-  useEffect(() => () => {
-    if (scrollFrameRef.current !== null) window.cancelAnimationFrame(scrollFrameRef.current)
-  }, [])
   const lyricStyle = { '--react-lyric-size': `${Math.max(.9, Number(settings.lyricFontSize || 1.25))}rem` } as CSSProperties
   const title = songTitle(song)
   const artwork = safeImageUrl(songImage(song))
@@ -642,10 +617,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
       <div className="react-immersive-lyrics-grid">
         <section className="react-immersive-cover-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
           <div className="react-immersive-cover-wrap"><SafeImage className="react-immersive-cover" src={artwork} width="560" height="560" alt={song ? `${title}封面` : ''} /></div>
-          <div className="react-immersive-meta"><span className="react-immersive-meta-cover"><SafeImage src={artwork} width="72" height="72" alt="" /></span><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button><button ref={songActionsAnchorRef} type="button" className="react-immersive-more-button" aria-label="歌曲更多操作" aria-expanded={songActionsOpen} aria-controls="song-actions-popover" disabled={!song} onClick={() => setSongActionsOpen(value => !value)}><Icon name="ellipsis" /></button></div>
+          <div className="react-immersive-meta"><span className="react-immersive-meta-cover"><SafeImage src={artwork} width="72" height="72" alt="" /></span><div><h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2><span>{song ? songArtist(song) : '沉浸式歌词'}</span></div><button type="button" className={`react-immersive-like ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} onClick={() => void toggleLike()}><Icon name="heart" /></button></div>
           {/* The normal footer is suppressed while this local transport stays
               under the artwork, matching the reference lyrics composition. */}
-          <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} songActionsAnchorRef={songActionsAnchorRef} songActionsOpen={songActionsOpen} onSongActionsClose={() => setSongActionsOpen(false)} />
+          <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
         </section>
         <section ref={lyricsListRef} className="react-immersive-lyrics-list" aria-label="歌词" aria-live="polite" onWheel={onUserScroll} onTouchMove={onUserScroll}>
           {loading ? <Loading label="正在加载歌词…" /> : error ? <p className="react-error" role="alert">{error}</p> : lines.length ? lines.map((line, index) => {

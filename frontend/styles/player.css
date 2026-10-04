@@ -5810,7 +5810,8 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding: 40% .75rem;
     scrollbar-gutter: stable;
     text-align: center;
-    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    mask-image: none;
+    -webkit-mask-image: none;
 }
 
 .react-immersive-lyrics-list > button {
@@ -7778,8 +7779,7 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
-.react-immersive-meta-cover,
-.react-immersive-more-button { display: none; }
+.react-immersive-meta-cover { display: none; }
 .react-immersive-volume-row { display: none; }
 
 .react-immersive-like {
@@ -7880,7 +7880,8 @@ textarea:focus-visible {
     height: min(68dvh, 44rem);
     padding: 42% .5rem;
     text-align: left;
-    mask-image: linear-gradient(to bottom, transparent, #000 13%, #000 87%, transparent);
+    mask-image: none;
+    -webkit-mask-image: none;
 }
 
 .react-immersive-lyrics-list > button {
@@ -10646,6 +10647,8 @@ textarea:focus-visible {
    distant lines recede into the same visual rhythm as the artwork background. */
 .react-immersive-lyrics-list {
     text-align: center;
+    -webkit-mask-image: none;
+    mask-image: none;
 }
 
 .react-immersive-lyrics-list > button {
@@ -10680,7 +10683,6 @@ textarea:focus-visible {
     color: var(--app-text) !important;
     opacity: 1;
     font-size: var(--react-lyric-size, 1.25rem);
-    text-shadow: 0 .45rem 1.8rem color-mix(in srgb, var(--app-text) 20%, transparent);
 }
 
 .react-immersive-lyrics-list > button small {
@@ -12165,7 +12167,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         flex: 0 0 auto;
         display: grid;
         width: 100%;
-        grid-template-columns: 3.6rem minmax(0, 1fr) auto auto;
+        grid-template-columns: 3.6rem minmax(0, 1fr) auto;
         align-items: center;
         gap: .55rem;
         margin: .15rem 0 1.2rem;
@@ -12182,28 +12184,9 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-immersive-meta > div { min-width: 0; text-align: start; }
     .react-immersive-meta h2 { font-size: .96rem; line-height: 1.25; }
     .react-immersive-meta span:not(.react-immersive-meta-cover) { font-size: .78rem; }
-    .react-immersive-like,
-    .react-immersive-more-button {
-        display: grid;
-        width: 2.5rem;
-        height: 2.5rem;
-        place-items: center;
-        padding: 0;
-        border: 0;
-        border-radius: 50%;
-        background: transparent;
-        color: var(--app-text-muted);
-        font: inherit;
-        font-size: 1.12rem;
-        cursor: pointer;
-    }
     .react-immersive-like:hover,
     .react-immersive-like:focus-visible,
-    .react-immersive-like.is-active,
-    .react-immersive-more-button:hover,
-    .react-immersive-more-button:focus-visible,
-    .react-immersive-more-button[aria-expanded="true"] { background: var(--app-accent-soft); color: var(--app-accent); }
-    .react-immersive-more-button:disabled { opacity: .4; cursor: default; }
+    .react-immersive-like.is-active { background: var(--app-accent-soft); color: var(--app-accent); }
     .react-immersive-lyrics footer.react-player-footer.react-immersive-detail-controls#player-footer {
         order: 2;
         flex: 0 0 auto;
@@ -12320,9 +12303,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-immersive-lyrics-list > button { align-items: start; padding-block: .5rem; font-size: clamp(1rem, 4.2vw, 1.25rem); text-align: start; }
     .react-immersive-lyrics-list > button.is-active { font-size: clamp(1.6rem, 6.8vw, 2.35rem); line-height: 1.2; }
     .react-immersive-lyrics-list > button.is-active small { font-size: .66em; font-weight: 600; }
-    .react-immersive-lyrics-list > button.is-adjacent { filter: blur(1.25px); }
-    .react-immersive-lyrics-list > button.is-near,
-    .react-immersive-lyrics-list > button.is-distant { filter: blur(2.5px); }
 
     .react-player-drawer.react-glass-drawer {
         inset: auto 0 0 !important;
