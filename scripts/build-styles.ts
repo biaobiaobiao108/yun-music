@@ -1,23 +1,31 @@
 import path from 'node:path'
 import fs from 'node:fs'
-import tailwindPlugin from 'bun-plugin-tailwind'
 
 const root = path.join(import.meta.dir, '..')
 
 async function buildStyle(input: string, output: string) {
-  // Tailwind v4 is compiled as part of Bun's CSS bundle instead of spawning
-  // the Tailwind CLI. The CSS entrypoint owns its explicit @config directive.
-  const result = await Bun.build({
-    entrypoints: [path.join(root, input)],
-    outdir: path.dirname(path.join(root, output)),
-    naming: path.basename(output),
-    minify: true,
-    target: 'browser',
-    plugins: [tailwindPlugin],
+  const inputPath = path.join(root, input)
+  const outputPath = path.join(root, output)
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+
+  const childProcess = Bun.spawn([
+    process.execPath,
+    'x',
+    '@tailwindcss/cli',
+    '--input',
+    inputPath,
+    '--output',
+    outputPath,
+    '--minify',
+  ], {
+    cwd: root,
+    stdout: 'inherit',
+    stderr: 'inherit',
   })
 
-  if (!result.success) {
-    throw new Error(`Tailwind build failed for ${input}: ${result.logs.join('\n')}`)
+  const exitCode = await childProcess.exited
+  if (exitCode !== 0) {
+    throw new Error(`Tailwind build failed for ${input} (exit code ${exitCode})`)
   }
 }
 
