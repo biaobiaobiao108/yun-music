@@ -12976,3 +12976,49 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 @media (prefers-reduced-motion: reduce) {
     .react-sidebar-history button { transition: none; }
 }
+
+#main-sidebar.react-sidebar .react-sidebar-nav::before,
+#main-sidebar.react-sidebar .react-sidebar-nav::after {
+    content: "";
+    position: sticky;
+    z-index: 3;
+    display: block;
+    flex: 0 0 2.75rem;
+    width: 100%;
+    height: 2.75rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--app-motion-fast, 140ms) ease;
+}
+
+#main-sidebar.react-sidebar .react-sidebar-nav::before {
+    inset-block-start: 0;
+    margin-block-end: -2.75rem;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--app-surface-solid) 96%, transparent),
+        transparent
+    );
+}
+
+#main-sidebar.react-sidebar .react-sidebar-nav::after {
+    inset-block-end: 0;
+    margin-block-start: -2.75rem;
+    background: linear-gradient(
+        to top,
+        color-mix(in srgb, var(--app-surface-solid) 96%, transparent),
+        transparent
+    );
+}
+
+#main-sidebar.react-sidebar .react-sidebar-nav[data-has-content-above]::before,
+#main-sidebar.react-sidebar .react-sidebar-nav[data-has-content-below]::after {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #main-sidebar.react-sidebar .react-sidebar-nav::before,
+    #main-sidebar.react-sidebar .react-sidebar-nav::after {
+        transition: none;
+    }
+}

@@ -184,7 +184,39 @@ class PlayerErrorBoundary extends Component<{ children: ReactNode }, { error: Er
   }
 }
 
+function observeScrollEdges(scrollContainer: HTMLElement, indicator: HTMLElement) {
+  const updateScrollEdges = () => {
+    const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
+    indicator.toggleAttribute('data-has-content-above', scrollContainer.scrollTop > 1)
+    indicator.toggleAttribute('data-has-content-below', scrollContainer.scrollTop < maxScrollTop - 1)
+  }
+
+  const resizeObserver = new ResizeObserver(updateScrollEdges)
+  const observeContent = () => {
+    for (const child of scrollContainer.children) resizeObserver.observe(child)
+  }
+  resizeObserver.observe(scrollContainer)
+  observeContent()
+
+  const mutationObserver = new MutationObserver(() => {
+    observeContent()
+    updateScrollEdges()
+  })
+  mutationObserver.observe(scrollContainer, { childList: true, subtree: true })
+  scrollContainer.addEventListener('scroll', updateScrollEdges, { passive: true })
+  updateScrollEdges()
+
+  return () => {
+    mutationObserver.disconnect()
+    resizeObserver.disconnect()
+    scrollContainer.removeEventListener('scroll', updateScrollEdges)
+    indicator.removeAttribute('data-has-content-above')
+    indicator.removeAttribute('data-has-content-below')
+  }
+}
+
 function Sidebar() {
+  const sidebarNavRef = useRef<HTMLElement>(null)
   const tab = usePlayerUiStore(state => state.tab)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const activeTab = getSidebarActiveTab(tab, favoriteListId)
@@ -198,7 +230,12 @@ function Sidebar() {
   const userName = useAuthStore(state => state.userName)
   const appearance = useSettingsStore(state => state.settings.appearance)
   const setSetting = useSettingsStore(state => state.setSetting)
-  return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><div className="react-sidebar-tools"><div className="react-sidebar-brand-row"><img src="/music/assets/yun-yin.png" width="32" height="32" alt="" /><strong>云鹿音乐</strong></div><div className="react-sidebar-history" role="group" aria-label="页面历史"><button type="button" id="player-history-back" aria-label="后退" onClick={goBack}><Icon name="chevron-left" /><span>后退</span></button><button type="button" id="player-history-forward" aria-label="前进" onClick={goForward}><span>前进</span><Icon name="chevron-right" /></button></div></div><nav className="react-sidebar-nav"><p className="react-sidebar-label">浏览</p>{NAV_ITEMS.filter(item => item.id !== 'library').map(item => { const isActive = activeTab === item.id; return <button type="button" key={item.id} className={`netease-nav-item ${isActive ? 'active-tab' : ''}`} aria-current={isActive ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button> })}<p className="react-sidebar-label react-sidebar-more-label">任务</p><button type="button" className="netease-nav-item" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /><span>缓存与下载</span></button><div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">播放列表</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map((list, index) => { const id = String(list.id); const isActive = tab === 'favorites' && favoriteListId === id; return <button type="button" className={`react-sidebar-playlist ${isActive ? 'is-active' : ''}`} aria-current={isActive ? 'page' : undefined} key={`${id}-${index}`} onClick={() => openFavoriteList(id)}><Icon name={playlistIcon(list.icon)} /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button> })}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">资料库</p>{MORE_NAV_ITEMS.filter(item => item.id !== 'settings').map(item => <button type="button" key={item.id} className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`} aria-current={activeTab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<p className="react-sidebar-label react-sidebar-more-label">偏好设置</p>{MORE_NAV_ITEMS.filter(item => item.id === 'settings').map(item => <button type="button" key={item.id} className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`} aria-current={activeTab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<p className="react-sidebar-label react-sidebar-more-label">账户与外观</p><button type="button" className="netease-nav-item" onClick={() => userName ? setTab('settings') : setDialog('userLogin')}><Icon name="circle-user" /><span>{userName || '登录账户'}</span></button><button type="button" className="netease-nav-item" onClick={() => setSetting('appearance', appearance === 'dark' ? 'light' : 'dark')}><Icon name={appearance === 'dark' ? 'sun' : 'moon'} /><span>切换主题</span></button></nav></aside></>
+  useLayoutEffect(() => {
+    const nav = sidebarNavRef.current
+    if (!nav) return
+    return observeScrollEdges(nav, nav)
+  }, [])
+  return <><div className={`react-sidebar-backdrop ${sidebarOpen ? 'is-open' : ''}`} onClick={closeSidebar} aria-hidden="true" /><aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航"><div className="react-sidebar-tools"><div className="react-sidebar-brand-row"><img src="/music/assets/yun-yin.png" width="32" height="32" alt="" /><strong>云鹿音乐</strong></div><div className="react-sidebar-history" role="group" aria-label="页面历史"><button type="button" id="player-history-back" aria-label="后退" onClick={goBack}><Icon name="chevron-left" /><span>后退</span></button><button type="button" id="player-history-forward" aria-label="前进" onClick={goForward}><span>前进</span><Icon name="chevron-right" /></button></div></div><nav ref={sidebarNavRef} className="react-sidebar-nav"><p className="react-sidebar-label">浏览</p>{NAV_ITEMS.filter(item => item.id !== 'library').map(item => { const isActive = activeTab === item.id; return <button type="button" key={item.id} className={`netease-nav-item ${isActive ? 'active-tab' : ''}`} aria-current={isActive ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button> })}<p className="react-sidebar-label react-sidebar-more-label">任务</p><button type="button" className="netease-nav-item" onClick={() => setDrawer('cache')}><Icon name="cloud-arrow-down" /><span>缓存与下载</span></button><div className="react-sidebar-playlists-heading"><p className="react-sidebar-label">播放列表</p><button type="button" className="react-icon-button" aria-label="新建歌单" onClick={() => setDialog('createList')}><Icon name="plus" /></button></div><div className="react-sidebar-playlists">{userLists.map((list, index) => { const id = String(list.id); const isActive = tab === 'favorites' && favoriteListId === id; return <button type="button" className={`react-sidebar-playlist ${isActive ? 'is-active' : ''}`} aria-current={isActive ? 'page' : undefined} key={`${id}-${index}`} onClick={() => openFavoriteList(id)}><Icon name={playlistIcon(list.icon)} /><span>{list.name}</span><small>{list.list?.length ?? 0}</small></button> })}{!userLists.length && <button type="button" className="react-sidebar-playlist react-sidebar-playlist-empty" onClick={() => setDialog('createList')}><Icon name="plus" /><span>创建第一张歌单</span></button>}</div><p className="react-sidebar-label react-sidebar-more-label">资料库</p>{MORE_NAV_ITEMS.filter(item => item.id !== 'settings').map(item => <button type="button" key={item.id} className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`} aria-current={activeTab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<p className="react-sidebar-label react-sidebar-more-label">偏好设置</p>{MORE_NAV_ITEMS.filter(item => item.id === 'settings').map(item => <button type="button" key={item.id} className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`} aria-current={activeTab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}<p className="react-sidebar-label react-sidebar-more-label">账户与外观</p><button type="button" className="netease-nav-item" onClick={() => userName ? setTab('settings') : setDialog('userLogin')}><Icon name="circle-user" /><span>{userName || '登录账户'}</span></button><button type="button" className="netease-nav-item" onClick={() => setSetting('appearance', appearance === 'dark' ? 'light' : 'dark')}><Icon name={appearance === 'dark' ? 'sun' : 'moon'} /><span>切换主题</span></button></nav></aside></>
 }
 
 const MOBILE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string; activeTabs: PlayerTab[] }[] = [
@@ -238,33 +275,7 @@ function TopBar() {
     const scrollContainer = document.getElementById('player-main-content')
     const shell = topbar?.parentElement
     if (!topbar || !scrollContainer || !shell) return
-
-    const updateScrollEdges = () => {
-      const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
-      shell.toggleAttribute('data-has-content-above', scrollContainer.scrollTop > 1)
-      shell.toggleAttribute('data-has-content-below', scrollContainer.scrollTop < maxScrollTop - 1)
-    }
-
-    const resizeObserver = new ResizeObserver(updateScrollEdges)
-    resizeObserver.observe(scrollContainer)
-    if (scrollContainer.firstElementChild) resizeObserver.observe(scrollContainer.firstElementChild)
-
-    const mutationObserver = new MutationObserver(() => {
-      const content = scrollContainer.firstElementChild
-      if (content) resizeObserver.observe(content)
-      updateScrollEdges()
-    })
-    mutationObserver.observe(scrollContainer, { childList: true, subtree: true, characterData: true })
-    scrollContainer.addEventListener('scroll', updateScrollEdges, { passive: true })
-    updateScrollEdges()
-
-    return () => {
-      mutationObserver.disconnect()
-      resizeObserver.disconnect()
-      scrollContainer.removeEventListener('scroll', updateScrollEdges)
-      shell.removeAttribute('data-has-content-above')
-      shell.removeAttribute('data-has-content-below')
-    }
+    return observeScrollEdges(scrollContainer, shell)
   }, [])
 
   return <header ref={topbarRef} className="react-player-topbar"><div className="react-topbar-actions"><button type="button" className="player-secondary-action react-mobile-settings-button" aria-label="设置" onClick={() => setTab('settings')}><Icon name="gear" /></button>{userName ? <span className="react-user-chip" aria-label="已登录账户" role="img" title="已登录账户"><Icon name="circle-user" /></span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
