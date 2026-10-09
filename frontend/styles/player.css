@@ -12667,6 +12667,48 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     gap: .2rem;
 }
 
+/* Fade the scroll edges only when content continues in that direction. */
+.react-player-main {
+    position: relative;
+}
+
+.react-player-topbar::before,
+.react-player-main::after {
+    opacity: 0;
+    transition: opacity var(--app-motion-fast, 140ms) ease;
+}
+
+.react-player-main[data-has-content-above] .react-player-topbar::before {
+    opacity: 1;
+}
+
+.react-player-main::after {
+    content: "";
+    position: absolute;
+    z-index: 55;
+    inset-inline: 0;
+    inset-block-end: 0;
+    height: 7rem;
+    pointer-events: none;
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        color-mix(in srgb, var(--app-bg) 68%, transparent) 68%,
+        color-mix(in srgb, var(--app-bg) 92%, transparent) 100%
+    );
+}
+
+.react-player-main[data-has-content-below]::after {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-player-topbar::before,
+    .react-player-main::after {
+        transition: none;
+    }
+}
+
 @media (max-width: 720px) {
     .react-player-topbar .react-topbar-actions {
         display: none !important;

@@ -223,6 +223,7 @@ function MobileNavigation() {
 }
 
 function TopBar() {
+  const topbarRef = useRef<HTMLElement>(null)
   const tab = usePlayerUiStore(state => state.tab)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const setDialog = usePlayerUiStore(state => state.setDialog)
@@ -232,7 +233,41 @@ function TopBar() {
   const currentPlaylist = favoriteListId === 'love' ? null : userLists.find(list => String(list.id) === favoriteListId)
   const title = tab === 'favorites' && currentPlaylist ? currentPlaylist.name : ALL_NAV_ITEMS.find(item => item.id === tab)?.label ?? (tab === 'favorites' ? '收藏' : '云鹿音乐')
   useEffect(() => { document.title = `${title} - 云鹿音乐` }, [title])
-  return <header className="react-player-topbar"><div className="react-topbar-actions"><button type="button" className="player-secondary-action react-mobile-settings-button" aria-label="设置" onClick={() => setTab('settings')}><Icon name="gear" /></button>{userName ? <span className="react-user-chip" aria-label="已登录账户" role="img" title="已登录账户"><Icon name="circle-user" /></span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
+  useLayoutEffect(() => {
+    const topbar = topbarRef.current
+    const scrollContainer = document.getElementById('player-main-content')
+    const shell = topbar?.parentElement
+    if (!topbar || !scrollContainer || !shell) return
+
+    const updateScrollEdges = () => {
+      const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
+      shell.toggleAttribute('data-has-content-above', scrollContainer.scrollTop > 1)
+      shell.toggleAttribute('data-has-content-below', scrollContainer.scrollTop < maxScrollTop - 1)
+    }
+
+    const resizeObserver = new ResizeObserver(updateScrollEdges)
+    resizeObserver.observe(scrollContainer)
+    if (scrollContainer.firstElementChild) resizeObserver.observe(scrollContainer.firstElementChild)
+
+    const mutationObserver = new MutationObserver(() => {
+      const content = scrollContainer.firstElementChild
+      if (content) resizeObserver.observe(content)
+      updateScrollEdges()
+    })
+    mutationObserver.observe(scrollContainer, { childList: true, subtree: true, characterData: true })
+    scrollContainer.addEventListener('scroll', updateScrollEdges, { passive: true })
+    updateScrollEdges()
+
+    return () => {
+      mutationObserver.disconnect()
+      resizeObserver.disconnect()
+      scrollContainer.removeEventListener('scroll', updateScrollEdges)
+      shell.removeAttribute('data-has-content-above')
+      shell.removeAttribute('data-has-content-below')
+    }
+  }, [])
+
+  return <header ref={topbarRef} className="react-player-topbar"><div className="react-topbar-actions"><button type="button" className="player-secondary-action react-mobile-settings-button" aria-label="设置" onClick={() => setTab('settings')}><Icon name="gear" /></button>{userName ? <span className="react-user-chip" aria-label="已登录账户" role="img" title="已登录账户"><Icon name="circle-user" /></span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
 }
 
 function AudioRuntime() {
