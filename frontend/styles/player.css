@@ -9921,25 +9921,6 @@ textarea:focus-visible {
     z-index: 1;
 }
 
-.react-player-topbar::before {
-    content: "";
-    position: absolute;
-    z-index: 0;
-    inset: 0 0 auto;
-    height: 5.5rem;
-    pointer-events: none;
-    background: linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--app-bg) 68%, transparent) 0%,
-        color-mix(in srgb, var(--app-bg) 38%, transparent) 56%,
-        transparent 100%
-    );
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-}
-
 .react-player-topbar .react-history-controls {
     inset-inline-start: .55rem;
 }
@@ -11827,13 +11808,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         z-index: 70;
     }
 
-    .react-player-topbar::before {
-        height: 4.8rem;
-        background: linear-gradient(to bottom, color-mix(in srgb, var(--app-bg) 94%, transparent), color-mix(in srgb, var(--app-bg) 72%, transparent) 72%, transparent);
-        -webkit-backdrop-filter: blur(14px);
-        backdrop-filter: blur(14px);
-    }
-
     .react-player-topbar .react-topbar-actions {
         inset-block-start: .55rem;
         inset-inline-end: .7rem;
@@ -12672,13 +12646,28 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     position: relative;
 }
 
-.react-player-topbar::before,
+.react-player-main::before,
 .react-player-main::after {
     opacity: 0;
     transition: opacity var(--app-motion-fast, 140ms) ease;
 }
 
-.react-player-main[data-has-content-above] .react-player-topbar::before {
+.react-player-main::before {
+    content: "";
+    position: absolute;
+    z-index: 55;
+    inset: 0 0 auto;
+    height: 5.5rem;
+    pointer-events: none;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--app-bg) 68%, transparent) 0%,
+        color-mix(in srgb, var(--app-bg) 38%, transparent) 56%,
+        transparent 100%
+    );
+}
+
+.react-player-main[data-has-content-above]::before {
     opacity: 1;
 }
 
@@ -12703,7 +12692,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .react-player-topbar::before,
+    .react-player-main::before,
     .react-player-main::after {
         transition: none;
     }
@@ -12952,24 +12941,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 .react-home-playlists > li { min-width: 0; }
 @media (min-width: 721px) {
     .react-home-playlists-section { display: none; }
-    .react-player-main::before {
-        content: "";
-        position: absolute;
-        z-index: 55;
-        inset: 0 0 auto;
-        height: 5.5rem;
-        pointer-events: none;
-        background: linear-gradient(
-            to bottom,
-            color-mix(in srgb, var(--app-bg) 68%, transparent) 0%,
-            color-mix(in srgb, var(--app-bg) 38%, transparent) 56%,
-            transparent 100%
-        );
-        -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
-        mask-image: linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%);
-        -webkit-backdrop-filter: blur(8px);
-        backdrop-filter: blur(8px);
-    }
     .react-player-topbar { display: none !important; }
     .react-player-main { grid-template-rows: minmax(0, 1fr); }
 }
