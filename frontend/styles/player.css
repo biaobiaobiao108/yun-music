@@ -12948,48 +12948,58 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-sidebar-history button { transition: none; }
 }
 
-#main-sidebar.react-sidebar .react-sidebar-nav::before,
-#main-sidebar.react-sidebar .react-sidebar-nav::after {
-    content: "";
-    position: sticky;
-    z-index: 3;
-    display: block;
-    flex: 0 0 2.75rem;
+#main-sidebar.react-sidebar .react-sidebar-scroll-region {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#main-sidebar.react-sidebar .react-sidebar-scroll-region .react-sidebar-nav {
+    box-sizing: border-box;
     width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+#main-sidebar.react-sidebar .react-sidebar-scroll-region::before,
+#main-sidebar.react-sidebar .react-sidebar-scroll-region::after {
+    content: "";
+    position: absolute;
+    z-index: 3;
+    inset-inline: 0;
     height: 2.75rem;
     pointer-events: none;
     opacity: 0;
     transition: opacity var(--app-motion-fast, 140ms) ease;
 }
 
-#main-sidebar.react-sidebar .react-sidebar-nav::before {
+#main-sidebar.react-sidebar .react-sidebar-scroll-region::before {
     inset-block-start: 0;
-    margin-block-end: -2.75rem;
     background: linear-gradient(
         to bottom,
-        color-mix(in srgb, var(--app-surface-solid) 96%, transparent),
+        color-mix(in srgb, var(--app-surface-solid) 84%, transparent),
         transparent
     );
 }
 
-#main-sidebar.react-sidebar .react-sidebar-nav::after {
+#main-sidebar.react-sidebar .react-sidebar-scroll-region::after {
     inset-block-end: 0;
-    margin-block-start: -2.75rem;
     background: linear-gradient(
         to top,
-        color-mix(in srgb, var(--app-surface-solid) 96%, transparent),
+        color-mix(in srgb, var(--app-surface-solid) 84%, transparent),
         transparent
     );
 }
 
-#main-sidebar.react-sidebar .react-sidebar-nav[data-has-content-above]::before,
-#main-sidebar.react-sidebar .react-sidebar-nav[data-has-content-below]::after {
+#main-sidebar.react-sidebar .react-sidebar-scroll-region[data-has-content-above]::before,
+#main-sidebar.react-sidebar .react-sidebar-scroll-region[data-has-content-below]::after {
     opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    #main-sidebar.react-sidebar .react-sidebar-nav::before,
-    #main-sidebar.react-sidebar .react-sidebar-nav::after {
+    #main-sidebar.react-sidebar .react-sidebar-scroll-region::before,
+    #main-sidebar.react-sidebar .react-sidebar-scroll-region::after {
         transition: none;
     }
 }
