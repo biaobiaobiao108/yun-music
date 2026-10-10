@@ -1,619 +1,1108 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="emerald" data-appearance="dark">
-
+<!doctype html>
+<html lang="zh-CN" data-appearance="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>云鹿音乐 - 现代 Web 音乐播放器与管理后台</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="云鹿音乐是自托管的 Web 音乐播放器与管理后台，支持音乐搜索、在线播放、歌词、歌单、本地音乐和实例管理。">
+    <meta name="theme-color" content="#1c1c1e">
+    <title>云鹿音乐 · 自托管 Web 音乐播放器</title>
     <link rel="icon" href="assets/yun-yin.png" type="image/png">
     <link rel="apple-touch-icon" href="assets/yun-yin.png">
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome CDN -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-
+    <script>
+        try {
+            const savedAppearance = localStorage.getItem('yun-music-intro-appearance')
+            if (savedAppearance === 'light' || savedAppearance === 'dark') {
+                document.documentElement.dataset.appearance = savedAppearance
+            }
+        } catch {}
+    </script>
     <style>
-        /* ==========================================================================
-           云鹿音乐核心设计变量与色彩体系映射
-           ========================================================================== */
         :root {
-            --theme-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-            /* 明亮主题颜色默认 */
-            --bg-main: #f9fafb;
-            --bg-panel: #ffffff;
-            --bg-item-hover: #f3f4f6;
-            --bg-header: rgba(255, 255, 255, 0.85);
-            --bg-glass: rgba(255, 255, 255, 0.75);
-            --text-main: #111827;
-            --text-muted: #4b5563;
-            --text-dim: #9ca3af;
-            --border-main: #e5e7eb;
-            --border-dim: #d1d5db;
-            --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
-            --shadow-elevated: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            color-scheme: dark;
+            --font-sans: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --app-bg: #1c1c1e;
+            --app-bg-raised: #242426;
+            --app-sidebar: #242426;
+            --app-surface: rgba(44, 44, 46, .9);
+            --app-surface-solid: #2c2c2e;
+            --app-surface-soft: #343436;
+            --app-border: rgba(235, 235, 245, .14);
+            --app-border-strong: rgba(235, 235, 245, .22);
+            --app-text: #f5f5f7;
+            --app-text-muted: #a1a1a6;
+            --app-text-dim: #737378;
+            --app-accent: #fa243c;
+            --app-accent-soft: rgba(250, 36, 60, .14);
+            --app-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .34);
+            --app-shadow-soft: 0 .7rem 2rem rgba(0, 0, 0, .24);
+            --radius-small: .65rem;
+            --radius-medium: .9rem;
+            --radius-large: 1.1rem;
+            --motion-fast: 140ms;
+            --motion: 220ms;
+            color: var(--app-text);
+            background: var(--app-bg);
+            font-family: var(--font-sans);
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* 暗黑主题 */
-        :root[data-appearance="dark"] {
-            --bg-main: #0f172a;
-            --bg-panel: #1e293b;
-            --bg-item-hover: #334155;
-            --bg-header: rgba(15, 23, 42, 0.85);
-            --bg-glass: rgba(30, 41, 59, 0.75);
-            --text-main: #f8fafc;
-            --text-muted: #cbd5e1;
-            --text-dim: #64748b;
-            --border-main: #334155;
-            --border-dim: #475569;
-            --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-            --shadow-elevated: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+        :root[data-appearance="light"] {
+            color-scheme: light;
+            --app-bg: #ffffff;
+            --app-bg-raised: #f5f5f7;
+            --app-sidebar: #f5f5f7;
+            --app-surface: rgba(255, 255, 255, .88);
+            --app-surface-solid: #ffffff;
+            --app-surface-soft: #f5f5f7;
+            --app-border: rgba(60, 60, 67, .12);
+            --app-border-strong: rgba(60, 60, 67, .22);
+            --app-text: #1d1d1f;
+            --app-text-muted: #6e6e73;
+            --app-text-dim: #86868b;
+            --app-shadow: 0 1.25rem 3.5rem rgba(0, 0, 0, .11);
+            --app-shadow-soft: 0 .45rem 1.5rem rgba(0, 0, 0, .075);
+            --app-accent-soft: rgba(250, 36, 60, .1);
         }
 
-        /* 主题色系 1：森之韵 (Emerald 默认) */
-        :root[data-theme="emerald"] {
-            --c-50: #ecfdf5;
-            --c-100: #d1fae5;
-            --c-200: #a7f3d0;
-            --c-300: #6ee7b7;
-            --c-400: #34d399;
-            --c-500: #10b981;
-            --c-600: #059669;
-            --c-700: #047857;
-            --c-800: #065f46;
-            --c-900: #064e3b;
-            --c-accent-rgb: 16, 185, 129;
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
         }
 
-        /* 主题色系 2：深海谧 (Blue) */
-        :root[data-theme="blue"] {
-            --c-50: #eff6ff;
-            --c-100: #dbeafe;
-            --c-200: #bfdbfe;
-            --c-300: #93c5fd;
-            --c-400: #60a5fa;
-            --c-500: #3b82f6;
-            --c-600: #2563eb;
-            --c-700: #1d4ed8;
-            --c-800: #1e40af;
-            --c-900: #1e3a8a;
-            --c-accent-rgb: 59, 130, 246;
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 5.5rem;
         }
 
-        /* 主题色系 3：紫罗兰 (Violet) */
-        :root[data-theme="violet"] {
-            --c-50: #f5f3ff;
-            --c-100: #ede9fe;
-            --c-200: #ddd6fe;
-            --c-300: #c4b5fd;
-            --c-400: #a78bfa;
-            --c-500: #8b5cf6;
-            --c-600: #7c3aed;
-            --c-700: #6d28d9;
-            --c-800: #5b21b6;
-            --c-900: #4c1d95;
-            --c-accent-rgb: 139, 92, 246;
-        }
-
-        /* 主题色系 4：樱花绯 (Rose) */
-        :root[data-theme="rose"] {
-            --c-50: #fff1f2;
-            --c-100: #ffe4e6;
-            --c-200: #fecdd3;
-            --c-300: #fda4af;
-            --c-400: #fb7185;
-            --c-500: #f43f5e;
-            --c-600: #e11d48;
-            --c-700: #be123c;
-            --c-800: #9f1239;
-            --c-900: #881337;
-            --c-accent-rgb: 244, 63, 94;
-        }
-
-        /* 通用原子映射类 */
         body {
-            background-color: var(--bg-main);
-            color: var(--text-main);
-            transition: background-color var(--theme-transition), color var(--theme-transition);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-width: 320px;
+            margin: 0;
+            background: var(--app-bg);
+            color: var(--app-text);
+            font-size: 1rem;
+            line-height: 1.65;
+            transition: color var(--motion) ease, background-color var(--motion) ease;
         }
 
-        .t-bg-panel { background-color: var(--bg-panel); }
-        .t-bg-main { background-color: var(--bg-main); }
-        .t-bg-item-hover:hover { background-color: var(--bg-item-hover); }
-        .t-text-main { color: var(--text-main); }
-        .t-text-muted { color: var(--text-muted); }
-        .t-text-dim { color: var(--text-dim); }
-        .t-border { border-color: var(--border-main); }
-        .t-accent { color: var(--c-500); }
-        .t-accent-bg { background-color: var(--c-500); }
-        .t-accent-bg-hover:hover { background-color: var(--c-600); }
-        .t-accent-border { border-color: var(--c-500); }
-
-        .glass-header {
-            background-color: var(--bg-header);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+        body,
+        button,
+        a {
+            font-family: var(--font-sans);
         }
 
-        .glass-card {
-            background-color: var(--bg-glass);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--border-main);
-            box-shadow: var(--shadow-card);
+        button,
+        a {
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* 旋转唱片动画 */
-        @keyframes spinSlow {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        a {
+            color: inherit;
+            text-decoration: none;
         }
 
-        .spin-vinyl {
-            animation: spinSlow 12s linear infinite;
-        }
-        .spin-paused {
-            animation-play-state: paused;
+        button {
+            color: inherit;
         }
 
-        /* 呼吸微光背景 */
-        .ambient-glow {
-            position: absolute;
-            width: 500px;
-            height: 500px;
+        :where(a, button):focus {
+            outline: 0;
+        }
+
+        :where(a, button):focus-visible {
+            outline: 1px solid var(--app-accent);
+            outline-offset: -2px;
+        }
+
+        ::selection {
+            color: #fff;
+            background: rgba(250, 36, 60, .52);
+        }
+
+        .skip-link {
+            position: fixed;
+            z-index: 100;
+            top: .75rem;
+            left: .75rem;
+            padding: .65rem .9rem;
+            border-radius: var(--radius-small);
+            background: var(--app-accent);
+            color: #fff;
+            font-size: .875rem;
+            font-weight: 650;
+            transform: translateY(-160%);
+            transition: transform var(--motion-fast) ease;
+        }
+
+        .skip-link:focus {
+            transform: translateY(0);
+        }
+
+        .site-header {
+            position: sticky;
+            z-index: 20;
+            top: 0;
+            border-bottom: 1px solid var(--app-border);
+            background: color-mix(in srgb, var(--app-bg) 88%, transparent);
+            -webkit-backdrop-filter: blur(18px);
+            backdrop-filter: blur(18px);
+        }
+
+        .header-shell {
+            display: flex;
+            width: min(100% - 3rem, 1240px);
+            min-height: 4.5rem;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2rem;
+            margin-inline: auto;
+        }
+
+        .brand {
+            display: inline-flex;
+            min-width: max-content;
+            align-items: center;
+            gap: .7rem;
+            font-size: 1rem;
+            font-weight: 730;
+            letter-spacing: -.025em;
+        }
+
+        .brand img {
+            width: 2.2rem;
+            height: 2.2rem;
+            border-radius: .65rem;
+            object-fit: cover;
+        }
+
+        .brand-name {
+            color: var(--app-text);
+        }
+
+        .main-nav {
+            display: flex;
+            align-items: center;
+            gap: clamp(1.25rem, 3vw, 2.5rem);
+            color: var(--app-text-muted);
+            font-size: .875rem;
+            font-weight: 560;
+        }
+
+        .main-nav a,
+        .footer-link,
+        .text-link {
+            transition: color var(--motion-fast) ease;
+        }
+
+        .main-nav a:hover,
+        .footer-link:hover,
+        .text-link:hover {
+            color: var(--app-text);
+        }
+
+        .header-actions {
+            display: inline-flex;
+            min-width: max-content;
+            align-items: center;
+            gap: .75rem;
+        }
+
+        .icon-button {
+            display: inline-grid;
+            width: 2.5rem;
+            height: 2.5rem;
+            place-items: center;
+            padding: 0;
+            border: 1px solid var(--app-border);
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(var(--c-accent-rgb), 0.15) 0%, rgba(var(--c-accent-rgb), 0) 70%);
-            filter: blur(40px);
-            pointer-events: none;
-            z-index: 0;
+            background: transparent;
+            color: var(--app-text-muted);
+            cursor: pointer;
+            transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
         }
 
-        /* 自定义滚动条 */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+        .icon-button:hover {
+            border-color: var(--app-border-strong);
+            background: var(--app-surface-soft);
+            color: var(--app-text);
         }
-        ::-webkit-scrollbar-track {
+
+        .icon-button svg,
+        .button svg,
+        .feature-icon svg,
+        .footer-arrow {
+            width: 1.125rem;
+            height: 1.125rem;
+            fill: none;
+            stroke: currentColor;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.8;
+        }
+
+        .theme-icon-sun {
+            display: none;
+        }
+
+        :root[data-appearance="light"] .theme-icon-moon {
+            display: none;
+        }
+
+        :root[data-appearance="light"] .theme-icon-sun {
+            display: block;
+        }
+
+        .github-link {
+            display: inline-flex;
+            min-height: 2.65rem;
+            align-items: center;
+            justify-content: center;
+            gap: .5rem;
+            padding: .55rem .95rem;
+            border: 1px solid var(--app-border-strong);
+            border-radius: var(--radius-small);
+            color: var(--app-text);
+            font-size: .875rem;
+            font-weight: 620;
+            transition: background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) ease;
+        }
+
+        .github-link:hover {
+            border-color: var(--app-border-strong);
+            background: var(--app-surface-soft);
+            transform: translateY(-1px);
+        }
+
+        .github-mark {
+            width: 1.1rem;
+            height: 1.1rem;
+            fill: currentColor;
+        }
+
+        .page-shell {
+            width: min(100% - 3rem, 1240px);
+            margin-inline: auto;
+        }
+
+        .hero {
+            display: grid;
+            min-height: min(46rem, calc(100svh - 4.5rem));
+            grid-template-columns: minmax(0, 1fr);
+            align-items: center;
+            gap: clamp(2rem, 5vw, 5.25rem);
+            padding-block: 4.25rem 5.75rem;
+        }
+
+        .hero-copy {
+            max-width: 54rem;
+            padding-block: 1rem;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        figure {
+            margin: 0;
+        }
+
+        .hero h1 {
+            margin-bottom: 1.4rem;
+            font-size: clamp(2.45rem, 4vw, 3.25rem);
+            font-weight: 740;
+            letter-spacing: -.065em;
+            line-height: 1.12;
+        }
+
+        .hero-description {
+            max-width: 36rem;
+            margin-bottom: 2rem;
+            color: var(--app-text-muted);
+            font-size: clamp(1rem, 1.35vw, 1.125rem);
+            line-height: 1.8;
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .8rem 1.15rem;
+        }
+
+        .button {
+            display: inline-flex;
+            min-height: 2.85rem;
+            align-items: center;
+            justify-content: center;
+            gap: .55rem;
+            padding: .65rem 1.05rem;
+            border: 1px solid transparent;
+            border-radius: .75rem;
+            font-size: .9rem;
+            font-weight: 660;
+            line-height: 1;
+            cursor: pointer;
+            transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) ease;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+        }
+
+        .button-primary {
+            background: var(--app-accent);
+            color: #fff;
+        }
+
+        .button-primary:hover {
+            background: #e51e38;
+        }
+
+        .button-quiet {
+            min-height: 2.75rem;
+            padding-inline: .25rem;
+            color: var(--app-text);
+        }
+
+        .button-quiet:hover {
+            color: var(--app-accent);
+        }
+
+        .button-quiet svg {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .section-band {
+            border-block: 1px solid var(--app-border);
+            background: var(--app-bg-raised);
+        }
+
+        .capabilities {
+            padding-block: clamp(4.5rem, 8vw, 7.2rem);
+        }
+
+        .section-heading {
+            max-width: 48rem;
+            margin: 0 auto 3.5rem;
+            text-align: center;
+        }
+
+        .section-heading h2,
+        .deploy-heading h2 {
+            margin-bottom: 0;
+            font-size: clamp(2rem, 3.5vw, 3rem);
+            font-weight: 720;
+            letter-spacing: -.055em;
+            line-height: 1.2;
+        }
+
+        .capability-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        .capability {
+            padding: .5rem clamp(1rem, 4vw, 3.5rem) 1.1rem;
+        }
+
+        .capability:first-child {
+            padding-left: 0;
+            border-right: 1px solid var(--app-border);
+        }
+
+        .capability:last-child {
+            padding-right: 0;
+        }
+
+        .capability h3 {
+            margin-bottom: .55rem;
+            font-size: 1.5rem;
+            font-weight: 680;
+            letter-spacing: -.04em;
+        }
+
+        .capability p {
+            max-width: 32rem;
+            min-height: 3.4rem;
+            margin-bottom: 1.2rem;
+            color: var(--app-text-muted);
+            font-size: .95rem;
+            line-height: 1.75;
+        }
+
+        .feature-list {
+            display: grid;
+            gap: .75rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            color: var(--app-text);
+            font-size: .9rem;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+        }
+
+        .feature-list li::before {
+            width: .55rem;
+            height: 1px;
+            flex: none;
+            background: var(--app-accent);
+            content: "";
+        }
+
+        .tech-line {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .65rem;
+            margin: 3rem 0 0;
+            padding-top: 1.4rem;
+            border-top: 1px solid var(--app-border);
+            color: var(--app-text-dim);
+            font-size: .82rem;
+            letter-spacing: .015em;
+        }
+
+        .tech-line span + span::before {
+            margin-right: .65rem;
+            color: var(--app-text-dim);
+            content: "·";
+        }
+
+        .scope-note {
+            display: grid;
+            grid-template-columns: max-content minmax(0, 1fr);
+            align-items: start;
+            gap: .7rem 1rem;
+            max-width: 62rem;
+            margin: 2rem auto 0;
+            padding: 1rem 1.1rem;
+            border: 1px solid var(--app-border);
+            border-radius: var(--radius-medium);
+            background: color-mix(in srgb, var(--app-surface-solid) 52%, transparent);
+        }
+
+        .scope-note strong {
+            color: var(--app-text);
+            font-size: .8rem;
+            font-weight: 660;
+        }
+
+        .scope-note p {
+            margin: 0;
+            color: var(--app-text-muted);
+            font-size: .78rem;
+            line-height: 1.7;
+        }
+
+        .deployment {
+            padding-block: clamp(4.75rem, 8vw, 7.5rem);
+        }
+
+        .deploy-heading {
+            margin-bottom: 2.7rem;
+            text-align: center;
+        }
+
+        .deploy-heading h2 {
+            margin-bottom: .85rem;
+        }
+
+        .deploy-heading p {
+            max-width: 48rem;
+            margin: 0 auto;
+            color: var(--app-text-muted);
+            font-size: .98rem;
+        }
+
+        .deploy-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(20rem, .8fr);
+            align-items: start;
+            gap: clamp(2rem, 4.5vw, 4rem);
+        }
+
+        .deploy-code-heading,
+        .data-heading {
+            display: flex;
+            min-height: 2.5rem;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: .75rem;
+        }
+
+        .deploy-code-heading h3,
+        .data-heading h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 680;
+            letter-spacing: -.035em;
+        }
+
+        .copy-button {
+            display: inline-flex;
+            min-height: 2.45rem;
+            align-items: center;
+            justify-content: center;
+            gap: .45rem;
+            padding: .5rem .8rem;
+            border: 1px solid transparent;
+            border-radius: .65rem;
+            background: var(--app-accent);
+            color: #fff;
+            font-size: .78rem;
+            font-weight: 650;
+            cursor: pointer;
+            transition: background-color var(--motion-fast) ease, transform var(--motion-fast) ease;
+        }
+
+        .copy-button:hover {
+            background: #e51e38;
+            transform: translateY(-1px);
+        }
+
+        .copy-button svg {
+            width: 1rem;
+            height: 1rem;
+            fill: none;
+            stroke: currentColor;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.8;
+        }
+
+        .code-panel {
+            overflow: auto;
+            max-height: 31rem;
+            padding: 1.1rem 1.2rem;
+            border: 1px solid var(--app-border);
+            border-radius: var(--radius-medium);
+            background: var(--app-surface-solid);
+            box-shadow: var(--app-shadow-soft);
+            scrollbar-color: var(--app-border-strong) transparent;
+        }
+
+        pre,
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        }
+
+        pre {
+            margin: 0;
+            color: var(--app-text);
+            font-size: .79rem;
+            line-height: 1.65;
+            tab-size: 2;
+        }
+
+        .data-column {
+            min-width: 0;
+            scroll-margin-top: 6rem;
+        }
+
+        .data-heading {
+            justify-content: flex-start;
+            min-height: 2.45rem;
+        }
+
+        .data-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .data-list li {
+            display: grid;
+            grid-template-columns: minmax(7.2rem, .7fr) minmax(0, 1.3fr);
+            gap: .85rem;
+            padding: 1rem 0;
+            border-top: 1px solid var(--app-border);
+        }
+
+        .data-list code {
+            color: var(--app-accent);
+            font-size: .84rem;
+            font-weight: 650;
+        }
+
+        .data-list span {
+            color: var(--app-text-muted);
+            font-size: .81rem;
+            line-height: 1.55;
+        }
+
+        .start-command {
+            display: grid;
+            grid-template-columns: max-content minmax(0, 1fr) max-content;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 2rem;
+            padding: .8rem 1rem;
+            border: 1px solid var(--app-border);
+            border-radius: var(--radius-medium);
+            background: var(--app-bg-raised);
+        }
+
+        .start-command > span:first-child {
+            color: var(--app-text-muted);
+            font-size: .8rem;
+            font-weight: 620;
+        }
+
+        .command-value {
+            overflow: hidden;
+            padding: .55rem .8rem;
+            border: 1px solid var(--app-border);
+            border-radius: .55rem;
+            background: var(--app-surface-solid);
+            color: var(--app-text);
+            font-size: .85rem;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .start-command button {
+            display: inline-flex;
+            min-height: 2.3rem;
+            align-items: center;
+            gap: .45rem;
+            padding: .35rem .5rem;
+            border: 0;
+            border-radius: .45rem;
             background: transparent;
+            color: var(--app-accent);
+            font-size: .8rem;
+            font-weight: 650;
+            cursor: pointer;
+            transition: background-color var(--motion-fast) ease;
         }
-        ::-webkit-scrollbar-thumb {
-            background: var(--border-dim);
-            border-radius: 4px;
+
+        .start-command button:hover {
+            background: var(--app-accent-soft);
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--c-500);
+
+        .start-command button svg {
+            width: .95rem;
+            height: .95rem;
+        }
+
+        .deployment-notes {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 1rem 2rem;
+            margin-top: 1.5rem;
+            color: var(--app-text-dim);
+            font-size: .77rem;
+            line-height: 1.7;
+        }
+
+        .deployment-notes p {
+            max-width: 54rem;
+            margin: 0;
+        }
+
+        .text-link {
+            display: inline-flex;
+            min-width: max-content;
+            align-items: center;
+            gap: .35rem;
+            color: var(--app-accent);
+            font-size: .82rem;
+            font-weight: 640;
+        }
+
+        .text-link:hover {
+            color: var(--app-text);
+        }
+
+        .auth-note {
+            margin-top: 2.5rem;
+            padding-top: 1.35rem;
+            border-top: 1px solid var(--app-border);
+            color: var(--app-text-muted);
+            font-size: .82rem;
+            line-height: 1.75;
+        }
+
+        .auth-note strong {
+            color: var(--app-text);
+            font-weight: 650;
+        }
+
+        .site-footer {
+            border-top: 1px solid var(--app-border);
+            background: var(--app-bg-raised);
+        }
+
+        .footer-shell {
+            display: flex;
+            min-height: 5.5rem;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding-block: 1.2rem;
+            color: var(--app-text-dim);
+            font-size: .78rem;
+        }
+
+        .footer-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: .55rem;
+            color: var(--app-text);
+            font-weight: 670;
+        }
+
+        .footer-brand img {
+            width: 1.7rem;
+            height: 1.7rem;
+            border-radius: .5rem;
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            gap: 1.3rem;
+        }
+
+        .footer-link {
+            color: var(--app-text-muted);
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        @media (max-width: 980px) {
+            .hero {
+                min-height: 0;
+                gap: 2rem;
+                padding-block: 4rem 5rem;
+            }
+
+            .hero h1 {
+                font-size: clamp(2.4rem, 5vw, 3.4rem);
+            }
+
+            .deploy-grid {
+                grid-template-columns: minmax(0, 1.1fr) minmax(17rem, .9fr);
+                gap: 2rem;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .header-shell,
+            .page-shell {
+                width: min(100% - 2.25rem, 1240px);
+            }
+
+            .header-shell {
+                min-height: 4rem;
+                gap: .75rem;
+            }
+
+            .main-nav {
+                display: none;
+            }
+
+            .header-actions {
+                gap: .5rem;
+            }
+
+            .header-actions .github-link {
+                min-height: 2.4rem;
+                padding-inline: .7rem;
+                font-size: .78rem;
+            }
+
+            .header-actions .github-mark {
+                display: none;
+            }
+
+            .hero {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 2.5rem;
+                padding-block: 4rem 4.25rem;
+            }
+
+            .hero h1 {
+                max-width: 14ch;
+                font-size: clamp(2.6rem, 10vw, 4rem);
+            }
+
+            .hero-description {
+                max-width: 42rem;
+            }
+
+            .capabilities {
+                padding-block: 4.25rem;
+            }
+
+            .section-heading {
+                margin-bottom: 2.6rem;
+                text-align: left;
+            }
+
+            .capability-grid {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 2rem;
+            }
+
+            .capability,
+            .capability:first-child,
+            .capability:last-child {
+                padding: 0;
+                border: 0;
+            }
+
+            .capability + .capability {
+                padding-top: 1.8rem;
+                border-top: 1px solid var(--app-border);
+            }
+
+            .capability p {
+                min-height: 0;
+            }
+
+            .tech-line {
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                gap: .4rem .55rem;
+                margin-top: 2.25rem;
+            }
+
+            .tech-line span + span::before {
+                margin-right: .55rem;
+            }
+
+            .scope-note {
+                grid-template-columns: minmax(0, 1fr);
+                gap: .25rem;
+            }
+
+            .deployment {
+                padding-block: 4.5rem;
+            }
+
+            .deploy-heading {
+                margin-bottom: 2rem;
+                text-align: left;
+            }
+
+            .deploy-grid {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 2.25rem;
+            }
+
+            .start-command {
+                grid-template-columns: max-content minmax(0, 1fr);
+            }
+
+            .start-command button {
+                grid-column: 1 / -1;
+                justify-self: start;
+            }
+
+            .footer-shell {
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .header-shell,
+            .page-shell {
+                width: min(100% - 1.5rem, 1240px);
+            }
+
+            .brand {
+                gap: .5rem;
+                font-size: .9rem;
+            }
+
+            .brand img {
+                width: 1.95rem;
+                height: 1.95rem;
+            }
+
+            .icon-button {
+                width: 2.3rem;
+                height: 2.3rem;
+            }
+
+            .hero {
+                gap: 2rem;
+                padding-block: 3.25rem 3.5rem;
+            }
+
+            .hero h1 {
+                font-size: clamp(2.35rem, 11vw, 3.15rem);
+            }
+
+            .hero-description {
+                font-size: .96rem;
+            }
+
+            .section-heading h2,
+            .deploy-heading h2 {
+                font-size: 2rem;
+            }
+
+            .data-list li {
+                grid-template-columns: 7rem minmax(0, 1fr);
+                gap: .6rem;
+            }
+
+            .code-panel {
+                padding: .9rem;
+            }
+
+            pre {
+                font-size: .7rem;
+            }
+
+            .deployment-notes {
+                flex-direction: column;
+            }
+
+            .footer-shell {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: .9rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
         }
     </style>
 </head>
-
-<body class="min-h-screen flex flex-col selection:bg-emerald-500/30 selection:text-emerald-300">
-
-    <!-- 顶栏导航 -->
-    <header class="sticky top-0 z-50 glass-header border-b t-border transition-colors duration-300">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <!-- 品牌与 Logo -->
-            <div class="flex items-center space-x-3 cursor-pointer" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
-                <img src="assets/yun-yin.png" width="32" height="32" class="w-8 h-8 rounded-lg shadow-sm" alt="云鹿音乐图标">
-                <div class="flex flex-col">
-                    <span class="font-extrabold text-lg tracking-wider t-accent">云鹿音乐</span>
-                    <span class="text-[10px] tracking-tight t-text-dim -mt-1 font-mono">v2.0 · Ultra-Slim Bun</span>
-                </div>
-            </div>
-
-            <!-- 导航链接 (桌面端) -->
-            <nav class="hidden md:flex items-center space-x-6 text-sm font-medium">
-                <a href="#features" class="t-text-muted hover:text-[var(--c-500)] transition-colors">架构特性</a>
-                <a href="#player-demo" class="t-text-muted hover:text-[var(--c-500)] transition-colors">模拟播放器</a>
-                <a href="#deployment" class="t-text-muted hover:text-[var(--c-500)] transition-colors">Docker 部署</a>
-                <a href="#security" class="t-text-muted hover:text-[var(--c-500)] transition-colors">安全与存储</a>
-                <a href="https://github.com/biaobiaobiao108/yun-music#readme" target="_blank" class="t-text-muted hover:text-[var(--c-500)] transition-colors">完整 README</a>
+<body>
+    <a class="skip-link" href="#main">跳转到主要内容</a>
+    <header class="site-header">
+        <div class="header-shell">
+            <a class="brand" href="#top" aria-label="云鹿音乐，返回页面顶部">
+                <img src="assets/yun-yin.png" width="36" height="36" alt="">
+                <span class="brand-name">云鹿音乐</span>
+            </a>
+            <nav class="main-nav" aria-label="页面导航">
+                <a href="#features">产品能力</a>
+                <a href="#data">数据与安全</a>
+                <a href="#quick-start">快速开始</a>
             </nav>
-
-            <!-- 右侧操作栏：主题模式 & 色系切换 & GitHub -->
-            <div class="flex items-center space-x-3">
-                <!-- 色系选择下拉 -->
-                <div class="relative group">
-                    <button aria-label="主题配色" class="w-9 h-9 rounded-full flex items-center justify-center border t-border t-bg-panel t-bg-item-hover transition-colors shadow-sm">
-                        <span class="w-4 h-4 rounded-full t-accent-bg"></span>
-                    </button>
-                    <div class="absolute right-0 mt-2 w-32 p-2 rounded-xl t-bg-panel border t-border shadow-xl hidden group-hover:block transition-all z-50">
-                        <div class="text-[11px] font-semibold t-text-dim px-2 py-1 uppercase">主题配色</div>
-                        <button onclick="setTheme('emerald')" class="w-full flex items-center px-2 py-1.5 rounded-lg text-xs t-text-muted hover:t-accent t-bg-item-hover">
-                            <span class="w-3 h-3 rounded-full bg-emerald-500 mr-2"></span>森之韵 (翠绿)
-                        </button>
-                        <button onclick="setTheme('blue')" class="w-full flex items-center px-2 py-1.5 rounded-lg text-xs t-text-muted hover:t-accent t-bg-item-hover">
-                            <span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>深海谧 (湛蓝)
-                        </button>
-                        <button onclick="setTheme('violet')" class="w-full flex items-center px-2 py-1.5 rounded-lg text-xs t-text-muted hover:t-accent t-bg-item-hover">
-                            <span class="w-3 h-3 rounded-full bg-violet-500 mr-2"></span>紫罗兰 (幻紫)
-                        </button>
-                        <button onclick="setTheme('rose')" class="w-full flex items-center px-2 py-1.5 rounded-lg text-xs t-text-muted hover:t-accent t-bg-item-hover">
-                            <span class="w-3 h-3 rounded-full bg-rose-500 mr-2"></span>樱花绯 (柔粉)
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 明暗外观切换 -->
-                <button onclick="toggleAppearance()" aria-label="切换明暗外观" class="w-9 h-9 rounded-full flex items-center justify-center border t-border t-bg-panel t-bg-item-hover transition-colors shadow-sm">
-                    <i id="appearance-icon" class="fas fa-sun text-sm t-accent"></i>
+            <div class="header-actions">
+                <button class="icon-button" id="theme-toggle" type="button" aria-label="切换到浅色外观" title="切换外观">
+                    <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.3 8.3 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z" /></svg>
+                    <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2m10-10h-2M4 12H2m17.1-7.1-1.4 1.4M6.3 17.7l-1.4 1.4m14.2 0-1.4-1.4M6.3 6.3 4.9 4.9" /></svg>
                 </button>
-
-                <!-- GitHub 链接 -->
-                <a href="https://github.com/biaobiaobiao108/yun-music" target="_blank" rel="noopener" class="w-9 h-9 rounded-full flex items-center justify-center border t-border t-bg-panel t-bg-item-hover transition-colors shadow-sm t-text-muted hover:text-[var(--c-500)]">
-                    <i class="fab fa-github text-base"></i>
+                <a class="github-link" href="https://github.com/biaobiaobiao108/yun-music" target="_blank" rel="noopener noreferrer">
+                    <svg class="github-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .9a11.1 11.1 0 0 0-3.5 21.6c.6.1.8-.3.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 .1.7 1.5 2.8 1.2.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.6 0-1.2.4-2.1 1.2-2.9-.1-.3-.5-1.4.1-2.9 0 0 .9-.3 3 1.1a10.3 10.3 0 0 1 5.5 0c2.1-1.4 3-1.1 3-1.1.6 1.5.2 2.6.1 2.9.7.8 1.2 1.7 1.2 2.9 0 4.3-2.7 5.3-5.3 5.6.4.3.8 1 .8 2v3c0 .3.2.7.8.6A11.1 11.1 0 0 0 12 .9Z" /></svg>
+                    <span>GitHub 项目</span>
                 </a>
             </div>
         </div>
     </header>
 
-    <!-- 主体内容 -->
-    <main class="flex-1 relative overflow-hidden">
-        <!-- 氛围光晕 -->
-        <div class="ambient-glow top-10 -left-20"></div>
-        <div class="ambient-glow top-96 -right-20"></div>
-
-        <!-- 1. Hero 区域 -->
-        <section class="relative pt-16 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center z-10">
-            <div class="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full border t-border t-bg-panel text-xs font-semibold t-text-muted mb-8 shadow-sm">
-                <span class="flex h-2 w-2 relative">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full t-accent-bg opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 t-accent-bg"></span>
-                </span>
-                <span>全面基于全栈 Bun 1.1+ 原生重构 · 告别 Express 遗留开销</span>
-            </div>
-
-            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight sm:leading-none mb-6">
-                私有化音乐中枢，<br class="hidden sm:inline" />
-                <span class="t-accent bg-clip-text text-transparent bg-gradient-to-r from-[var(--c-400)] to-[var(--c-600)]">
-                    毫秒响应 · 极致纯净
-                </span>
-            </h1>
-
-            <p class="max-w-2xl mx-auto text-base sm:text-lg t-text-muted mb-10 leading-relaxed">
-                面向现代浏览器的云鹿音乐 Web 播放器与管理后台。集成全网音源回退检索、SQLite WAL 原生持久化与轻量级 Docker 容器。
-            </p>
-
-            <!-- 快捷操作按钮 -->
-            <div class="flex flex-wrap justify-center items-center gap-4 mb-14">
-                <a href="#player-demo" class="px-7 py-3.5 rounded-xl font-semibold text-white t-accent-bg t-accent-bg-hover shadow-lg shadow-[rgba(var(--c-accent-rgb),0.3)] transition-all transform hover:-translate-y-0.5 flex items-center space-x-2">
-                    <i class="fas fa-play text-sm"></i>
-                    <span>体验模拟播放器</span>
-                </a>
-                <a href="#deployment" class="px-7 py-3.5 rounded-xl font-semibold t-text-main t-bg-panel border t-border t-bg-item-hover shadow-md transition-all flex items-center space-x-2">
-                    <i class="fab fa-docker text-base t-accent"></i>
-                    <span>Docker 部署教程</span>
-                </a>
-            </div>
-
-            <!-- 一键 Docker 命令复制条 -->
-            <div class="max-w-xl mx-auto glass-card rounded-2xl p-2.5 flex items-center justify-between shadow-xl">
-                <div class="flex items-center space-x-3 pl-3 overflow-hidden text-left font-mono text-xs sm:text-sm t-text-muted">
-                    <span class="t-accent font-bold select-none">$</span>
-                    <span class="truncate">docker run -d -p 9527:9527 -e FRONTEND_PASSWORD=admin123 ghcr.io/biaobiaobiao108/yun-music</span>
-                </div>
-                <button onclick="copyCommand('docker run -d -p 9527:9527 -v $(pwd)/data:/server/data -e FRONTEND_PASSWORD=YourStrongPassword ghcr.io/biaobiaobiao108/yun-music:latest', this)" class="ml-3 px-4 py-2 rounded-xl text-xs font-semibold text-white t-accent-bg t-accent-bg-hover transition-colors whitespace-nowrap flex items-center space-x-1.5">
-                    <i class="far fa-copy"></i>
-                    <span>一键复制</span>
-                </button>
-            </div>
-        </section>
-
-        <!-- 2. 交互式 Web 播放器模拟区 (对齐本项目的 Web 播放器视觉规范) -->
-        <section id="player-demo" class="relative py-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto z-10">
-            <div class="text-center mb-10">
-                <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-3">
-                    <i class="fas fa-compact-disc t-accent mr-2"></i>Web 网页播放器在线体验
-                </h2>
-                <p class="text-sm t-text-muted">
-                    服务端原生内置于 <code class="px-2 py-0.5 rounded t-bg-panel border t-border font-mono t-accent">/music</code> 路径，支持 PWA、逐字高亮歌词、Web Audio 动态频谱与音高控制。
-                </p>
-            </div>
-
-            <!-- 模拟播放器主窗口 -->
-            <div class="glass-card rounded-3xl overflow-hidden border t-border shadow-2xl transition-all duration-300">
-                <!-- 播放器顶栏窗体控制条 -->
-                <div class="h-10 t-bg-panel border-b t-border px-4 flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
-                        <span class="w-3 h-3 rounded-full bg-yellow-500/80 inline-block"></span>
-                        <span class="w-3 h-3 rounded-full bg-green-500/80 inline-block"></span>
-                        <span class="text-xs font-semibold t-text-dim ml-3 font-mono">云鹿音乐播放器 · Preview</span>
-                    </div>
-                    <div class="text-[11px] t-text-dim font-mono flex items-center space-x-2">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                        <span>Web Player Ready</span>
-                    </div>
-                </div>
-
-                <!-- 播放器主体：左侧列表 + 中间舞台唱片 + 右侧歌词卡片 -->
-                <div class="grid grid-cols-1 lg:grid-cols-12 min-h-[460px]">
-                    <!-- 左侧模拟歌单 (3列) -->
-                    <div class="lg:col-span-4 border-b lg:border-b-0 lg:border-r t-border p-4 flex flex-col justify-between">
-                        <div>
-                            <div class="text-xs font-bold uppercase tracking-wider t-text-dim mb-3 px-2 flex justify-between items-center">
-                                <span>当前播放列表 (演示)</span>
-                                <span class="text-[10px] px-2 py-0.5 rounded-full t-bg-panel border t-border">3 首曲目</span>
-                            </div>
-                            <div class="space-y-1.5" id="demo-playlist">
-                                <!-- 歌曲 1 -->
-                                <div onclick="selectSong(0)" class="song-item active-song p-2.5 rounded-xl flex items-center justify-between cursor-pointer border transition-all t-accent-border t-bg-item-hover" data-index="0">
-                                    <div class="flex items-center space-x-3 truncate">
-                                        <div class="w-9 h-9 rounded-lg t-bg-panel border t-border flex items-center justify-center font-bold text-xs t-accent">
-                                            01
-                                        </div>
-                                        <div class="truncate">
-                                            <div class="text-sm font-semibold truncate song-title">起风了 (Breeze)</div>
-                                            <div class="text-xs t-text-dim truncate">买辣椒也用券 · 无损音质</div>
-                                        </div>
-                                    </div>
-                                    <i class="fas fa-volume-up text-xs t-accent"></i>
-                                </div>
-
-                                <!-- 歌曲 2 -->
-                                <div onclick="selectSong(1)" class="song-item p-2.5 rounded-xl flex items-center justify-between cursor-pointer border border-transparent transition-all hover:t-bg-item-hover" data-index="1">
-                                    <div class="flex items-center space-x-3 truncate">
-                                        <div class="w-9 h-9 rounded-lg t-bg-panel border t-border flex items-center justify-center font-bold text-xs t-text-dim">
-                                            02
-                                        </div>
-                                        <div class="truncate">
-                                            <div class="text-sm font-semibold truncate song-title">群青 (Gunjou)</div>
-                                            <div class="text-xs t-text-dim truncate">YOASOBI · Hi-Res 24bit</div>
-                                        </div>
-                                    </div>
-                                    <span class="text-xs t-text-dim font-mono">04:22</span>
-                                </div>
-
-                                <!-- 歌曲 3 -->
-                                <div onclick="selectSong(2)" class="song-item p-2.5 rounded-xl flex items-center justify-between cursor-pointer border border-transparent transition-all hover:t-bg-item-hover" data-index="2">
-                                    <div class="flex items-center space-x-3 truncate">
-                                        <div class="w-9 h-9 rounded-lg t-bg-panel border t-border flex items-center justify-center font-bold text-xs t-text-dim">
-                                            03
-                                        </div>
-                                        <div class="truncate">
-                                            <div class="text-sm font-semibold truncate song-title">Lemon (レモン)</div>
-                                            <div class="text-xs t-text-dim truncate">米津玄師 · Master Audio</div>
-                                        </div>
-                                    </div>
-                                    <span class="text-xs t-text-dim font-mono">04:15</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 模拟底部音质指示与状态 -->
-                        <div class="mt-4 pt-3 border-t t-border flex items-center justify-between text-xs t-text-muted">
-                            <span class="flex items-center space-x-1.5">
-                                <i class="fas fa-shield-alt t-accent"></i>
-                                <span>管理员音源已就绪</span>
-                            </span>
-                            <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">FLAC 96kHz</span>
-                        </div>
-                    </div>
-
-                    <!-- 中间模拟黑胶唱片与声学频谱 (4列) -->
-                    <div class="lg:col-span-4 p-6 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r t-border relative overflow-hidden">
-                        <!-- 唱片盘外圈 -->
-                        <div class="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full p-2 bg-gradient-to-tr from-slate-900 via-slate-800 to-slate-950 shadow-2xl border-4 border-slate-700/60 flex items-center justify-center mb-6">
-                            <!-- 动态黑胶盘面 -->
-                            <div id="vinyl-disc" class="w-full h-full rounded-full border-2 border-dashed border-slate-600/40 flex items-center justify-center spin-vinyl">
-                                <!-- 专辑插图居中 -->
-                                <div id="album-cover" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-slate-900 shadow-inner flex items-center justify-center text-white text-2xl font-bold bg-gradient-to-br from-emerald-400 to-teal-700">
-                                    <i class="fas fa-music"></i>
-                                </div>
-                            </div>
-                            <!-- 唱针装饰 -->
-                            <div class="absolute -top-3 right-4 w-12 h-20 pointer-events-none opacity-80">
-                                <div class="w-1.5 h-14 bg-gray-400 transform rotate-12 rounded-full shadow-md ml-auto"></div>
-                            </div>
-                        </div>
-
-                        <!-- 动态音频频谱可视化画布 Canvas -->
-                        <canvas id="visualizer-canvas" class="w-full h-12 rounded-xl mb-2" width="280" height="50"></canvas>
-                        <div class="text-[11px] t-text-dim font-mono tracking-wider text-center">
-                            WEB AUDIO API · REAL-TIME FFT VISUALIZER
-                        </div>
-                    </div>
-
-                    <!-- 右侧逐字歌词动态卡片 (4列) -->
-                    <div class="lg:col-span-4 p-6 flex flex-col justify-between">
-                        <div>
-                            <div class="text-xs font-bold uppercase tracking-wider t-text-dim mb-4 flex items-center justify-between">
-                                <span>逐字动态歌词渲染</span>
-                                <span class="text-[10px] px-2 py-0.5 rounded t-bg-panel border t-border">AWLRC · 翻译双显</span>
-                            </div>
-
-                            <!-- 歌词流动容器 -->
-                            <div class="space-y-4 text-center py-6" id="lyric-stream">
-                                <p class="text-sm t-text-dim transition-all duration-300" id="lrc-prev">这一路上走走停停，顺着少年漂流的痕迹</p>
-                                <div class="py-2 px-3 rounded-2xl t-bg-item-hover border t-border transition-all duration-300">
-                                    <p class="text-base sm:text-lg font-bold t-accent" id="lrc-current">
-                                        迈出车站的前一刻，竟有些犹豫
-                                    </p>
-                                    <p class="text-xs t-text-dim mt-1 font-sans" id="lrc-trans">
-                                        Before stepping out of the station, I hesitated
-                                    </p>
-                                </div>
-                                <p class="text-sm t-text-dim transition-all duration-300" id="lrc-next">不禁笑羁绊脆弱不堪，怕难抵岁月长河</p>
-                            </div>
-                        </div>
-
-                        <!-- 歌词功能亮点标签 -->
-                        <div class="flex items-center justify-center space-x-2 text-[11px] t-text-dim">
-                            <span class="px-2 py-1 rounded-lg t-bg-panel border t-border"><i class="fas fa-language mr-1"></i>罗马音对齐</span>
-                            <span class="px-2 py-1 rounded-lg t-bg-panel border t-border"><i class="fas fa-sliders-h mr-1"></i>音高实时变速</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 底部播放控制器栏 (进度条 + 按钮组) -->
-                <div class="t-bg-panel border-t t-border p-4 sm:px-8">
-                    <!-- 进度滑块 -->
-                    <div class="flex items-center space-x-3 mb-3">
-                        <span class="text-xs font-mono t-text-dim" id="time-current">01:18</span>
-                        <div class="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer relative overflow-hidden group" onclick="seekSong(event)">
-                            <div id="progress-bar" class="h-full t-accent-bg rounded-full transition-all duration-200" style="width: 32%;"></div>
-                        </div>
-                        <span class="text-xs font-mono t-text-dim" id="time-total">04:45</span>
-                    </div>
-
-                    <!-- 控制按键集群 -->
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-4">
-                            <button onclick="toggleShuffle()" id="btn-shuffle" class="t-text-dim hover:text-[var(--c-500)] text-sm transition-colors" title="随机播放">
-                                <i class="fas fa-random"></i>
-                            </button>
-                            <button onclick="toggleRepeat()" id="btn-repeat" class="t-text-dim hover:text-[var(--c-500)] text-sm transition-colors" title="列表循环">
-                                <i class="fas fa-redo-alt"></i>
-                            </button>
-                        </div>
-
-                        <!-- 核心大按钮组 -->
-                        <div class="flex items-center space-x-6">
-                            <button onclick="prevSong()" class="t-text-main hover:text-[var(--c-500)] text-lg transition-transform transform active:scale-90">
-                                <i class="fas fa-step-backward"></i>
-                            </button>
-                            <button onclick="togglePlay()" id="btn-play-pause" class="w-12 h-12 rounded-full t-accent-bg text-white flex items-center justify-center text-lg shadow-lg shadow-[rgba(var(--c-accent-rgb),0.3)] transition-transform transform hover:scale-105 active:scale-95">
-                                <i class="fas fa-pause" id="icon-play-pause"></i>
-                            </button>
-                            <button onclick="nextSong()" class="t-text-main hover:text-[var(--c-500)] text-lg transition-transform transform active:scale-90">
-                                <i class="fas fa-step-forward"></i>
-                            </button>
-                        </div>
-
-                        <!-- 右侧音量滑条 -->
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-volume-down text-xs t-text-dim"></i>
-                            <input type="range" min="0" max="100" value="75" class="w-16 sm:w-24 h-1 accent-[var(--c-500)] cursor-pointer">
-                        </div>
-                    </div>
+    <main id="main">
+        <section class="hero page-shell" id="top" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <h1 id="hero-title">部署在自己的服务器，用浏览器听音乐。</h1>
+                <p class="hero-description">云鹿音乐是一套自托管的 Web 音乐播放器与管理后台。搜索、播放、歌词、歌单和本地音乐，与账户和实例管理一起运行。</p>
+                <div class="hero-actions">
+                    <a class="button button-primary" href="#quick-start">查看部署方式
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                    </a>
+                    <a class="button button-quiet" href="https://music.981601.xyz:666/music/#home" target="_blank" rel="noopener noreferrer">打开在线播放器
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9" /></svg>
+                    </a>
+                    <a class="button button-quiet" href="https://github.com/biaobiaobiao108/yun-music" target="_blank" rel="noopener noreferrer">GitHub 项目
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9" /></svg>
+                    </a>
                 </div>
             </div>
         </section>
 
-        <!-- 3. 架构特性全景矩阵 -->
-        <section id="features" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto z-10">
-            <div class="text-center max-w-3xl mx-auto mb-16">
-                <h2 class="text-3xl font-extrabold tracking-tight mb-4">全面进化的全栈架构</h2>
-                <p class="text-base t-text-muted">
-                    彻底剔除 Express，重塑为全栈 Bun + TypeScript 7.0+ 原生高性能体系，为 Web 播放与管理后台提供轻量可靠的底座。
+        <section class="section-band" id="features" aria-labelledby="features-title">
+            <div class="capabilities page-shell">
+                <div class="section-heading">
+                    <h2 id="features-title">一套服务，覆盖播放与管理</h2>
+                </div>
+                <div class="capability-grid">
+                    <article class="capability">
+                        <h3>Web 播放器</h3>
+                        <p>搜索并在线播放，查看歌词，维护队列、歌单与收藏，也能管理本地音乐。</p>
+                        <ul class="feature-list">
+                            <li>搜索与在线播放</li>
+                            <li>歌词与播放队列</li>
+                            <li>歌单、收藏与最近播放</li>
+                            <li>服务器本地音乐</li>
+                        </ul>
+                    </article>
+                    <article class="capability">
+                        <h3>管理后台</h3>
+                        <p>管理账户与数据，维护自定义音源、快照、配置、日志和运行状态。</p>
+                        <ul class="feature-list">
+                            <li>用户与会话</li>
+                            <li>自定义音源作用域</li>
+                            <li>快照与本地备份</li>
+                            <li>配置、日志和运行状态</li>
+                        </ul>
+                    </article>
+                </div>
+                <p class="tech-line" aria-label="项目技术栈">
+                    <span>Bun</span><span>TypeScript</span><span>React</span><span>Zustand</span><span>SQLite</span>
                 </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- 特性 1 -->
-                <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
-                    <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-bolt"></i>
-                    </div>
-                    <h3 class="text-lg font-bold mb-2">原生 Bun.serve 零开销运行时</h3>
-                    <p class="text-sm t-text-muted leading-relaxed">
-                        采用自研高性能洋葱模型路由与 Web 标准 Request/Response 抽象，告别繁重 Express 中间件封装，冷启动提速 500%，内存占用低至数十兆。
-                    </p>
-                </div>
-
-                <!-- 特性 2 -->
-                <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
-                    <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-play-circle"></i>
-                    </div>
-                    <h3 class="text-lg font-bold mb-2">流畅的 Web 播放体验</h3>
-                    <p class="text-sm t-text-muted leading-relaxed">
-                        原生音频播放、队列管理、歌词展示和媒体 Range 请求协同工作，桌面与移动端都能保持顺滑的播放控制。
-                    </p>
-                </div>
-
-                <!-- 特性 3 -->
-                <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
-                    <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-sliders-h"></i>
-                    </div>
-                    <h3 class="text-lg font-bold mb-2">聚合搜索与管理员音源</h3>
-                    <p class="text-sm t-text-muted leading-relaxed">
-                        保留内置音源与后台管理员音源配置，支持搜索、解析、歌词和封面服务，浏览器同源 API 统一收敛。
-                    </p>
-                </div>
-
-                <!-- 特性 4 -->
-                <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
-                    <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-database"></i>
-                    </div>
-                    <h3 class="text-lg font-bold mb-2">bun:sqlite 原生持久化 (WAL 模式)</h3>
-                    <p class="text-sm t-text-muted leading-relaxed">
-                        账户、会话、歌单快照与元数据全面升级至 SQLite 原生持久化，严苛外键约束与预写日志模式，降低数据损坏风险。
-                    </p>
-                </div>
-
-                <!-- 特性 5 -->
-                <div class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
-                    <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-camera-retro"></i>
-                    </div>
-                    <h3 class="text-lg font-bold mb-2">本地快照与数据恢复</h3>
-                    <p class="text-sm t-text-muted leading-relaxed">
-                        管理后台提供本地快照、下载、上传和恢复能力，数据边界清晰，不依赖远程 WebDAV 服务。
-                    </p>
-                </div>
-
-                <!-- 特性 6 -->
-                <div id="security" class="glass-card rounded-2xl p-6 hover:shadow-xl transition-all duration-300">
-                    <div class="w-12 h-12 rounded-xl t-accent-bg/10 flex items-center justify-center text-xl t-accent mb-4">
-                        <i class="fas fa-shield-virus"></i>
-                    </div>
-                    <h3 class="text-lg font-bold mb-2">生产级强密码与访问边界审计</h3>
-                    <p class="text-sm t-text-muted leading-relaxed">
-                        启动时内置强制弱口令与示例密码拦截，杜绝公网空门；多租户数据路径硬隔离与防目录穿越校验，为家庭与私有云部署保驾护航。
-                    </p>
-                </div>
+                <aside class="scope-note">
+                    <strong>当前产品范围</strong>
+                    <p>项目仅提供浏览器 Web 播放器与管理后台。LX 客户端同步、WebSocket 同步、Subsonic / OpenSubsonic、WebDAV 和旧请求头 Token 接口均已移除。</p>
+                </aside>
             </div>
         </section>
 
-        <!-- 4. Docker 部署交互式指令集 -->
-        <section id="deployment" class="py-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto z-10">
-            <div class="text-center mb-12">
-                <div class="inline-flex items-center space-x-2 text-xs font-semibold t-accent px-3 py-1 rounded-full t-bg-panel border t-border mb-3">
-                    <i class="fas fa-server"></i>
-                    <span>开箱即用 · 容器化与本地运行双支持</span>
-                </div>
-                <h2 class="text-3xl font-extrabold tracking-tight mb-3">多模式部署与本地运行指南</h2>
-                <p class="text-sm t-text-muted">
-                    支持开箱即用的 Alpine Docker 容器化编排，或基于原生 Bun 运行时直接从源码毫秒级本地启动。
-                </p>
+        <section class="deployment page-shell" id="quick-start" aria-labelledby="quick-start-title">
+            <div class="deploy-heading">
+                <h2 id="quick-start-title">从 Compose 开始，数据边界一目了然</h2>
+                <p>设置管理员密码与初始账户后即可启动。播放器和管理后台通过同源 Cookie 会话访问。</p>
             </div>
-
-            <!-- 部署形式 Tab 切换卡 -->
-            <div class="glass-card rounded-3xl p-6 sm:p-8 shadow-2xl">
-                <div class="flex flex-wrap items-center gap-2 border-b t-border pb-4 mb-6">
-                    <button onclick="switchDeployTab('compose')" id="tab-compose" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all t-accent-bg text-white shadow-md">
-                        Docker Compose (推荐)
-                    </button>
-                    <button onclick="switchDeployTab('run')" id="tab-run" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all t-text-muted hover:t-accent">
-                        Docker CLI Run
-                    </button>
-                    <button onclick="switchDeployTab('bun')" id="tab-bun" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all t-text-muted hover:t-accent flex items-center space-x-1.5">
-                        <span>⚡ Bun 源码直接运行</span>
-                    </button>
-                    <button onclick="switchDeployTab('build')" id="tab-build" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all t-text-muted hover:t-accent">
-                        本地 Docker 构建
-                    </button>
-                </div>
-
-                <!-- Tab 1: Docker Compose -->
-                <div id="deploy-compose" class="relative">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-xs font-mono t-text-dim">docker-compose.yml</span>
-                        <button onclick="copyPreCode('code-compose', this)" class="text-xs px-3 py-1.5 rounded-lg t-bg-panel border t-border t-text-muted hover:t-accent flex items-center space-x-1">
-                            <i class="far fa-copy"></i>
+            <div class="deploy-grid">
+                <section aria-labelledby="compose-title">
+                    <div class="deploy-code-heading">
+                        <h3 id="compose-title">Docker Compose</h3>
+                        <button class="copy-button" type="button" data-copy-target="compose-config" aria-label="复制 Docker Compose 配置">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h2" /></svg>
                             <span>复制配置</span>
                         </button>
                     </div>
-                    <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-compose">version: '3.8'
-
-services:
+                    <div class="code-panel">
+                        <pre><code id="compose-config">services:
   yun-yin:
     image: ghcr.io/biaobiaobiao108/yun-music:latest
     container_name: yun-yin
-    user: "0:0"
     restart: always
     ports:
       - "9527:9527"
@@ -623,369 +1112,111 @@ services:
       - ./music:/server/music
       - ./cover_cache:/server/cover_cache
     environment:
-      - NODE_ENV=production
-      # 【必须设置】管理后台登录密码，禁止使用弱密码或 123456
-      - FRONTEND_PASSWORD=YourStrongAdminPassword123!
-      </code></pre>
-                </div>
-
-                <!-- Tab 2: Docker Run -->
-                <div id="deploy-run" class="relative hidden">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-xs font-mono t-text-dim">终端单行命令</span>
-                        <button onclick="copyPreCode('code-run', this)" class="text-xs px-3 py-1.5 rounded-lg t-bg-panel border t-border t-text-muted hover:t-accent flex items-center space-x-1">
-                            <i class="far fa-copy"></i>
-                            <span>复制命令</span>
-                        </button>
+      NODE_ENV: production
+      FRONTEND_PASSWORD: replace-with-a-strong-admin-password
+      LX_USER_admin: replace-with-a-strong-user-password</code></pre>
                     </div>
-                    <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-run">docker run -d \
-  --name yun-yin \
-  --user 0:0 \
-  --restart always \
-  -p 9527:9527 \
-  -v $(pwd)/data:/server/data \
-  -v $(pwd)/cache:/server/cache \
-  -v $(pwd)/music:/server/music \
-  -v $(pwd)/cover_cache:/server/cover_cache \
-  -e NODE_ENV=production \
-  -e FRONTEND_PASSWORD=YourStrongAdminPassword123! \
-  -e ENABLE_WEBPLAYER_AUTH=false \
-  ghcr.io/biaobiaobiao108/yun-music:latest</code></pre>
-                <!-- Tab 3: Bun Source Run -->
-                <div id="deploy-bun" class="relative hidden">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-xs font-mono t-text-dim">终端直接运行（需安装 Bun）</span>
-                        <button onclick="copyPreCode('code-bun', this)" class="text-xs px-3 py-1.5 rounded-lg t-bg-panel border t-border t-text-muted hover:t-accent flex items-center space-x-1">
-                            <i class="far fa-copy"></i>
-                            <span>复制步骤</span>
-                        </button>
-                    </div>
-                    <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-bun"># 1. 克隆代码仓库并安装依赖
-git clone https://github.com/biaobiaobiao108/yun-music.git
-cd yun-music
-bun install
-
-# 2. 配置根目录 .env 文件 (Bun 原生自动加载)
-cat <<EOF > .env
-FRONTEND_PASSWORD=YourStrongAdminPassword123!
-PORT=9527
-EOF
-
-# 3. 极速编译前端产物（仅需数十毫秒）
-bun run build:frontend
-
-# 4. 启动服务（生产启动）
-bun start
-
-# 或使用热重载开发模式：
-# bun run dev</code></pre>
-                </div>
-
-                <!-- Tab 4: Local Build -->
-                <div id="deploy-build" class="relative hidden">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-xs font-mono t-text-dim">克隆与构建</span>
-                        <button onclick="copyPreCode('code-build', this)" class="text-xs px-3 py-1.5 rounded-lg t-bg-panel border t-border t-text-muted hover:t-accent flex items-center space-x-1">
-                            <i class="far fa-copy"></i>
-                            <span>复制步骤</span>
-                        </button>
-                    </div>
-                    <pre class="rounded-2xl p-4 sm:p-5 bg-slate-950 text-slate-100 font-mono text-xs sm:text-sm overflow-x-auto leading-relaxed"><code id="code-build"># 1. 克隆代码仓库
-git clone https://github.com/biaobiaobiao108/yun-music.git
-cd yun-music
-
-# 2. 修改 docker-compose.yml 中的环境变量密码
-
-# 3. 本地构建并后台启动
-docker compose up -d --build
-
-# 4. 查看运行日志
-docker compose logs -f yun-yin</code></pre>
-                </div>
+                </section>
+                <section class="data-column" id="data" aria-labelledby="data-title">
+                    <div class="data-heading"><h3 id="data-title">数据各有去处</h3></div>
+                    <ul class="data-list">
+                        <li><code>data/</code><span>SQLite 数据库与实例配置</span></li>
+                        <li><code>cache/</code><span>可重新下载的播放缓存与歌词</span></li>
+                        <li><code>music/</code><span>用户下载的本地音乐，不受缓存 LRU 清理</span></li>
+                        <li><code>cover_cache/</code><span>封面缓存</span></li>
+                    </ul>
+                </section>
             </div>
-        </section>
-
-        <!-- 5. 核心环境变量清单 -->
-        <section class="py-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto z-10">
-            <h2 class="text-2xl font-bold tracking-tight mb-6 flex items-center">
-                <i class="fas fa-sliders-h t-accent mr-3"></i>核心环境变量速览
-            </h2>
-            <div class="overflow-x-auto glass-card rounded-2xl border t-border">
-                <table class="w-full text-left text-xs sm:text-sm">
-                    <thead class="t-bg-panel border-b t-border text-xs uppercase t-text-dim font-mono">
-                        <tr>
-                            <th class="py-3.5 px-4">变量名</th>
-                            <th class="py-3.5 px-4">默认值</th>
-                            <th class="py-3.5 px-4">说明</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y t-border font-sans t-text-muted">
-                        <tr class="hover:t-bg-item-hover">
-                            <td class="py-3 px-4 font-mono font-bold text-red-400">FRONTEND_PASSWORD</td>
-                            <td class="py-3 px-4 font-mono">必填 (空值退出)</td>
-                            <td class="py-3 px-4">管理后台管理员登录密码，严禁使用 123456 等示例弱口令</td>
-                        </tr>
-                        <tr class="hover:t-bg-item-hover">
-                            <td class="py-3 px-4 font-mono font-bold t-accent">LX_USER_&lt;name&gt;</td>
-                            <td class="py-3 px-4 font-mono">无</td>
-                            <td class="py-3 px-4">声明 Web 用户账户，例如 <code class="px-1.5 py-0.5 rounded t-bg-panel border t-border font-mono">LX_USER_tom=pwd123</code></td>
-                        </tr>
-                        <tr class="hover:t-bg-item-hover">
-                            <td class="py-3 px-4 font-mono">PORT</td>
-                            <td class="py-3 px-4 font-mono">9527</td>
-                            <td class="py-3 px-4">服务监听端口</td>
-                        </tr>
-                        <tr class="hover:t-bg-item-hover">
-                            <td class="py-3 px-4 font-mono">ENABLE_WEBPLAYER_AUTH</td>
-                            <td class="py-3 px-4 font-mono">false</td>
-                            <td class="py-3 px-4">是否强制 Web 网页播放器输入访问密码</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="start-command">
+                <span>启动命令</span>
+                <code class="command-value" id="start-command">docker compose up -d</code>
+                <button type="button" data-copy-target="start-command" aria-label="复制启动命令">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h2" /></svg>
+                    <span>复制命令</span>
+                </button>
             </div>
+            <div class="deployment-notes">
+                <p>Compose 默认以 UID/GID 0:0 运行并丢弃 Linux capabilities。需要使用非 root 身份时，可设置 PUID / PGID，并确保挂载目录权限匹配。</p>
+                <a class="text-link" href="https://github.com/biaobiaobiao108/yun-music#readme" target="_blank" rel="noopener noreferrer">
+                    查看完整 README
+                    <svg class="footer-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+                </a>
+            </div>
+            <p class="auth-note"><strong>认证与接口边界：</strong>密码以 scrypt 哈希保存，认证使用 HttpOnly、SameSite Cookie。管理密码必须设置为非空强密码；生产部署建议通过 HTTPS 反向代理访问。</p>
         </section>
     </main>
 
-    <!-- 页脚 -->
-    <footer class="t-bg-panel border-t t-border py-12 px-4 sm:px-6 lg:px-8 text-center text-xs t-text-dim transition-colors">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center space-x-2">
-                <span class="font-bold t-accent">云鹿音乐</span>
-                <span>· Powered by Bun 1.1+ & TypeScript 7.0</span>
-            </div>
-            <div>
-                Distributed under <a href="https://github.com/biaobiaobiao108/yun-music/blob/main/LICENSE" target="_blank" class="underline hover:t-accent">Apache-2.0 License</a>.
-            </div>
-            <div>
-                <a href="#top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="hover:t-accent">
-                    <i class="fas fa-arrow-up mr-1"></i>返回顶部
-                </a>
+    <footer class="site-footer">
+        <div class="footer-shell page-shell">
+            <a class="footer-brand" href="#top">
+                <img src="assets/yun-yin.png" width="28" height="28" alt="">
+                <span>云鹿音乐</span>
+            </a>
+            <span>自托管 Web 音乐播放器与管理后台</span>
+            <div class="footer-links">
+                <a class="footer-link" href="https://github.com/biaobiaobiao108/yun-music" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a class="footer-link" href="https://github.com/biaobiaobiao108/yun-music/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Apache-2.0</a>
             </div>
         </div>
     </footer>
-
-    <!-- 交互脚本 -->
+    <div class="sr-only" id="copy-status" role="status" aria-live="polite"></div>
     <script>
-        // ==========================================
-        // 1. 主题与明暗外观管理
-        // ==========================================
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('lx_demo_theme', theme);
+        const root = document.documentElement
+        const themeToggle = document.getElementById('theme-toggle')
+        const copyStatus = document.getElementById('copy-status')
+        const themeColor = document.querySelector('meta[name="theme-color"]')
+
+        function isDarkAppearance() {
+            return root.dataset.appearance !== 'light'
         }
 
-        function toggleAppearance() {
-            const current = document.documentElement.getAttribute('data-appearance');
-            const next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-appearance', next);
-            localStorage.setItem('lx_demo_appearance', next);
-            updateAppearanceIcon(next);
+        function updateThemeLabel() {
+            themeToggle.setAttribute('aria-label', isDarkAppearance() ? '切换到浅色外观' : '切换到深色外观')
+            themeColor.setAttribute('content', isDarkAppearance() ? '#1c1c1e' : '#ffffff')
         }
 
-        function updateAppearanceIcon(mode) {
-            const icon = document.getElementById('appearance-icon');
-            if (!icon) return;
-            if (mode === 'dark') {
-                icon.className = 'fas fa-sun text-sm t-accent';
-            } else {
-                icon.className = 'fas fa-moon text-sm t-accent';
-            }
-        }
+        themeToggle.addEventListener('click', () => {
+            const nextAppearance = isDarkAppearance() ? 'light' : 'dark'
+            root.dataset.appearance = nextAppearance
+            try {
+                localStorage.setItem('yun-music-intro-appearance', nextAppearance)
+            } catch {}
+            updateThemeLabel()
+        })
 
-        // 初始化加载已存偏好
-        (function initPreferences() {
-            const savedTheme = localStorage.getItem('lx_demo_theme') || 'emerald';
-            const savedApp = localStorage.getItem('lx_demo_appearance') || 'dark';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            document.documentElement.setAttribute('data-appearance', savedApp);
-            updateAppearanceIcon(savedApp);
-        })();
-
-        // ==========================================
-        // 2. 模拟播放器交互与状态机
-        // ==========================================
-        const songs = [
-            {
-                title: '起风了 (Breeze)',
-                artist: '买辣椒也用券 · 无损音质',
-                duration: '05:12',
-                coverGradient: 'from-emerald-400 to-teal-700',
-                lyrics: [
-                    { time: '01:12', orig: '这一路上走走停停，顺着少年漂流的痕迹', trans: 'Stopping and going along the way, following traces of youth' },
-                    { time: '01:18', orig: '迈出车站的前一刻，竟有些犹豫', trans: 'Before stepping out of the station, I hesitated' },
-                    { time: '01:24', orig: '不禁笑羁绊脆弱不堪，怕难抵岁月长河', trans: 'Smiling at how fragile bonds are against the endless river of time' }
-                ]
-            },
-            {
-                title: '群青 (Gunjou)',
-                artist: 'YOASOBI · Hi-Res 24bit',
-                duration: '04:22',
-                coverGradient: 'from-blue-500 to-indigo-800',
-                lyrics: [
-                    { time: '01:05', orig: '嗚呼、いつもの様に 過ぎる日々にあくびが出る', trans: 'Ah, as always, yawning through the passing days' },
-                    { time: '01:14', orig: 'ありのままの自分を 隠して生きてる', trans: 'Living while hiding my true self' },
-                    { time: '01:22', orig: '好きなものを好きだと言う 怖くて仕方ないけど', trans: 'Though terrified to say I love what I truly love' }
-                ]
-            },
-            {
-                title: 'Lemon (レモン)',
-                artist: '米津玄師 · Master Audio',
-                duration: '04:15',
-                coverGradient: 'from-amber-400 to-orange-700',
-                lyrics: [
-                    { time: '01:00', orig: '夢ならばどれほどよかったでしょう', trans: 'How wonderful it would have been if it were all a dream' },
-                    { time: '01:08', orig: '未だにあなたのことを夢にみる', trans: 'Even now, I still dream of you' },
-                    { time: '01:16', orig: '忘れた物を取りに帰るように 古びた思い出の埃を払う', trans: 'Dusting off old memories like retrieving something left behind' }
-                ]
-            }
-        ];
-
-        let currentSongIndex = 0;
-        let isPlaying = true;
-        let progressPercent = 32;
-
-        function selectSong(index) {
-            currentSongIndex = index;
-            const song = songs[index];
-
-            // 更新列表选中高亮
-            document.querySelectorAll('.song-item').forEach((el, i) => {
-                if (i === index) {
-                    el.className = 'song-item active-song p-2.5 rounded-xl flex items-center justify-between cursor-pointer border transition-all t-accent-border t-bg-item-hover';
+        async function copyText(text, button) {
+            const originalLabel = button.querySelector('span').textContent
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text)
                 } else {
-                    el.className = 'song-item p-2.5 rounded-xl flex items-center justify-between cursor-pointer border border-transparent transition-all hover:t-bg-item-hover';
+                    const field = document.createElement('textarea')
+                    field.value = text
+                    field.setAttribute('readonly', '')
+                    field.style.position = 'fixed'
+                    field.style.opacity = '0'
+                    document.body.append(field)
+                    field.select()
+                    const copied = document.execCommand('copy')
+                    field.remove()
+                    if (!copied) throw new Error('clipboard unavailable')
                 }
-            });
-
-            // 更新封面渐变
-            const coverEl = document.getElementById('album-cover');
-            coverEl.className = `w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-slate-900 shadow-inner flex items-center justify-center text-white text-2xl font-bold bg-gradient-to-br ${song.coverGradient}`;
-
-            // 更新时间与歌词
-            document.getElementById('time-total').innerText = song.duration;
-            document.getElementById('lrc-prev').innerText = song.lyrics[0].orig;
-            document.getElementById('lrc-current').innerText = song.lyrics[1].orig;
-            document.getElementById('lrc-trans').innerText = song.lyrics[1].trans;
-            document.getElementById('lrc-next').innerText = song.lyrics[2].orig;
-
-            if (!isPlaying) {
-                togglePlay();
+                button.querySelector('span').textContent = '已复制'
+                copyStatus.textContent = '内容已复制到剪贴板'
+                window.setTimeout(() => { button.querySelector('span').textContent = originalLabel }, 1600)
+            } catch {
+                copyStatus.textContent = '复制失败，请手动选择内容'
             }
         }
 
-        function togglePlay() {
-            isPlaying = !isPlaying;
-            const vinyl = document.getElementById('vinyl-disc');
-            const icon = document.getElementById('icon-play-pause');
+        document.querySelectorAll('[data-copy-target]').forEach(button => {
+            button.addEventListener('click', () => {
+                const target = document.getElementById(button.dataset.copyTarget)
+                if (target) void copyText(target.textContent.trim(), button)
+            })
+        })
 
-            if (isPlaying) {
-                vinyl.classList.remove('spin-paused');
-                icon.className = 'fas fa-pause';
-            } else {
-                vinyl.classList.add('spin-paused');
-                icon.className = 'fas fa-play';
-            }
-        }
-
-        function nextSong() {
-            const nextIdx = (currentSongIndex + 1) % songs.length;
-            selectSong(nextIdx);
-        }
-
-        function prevSong() {
-            const prevIdx = (currentSongIndex - 1 + songs.length) % songs.length;
-            selectSong(prevIdx);
-        }
-
-        function seekSong(event) {
-            const rect = event.currentTarget.getBoundingClientRect();
-            const clickX = event.clientX - rect.left;
-            progressPercent = Math.min(100, Math.max(0, (clickX / rect.width) * 100));
-            document.getElementById('progress-bar').style.width = progressPercent + '%';
-        }
-
-        function toggleShuffle() {
-            const btn = document.getElementById('btn-shuffle');
-            btn.classList.toggle('text-[var(--c-500)]');
-        }
-
-        function toggleRepeat() {
-            const btn = document.getElementById('btn-repeat');
-            btn.classList.toggle('text-[var(--c-500)]');
-        }
-
-        // ==========================================
-        // 3. Canvas 频谱波形动画
-        // ==========================================
-        const canvas = document.getElementById('visualizer-canvas');
-        const ctx = canvas.getContext('2d');
-        const barCount = 36;
-        let bars = Array.from({ length: barCount }, () => Math.random() * 20 + 5);
-
-        function drawVisualizer() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const barWidth = canvas.width / barCount - 2;
-
-            for (let i = 0; i < barCount; i++) {
-                if (isPlaying) {
-                    bars[i] += (Math.random() - 0.5) * 8;
-                    bars[i] = Math.max(4, Math.min(canvas.height - 4, bars[i]));
-                } else {
-                    bars[i] = Math.max(4, bars[i] * 0.95);
-                }
-
-                // 取得当前主题色系
-                const style = getComputedStyle(document.documentElement);
-                const color = style.getPropertyValue('--c-500').trim() || '#10b981';
-
-                ctx.fillStyle = color;
-                const x = i * (barWidth + 2);
-                const y = (canvas.height - bars[i]) / 2;
-                ctx.beginPath();
-                ctx.roundRect(x, y, barWidth, bars[i], 3);
-                ctx.fill();
-            }
-
-            requestAnimationFrame(drawVisualizer);
-        }
-        drawVisualizer();
-
-        // ==========================================
-        // 4. 部署 Tab 切换
-        // ==========================================
-        function switchDeployTab(tab) {
-            const tabs = ['compose', 'run', 'bun', 'build'];
-            tabs.forEach(t => {
-                const el = document.getElementById(`deploy-${t}`);
-                const btn = document.getElementById(`tab-${t}`);
-                if (t === tab) {
-                    el.classList.remove('hidden');
-                    btn.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition-all t-accent-bg text-white shadow-md';
-                } else {
-                    el.classList.add('hidden');
-                    btn.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition-all t-text-muted hover:t-accent';
-                }
-            });
-        }
-
-        // ==========================================
-        // 5. 复制剪贴板工具函数
-        // ==========================================
-        function copyCommand(text, btn) {
-            navigator.clipboard.writeText(text).then(() => {
-                const originalHtml = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-check"></i><span>已复制!</span>';
-                setTimeout(() => {
-                    btn.innerHTML = originalHtml;
-                }, 2000);
-            });
-        }
-
-        function copyPreCode(codeId, btn) {
-            const code = document.getElementById(codeId).innerText;
-            copyCommand(code, btn);
-        }
+        updateThemeLabel()
     </script>
 </body>
-
 </html>

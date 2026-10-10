@@ -1,26 +1,20 @@
 # 云鹿音乐
 
-云鹿音乐是一个面向现代浏览器的 Web 音乐播放器与管理后台。项目使用 Bun、TypeScript、React、Zustand 和 SQLite，提供搜索、播放、歌词、歌单、收藏、缓存、本地音乐、管理员自定义音源、用户管理、快照、配置、日志和服务状态。
+云鹿音乐是一套部署在自己服务器上的 Web 音乐播放器。打开浏览器即可搜索并播放音乐、查看歌词、整理歌单与收藏，也可以访问服务器上的本地音乐；管理员通过配套后台管理账户、音源与实例设置。
 
-项目已经收敛为 Web-only 产品，不再支持 LX 桌面/移动端同步协议、WebSocket 同步、Subsonic、WebDAV 或其他旧第三方接口。旧接口会返回明确的 `404` 或 `410`，旧数据库不会自动迁移。
+播放器和管理后台作为同一个实例运行，账户与播放数据由实例保存。项目当前面向浏览器使用，不提供旧版 LX 客户端同步、WebSocket 同步、Subsonic / OpenSubsonic 或 WebDAV 服务。
 
-## 特性
+## 听音乐与管理资料
 
-- 原生 `Bun.serve`、Web 标准 `Request` / `Response` 和同源 HTTP API。
-- React Web 播放器：音乐搜索、在线播放、歌词、队列、歌单、收藏、缓存和本地音乐；播放器只读取已分配且已启用的音源。
-- 管理后台：用户、数据、快照、本地备份、配置、日志、运行状态和自定义音源管理。
-- SQLite WAL：用户、会话、设置、快照元数据和缓存索引使用结构化存储。
-- Cookie 会话：认证使用 HttpOnly、SameSite Cookie；密码以 scrypt 哈希保存，不写入浏览器存储或日志。
-- 安全边界：同源策略、安全响应头、请求 ID、路径穿越防护、媒体 Range、流式下载和远程 URL 校验。
-- Docker Alpine 多阶段镜像，容器 UID/GID 可配置，默认使用 `0:0`。
+- **搜索与播放**：在已分配且启用的音源中搜索歌曲，在线播放并查看歌词。
+- **整理个人音乐**：维护歌单、收藏、最近播放与播放队列。
+- **本地音乐**：播放服务器上的本地音乐，并管理主动下载到本地库的歌曲。
+- **管理实例**：在管理后台维护用户、音源、配置、快照、本地备份、日志和服务状态。
+- **自托管**：使用 Docker Compose 部署，数据目录由你选择和管理。
 
-### 自定义音源管理
+## 部署
 
-自定义音源只在管理后台维护。管理员可以在“自定义源”页面选择公共作用域或指定账户作用域，上传/导入、启用、排序、删除和转移音源。`open` 表示公共音源；用户名目录表示账户专属音源。播放器端不再提供上传、导入或删除入口，只读取当前用户可用的公共音源与账户专属音源。
-
-## 快速开始
-
-### Docker Compose
+准备 Docker Compose 文件：
 
 ```yaml
 services:
@@ -41,25 +35,41 @@ services:
       LX_USER_admin: replace-with-a-strong-user-password
 ```
 
-启动并查看日志：
+启动服务并查看日志：
 
 ```bash
 docker compose up -d
 docker compose logs -f yun-yin
 ```
 
-Compose 默认以 UID/GID `0:0` 运行，并丢弃全部 Linux capabilities。进程只能按挂载目录实际的所有者/组权限读写，不能依赖 root 绕过文件权限。推荐用当前宿主机账户运行：先创建挂载目录，将目录归属给该账户，再在 `.env` 中设置对应的 `PUID` 和 `PGID`：
+访问地址：
 
-```bash
-mkdir -p data cache music cover_cache
-sudo chown -R "$(id -u):$(id -g)" data cache music cover_cache
-id -u
-id -g
-```
+- 播放器：`http://服务器地址:9527/music`
+- 管理后台：`http://服务器地址:9527/`
+- 健康检查：`http://服务器地址:9527/healthz`
 
-将 UID/GID 数值写入 `.env`（例如 `PUID=1000`、`PGID=1000`）。目录至少需要让该 UID 可读写和遍历；若使用组共享权限，也要确保 PGID 与宿主机目录组一致。保留默认 `0:0` 时，应把挂载目录所有权或可写组权限明确授予 UID/GID 0。生产环境建议使用只读根文件系统，并仅将 `/server/data`、`/server/cache`、`/server/music` 和 `/server/cover_cache` 作为可写目录挂载。
+`FRONTEND_PASSWORD` 是必填的管理员密码，请替换成高强度随机值。`LX_USER_admin` 会创建初始播放器账户，同样应换成独立的强密码。也可以在 `.env` 中设置 `PUID` 和 `PGID`，让容器使用专用的宿主机 UID/GID；请确保挂载目录对该身份可读写。生产环境建议经由 HTTPS 反向代理访问。
 
-### Bun 源码运行
+## 数据由你保存
+
+Compose 将应用数据分别挂载到宿主机目录，便于按需备份或迁移：
+
+| 目录 | 内容 |
+| --- | --- |
+| `data/` | SQLite 数据库与实例配置 |
+| `cache/` | 可重新获取的播放缓存与歌词 |
+| `music/` | 主动下载或整理的本地音乐，不受缓存清理策略影响 |
+| `cover_cache/` | 封面缓存 |
+
+用户、会话、设置、歌单/黑名单快照元数据和缓存索引保存在 SQLite 中。密码以 scrypt 哈希保存；浏览器认证使用 HttpOnly、SameSite Cookie。备份和实例目录应放在受控位置，不要公开数据库、配置、会话 Cookie 或日志。
+
+## 当前产品范围
+
+云鹿音乐当前提供浏览器播放器和管理后台。旧的 LX 设备同步、Subsonic / OpenSubsonic、WebDAV、同步 Token 和旧密码请求头接口已移除，不要将本项目配置为这些旧客户端或协议的服务端。
+
+## 从源码运行
+
+需要 Bun 1.4.3 或更新版本：
 
 ```bash
 bun install
@@ -67,110 +77,14 @@ bun run build:frontend
 bun start
 ```
 
-开发模式：
+开发时可以运行：
 
 ```bash
 bun run dev
 bun run dev:frontend
 ```
 
-默认地址：
-
-- 管理后台：`http://localhost:9527/`
-- Web 播放器：`http://localhost:9527/music`
-- 健康检查：`http://localhost:9527/healthz`
-- 就绪检查：`http://localhost:9527/readyz`
-
-## 配置
-
-管理密码必须通过 `FRONTEND_PASSWORD` 或运行时配置设置，不能是空密码或示例弱密码。首次初始化用户可使用 `LX_USER_<username>` 环境变量，例如：
-
-```dotenv
-FRONTEND_PASSWORD=replace-with-a-strong-admin-password
-LX_USER_alice=replace-with-a-strong-user-password
-PORT=9527
-BIND_IP=0.0.0.0
-DATA_PATH=/server/data
-PLAYER_PATH=/music
-ADMIN_PATH=
-SERVER_NAME=yun-yin
-SINGER_SOURCE_PRIORITY=tx,wy
-```
-
-可用配置类别包括：网络监听、数据目录、管理员与用户认证、播放器访问控制、公开访问限制、缓存限制、快照数量、代理和音源优先级。`config.js` 可由实例挂载到 `DATA_PATH`，用户列表不写入该文件，而是由 SQLite 管理。
-
-播放器与管理后台均为同源应用，浏览器请求不需要也不接受 `x-user-password`、`x-user-token`、`x-frontend-auth` 或旧同步 Token。
-
-## 数据与实例重置
-
-实例首次启动会创建全新 SQLite schema（当前版本 3），不迁移旧数据库。若目录中检测到旧 schema，服务会停止并提示重置；不会在启动时静默删除用户数据。
-
-显式重置只允许清理以下四个实例目录：`data/`、`cache/`、`music/`、`cover_cache/`。确认前请停止服务并做好备份：
-
-```bash
-bun run reset:instance -- --confirm
-```
-
-本地备份下载/上传属于管理后台能力，备份文件不依赖 WebDAV。备份包含配置、用户数据和数据库相关文件；请将备份存放在受控位置。
-
-## 数据存储与维护
-
-项目中的“笔记”类数据对应 SQLite 的歌单/黑名单快照（`snapshots`），不是单独的笔记表。存储目录的职责如下：
-
-- `data/yun-yin.db`：用户、会话、设置、快照元数据和缓存索引等结构化数据。
-- `cache/`：可重新下载的播放缓存、歌词和相关封面，属于临时数据。
-- `music/`：用户明确下载或整理的本地音乐，不会被缓存空间限制自动删除。
-- `cover_cache/`：封面缓存；清空缓存、删除用户和迁移用户时会同步处理当前及历史缓存位置。
-
-快照写入、导入和读取历史列表时会自动清理：单条快照最大 20 MiB；每个用户/模块最多使用配置的快照数量，且最多保留 100 条、总计 50 MiB。删除最新快照后，系统会自动把最新指针修复到剩余快照；删除全部快照会清理对应元数据。
-
-SQLite 删除记录后不会立即缩小主数据库文件，空闲页会留在文件中供后续复用。管理员可以使用以下接口查看占用并在低峰期执行压缩，接口需要管理员 Cookie 会话：
-
-```text
-GET  /api/admin/database/stats
-POST /api/admin/database/vacuum
-```
-
-压缩接口会在 VACUUM 前后处理 WAL 侧文件，并返回主库、WAL、共享内存文件大小、空闲页和预计回收字节数。系统不会在每次删除后自动 VACUUM，以避免频繁锁库和额外磁盘 I/O。
-
-缓存空间限制默认关闭，以免未经确认删除用户数据；需要时在管理后台开启 `user.enableCacheSizeLimit`，并设置 `user.cacheSizeLimit`（MiB）。开启后只按最近使用情况清理 `cache/`，不会清理 `music/`；统计、清空和超限清理都会覆盖当前与备用缓存根目录。
-
-## HTTP API 边界
-
-浏览器业务 API 保留在 `/api/` 下，并由同源 Cookie 会话保护。服务不再提供：
-
-- LX 客户端同步握手和 WebSocket 升级；
-- `/rest/*` Subsonic / OpenSubsonic；
-- `/api/webdav/*`、WebDAV 自动同步和远程备份任务；
-- 旧的密码请求头、同步 Token 和设备密钥接口。
-
-媒体文件继续支持受保护的 Range 请求、流式传输和缓存队列。静态 hash 资源使用长期 immutable 缓存，HTML 与运行时配置使用 no-cache，并支持 ETag / 304 / HEAD。
-
-## 开发检查
-
-```bash
-bun check
-bun test --check
-bun run build:frontend
-bun run check:frontend-assets
-bun run build
-```
-
-前端源码位于 `frontend/`，`public/` 只保存服务发布产物；不要手工修改 JavaScript/CSS 编译文件。播放器和管理后台使用 React + TypeScript + Zustand，音频、AudioWorklet 和 Canvas 等底层能力保留为独立的命令式桥接。
-
-前端迁移后的入口、状态边界、旧存储键兼容规则和调试约定见 [React 前端架构说明](./docs/frontend-react.md)。
-
-## React 前端架构
-
-播放器和管理后台的界面、路由状态、事件绑定与弹层均由 React 管理；音频元素、AudioWorklet、MediaSession、Canvas 可视化等浏览器底层能力仍封装在独立服务中。构建仍使用 Bun Bundler，不引入 Vite，也不改变后端 API、PWA 路径或既有浏览器存储契约。
-
-## 部署建议
-
-- 使用 HTTPS 反向代理，并覆盖透传 `Host`、真实 IP 和 `X-Forwarded-Proto`（或标准 `Forwarded`）。应用会据此识别公网 origin；请勿把客户端同名请求头直接转发到容器。
-- 管理后台和用户密码使用密码管理器生成的高强度随机值。
-- 将 `data/`、`cache/`、`music/`、`cover_cache/` 分开备份，并限制宿主机权限。
-- 容器默认以 `0:0` 运行，或通过 `.env` 的 `PUID` / `PGID` 选择专用非 root 身份；由于丢弃了全部 capabilities，需确保该 UID/GID 对数据、缓存和下载挂载目录有写权限。启用只读根文件系统和受限临时目录，并仅挂载需要写入的目录。
-- 不要把数据库、配置文件、会话 Cookie 或日志暴露到公共静态目录。
+前端源码位于 `frontend/`，由 Bun Bundler 编译到 `public/`。播放器和管理后台使用 React、TypeScript 与 Zustand，服务端使用 Bun、TypeScript 和 `bun:sqlite`。
 
 ## 许可证
 
