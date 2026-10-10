@@ -4,6 +4,28 @@
 
 播放器和管理后台作为同一个实例运行，账户与播放数据由实例保存。项目当前面向浏览器使用，不提供旧版 LX 客户端同步、WebSocket 同步、Subsonic / OpenSubsonic 或 WebDAV 服务。
 
+## 产品界面
+
+以下为已部署 Web 播放器的真实页面截图。桌面页面保留左侧功能导航和底部播放器；播放列表、下载任务以侧边面板呈现，歌词页提供独立的沉浸式视图。
+
+![云鹿音乐首页，展示最近播放内容、左侧功能导航和底部播放器](docs/assets/screenshots/home.jpg)
+
+| 发现歌单 | 音乐搜索 |
+| --- | --- |
+| ![歌单广场页面，展示可发现的歌单](docs/assets/screenshots/discover.jpg) | ![音乐搜索页面，包含搜索框、音源选择和热门搜索](docs/assets/screenshots/search.jpg) |
+
+| 排行榜 | 我的收藏 |
+| --- | --- |
+| ![排行榜页面，展示歌曲排名与专辑信息](docs/assets/screenshots/leaderboard.jpg) | ![我喜欢的音乐页面，展示已收藏歌曲](docs/assets/screenshots/favorites.jpg) |
+
+| 服务器本地音乐 | 缓存与下载 |
+| --- | --- |
+| ![本地音乐库，展示歌曲时长、文件大小和格式](docs/assets/screenshots/local-music.jpg) | ![缓存与下载侧边面板，展示歌曲任务和下载进度](docs/assets/screenshots/downloads.jpg) |
+
+| 播放队列 | 沉浸式歌词 |
+| --- | --- |
+| ![播放列表侧边面板，展示当前歌曲队列](docs/assets/screenshots/queue.jpg) | ![全屏歌词页面，展示歌曲封面、播放控制和歌词](docs/assets/screenshots/lyrics.jpg) |
+
 ## 听音乐与管理资料
 
 - **搜索与播放**：在已分配且启用的音源中搜索歌曲，在线播放并查看歌词。

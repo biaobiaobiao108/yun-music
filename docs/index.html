@@ -334,6 +334,81 @@
             gap: .8rem 1.15rem;
         }
 
+        .showcase {
+            padding-block: clamp(4.5rem, 8vw, 7.2rem);
+        }
+
+        .showcase-shell {
+            display: grid;
+            gap: 1.25rem;
+        }
+
+        .showcase-heading {
+            margin-bottom: 1.5rem;
+        }
+
+        .showcase-kicker {
+            margin-bottom: .7rem;
+            color: var(--app-accent);
+            font-size: .76rem;
+            font-weight: 720;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+
+        .showcase-heading > p:last-child {
+            max-width: 40rem;
+            margin: 1rem auto 0;
+            color: var(--app-text-muted);
+            font-size: .95rem;
+            line-height: 1.75;
+        }
+
+        .showcase-feature,
+        .showcase-card {
+            overflow: hidden;
+            border: 1px solid var(--app-border-strong);
+            border-radius: var(--radius-large);
+            background: var(--app-surface-solid);
+        }
+
+        .showcase-feature {
+            box-shadow: var(--app-shadow-soft);
+        }
+
+        .showcase-feature img,
+        .showcase-card img {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: var(--app-bg);
+        }
+
+        .showcase-caption {
+            display: grid;
+            gap: .2rem;
+            padding: .95rem 1.1rem 1rem;
+            border-top: 1px solid var(--app-border);
+        }
+
+        .showcase-caption strong {
+            color: var(--app-text);
+            font-size: .95rem;
+            font-weight: 680;
+        }
+
+        .showcase-caption span {
+            color: var(--app-text-muted);
+            font-size: .82rem;
+            line-height: 1.6;
+        }
+
+        .showcase-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
         .button {
             display: inline-flex;
             min-height: 2.85rem;
@@ -799,6 +874,10 @@
                 padding-block: 4rem 5rem;
             }
 
+            .showcase-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .hero h1 {
                 font-size: clamp(2.4rem, 5vw, 3.4rem);
             }
@@ -851,6 +930,10 @@
 
             .hero-description {
                 max-width: 42rem;
+            }
+
+            .showcase {
+                padding-block: 4.25rem;
             }
 
             .capabilities {
@@ -961,6 +1044,10 @@
                 font-size: .96rem;
             }
 
+            .showcase-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
             .section-heading h2,
             .deploy-heading h2 {
                 font-size: 2rem;
@@ -1011,6 +1098,7 @@
                 <span class="brand-name">云鹿音乐</span>
             </a>
             <nav class="main-nav" aria-label="页面导航">
+                <a href="#screenshots">界面截图</a>
                 <a href="#features">产品能力</a>
                 <a href="#data">数据与安全</a>
                 <a href="#quick-start">快速开始</a>
@@ -1043,6 +1131,57 @@
                     <a class="button button-quiet" href="https://github.com/biaobiaobiao108/yun-music" target="_blank" rel="noopener noreferrer">GitHub 项目
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9" /></svg>
                     </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="showcase section-band" id="screenshots" aria-labelledby="screenshots-title">
+            <div class="showcase-shell page-shell">
+                <div class="section-heading showcase-heading">
+                    <p class="showcase-kicker">真实客户端截图</p>
+                    <h2 id="screenshots-title">从发现音乐到沉浸聆听</h2>
+                    <p>以下画面均来自已部署的云鹿音乐 Web 播放器。桌面页面保留左侧导航与底部播放器，全屏歌词页则进入独立的沉浸视图。</p>
+                </div>
+                <figure class="showcase-feature">
+                    <img src="assets/screenshots/home.jpg" width="1440" height="900" loading="lazy" alt="云鹿音乐首页，左侧导航、最近播放内容和底部播放器均清晰可见">
+                    <figcaption class="showcase-caption">
+                        <strong>首页与最近播放</strong>
+                        <span>通过侧边栏切换音乐功能，继续播放最近听过的歌曲。</span>
+                    </figcaption>
+                </figure>
+                <div class="showcase-grid" aria-label="播放器功能页面截图">
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/discover.jpg" width="1440" height="900" loading="lazy" alt="歌单广场页面，左侧导航可见，主区域展示发现歌单">
+                        <figcaption class="showcase-caption"><strong>发现歌单</strong><span>按音源和分类浏览歌单内容。</span></figcaption>
+                    </figure>
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/search.jpg" width="1440" height="900" loading="lazy" alt="音乐搜索页面，包含关键词输入框、音源选择和热门搜索">
+                        <figcaption class="showcase-caption"><strong>音乐搜索</strong><span>搜索歌曲、歌手、专辑或歌单，并选择音源。</span></figcaption>
+                    </figure>
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/leaderboard.jpg" width="1440" height="900" loading="lazy" alt="排行榜页面，左侧导航可见，主区域列出歌曲排名">
+                        <figcaption class="showcase-caption"><strong>排行榜</strong><span>切换音源与榜单，浏览歌曲和专辑信息。</span></figcaption>
+                    </figure>
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/favorites.jpg" width="1440" height="900" loading="lazy" alt="我喜欢的音乐页面，显示歌曲、歌手、专辑和收藏状态">
+                        <figcaption class="showcase-caption"><strong>我的收藏</strong><span>集中查看和管理收藏歌曲。</span></figcaption>
+                    </figure>
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/local-music.jpg" width="1440" height="900" loading="lazy" alt="本地音乐页面，展示服务器音乐库以及歌曲时长、文件大小和格式">
+                        <figcaption class="showcase-caption"><strong>服务器本地音乐</strong><span>检索本地曲库，按文件信息浏览和播放。</span></figcaption>
+                    </figure>
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/downloads.jpg" width="1440" height="900" loading="lazy" alt="播放器的缓存与下载侧边面板，显示歌曲任务及完成进度">
+                        <figcaption class="showcase-caption"><strong>缓存与下载</strong><span>在播放过程中查看缓存占用和下载任务进度。</span></figcaption>
+                    </figure>
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/queue.jpg" width="1440" height="900" loading="lazy" alt="播放器的播放列表侧边面板，展示当前队列中的歌曲">
+                        <figcaption class="showcase-caption"><strong>播放队列</strong><span>查看当前待播歌曲，并从队列继续聆听。</span></figcaption>
+                    </figure>
+                    <figure class="showcase-card">
+                        <img src="assets/screenshots/lyrics.jpg" width="1440" height="900" loading="lazy" alt="云鹿音乐全屏歌词页面，左侧显示封面和播放控制，右侧显示歌词">
+                        <figcaption class="showcase-caption"><strong>沉浸式歌词</strong><span>全屏查看歌曲歌词与同步播放控制。</span></figcaption>
+                    </figure>
                 </div>
             </div>
         </section>
