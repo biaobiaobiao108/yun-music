@@ -309,7 +309,6 @@ function AudioRuntime() {
   const historyRecordedKey = useRef('')
   const resolvedSongKey = useRef('')
   const resolvedPlayback = useRef<{ songKey: string; quality: string; url: string; fromCache: boolean; sourceName?: string } | null>(null)
-  const preparedPlaybackTransition = useRef<{ fromSongKey: string; songKey: string; quality: string; url: string; fromCache: boolean; sourceName?: string } | null>(null)
   const prefetchTriggeredKey = useRef('')
   const prefetchIdleHandle = useRef<number | null>(null)
   const prefetchController = useRef<AbortController | null>(null)
@@ -512,62 +511,7 @@ function AudioRuntime() {
         void audio.play()
         return
       }
-
       state.next()
-      const nextState = usePlaybackStore.getState()
-      const nextSong = nextState.currentSong
-      if (!nextSong || !nextState.isPlaying) return
-
-      const nextSongId = songKey(nextSong)
-      if (nextSongId === songId) {
-        audio.currentTime = 0
-        void audio.play()
-        return
-      }
-
-      const storedCacheUrl = typeof nextSong.url === 'string' && nextSong.url
-        ? normalizeCachePlaybackUrl(nextSong.url, userName)
-        : ''
-      const hasStoredCacheUrl = Boolean(storedCacheUrl && parseCachePlaybackUrl(storedCacheUrl))
-      const prefetchKey = songUrlCacheKey(nextSong, quality)
-      const prefetched = !hasStoredCacheUrl ? prefetchedUrls.get(prefetchKey) : undefined
-      const result = hasStoredCacheUrl
-        ? { url: storedCacheUrl, fromCache: true, sourceName: '本地缓存' }
-        : prefetched
-      if (!result?.url) return
-
-      prefetchedUrls.delete(prefetchKey)
-      const fromCache = Boolean(result.fromCache) || /\/api\/music\/cache\/file\//.test(result.url)
-      preparedPlaybackTransition.current = {
-        fromSongKey: songId,
-        songKey: nextSongId,
-        quality,
-        url: result.url,
-        fromCache,
-        sourceName: result.sourceName,
-      }
-      resolvedPlayback.current = {
-        songKey: nextSongId,
-        quality,
-        url: result.url,
-        fromCache,
-        sourceName: result.sourceName,
-      }
-      resolvedSongKey.current = nextSongId
-      setResolvedUrl(result.url)
-      setResolvedError('')
-      const nextTraceName = `yun-music:play:${encodeURIComponent(nextSongId).slice(0, 120)}:${encodeURIComponent(quality)}`
-      markPlayerPerformance(`${nextTraceName}:start`)
-      audio.src = buildPlaybackUrl(result.url, nextSong, settings)
-      audio.load()
-      const requestedSource = audio.currentSrc || audio.src
-      void audio.play().catch(error => {
-        if ((audio.currentSrc || audio.src) !== requestedSource) return
-        setPlaying(false)
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          notify('浏览器阻止了自动播放，请点击播放按钮')
-        }
-      })
     }
     const onError = () => {
       if (settings.enableAutoDegradeQuality && currentSong && !currentSong.url) {
@@ -597,20 +541,6 @@ function AudioRuntime() {
     const controller = new AbortController()
     setResolvedError('')
     if (playbackTraceName) markPlayerPerformance(`${playbackTraceName}:start`)
-    const prepared = preparedPlaybackTransition.current
-    if (prepared?.songKey === songId && prepared.quality === quality) {
-      preparedPlaybackTransition.current = null
-      return () => {
-        cancelled = true
-        controller.abort()
-        if (playbackTraceName) clearPlayerPerformanceMark(`${playbackTraceName}:start`)
-        const playbackUrl = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current.url : null
-        if (resolvedSongKey.current === songId) resolvedSongKey.current = ''
-        if (resolvedPlayback.current?.songKey === songId) resolvedPlayback.current = null
-        if (playbackUrl && usePlaybackStore.getState().resolvedUrl === playbackUrl) setResolvedUrl(null)
-        audio.pause(); audio.removeAttribute('src'); audio.load()
-      }
-    }
     const storedCacheUrl = typeof currentSong.url === 'string' && currentSong.url
       ? normalizeCachePlaybackUrl(currentSong.url, userName)
       : ''
@@ -663,9 +593,6 @@ function AudioRuntime() {
       cancelled = true
       controller.abort()
       if (playbackTraceName) clearPlayerPerformanceMark(`${playbackTraceName}:start`)
-      const transition = preparedPlaybackTransition.current
-      const activeSong = usePlaybackStore.getState().currentSong
-      if (transition?.fromSongKey === songId && transition.songKey === (activeSong ? songKey(activeSong) : '') && transition.quality === quality) return
       const playbackUrl = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current.url : null
       if (resolvedSongKey.current === songId) resolvedSongKey.current = ''
       if (resolvedPlayback.current?.songKey === songId) resolvedPlayback.current = null
