@@ -13,10 +13,10 @@
     "check:frontend-assets": "bun run scripts/check-frontend-assets.ts",
     "reset:instance": "bun run scripts/reset-instance.ts",
     "dev:frontend": "bun run scripts/build-frontend.ts --watch",
-    "test": "bun test"
+    "test": "bun test --check"
   },
   "engines": {
-    "bun": ">= 1.1"
+    "bun": ">= 1.4.3"
   },
   "repository": {
     "type": "git",
@@ -38,11 +38,10 @@
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
     "@types/archiver": "^8.0.0",
-    "@types/bun": "latest",
+    "@types/bun": "^1.4.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "marked": "15.0.12",
-    "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2"
+    "tailwindcss": "^4.3.3"
   }
 }

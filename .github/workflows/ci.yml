@@ -25,21 +25,21 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
 
       - name: Cache Bun install packages
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: bun-install-${{ runner.os }}-1.4.2-${{ hashFiles('bun.lock') }}
+          key: bun-install-${{ runner.os }}-1.4.3-${{ hashFiles('bun.lock') }}
           restore-keys: |
-            bun-install-${{ runner.os }}-1.4.2-
+            bun-install-${{ runner.os }}-1.4.3-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Typecheck
-        run: bun run tsc --noEmit
+        run: bun check
 
       - name: Build frontend assets
         run: bun run build:frontend
@@ -48,7 +48,7 @@ jobs:
         run: bun run check:frontend-assets
 
       - name: Run unit tests
-        run: bun test
+        run: bun test --check
 
       - name: Build production server bundle
         run: bun run build

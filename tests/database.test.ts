@@ -74,12 +74,12 @@ describe('Database (bun:sqlite) Structured Storage', () => {
 
   it('refreshes Web user metadata without persisting passwords', () => {
     const db = getDb()
-    const users = [{ name: 'paired_user', password: 'secret', maxSnapshotNum: 5 }]
+    const users = [{ name: 'paired_user', password: 'secret', maxSnapshotNum: 5, dataPath: path.join(testDataDir, 'paired_user') }]
     syncUsersToDatabase(users)
     db.run('UPDATE users SET created_at = 123 WHERE name = ?', ['paired_user'])
 
     users[0].maxSnapshotNum = 20
-    syncUsersToDatabase([...users, { name: 'new_user', password: 'another', maxSnapshotNum: 10 }])
+    syncUsersToDatabase([...users, { name: 'new_user', password: 'another', maxSnapshotNum: 10, dataPath: path.join(testDataDir, 'new_user') }])
     syncUsersToDatabase(users)
 
     const persisted = db.query('SELECT created_at, max_snapshot_num, password_hash FROM users WHERE name = ?').get('paired_user') as any

@@ -476,6 +476,7 @@ describe('Custom Source Security and Isolation', () => {
         script,
         sources: {},
         enabled: true,
+        owner: 'open',
       })
 
       expect(success).toBe(true)
@@ -507,6 +508,7 @@ describe('Custom Source Security and Isolation', () => {
       `,
       sources: {},
       enabled: true,
+      owner: 'open',
       persist: false,
     })
 

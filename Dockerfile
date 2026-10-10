@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.10
 # Multi-stage Dockerfile for 云鹿音乐 (Ultra-slim Bun Architecture)
 
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.3
 
 # Stage 1: Build Frontend, Server bundle and assets on host platform
 FROM --platform=$BUILDPLATFORM oven/bun:${BUN_VERSION}-alpine AS builder
@@ -26,7 +26,7 @@ RUN bun run build:frontend
 # 2. 将服务端核心源码编译打包为单文件 (外部依赖保留 external)
 RUN bun run build
 
-# Stage 2: Production Dependencies (仅安装生产依赖，剥离巨大 TS 编译器及类型库)
+# Stage 2: Production Dependencies (仅安装生产依赖，剥离开发依赖及类型库)
 FROM oven/bun:${BUN_VERSION}-alpine AS prod-deps
 WORKDIR /app
 

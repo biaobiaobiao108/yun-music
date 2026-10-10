@@ -17,7 +17,7 @@ describe('User snapshot permissions', () => {
   const username = 'snapshot_owner'
   const sessionToken = 'snapshot-owner-session'
   const initialData = { defaultList: [], loveList: [], userList: [] }
-  const uploadedData = { ...initialData, userList: [{ id: 'playlist', name: 'Uploaded', list: [] }] }
+  const uploadedData = { ...initialData, userList: [{ id: 'playlist', name: 'Uploaded', locationUpdateTime: null, list: [] }] }
   const userHeaders = { cookie: `lx_user_session=${sessionToken}` }
   let adminHeaders: Record<string, string>
 
@@ -183,7 +183,7 @@ describe('User snapshot permissions', () => {
 
     await manager.restoreSnapshot('history-11')
     await manager.removeSnapshot('history-11')
-    const latest = getDb().query<{ latest_id: string }, [string]>(
+    const latest = getDb().query<{ latest_id: string }, [string, string]>(
       'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?'
     ).get(username, 'list')
     expect(latest?.latest_id).toBeTruthy()

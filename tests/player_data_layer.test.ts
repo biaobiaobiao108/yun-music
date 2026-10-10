@@ -11,14 +11,18 @@ import { useSearchStore } from '../frontend/player/src/react/store/search'
 import { useMediaLibraryStore } from '../frontend/player/src/react/store/media_library'
 import type { Song } from '../frontend/player/src/react/types'
 
+const mockFetch = (
+  handler: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+): typeof fetch => Object.assign(handler, { preconnect: () => Promise.resolve() })
+
 describe('React player data request lifecycle', () => {
   it('deduplicates concurrent reads and serves a short-lived cache', async () => {
     clearRequestCache()
     let calls = 0
-    const fetcher: typeof fetch = async () => {
+    const fetcher: typeof fetch = mockFetch(async () => {
       calls += 1
       return new Response(JSON.stringify({ value: calls }), { status: 200 })
-    }
+    })
     const [first, second] = await Promise.all([
       requestJson<{ value: number }>('/api/test', { cacheKey: 'test:dedupe', cacheTtlMs: 10_000, fetcher }),
       requestJson<{ value: number }>('/api/test', { cacheKey: 'test:dedupe', cacheTtlMs: 10_000, fetcher }),
@@ -37,7 +41,7 @@ describe('React player data request lifecycle', () => {
     const originalNow = Date.now
     let now = originalNow()
     Date.now = () => now
-    const fetcher: typeof fetch = async input => new Response(JSON.stringify({ input: String(input) }))
+    const fetcher: typeof fetch = mockFetch(async input => new Response(JSON.stringify({ input: String(input) })))
     try {
       for (let index = 0; index < 128; index += 1) {
         await requestJson(`/search/${index}`, { cacheKey: `bounded:${index}`, cacheTtlMs: 1000, fetcher })
@@ -61,39 +65,39 @@ describe('React player data request lifecycle', () => {
   it('does not cache an invalidated response when its fetcher ignores abort', async () => {
     clearRequestCache()
     let resolveOld: ((response: Response) => void) | undefined
-    const staleFetcher: typeof fetch = () => new Promise(resolve => { resolveOld = resolve })
+    const staleFetcher: typeof fetch = mockFetch(() => new Promise<Response>(resolve => { resolveOld = resolve }))
     const oldRequest = requestJson('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: staleFetcher })
     invalidateRequestCache('stale:')
-    await requestJson('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: async () => new Response('{"version":"fresh"}') })
+    await requestJson<{ version: string }>('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: mockFetch(async () => new Response('{"version":"fresh"}')) })
     resolveOld?.(new Response('{"version":"stale"}'))
     await oldRequest
-    expect(await requestJson('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: staleFetcher })).toEqual({ version: 'fresh' })
+    expect(await requestJson<{ version: string }>('/search', { cacheKey: 'stale:search', cacheTtlMs: 1000, fetcher: staleFetcher })).toEqual({ version: 'fresh' })
     clearRequestCache()
   })
 
   it('keeps a forced refresh when an older read completes later', async () => {
     clearRequestCache()
     let resolveOld: ((response: Response) => void) | undefined
-    const staleFetcher: typeof fetch = () => new Promise(resolve => { resolveOld = resolve })
+    const staleFetcher: typeof fetch = mockFetch(() => new Promise<Response>(resolve => { resolveOld = resolve }))
     const oldRequest = requestJson('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, fetcher: staleFetcher })
-    await requestJson('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, force: true, fetcher: async () => new Response('{"version":"fresh"}') })
+    await requestJson<{ version: string }>('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, force: true, fetcher: mockFetch(async () => new Response('{"version":"fresh"}')) })
     resolveOld?.(new Response('{"version":"stale"}'))
     await oldRequest
-    expect(await requestJson('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, fetcher: staleFetcher })).toEqual({ version: 'fresh' })
+    expect(await requestJson<{ version: string }>('/search', { cacheKey: 'forced:search', cacheTtlMs: 1000, fetcher: staleFetcher })).toEqual({ version: 'fresh' })
     clearRequestCache()
   })
 
   it('rejects only the cancelled caller and exposes typed API errors', async () => {
     clearRequestCache()
     let resolveResponse: ((response: Response) => void) | undefined
-    const fetcher: typeof fetch = () => new Promise(resolve => { resolveResponse = resolve })
+    const fetcher: typeof fetch = mockFetch(() => new Promise<Response>(resolve => { resolveResponse = resolve }))
     const controller = new AbortController()
     const pending = requestJson('/api/abort', { signal: controller.signal, fetcher })
     controller.abort()
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
     resolveResponse?.(new Response(JSON.stringify({ ok: true }), { status: 200 }))
 
-    const errorFetcher: typeof fetch = async () => new Response('需要登录', { status: 401 })
+    const errorFetcher: typeof fetch = mockFetch(async () => new Response('需要登录', { status: 401 }))
     await expect(requestJson('/api/private', { fetcher: errorFetcher })).rejects.toBeInstanceOf(ApiRequestError)
     try {
       await requestJson('/api/private', { fetcher: errorFetcher })
@@ -105,7 +109,7 @@ describe('React player data request lifecycle', () => {
   it('cancels invalidated in-flight reads before they can repopulate the cache', async () => {
     clearRequestCache()
     let calls = 0
-    const fetcher: typeof fetch = (_input, init) => {
+    const fetcher: typeof fetch = mockFetch((_input, init) => {
       calls += 1
       if (calls === 1) {
         return new Promise<Response>((_, reject) => {
@@ -113,7 +117,7 @@ describe('React player data request lifecycle', () => {
         })
       }
       return Promise.resolve(new Response(JSON.stringify({ fresh: true }), { status: 200 }))
-    }
+    })
     const first = requestJson('/api/private-library', { cacheKey: 'auth:library', cacheTtlMs: 10_000, fetcher })
     const second = requestJson('/api/private-library', { cacheKey: 'auth:library', cacheTtlMs: 10_000, fetcher })
     invalidateRequestCache('auth:')

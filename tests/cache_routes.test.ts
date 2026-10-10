@@ -26,6 +26,28 @@ const persistUserSession = (sessionId: string, username: string, createdAt = Dat
   )
 }
 
+const createMinimalLxFixture = (enablePublicLocalMusic: boolean): typeof global.lx => ({
+  logPath: process.cwd(),
+  dataPath: process.cwd(),
+  userPath: process.cwd(),
+  staticPath: path.join(process.cwd(), 'public'),
+  config: {
+    'serverName': 'Test',
+    'proxy.enabled': false,
+    'proxy.header': 'x-forwarded-for',
+    'proxy.trustedAddresses': [],
+    bindIP: '127.0.0.1',
+    port: 9527,
+    maxSnapshotNum: 10,
+    'list.addMusicLocationType': 'bottom',
+    users: [],
+    'singer.sourcePriority': ['tx', 'wy'],
+    'user.enablePublicNonAdminLocalMusic': enablePublicLocalMusic,
+    'frontend.password': '',
+  },
+  saveConfig: () => {},
+})
+
 describe('cache list user scope', () => {
   const username = 'cache_owner'
   const sessionId = 'cache-owner-session'
@@ -146,7 +168,7 @@ describe('cache list user scope', () => {
 
   test('persists global cache configuration changes', async () => {
     const setCacheLocation = spyOn(fileCache, 'setCacheLocation').mockImplementation(() => {})
-    const setNamingPattern = spyOn(fileCache, 'setNamingPattern').mockImplementation((pattern) => pattern)
+    const setNamingPattern = spyOn(fileCache, 'setNamingPattern').mockImplementation((pattern) => fileCache.normalizeNamingPattern(pattern))
     const previousSaveConfig = global.lx.saveConfig
     let saveCalls = 0
     global.lx.saveConfig = async () => { saveCalls += 1 }
@@ -204,7 +226,10 @@ describe('cache list user scope', () => {
   })
 
   test('allows admin to clear audio cache across all users with user=all', async () => {
-    const clearAllUsersAudioCache = spyOn(fileCache, 'clearAllUsersAudioCache').mockResolvedValue(undefined)
+    const clearAllUsersAudioCache = spyOn(fileCache, 'clearAllUsersAudioCache').mockImplementation(() => ({
+      deletedCount: 0,
+      freedSize: 0,
+    }))
     try {
       const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
       const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/clear?user=all', {
@@ -689,17 +714,25 @@ test('download proxy isolates active content and preserves media responses', asy
   const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
   let mime = 'text/html'
   const content = Buffer.from('<script>window.untrusted=true</script>')
-  const request = spyOn(http, 'request').mockImplementation((_url: any, _options: any, callback: any) => {
-    const req = new EventEmitter() as any
-    req.destroy = () => {}
-    req.end = () => {
-      const response = Readable.from([content]) as any
-      response.statusCode = 200
-      response.headers = { 'content-type': mime }
-      callback(response)
+  const mockRequest = (
+    _url: string | URL | http.RequestOptions,
+    optionsOrCallback?: http.RequestOptions | ((response: http.IncomingMessage) => void),
+    callback?: (response: http.IncomingMessage) => void,
+  ): http.ClientRequest => {
+    const responseCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+    const request = new EventEmitter() as http.ClientRequest
+    request.destroy = () => request
+    request.end = () => {
+      const response = Object.assign(Readable.from([content]), {
+        statusCode: 200,
+        headers: { 'content-type': mime },
+      }) as http.IncomingMessage
+      responseCallback?.(response)
+      return request
     }
-    return req
-  })
+    return request
+  }
+  const request = spyOn(http, 'request').mockImplementation(mockRequest)
   try {
     for (const type of ['text/html', 'image/svg+xml', 'application/xhtml+xml', 'audio/mpeg', 'image/png']) {
       mime = type
@@ -815,10 +848,10 @@ test('song list IDs only accept numbers or official provider links', async () =>
 
   const previousFetch = globalThis.fetch
   let fetchCalls = 0
-  globalThis.fetch = (async () => {
+  globalThis.fetch = Object.assign(async () => {
     fetchCalls++
     return new Response('', { status: 500 })
-  }) as typeof fetch
+  }, { preconnect: previousFetch.preconnect })
   try {
     const response = await createMusicRouter().handle(new Request('http://localhost/api/music/songList/detail?source=wy&id=' + encodeURIComponent('http://127.0.0.1:9527/internal')))
     expect(response.status).toBe(400)
@@ -830,7 +863,7 @@ test('song list IDs only accept numbers or official provider links', async () =>
 
 test('/api/music/url intercepts request when cache exists and avoids online resolution', async () => {
   const previousLx = global.lx
-  global.lx = { config: { 'user.enablePublicNonAdminLocalMusic': true, users: [], 'frontend.password': '' } } as typeof global.lx
+  global.lx = createMinimalLxFixture(true)
   const checkCacheSpy = spyOn(fileCache, 'checkCache').mockReturnValue({
     exists: true,
     url: '/api/music/cache/file/_open/cached.mp3',
@@ -988,7 +1021,7 @@ test('/api/music/quality/size refuses a private redirect target', async () => {
 
 test('/api/music/url does not expose a public cache hit when public local music is disabled', async () => {
   const previousLx = global.lx
-  global.lx = { config: { 'user.enablePublicNonAdminLocalMusic': false, users: [], 'frontend.password': '' } } as typeof global.lx
+  global.lx = createMinimalLxFixture(false)
   const checkCacheSpy = spyOn(fileCache, 'checkCache').mockReturnValue({
     exists: true,
     url: '/api/music/cache/file/_open/cached.mp3',
@@ -1016,7 +1049,7 @@ test('/api/music/url does not expose a public cache hit when public local music 
 
 test('/api/music/lyric does not read public lyric cache when public local music is disabled', async () => {
   const previousLx = global.lx
-  global.lx = { config: { 'user.enablePublicNonAdminLocalMusic': false, users: [], 'frontend.password': '' } } as typeof global.lx
+  global.lx = createMinimalLxFixture(false)
   const checkLyricCacheSpy = spyOn(fileCache, 'checkLyricCache').mockReturnValue({
     exists: true,
     content: { lyric: 'private lyric' },

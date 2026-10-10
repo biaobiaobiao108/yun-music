@@ -6,7 +6,7 @@
 
 ## 1. 项目概览与架构
 
-本项目为 **云音 Web 播放器与管理后台服务端**。后端全面基于 **全栈 Bun (1.1+) + TypeScript 7.0+** 原生架构，彻底移除了遗留的 Express 依赖，前端使用 **原生 Bun Bundler** 毫秒级打包，专注于 **Docker (Alpine)** 云端与私有化容器部署。
+本项目为 **云音 Web 播放器与管理后台服务端**。后端全面基于 **Bun 1.4.3+ + TypeScript 7.0+** 原生架构，使用 Bun 内置 `bun check` 类型检查器，彻底移除了遗留的 Express 依赖，前端使用 **原生 Bun Bundler** 毫秒级打包，专注于 **Docker (Alpine)** 云端与私有化容器部署。
 
 ### 核心架构层级
 - **后端服务 (`src/`)**：
@@ -30,8 +30,8 @@
   - `frontend/styles/` 保存主题与播放器样式源文件；`public/` 只保存构建产物。旧版命令式业务模块不再作为页面入口，只保留被音频工作线程或兼容服务明确引用的底层模块。
   - 构建耗时仅数十毫秒，开箱即用代码混淆与压缩。
 - **Docker 容器化 (`Dockerfile`)**：
-  - 基于 `oven/bun:1-alpine` 的多阶段极简构建（`builder` ➡️ `prod-deps` ➡️ `runner`）。
-  - 内置原生音频库 `chromaprint` 与 `gcompat`，生产镜像彻底剔除源码、TS 编译器及开发依赖，专攻极致的小体积与秒级启动。
+  - 基于 `oven/bun:1.4.3-alpine` 的多阶段极简构建（`builder` ➡️ `prod-deps` ➡️ `runner`）。
+  - 内置原生音频库 `chromaprint` 与 `gcompat`，生产镜像彻底剔除源码及开发依赖，专攻极致的小体积与秒级启动。
 
 ### 核心目录指引
 ```text
@@ -54,7 +54,7 @@ yun-music/
 ├── tests/                  # 基于 bun:test 的全栈自动化测试套件
 ├── config.js               # 服务端运行时配置文件 (用户可挂载/覆写)
 ├── Dockerfile              # 生产级 Alpine + Bun 多阶段镜像配置
-├── tsconfig.json           # 全局 TypeScript 编译器配置 (TS 7.0+)
+├── tsconfig.json           # 全局 TypeScript 项目配置，供 Bun check 等工具读取
 └── package.json            # 项目元信息、纯净依赖与 bun scripts
 ```
 
@@ -75,8 +75,8 @@ yun-music/
 ### 工具链规范
 - **全栈纯 Bun**：本项目为纯 Bun 工程，**严禁**使用 `npm`, `yarn`, `pnpm` 或 `node` 执行安装与启动。
 - **前端编译同步**：若修改了 `frontend/` 中的代码，**必须**运行 `bun run build:frontend` 同步编译生成 `public/` 静态产物。
-- **静态类型安全**：全栈推进严格 TypeScript。每次代码改动后，需执行 `bun run tsc --noEmit` 确保 0 错误。
-- **自动化测试验证**：改动核心逻辑或修复问题后，需运行 `bun test` 确保所有用例通过。
+- **静态类型安全**：全栈推进严格 TypeScript。每次代码改动后，需执行 `bun check` 确保 0 错误。
+- **自动化测试验证**：改动核心逻辑或修复问题后，需运行 `bun test --check`，通过类型检查后再执行所有用例。
 
 ---
 
@@ -148,8 +148,8 @@ yun-music/
 | 操作 | 命令 | 说明 |
 | :--- | :--- | :--- |
 | **安装依赖** | `bun install` | 安装项目依赖并更新 `bun.lock` |
-| **静态类型检查** | `bun run tsc --noEmit` | 验证全项目 TypeScript 类型正确性（0 错误要求） |
-| **自动化单元测试** | `bun test` | 运行基于 `bun:test` 的自动化测试套件 |
+| **静态类型检查** | `bun check` | 使用 Bun 内置检查器验证 TypeScript 类型（0 错误要求） |
+| **自动化单元测试** | `bun test --check` | 类型检查通过后运行基于 `bun:test` 的自动化测试套件 |
 | **前端开发监听重载** | `bun run dev:frontend` | 监听前端源码改动并极速增量重编 |
 | **前端编译打包** | `bun run build:frontend` | 使用 Bun 原生 Bundler 编译前端至 `public/` |
 | **服务端开发热重载** | `bun run dev` | 基于 `bun --watch` 启动开发服务，支持文件热重载 |

@@ -53,10 +53,18 @@ describe('Outbound URL network boundaries', () => {
         { address: '198.18.0.86', family: 4 },
       ] as any)
       const syntheticUrl = await assertSafeRemoteHttpUrl('https://example.com/audio')
-      const connectedAddress = await new Promise(resolve => syntheticUrl.lookup(
+      const connectedAddress = await new Promise<string>((resolve, reject) => syntheticUrl.lookup(
         'example.com',
         {},
-        (_error: any, address: string) => resolve(address),
+        (error, address) => {
+          if (error) {
+            reject(error)
+          } else if (typeof address === 'string') {
+            resolve(address)
+          } else {
+            reject(new Error('Expected a single DNS address'))
+          }
+        },
       ))
       expect(connectedAddress).toBe('198.18.0.86')
     } finally {

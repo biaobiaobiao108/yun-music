@@ -7,6 +7,7 @@ import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/
 import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
 import { getSessionScope, scopedStorageKey, setSessionScope } from '../frontend/player/src/react/session'
 import { songEntityDetail, songEntityId, songEntityName } from '../frontend/player/src/react/song_details'
+import type { Song } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
@@ -81,7 +82,9 @@ describe('React player module boundaries', () => {
     expect(songEntityDetail(identified, 'artist')).toMatchObject({ kind: 'artist', id: '123', source: 'wy', name: 'Aimer' })
     expect(songEntityDetail(identified, 'album')).toMatchObject({ kind: 'album', id: 'album-9', source: 'wy', name: 'I beg you' })
 
-    const sourceShaped = { source: 'tx', singer: [{ mid: 'artist-mid', name: '歌手' }], album: { mid: 'album-mid', name: '专辑' }, name: '歌曲' }
+    // External source records may carry nested artist and album entities even
+    // though the normalized player Song shape uses a string singer.
+    const sourceShaped = { source: 'tx', singer: [{ mid: 'artist-mid', name: '歌手' }], album: { mid: 'album-mid', name: '专辑' }, name: '歌曲' } as unknown as Song
     expect(songEntityId(sourceShaped, 'artist')).toBe('artist-mid')
     expect(songEntityId(sourceShaped, 'album')).toBe('album-mid')
 

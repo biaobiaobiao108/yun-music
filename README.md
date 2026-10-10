@@ -149,8 +149,8 @@ POST /api/admin/database/vacuum
 ## 开发检查
 
 ```bash
-bun run tsc --noEmit
-bun test
+bun check
+bun test --check
 bun run build:frontend
 bun run check:frontend-assets
 bun run build

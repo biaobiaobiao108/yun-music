@@ -14,6 +14,9 @@ import {
 } from '../src/common/musicSources'
 
 const projectRoot = path.resolve(import.meta.dir, '..')
+const mockFetch = (
+  handler: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+): typeof fetch => Object.assign(handler, { preconnect: () => Promise.resolve() })
 
 describe('retained music SDK', () => {
   it('exposes only the wy and tx built-in sources', () => {
@@ -49,13 +52,13 @@ describe('retained music SDK', () => {
   it('does not request arbitrary playlist links during ID parsing', async () => {
     const previousFetch = globalThis.fetch
     let fetchCalls = 0
-    globalThis.fetch = (async () => {
+    globalThis.fetch = mockFetch(async () => {
       fetchCalls++
       return new Response('', { status: 500 })
-    }) as typeof fetch
+    })
     try {
-      await expect(musicSdk.wy.songList.getListDetail('http://127.0.0.1:9527/internal')).rejects.toThrow('recognized playlist links')
-      await expect(musicSdk.tx.songList.getListDetail('http://127.0.0.1:9527/internal')).rejects.toThrow('recognized playlist links')
+      await expect(musicSdk.wy.songList!.getListDetail!('http://127.0.0.1:9527/internal', 1)).rejects.toThrow('recognized playlist links')
+      await expect(musicSdk.tx.songList!.getListDetail!('http://127.0.0.1:9527/internal', 1)).rejects.toThrow('recognized playlist links')
       expect(fetchCalls).toBe(0)
     } finally {
       globalThis.fetch = previousFetch

@@ -3,9 +3,9 @@ import { buildLyrics, parseLyrics } from '@/utils/lrcTool'
 
 describe('Lyric Formatting & SongId Coercion', () => {
   it('should handle numeric song IDs safely without startsWith errors', () => {
-    const rawSongId: any = 3355480219
+    const rawSongId = 3355480219
     const source = 'wy'
-    const songInfo = {
+    const songInfo: { id: number; songmid?: string; source: string; name: string } = {
       id: rawSongId,
       source,
       name: '櫂',
@@ -23,7 +23,7 @@ describe('Lyric Formatting & SongId Coercion', () => {
   })
 
   it('should strip source prefix if songmid has source_ prefix', () => {
-    const songInfo = {
+    const songInfo: { songmid: string; id?: string | number; source: string } = {
       songmid: 'wy_3355480219',
       source: 'wy',
     }

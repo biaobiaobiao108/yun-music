@@ -131,10 +131,10 @@ React 继续兼容以下 hash 地址：
 提交前运行完整检查：
 
 ```bash
-bun run tsc --noEmit
+bun check
 bun run build:frontend
 bun run check:frontend-assets
-bun test
+bun test --check
 ```
 
 浏览器验收至少覆盖桌面和 `390×844` 移动视口：登录、搜索、播放/暂停、队列、歌词、歌手详情分页、歌单、排行榜、音乐库、自定义源、主题切换、普通底部栏菜单和管理后台核心页面。检查控制台没有新增异常，并确认 Escape 关闭和焦点恢复行为。

@@ -9,18 +9,18 @@ afterEach(() => {
 
 describe('Upstream request wrapper', () => {
   test('rejects the public promise when an upstream request fails', async () => {
-    globalThis.fetch = (async () => {
+    globalThis.fetch = Object.assign(async () => {
       throw new Error('upstream failed')
-    }) as typeof fetch
+    }, { preconnect: originalFetch.preconnect })
 
     await expect(httpFetch('https://example.test/failure').promise).rejects.toThrow('upstream failed')
   })
 
   test('bounds upstream response bodies before retaining them in memory', async () => {
-    globalThis.fetch = (async () => new Response(new Uint8Array([1, 2, 3, 4, 5]), {
+    globalThis.fetch = Object.assign(async () => new Response(new Uint8Array([1, 2, 3, 4, 5]), {
       status: 200,
       headers: { 'content-length': '5' },
-    })) as typeof fetch
+    }), { preconnect: originalFetch.preconnect })
 
     await expect(httpFetch('https://example.test/large', { maxBytes: 4 }).promise)
       .rejects.toThrow('Remote response is too large')
