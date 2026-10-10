@@ -7,6 +7,7 @@ let libraryController: AbortController | null = null
 let libraryRequestId = 0
 let libraryHydrateTimer: ReturnType<typeof setTimeout> | null = null
 const LIBRARY_HYDRATE_DEBOUNCE_MS = 320
+const libraryMutationQueues = new Map<string, Promise<void>>()
 
 export type LibraryState = {
   data: UserListData
@@ -69,6 +70,31 @@ function updateListData(data: UserListData, listId: string, update: (songs: Song
   return changed ? { ...data, userList } : data
 }
 
+function songsInList(data: UserListData, listId: string): Song[] {
+  if (listId === 'love') return data.loveList ?? []
+  if (listId === 'default') return data.defaultList ?? []
+  return data.userList?.find(list => String(list.id) === String(listId))?.list ?? []
+}
+
+function enqueueListMutation<T>(listId: string, mutation: () => Promise<T>): Promise<T> {
+  const key = String(listId)
+  const previous = libraryMutationQueues.get(key)
+  const operation = previous
+    ? previous.then(mutation)
+    : Promise.resolve().then(mutation)
+  const settled = operation.then(() => undefined, () => undefined)
+  libraryMutationQueues.set(key, settled)
+  void settled.then(() => {
+    if (libraryMutationQueues.get(key) === settled) libraryMutationQueues.delete(key)
+  })
+  return operation
+}
+
+function restoreListIfUnchanged(data: UserListData, listId: string, expectedSongs: Song[], previousSongs: Song[]): UserListData {
+  if (songsInList(data, listId) !== expectedSongs) return data
+  return updateListData(data, listId, () => previousSongs)
+}
+
 function addSongToList(songs: Song[], song: Song): Song[] {
   return songs.some(item => sameSong(item, song)) ? songs : [...songs, song]
 }
@@ -121,10 +147,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
     }
   },
-  addSong: async (listId, song) => {
+  addSong: (listId, song) => enqueueListMutation(listId, async () => {
     const normalizedSong = normalizeSongForList(song)
     const previousData = get().data
+    const previousSongs = songsInList(previousData, listId)
     const optimisticData = updateListData(previousData, listId, songs => addSongToList(songs, normalizedSong))
+    const optimisticSongs = songsInList(optimisticData, listId)
     if (optimisticData !== previousData) set({ data: optimisticData })
     try {
       await playerApi.addToList(listId, [normalizedSong])
@@ -134,26 +162,34 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // full-list request for every rapid favorite click.
       scheduleLibraryHydrate(get)
     } catch (error) {
-      if (get().data === optimisticData) set({ data: previousData })
+      set(state => {
+        const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
+        return data === state.data ? {} : { data }
+      })
       throw error
     }
-  },
+  }),
   removeSong: async (listId, song) => { await get().removeSongs(listId, [song]) },
-  removeSongs: async (listId, songs) => {
+  removeSongs: (listId, songs) => enqueueListMutation(listId, async () => {
     const songIds = [...new Set(songs.map(songListId).filter(Boolean))]
     if (!songIds.length) return
     const previousData = get().data
+    const previousSongs = songsInList(previousData, listId)
     const optimisticData = updateListData(previousData, listId, current => removeSongsFromList(current, songs))
+    const optimisticSongs = songsInList(optimisticData, listId)
     if (optimisticData !== previousData) set({ data: optimisticData })
     try {
       await playerApi.removeFromList(listId, songIds)
       invalidateRequestCache('library:lists')
       scheduleLibraryHydrate(get)
     } catch (error) {
-      if (get().data === optimisticData) set({ data: previousData })
+      set(state => {
+        const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
+        return data === state.data ? {} : { data }
+      })
       throw error
     }
-  },
+  }),
   createList: async (name, icon = 'music') => {
     const list: UserPlaylist = {
       id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,

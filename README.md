@@ -12,7 +12,7 @@
 - SQLite WAL：用户、会话、设置、快照元数据和缓存索引使用结构化存储。
 - Cookie 会话：认证使用 HttpOnly、SameSite Cookie；密码以 scrypt 哈希保存，不写入浏览器存储或日志。
 - 安全边界：同源策略、安全响应头、请求 ID、路径穿越防护、媒体 Range、流式下载和远程 URL 校验。
-- Docker Alpine 多阶段镜像，生产进程按 root 用户运行。
+- Docker Alpine 多阶段镜像，容器 UID/GID 可配置，默认使用 `0:0`。
 
 ### 自定义音源管理
 
@@ -48,7 +48,16 @@ docker compose up -d
 docker compose logs -f yun-yin
 ```
 
-容器按 root 用户运行，可直接使用宿主机挂载目录的权限。生产环境建议同时使用只读根文件系统，并仅将 `/server/data`、`/server/cache`、`/server/music` 和 `/server/cover_cache` 作为可写目录挂载。
+Compose 默认以 UID/GID `0:0` 运行，并丢弃全部 Linux capabilities。进程只能按挂载目录实际的所有者/组权限读写，不能依赖 root 绕过文件权限。推荐用当前宿主机账户运行：先创建挂载目录，将目录归属给该账户，再在 `.env` 中设置对应的 `PUID` 和 `PGID`：
+
+```bash
+mkdir -p data cache music cover_cache
+sudo chown -R "$(id -u):$(id -g)" data cache music cover_cache
+id -u
+id -g
+```
+
+将 UID/GID 数值写入 `.env`（例如 `PUID=1000`、`PGID=1000`）。目录至少需要让该 UID 可读写和遍历；若使用组共享权限，也要确保 PGID 与宿主机目录组一致。保留默认 `0:0` 时，应把挂载目录所有权或可写组权限明确授予 UID/GID 0。生产环境建议使用只读根文件系统，并仅将 `/server/data`、`/server/cache`、`/server/music` 和 `/server/cover_cache` 作为可写目录挂载。
 
 ### Bun 源码运行
 
@@ -160,7 +169,7 @@ bun run build
 - 使用 HTTPS 反向代理，并覆盖透传 `Host`、真实 IP 和 `X-Forwarded-Proto`（或标准 `Forwarded`）。应用会据此识别公网 origin；请勿把客户端同名请求头直接转发到容器。
 - 管理后台和用户密码使用密码管理器生成的高强度随机值。
 - 将 `data/`、`cache/`、`music/`、`cover_cache/` 分开备份，并限制宿主机权限。
-- 容器运行时按 root 用户运行，并启用只读根文件系统和受限临时目录；需要写入的目录显式挂载。
+- 容器默认以 `0:0` 运行，或通过 `.env` 的 `PUID` / `PGID` 选择专用非 root 身份；由于丢弃了全部 capabilities，需确保该 UID/GID 对数据、缓存和下载挂载目录有写权限。启用只读根文件系统和受限临时目录，并仅挂载需要写入的目录。
 - 不要把数据库、配置文件、会话 Cookie 或日志暴露到公共静态目录。
 
 ## 许可证

@@ -8,6 +8,13 @@ const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
 
 describe('React admin frontend', () => {
+  it('selects the highlighted option with Enter or Space in SelectMenu', () => {
+    const components = read('frontend/admin/src/react/components.tsx')
+    expect(components).toContain("else if (event.key === 'Enter' || event.key === ' ')")
+    expect(components).toContain('const option = options[highlighted]')
+    expect(components).toContain('if (option && !option.disabled) choose(option)')
+  })
+
   it('moves custom sources before or after a dropped row without corrupting the order', () => {
     expect(reorderCustomSourceIds(['a', 'b', 'c', 'd'], 'a', 'c', false)).toEqual(['b', 'a', 'c', 'd'])
     expect(reorderCustomSourceIds(['a', 'b', 'c', 'd'], 'd', 'b', false)).toEqual(['a', 'd', 'b', 'c'])

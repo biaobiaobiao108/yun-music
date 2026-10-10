@@ -123,6 +123,45 @@ const parseContentLength = (headers: Headers): number | null => {
   return null
 }
 
+const AUDIO_SIZE_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+const MAX_AUDIO_SIZE_REDIRECTS = 5
+
+const fetchAudioSizeProbe = async (
+  initialUrl: SafeRemoteHttpUrl,
+  method: 'HEAD' | 'GET',
+): Promise<Response> => {
+  let currentUrl = initialUrl
+  for (let redirectCount = 0; redirectCount <= MAX_AUDIO_SIZE_REDIRECTS; redirectCount += 1) {
+    const response = await fetchSafeRemote(currentUrl, {
+      method,
+      timeoutMs: 8000,
+      // The probe only needs response headers; close the upstream body as soon
+      // as the status and headers arrive, including for redirect responses.
+      maxBytes: 1024,
+      discardResponseBody: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': currentUrl.origin,
+        ...(method === 'GET' ? { Range: 'bytes=0-0' } : {}),
+      },
+    })
+    if (!AUDIO_SIZE_REDIRECT_STATUSES.has(response.status)) return response
+
+    const location = response.headers.get('location')
+    await response.body?.cancel()
+    if (!location) throw new Error('Audio size probe redirect is missing a location')
+    if (redirectCount === MAX_AUDIO_SIZE_REDIRECTS) {
+      throw new Error('Audio size probe exceeded the redirect limit')
+    }
+
+    // Redirect targets are untrusted input. Resolve relative locations against
+    // the current hop and repeat the public-address validation before each fetch.
+    const redirectUrl = new URL(location, currentUrl)
+    currentUrl = await assertSafeRemoteHttpUrl(redirectUrl.href)
+  }
+  throw new Error('Audio size probe exceeded the redirect limit')
+}
+
 const getAudioRemoteSize = async (audioUrl: string): Promise<number | null> => {
   if (!/^https?:\/\//i.test(audioUrl)) return null
 
@@ -132,34 +171,17 @@ const getAudioRemoteSize = async (audioUrl: string): Promise<number | null> => {
   } catch {
     return null
   }
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': safeUrl.origin,
-  }
-
   try {
-    const resp = await fetchSafeRemote(safeUrl, {
-      method: 'HEAD',
-      timeoutMs: 8000,
-      maxBytes: 1024,
-      headers,
-    })
+    const resp = await fetchAudioSizeProbe(safeUrl, 'HEAD')
     const size = parseContentLength(resp.headers)
     if (size) return size
+    await resp.body?.cancel()
   } catch (e: any) {
     console.warn(`[QualitySize] HEAD failed: ${e.message}`)
   }
 
   try {
-    const resp = await fetchSafeRemote(safeUrl, {
-      method: 'GET',
-      timeoutMs: 8000,
-      maxBytes: 1024,
-      headers: {
-        ...headers,
-        Range: 'bytes=0-0',
-      },
-    })
+    const resp = await fetchAudioSizeProbe(safeUrl, 'GET')
     const size = parseContentLength(resp.headers)
     await resp.body?.cancel()
     return size

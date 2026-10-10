@@ -6,6 +6,7 @@ import * as fileCache from '@/server/fileCache'
 import { closeDb, initDatabase } from '@/database'
 import {
   deduplicateDownloadTasks,
+  filterPersistedTasksForUsers,
   enqueue,
   suspendUser, releaseUser, renameUser, removeUser,
   initialize,
@@ -83,6 +84,18 @@ test('playback caching preserves an explicit music download across active, pause
     global.lx = previousLx
     fs.rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('persisted queue restoration drops deleted accounts but retains the shared _open queue', () => {
+  const savedTasks = [
+    { username: 'active-user', id: 'active' },
+    { username: 'deleted-user', id: 'stale' },
+    { username: '_open', id: 'shared' },
+    { id: 'missing-owner' },
+  ]
+
+  expect(filterPersistedTasksForUsers(savedTasks, new Set(['active-user'])))
+    .toEqual([savedTasks[0], savedTasks[2]])
 })
 
 for (const cancellationPhase of ['resolver', 'download'] as const) {

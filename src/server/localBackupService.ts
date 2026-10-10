@@ -2,6 +2,7 @@ import * as archiver from 'archiver'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { Transform } from 'node:stream'
 import { createDatabaseSnapshot, getDb, restoreDatabaseSnapshot } from '@/database'
 
 const safeBackupName = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, '-')
@@ -12,6 +13,14 @@ const MAX_LOCAL_BACKUP_ENTRIES = 20_000
 const MAX_LOCAL_BACKUP_EXTRACTED_BYTES = 512 * 1024 * 1024
 const MAX_UNZIP_OUTPUT_BYTES = 32 * 1024 * 1024
 const MAX_LOCAL_BACKUP_CONFIG_BYTES = 1 * 1024 * 1024
+
+export class LocalBackupTooLargeError extends Error {
+  constructor(maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES) {
+    const limit = maxArchiveBytes === MAX_LOCAL_BACKUP_BYTES ? '100 MiB' : `${maxArchiveBytes} 字节`
+    super(`备份压缩文件超过 ${limit} 上限，无法通过恢复接口上传，请清理用户数据后重试`)
+    this.name = 'LocalBackupTooLargeError'
+  }
+}
 
 type ArchiveTool = 'unzip' | 'tar'
 
@@ -322,7 +331,10 @@ const createBackupConfig = (): string => {
  * 创建仅供管理员下载的本地备份。
  * 备份包含 SQLite 一致性快照、运行时配置和用户业务文件，不包含媒体缓存与日志。
  */
-export const createLocalBackup = async (): Promise<string> => {
+export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES): Promise<string> => {
+  if (!Number.isSafeInteger(maxArchiveBytes) || maxArchiveBytes <= 0 || maxArchiveBytes > MAX_LOCAL_BACKUP_BYTES) {
+    throw new Error('备份压缩文件上限参数无效')
+  }
   if (backupInProgress) throw new Error('备份任务正在进行中，请稍后重试')
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-local-backup-'))
@@ -337,21 +349,41 @@ export const createLocalBackup = async (): Promise<string> => {
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(archivePath, { flags: 'wx', mode: 0o600 })
       const archive = new archiver.ZipArchive({ zlib: { level: 9 } })
+      let archiveBytes = 0
       let settled = false
+      const limiter = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          archiveBytes += chunk.byteLength
+          if (archiveBytes > maxArchiveBytes) {
+            callback(new LocalBackupTooLargeError(maxArchiveBytes))
+            return
+          }
+          callback(null, chunk)
+        },
+      })
       const fail = (error: Error): void => {
         if (settled) return
         settled = true
+        archive.unpipe(limiter)
+        archive.abort()
+        limiter.destroy()
+        output.destroy()
         reject(error)
       }
 
       output.on('close', () => {
         if (settled) return
+        if (!output.writableFinished) {
+          fail(new Error('备份文件写入失败'))
+          return
+        }
         settled = true
         resolve()
       })
       output.on('error', fail)
+      limiter.on('error', fail)
       archive.on('error', fail)
-      archive.pipe(output)
+      archive.pipe(limiter).pipe(output)
       archive.file(databasePath, { name: 'database/yun-yin.db' })
 
       const backupConfigPath = path.join(tempDir, 'config.js')

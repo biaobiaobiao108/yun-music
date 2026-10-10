@@ -1,10 +1,11 @@
-import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
+import { describe, test, expect, beforeEach, afterAll, spyOn } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ADMIN_SESSION_COOKIE_NAME, checkAdminSession, checkPlayerAuthSession, createAdminSession, createPlayerSession, SESSION_COOKIE_NAME } from '@/server/auth'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 import { closeDb } from '@/database'
+import * as localBackupService from '@/server/localBackupService'
 
 const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-sys-test-'))
 const testUserDir = path.join(testDataDir, 'users')
@@ -55,6 +56,22 @@ describe('System Routes (routes/system.ts)', () => {
     expect(typeof json.cacheStats.cache.totalSize).toBe('number')
     expect(typeof json.cacheStats.music.fileCount).toBe('number')
     expect(typeof json.cacheStats.music.totalSize).toBe('number')
+  })
+
+  test('GET /api/backup/download returns 413 when the generated ZIP exceeds the restore limit', async () => {
+    const createBackup = spyOn(localBackupService, 'createLocalBackup')
+      .mockRejectedValue(new localBackupService.LocalBackupTooLargeError())
+    try {
+      const router = createSystemRouter()
+      const response = await router.handle(new Request('http://localhost:9527/api/backup/download', {
+        headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
+      }))
+
+      expect(response.status).toBe(413)
+      expect(await response.json()).toMatchObject({ success: false, code: 413 })
+    } finally {
+      createBackup.mockRestore()
+    }
   })
 
   test('GET /api/config returns full configuration for admin', async () => {

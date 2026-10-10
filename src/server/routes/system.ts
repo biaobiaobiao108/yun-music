@@ -8,7 +8,7 @@ import { revokeAllUserSessions } from './auth'
 import { serverStatus } from '../state'
 import { startupLog } from '@/utils/log4js'
 import { resolveInside } from '@/utils/pathSecurity'
-import { createLocalBackup, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '../localBackupService'
+import { createLocalBackup, LocalBackupTooLargeError, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '../localBackupService'
 import { refreshUsersFromDatabase } from '@/user/data'
 import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
@@ -691,6 +691,7 @@ export const createSystemRouter = (): Router => {
         },
       })
     } catch (err: any) {
+      if (err instanceof LocalBackupTooLargeError) return ctx.fail(413, err.message)
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
     }
   })

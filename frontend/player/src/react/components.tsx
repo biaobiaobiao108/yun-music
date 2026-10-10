@@ -93,7 +93,13 @@ export function SelectMenu({ value, options, onChange, label, disabled = false, 
     if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); setOpen(true); move(-1); return }
     if (event.key === 'Home') { event.preventDefault(); setOpen(true); setHighlighted(firstEnabledOption(options)); return }
     if (event.key === 'End') { event.preventDefault(); setOpen(true); setHighlighted(lastEnabledOption(options)); return }
-    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(current => !current); return }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      if (!open) { setOpen(true); return }
+      const option = options[highlighted]
+      if (option && !option.disabled) choose(option)
+      return
+    }
     if (event.key === 'Escape' && open) { event.preventDefault(); setOpen(false); return }
   }
 

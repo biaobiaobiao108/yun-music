@@ -10,6 +10,8 @@ import { Readable } from 'node:stream'
 import * as identify from '@/server/utils/identify'
 import * as fileCache from '@/server/fileCache'
 import * as serverDownloadQueue from '@/server/serverDownloadQueue'
+import * as musicResolver from '@/server/services/musicResolver'
+import * as networkSecurity from '@/server/networkSecurity'
 import { createCacheRouter, createProxyResponseStream, createTempFileResponseStream } from '@/server/routes/cache'
 import { createMusicRouter, normalizeSongListId } from '@/server/routes/music'
 import { userSessions } from '@/server/routes/auth'
@@ -379,6 +381,39 @@ describe('cache list user scope', () => {
     }
   })
 
+  test('recognizes an absolute cache URL using the browser-facing origin behind TLS proxying', async () => {
+    const switchFolder = spyOn(fileCache, 'switchFolder').mockResolvedValue({
+      successCount: 1,
+      failCount: 0,
+      moved: ['saved.mp3'],
+    } as any)
+    const enqueue = spyOn(serverDownloadQueue, 'enqueue').mockReturnValue([] as any)
+    try {
+      const response = await createCacheRouter().handle(new Request('http://internal/api/music/cache/download?user=cache_owner', {
+        method: 'POST',
+        headers: {
+          cookie: `lx_user_session=${sessionId}`,
+          'content-type': 'application/json',
+          host: 'music.example',
+          origin: 'https://music.example',
+          'x-forwarded-proto': 'https',
+        },
+        body: JSON.stringify({
+          songInfo: { source: 'wy', songmid: '123', name: 'Song', singer: 'Singer' },
+          url: 'https://music.example/api/music/cache/file/cache_owner/saved.mp3?folder=cache',
+          quality: 'flac',
+        }),
+      }))
+
+      expect(response.status).toBe(200)
+      expect(switchFolder).toHaveBeenCalledWith(['saved.mp3'], 'cache_owner', 'music')
+      expect(enqueue).not.toHaveBeenCalled()
+    } finally {
+      enqueue.mockRestore()
+      switchFolder.mockRestore()
+    }
+  })
+
   test('keeps an existing cache playable while its user-scoped task is still active', async () => {
     const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
       exists: true,
@@ -638,6 +673,18 @@ test('proxy stream propagates size violations and truncated upstream responses',
   }
 })
 
+test('proxy stream enforces a shared byte budget before forwarding data', async () => {
+  let remaining = 64
+  const consumeBytes = (byteCount: number) => {
+    if (byteCount > remaining) return false
+    remaining -= byteCount
+    return true
+  }
+  const source = Readable.from([Buffer.alloc(64), Buffer.alloc(1)])
+  const stream = createProxyResponseStream(source, { destroy() {} } as any, 1024, undefined, consumeBytes)
+  await expect(new Response(stream).arrayBuffer()).rejects.toThrow('Download relay bandwidth budget exceeded')
+})
+
 test('download proxy isolates active content and preserves media responses', async () => {
   const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
   let mime = 'text/html'
@@ -816,6 +863,126 @@ test('/api/music/url intercepts request when cache exists and avoids online reso
   } finally {
     checkCacheSpy.mockRestore()
     global.lx = previousLx
+  }
+})
+
+test('/api/music/quality/size follows redirects and validates each public target', async () => {
+  const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
+  const resolveServerSong = spyOn(musicResolver, 'resolveServerSong').mockResolvedValue({
+    url: 'https://origin.example/audio',
+    quality: 'flac',
+    songInfo: { source: 'wy' },
+    downloadSource: 'wy',
+    sourceName: 'test',
+  } as any)
+  const probeRequests: Array<{ url: string; method: string | undefined; discardResponseBody: boolean | undefined }> = []
+  const fetchSafeRemote = spyOn(networkSecurity, 'fetchSafeRemote').mockImplementation(async (url, options) => {
+    probeRequests.push({
+      url: url.href,
+      method: options?.method,
+      discardResponseBody: options?.discardResponseBody,
+    })
+    if (probeRequests.length === 1) {
+      return new Response(null, { status: 302, headers: { location: 'https://cdn.example/audio' } })
+    }
+    return new Response(null, { status: 200, headers: { 'content-length': '123456' } })
+  })
+  try {
+    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/quality/size', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        songInfo: { source: 'wy', songmid: '123', name: 'Song', singer: 'Singer' },
+        quality: 'flac',
+      }),
+    }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ success: true, bytes: 123456 })
+    expect(probeRequests).toEqual([
+      { url: 'https://origin.example/audio', method: 'HEAD', discardResponseBody: true },
+      { url: 'https://cdn.example/audio', method: 'HEAD', discardResponseBody: true },
+    ])
+    expect(lookup).toHaveBeenCalledTimes(2)
+  } finally {
+    fetchSafeRemote.mockRestore()
+    resolveServerSong.mockRestore()
+    lookup.mockRestore()
+  }
+})
+
+test('/api/music/quality/size does not treat a location-less redirect body as the audio size', async () => {
+  const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
+  const resolveServerSong = spyOn(musicResolver, 'resolveServerSong').mockResolvedValue({
+    url: 'https://origin.example/audio',
+    quality: 'flac',
+    songInfo: { source: 'wy' },
+    downloadSource: 'wy',
+  } as any)
+  const probeRequests: Array<{ method: string | undefined; range: string | null }> = []
+  const fetchSafeRemote = spyOn(networkSecurity, 'fetchSafeRemote').mockImplementation(async (_url, options) => {
+    const headers = new Headers(options?.headers)
+    probeRequests.push({ method: options?.method, range: headers.get('range') })
+    if (probeRequests.length === 1) {
+      return new Response(null, { status: 302, headers: { 'content-length': '9999' } })
+    }
+    return new Response(null, {
+      status: 206,
+      headers: { 'content-range': 'bytes 0-0/123456', 'content-length': '1' },
+    })
+  })
+  try {
+    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/quality/size', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ songInfo: { source: 'wy', songmid: '123' }, quality: 'flac' }),
+    }))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ success: true, bytes: 123456 })
+    expect(probeRequests).toEqual([
+      { method: 'HEAD', range: null },
+      { method: 'GET', range: 'bytes=0-0' },
+    ])
+  } finally {
+    fetchSafeRemote.mockRestore()
+    resolveServerSong.mockRestore()
+    lookup.mockRestore()
+  }
+})
+
+test('/api/music/quality/size refuses a private redirect target', async () => {
+  const lookup = spyOn(dns, 'lookup').mockImplementation(async (hostname: string) => ([{
+    address: hostname === '127.0.0.1' ? '127.0.0.1' : '8.8.8.8',
+    family: 4,
+  }]) as any)
+  const resolveServerSong = spyOn(musicResolver, 'resolveServerSong').mockResolvedValue({
+    url: 'https://origin.example/audio',
+    quality: 'flac',
+    songInfo: { source: 'wy' },
+    downloadSource: 'wy',
+  } as any)
+  const probedUrls: string[] = []
+  const fetchSafeRemote = spyOn(networkSecurity, 'fetchSafeRemote').mockImplementation(async (url) => {
+    probedUrls.push(url.href)
+    return new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/internal' } })
+  })
+  const errorLog = spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/quality/size', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ songInfo: { source: 'wy', songmid: '123' }, quality: 'flac' }),
+    }))
+
+    expect(response.status).toBe(500)
+    expect(probedUrls).toEqual(['https://origin.example/audio', 'https://origin.example/audio'])
+    expect(probedUrls.some(url => url.startsWith('http://127.0.0.1'))).toBe(false)
+  } finally {
+    errorLog.mockRestore()
+    fetchSafeRemote.mockRestore()
+    resolveServerSong.mockRestore()
+    lookup.mockRestore()
   }
 })
 

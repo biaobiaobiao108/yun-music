@@ -56,6 +56,7 @@ export const createProxyResponseStream = (
   request: http.ClientRequest,
   maxBytes: number,
   onFinished?: () => void,
+  consumeBytes?: (byteCount: number) => boolean,
 ): ReadableStream => {
   let received = 0
   let finished = false
@@ -69,6 +70,7 @@ export const createProxyResponseStream = (
     transform(chunk: Buffer, _encoding, callback) {
       received += chunk.byteLength
       if (received > maxBytes) callback(new Error('Remote file is too large'))
+      else if (consumeBytes && !consumeBytes(chunk.byteLength)) callback(new Error('Download relay bandwidth budget exceeded'))
       else callback(null, chunk)
     },
   })
@@ -128,16 +130,104 @@ const isOpaqueBrowserProgressId = (id: string): boolean => (
 
 const DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP = 4
 const DOWNLOAD_PROXY_MAX_TAGGING_PER_IP = 1
+const DOWNLOAD_PROXY_MAX_ACTIVE_GLOBAL = 64
+const DOWNLOAD_PROXY_BUDGET_WINDOW_MS = 10 * 60 * 1000
+const DOWNLOAD_PROXY_MAX_REQUESTS_PER_IP = 240
+const DOWNLOAD_PROXY_MAX_REQUESTS_GLOBAL = 1_200
+const DOWNLOAD_PROXY_MAX_BYTES_PER_IP = 2 * 1024 * 1024 * 1024
+const DOWNLOAD_PROXY_MAX_BYTES_GLOBAL = 8 * 1024 * 1024 * 1024
+const DOWNLOAD_PROXY_MAX_BUDGET_CLIENTS = 10_000
 const downloadProxyActiveByIp = new Map<string, number>()
 const downloadProxyTaggingByIp = new Map<string, number>()
+type DownloadProxyBudgetBucket = { tokens: number; updatedAt: number }
+const downloadProxyRequestBudgetByIp = new Map<string, DownloadProxyBudgetBucket>()
+const downloadProxyByteBudgetByIp = new Map<string, DownloadProxyBudgetBucket>()
+let downloadProxyGlobalActive = 0
+let downloadProxyGlobalRequestBudget: DownloadProxyBudgetBucket = {
+  tokens: DOWNLOAD_PROXY_MAX_REQUESTS_GLOBAL,
+  updatedAt: Date.now(),
+}
+let downloadProxyGlobalByteBudget: DownloadProxyBudgetBucket = {
+  tokens: DOWNLOAD_PROXY_MAX_BYTES_GLOBAL,
+  updatedAt: Date.now(),
+}
+
+const refillDownloadProxyBucket = (
+  bucket: DownloadProxyBudgetBucket | undefined,
+  capacity: number,
+  now: number,
+): DownloadProxyBudgetBucket => {
+  if (!bucket) return { tokens: capacity, updatedAt: now }
+  const elapsed = Math.max(0, now - bucket.updatedAt)
+  return {
+    tokens: Math.min(capacity, bucket.tokens + elapsed * capacity / DOWNLOAD_PROXY_BUDGET_WINDOW_MS),
+    updatedAt: now,
+  }
+}
+
+const storeDownloadProxyBudgetBucket = (
+  buckets: Map<string, DownloadProxyBudgetBucket>,
+  key: string,
+  bucket: DownloadProxyBudgetBucket,
+): void => {
+  // Refresh insertion order so bounded eviction removes the least recently used IP.
+  buckets.delete(key)
+  buckets.set(key, bucket)
+  while (buckets.size > DOWNLOAD_PROXY_MAX_BUDGET_CLIENTS) {
+    const oldest = buckets.keys().next().value
+    if (!oldest) break
+    buckets.delete(oldest)
+  }
+}
+
+const consumeDownloadProxyRequestBudget = (ip: string): boolean => {
+  const now = Date.now()
+  const client = refillDownloadProxyBucket(
+    downloadProxyRequestBudgetByIp.get(ip), DOWNLOAD_PROXY_MAX_REQUESTS_PER_IP, now,
+  )
+  const global = refillDownloadProxyBucket(
+    downloadProxyGlobalRequestBudget, DOWNLOAD_PROXY_MAX_REQUESTS_GLOBAL, now,
+  )
+  const allowed = client.tokens >= 1 && global.tokens >= 1
+  if (allowed) {
+    client.tokens -= 1
+    global.tokens -= 1
+  }
+  storeDownloadProxyBudgetBucket(downloadProxyRequestBudgetByIp, ip, client)
+  downloadProxyGlobalRequestBudget = global
+  return allowed
+}
+
+const consumeDownloadProxyBytes = (ip: string, byteCount: number): boolean => {
+  if (!Number.isSafeInteger(byteCount) || byteCount <= 0) return byteCount === 0
+  const now = Date.now()
+  const client = refillDownloadProxyBucket(
+    downloadProxyByteBudgetByIp.get(ip), DOWNLOAD_PROXY_MAX_BYTES_PER_IP, now,
+  )
+  const global = refillDownloadProxyBucket(
+    downloadProxyGlobalByteBudget, DOWNLOAD_PROXY_MAX_BYTES_GLOBAL, now,
+  )
+  const allowed = client.tokens >= byteCount && global.tokens >= byteCount
+  if (allowed) {
+    client.tokens -= byteCount
+    global.tokens -= byteCount
+  }
+  storeDownloadProxyBudgetBucket(downloadProxyByteBudgetByIp, ip, client)
+  downloadProxyGlobalByteBudget = global
+  return allowed
+}
 
 const tryAcquireDownloadProxySlot = (ip: string, tagging: boolean): (() => void) | null => {
   const active = downloadProxyActiveByIp.get(ip) || 0
   const activeTagging = downloadProxyTaggingByIp.get(ip) || 0
-  if (active >= DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP || (tagging && activeTagging >= DOWNLOAD_PROXY_MAX_TAGGING_PER_IP)) {
+  if (downloadProxyGlobalActive >= DOWNLOAD_PROXY_MAX_ACTIVE_GLOBAL
+    || active >= DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP
+    || (tagging && activeTagging >= DOWNLOAD_PROXY_MAX_TAGGING_PER_IP)) {
     return null
   }
+  if (!consumeDownloadProxyRequestBudget(ip)) return null
   downloadProxyActiveByIp.set(ip, active + 1)
+  downloadProxyGlobalActive += 1
   if (tagging) downloadProxyTaggingByIp.set(ip, activeTagging + 1)
 
   let released = false
@@ -147,6 +237,7 @@ const tryAcquireDownloadProxySlot = (ip: string, tagging: boolean): (() => void)
     const nextActive = (downloadProxyActiveByIp.get(ip) || 1) - 1
     if (nextActive > 0) downloadProxyActiveByIp.set(ip, nextActive)
     else downloadProxyActiveByIp.delete(ip)
+    downloadProxyGlobalActive = Math.max(0, downloadProxyGlobalActive - 1)
     if (tagging) {
       const nextTagging = (downloadProxyTaggingByIp.get(ip) || 1) - 1
       if (nextTagging > 0) downloadProxyTaggingByIp.set(ip, nextTagging)
@@ -545,7 +636,7 @@ export const createCacheRouter = (): Router => {
       if (!songInfo || !url) return ctx.fail(400, '缺少必要参数')
       let requestedUrl = String(url).trim()
       try {
-        const requestOrigin = new URL(ctx.request.url).origin
+        const requestOrigin = ctx.requestOrigin
         const parsed = new URL(requestedUrl, requestOrigin)
         if (parsed.origin === requestOrigin && parsed.pathname === '/api/music/download') {
           requestedUrl = parsed.searchParams.get('url')?.trim() || requestedUrl
@@ -1352,7 +1443,9 @@ export const createCacheRouter = (): Router => {
     if (urlStr.length > 4096) return ctx.fail(413, '远程地址过长')
 
     const releaseProxySlot = tryAcquireDownloadProxySlot(ctx.remoteAddress || 'unknown', isTaggingMode)
-    if (!releaseProxySlot) return ctx.fail(429, '当前下载请求过多，请稍后重试')
+    if (!releaseProxySlot) return ctx.fail(429, '下载请求过于频繁或当前连接额度已用尽，请稍后重试')
+    const proxyClientIp = ctx.remoteAddress || 'unknown'
+    const consumeProxyBytes = (byteCount: number) => consumeDownloadProxyBytes(proxyClientIp, byteCount)
 
     return new Promise<Response>((resolve) => {
       let responseSettled = false
@@ -1511,12 +1604,14 @@ export const createCacheRouter = (): Router => {
                   if (!taskId) return
                   fileCache.setCacheProgress(taskId, { progress: 0, status: 'error', errorMsg: message, updatedAt: Date.now() })
                 }
-                const failTaggedStream = (message: string) => {
+                const failTaggedStream = (message: string, status = 502) => {
                   if (responseSettled || taggedResponseSettled) return
                   markProgressError(message)
                   try { tempStream.destroy() } catch { }
                   try { proxyRes.destroy() } catch { }
-                  settleTaggedResponse(ctx.fail(502, '下载数据流中断，请重试'))
+                  settleTaggedResponse(ctx.fail(status, status === 429
+                    ? '下载中继流量额度已用尽，请稍后重试'
+                    : '下载数据流中断，请重试'))
                 }
                 tempStream.on('error', (error) => {
                   tempStreamError = error
@@ -1535,6 +1630,10 @@ export const createCacheRouter = (): Router => {
                     tempStream.destroy()
                     markProgressError('Remote file is too large')
                     settleTaggedResponse(ctx.fail(413, '远程文件过大，已超过允许的下载上限'))
+                    return
+                  }
+                  if (!consumeProxyBytes(c.length)) {
+                    failTaggedStream('Download relay bandwidth budget exceeded', 429)
                     return
                   }
                   if (taskId) {
@@ -1642,7 +1741,7 @@ export const createCacheRouter = (): Router => {
                 return
               }
 
-              const stream = createProxyResponseStream(proxyRes, proxyReq, maxAudioBytes, releaseProxySlot)
+              const stream = createProxyResponseStream(proxyRes, proxyReq, maxAudioBytes, releaseProxySlot, consumeProxyBytes)
 
               settleResponse(new Response(stream, {
                 status: proxyRes.statusCode || 200,

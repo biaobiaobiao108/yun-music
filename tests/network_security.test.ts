@@ -77,6 +77,26 @@ describe('Outbound URL network boundaries', () => {
     }
   })
 
+  test('anonymous download proxy applies a sustained per-client request budget', async () => {
+    const errorLog = spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const router = createCacheRouter()
+      const remoteAddress = '203.0.113.247'
+      const url = `http://localhost/api/music/download?url=${encodeURIComponent('http://127.0.0.1/audio')}`
+      let limited = false
+      for (let attempt = 0; attempt < 300; attempt += 1) {
+        const response = await router.handle(new Request(url), { remoteAddress })
+        if (response.status === 429) {
+          limited = true
+          break
+        }
+      }
+      expect(limited).toBe(true)
+    } finally {
+      errorLog.mockRestore()
+    }
+  })
+
   test('connection lookup retains validated addresses even after DNS changes', async () => {
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
     try {
@@ -191,6 +211,22 @@ describe('Bounded remote response transport', () => {
       expect(response.body).toBeNull()
       expect(response.headers.get('content-length')).toBe(String(100 * 1024 * 1024))
       expect(response.headers.get('content-encoding')).toBe('gzip')
+    })
+  })
+
+  test('discardResponseBody returns redirect headers without reading the upstream body', async () => {
+    await withServer((_request, response) => {
+      response.writeHead(302, {
+        location: '/cdn/audio',
+        'content-length': '1048576',
+      })
+      response.flushHeaders()
+    }, async url => {
+      const response = await fetchSafeRemote(url, { method: 'GET', maxBytes: 16, discardResponseBody: true })
+      expect(response.status).toBe(302)
+      expect(response.headers.get('location')).toBe('/cdn/audio')
+      expect(response.headers.get('content-length')).toBe('1048576')
+      expect(response.body).toBeNull()
     })
   })
 

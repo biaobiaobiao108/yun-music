@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
+import { playerApi } from '../frontend/player/src/react/api'
 import { ApiRequestError, clearRequestCache, invalidateRequestCache, requestCacheKeys, requestJson } from '../frontend/player/src/react/data/request'
 import { parsePlayerHash, serializePlayerHash } from '../frontend/player/src/react/route_state'
 import { scopedStorageKey, setSessionScope } from '../frontend/player/src/react/session'
@@ -6,7 +7,9 @@ import { usePlaybackStore } from '../frontend/player/src/react/store/playback'
 import { useSettingsStore } from '../frontend/player/src/react/store/settings'
 import { useAuthStore } from '../frontend/player/src/react/store/auth'
 import { selectLoveList, selectUserLists, useLibraryStore } from '../frontend/player/src/react/store/library'
+import { useSearchStore } from '../frontend/player/src/react/store/search'
 import { useMediaLibraryStore } from '../frontend/player/src/react/store/media_library'
+import type { Song } from '../frontend/player/src/react/types'
 
 describe('React player data request lifecycle', () => {
   it('deduplicates concurrent reads and serves a short-lived cache', async () => {
@@ -131,6 +134,30 @@ describe('React player URL state boundary', () => {
   })
 })
 
+describe('React player search state', () => {
+  it('clears stale results and page state when the query changes during a search', async () => {
+    const initial = useSearchStore.getState()
+    const staleSong = { id: 'old', name: '旧结果', source: 'wy' }
+    let resolveSearch: ((songs: Song[]) => void) | undefined
+    const search = spyOn(playerApi, 'search').mockImplementation(() => new Promise(resolve => { resolveSearch = resolve }))
+    useSearchStore.setState({ query: '旧关键词', page: 3, results: [staleSong], loading: false, refreshing: false, error: '', loadedAt: Date.now() })
+    try {
+      const pending = useSearchStore.getState().search('旧关键词', 3)
+      useSearchStore.getState().setQuery('新关键词')
+      expect(useSearchStore.getState()).toMatchObject({ query: '新关键词', page: 1, results: [], loading: false, refreshing: false, error: '' })
+
+      expect(resolveSearch).toBeDefined()
+      resolveSearch?.([{ id: 'stale', name: '迟到的旧结果', source: 'wy' }])
+      await pending
+      expect(useSearchStore.getState()).toMatchObject({ query: '新关键词', page: 1, results: [], loading: false })
+    } finally {
+      search.mockRestore()
+      useSearchStore.getState().invalidate()
+      useSearchStore.setState(initial)
+    }
+  })
+})
+
 describe('React player library persistence guard', () => {
   it('shows local favorites and playlists newest first while preserving source playlist order', () => {
     const loveList = [{ id: 'love-old' }, { id: 'love-new' }]
@@ -208,6 +235,42 @@ describe('React player library persistence guard', () => {
       globalThis.fetch = originalFetch
       clearRequestCache()
       useLibraryStore.getState().reset()
+    }
+  })
+
+  it('serializes same-list mutations and rolls back only the failed mutation', async () => {
+    const initial = useLibraryStore.getState()
+    const existingSong = { id: 'keep', songmid: 'keep', name: '保留歌曲', singer: '歌手', source: 'wy' }
+    const addedSong = { id: 'add', songmid: 'add', name: '待添加歌曲', singer: '歌手', source: 'wy' }
+    let rejectAdd: ((error: Error) => void) | undefined
+    let rejectRemove: ((error: Error) => void) | undefined
+    let notifyRemoveStarted: (() => void) | undefined
+    const removeStarted = new Promise<void>(resolve => { notifyRemoveStarted = resolve })
+    const add = spyOn(playerApi, 'addToList').mockImplementation(() => new Promise((_resolve, reject) => { rejectAdd = reject }))
+    const remove = spyOn(playerApi, 'removeFromList').mockImplementation(() => new Promise((_resolve, reject) => {
+      rejectRemove = reject
+      notifyRemoveStarted?.()
+    }))
+    useLibraryStore.setState({ data: { defaultList: [], loveList: [existingSong], userList: [] }, loading: false, refreshing: false, error: '', loadedAt: Date.now() })
+    try {
+      const adding = useLibraryStore.getState().addSong('love', addedSong)
+      const removing = useLibraryStore.getState().removeSong('love', existingSong)
+      const addingResult = adding.then(() => null, error => error instanceof Error ? error.message : String(error))
+      const removingResult = removing.then(() => null, error => error instanceof Error ? error.message : String(error))
+      await Promise.resolve()
+      expect(add).toHaveBeenCalledTimes(1)
+      expect(remove).not.toHaveBeenCalled()
+      rejectAdd?.(new Error('添加失败'))
+      await removeStarted
+      rejectRemove?.(new Error('移除失败'))
+      expect(await addingResult).toBe('添加失败')
+      expect(await removingResult).toBe('移除失败')
+      expect(useLibraryStore.getState().data.loveList).toEqual([existingSong])
+    } finally {
+      add.mockRestore()
+      remove.mockRestore()
+      useLibraryStore.getState().reset()
+      useLibraryStore.setState(initial)
     }
   })
 

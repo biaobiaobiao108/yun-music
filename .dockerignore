@@ -6,6 +6,9 @@ data
 logs
 cache
 music
+cover_cache
+.env
+.env.*
 packaging
 tests
 *.log

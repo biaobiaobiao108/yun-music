@@ -99,6 +99,8 @@ export interface SafeRemoteFetchOptions extends Omit<RequestInit, 'redirect'> {
   proxy?: string
   /** 限制响应体大小，避免远端响应造成内存放大。 */
   maxBytes?: number
+  /** 只需要状态与响应头时关闭连接并丢弃响应体。 */
+  discardResponseBody?: boolean
   /** 仅在调用方没有提供 signal 时生效。 */
   timeoutMs?: number
 }
@@ -225,7 +227,7 @@ const fetchViaBunProxy = async (
   safeUrl: SafeRemoteHttpUrl,
   options: SafeRemoteFetchOptions,
 ): Promise<Response> => {
-  const { proxy, signal: inputSignal, ...requestInit } = options
+  const { proxy, signal: inputSignal, discardResponseBody, ...requestInit } = options
   const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
   const timeoutMs = normalizeRemoteTimeout(options.timeoutMs)
   const signal = inputSignal || AbortSignal.timeout(timeoutMs)
@@ -235,6 +237,14 @@ const fetchViaBunProxy = async (
     redirect: 'manual',
     proxy,
   } as RequestInit & { proxy: string })
+  if (discardResponseBody) {
+    await response.body?.cancel()
+    return new Response(null, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: new Headers(response.headers),
+    })
+  }
   const noBody = hasNoResponseBody(options.method || 'GET', response.status)
   const body = noBody ? null : await readResponseBody(response, maxBytes)
   const headers = new Headers(response.headers)
@@ -268,6 +278,7 @@ export const fetchSafeRemote = async (
     headers: inputHeaders,
     body: inputBody,
     signal,
+    discardResponseBody,
   } = options
   const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
   const timeoutMs = normalizeRemoteTimeout(options.timeoutMs)
@@ -324,8 +335,8 @@ export const fetchSafeRemote = async (
       response = incomingResponse
       const status = incomingResponse.statusCode || 0
       const headers = responseHeaderEntries(incomingResponse.headers)
-      if (hasNoResponseBody(normalizedMethod, status)) {
-        incomingResponse.resume()
+      if (discardResponseBody || hasNoResponseBody(normalizedMethod, status)) {
+        incomingResponse.destroy()
         finish(() => resolve(new Response(null, {
           status,
           statusText: incomingResponse.statusMessage || '',

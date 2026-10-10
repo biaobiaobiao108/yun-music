@@ -219,6 +219,15 @@ export const deduplicateDownloadTasks = (taskList: ServerDownloadTask[]) => {
   return Array.from(retained.values())
 }
 
+/** Drop persisted work for accounts that no longer exist, while retaining the shared public queue. */
+export const filterPersistedTasksForUsers = <T extends { username?: unknown }>(
+  taskList: T[],
+  activeUsernames: ReadonlySet<string>,
+): T[] => taskList.filter(task => {
+  if (!task || typeof task.username !== 'string') return false
+  return task.username === '_open' || activeUsernames.has(task.username)
+})
+
 export const isDownloadTaskRunnable = (
   task: ServerDownloadTask,
   activeCountForUser: number,
@@ -339,13 +348,20 @@ const loadTasks = () => {
     const data = JSON.parse(fs.readFileSync(file, 'utf8'))
     const savedTasks = Array.isArray(data) ? data : data?.tasks
     if (!Array.isArray(savedTasks)) return
+    const activeUsernames = new Set<string>((global.lx?.config?.users || [])
+      .map((user: any) => String(user?.name || ''))
+      .filter(Boolean))
+    const activeQueueUsernames = new Set(activeUsernames)
+    activeQueueUsernames.add('_open')
     if (!Array.isArray(data) && data?.concurrencyByUser && typeof data.concurrencyByUser === 'object') {
       for (const [username, value] of Object.entries(data.concurrencyByUser)) {
+        if (!activeQueueUsernames.has(username)) continue
         concurrencyByUser.set(username, normalizeConcurrency(value))
       }
     }
     const restoredTasks: ServerDownloadTask[] = []
-    for (const raw of savedTasks) {
+    const retainedSavedTasks = filterPersistedTasksForUsers(savedTasks, activeUsernames)
+    for (const raw of retainedSavedTasks) {
       if (!raw || !raw.username || !raw.songInfo) continue
       const id = sanitizeId(raw.id)
       const savedStatus = validStatuses.has(raw.status) ? raw.status as ServerDownloadStatus : 'waiting'
@@ -384,7 +400,8 @@ const loadTasks = () => {
       .forEach(task => tasks.set(taskMapKey(task.username, task.id), task))
     pruneHistory()
     rebuildTaskIndexes()
-    console.log(`[ServerDownloadQueue] Restored ${tasks.size} persisted tasks`)
+    const discardedCount = savedTasks.length - retainedSavedTasks.length
+    console.log(`[ServerDownloadQueue] Restored ${tasks.size} persisted tasks${discardedCount ? `; discarded ${discardedCount} task(s) for inactive users` : ''}`)
   } catch (err) {
     console.warn('[ServerDownloadQueue] Failed to restore queue:', err)
   }

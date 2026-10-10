@@ -40,7 +40,13 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   tips: [],
   hot: [],
   loadedAt: 0,
-  setQuery: query => set({ query }),
+  setQuery: query => {
+    if (get().query === query) return
+    searchController?.abort()
+    searchController = null
+    searchRequestId += 1
+    set({ query, page: 1, results: [], loading: false, refreshing: false, error: '', loadedAt: 0 })
+  },
   setSource: source => {
     searchController?.abort()
     hotController?.abort()

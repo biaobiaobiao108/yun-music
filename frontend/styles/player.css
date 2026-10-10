@@ -11774,6 +11774,8 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     #main-sidebar.react-sidebar,
     .react-sidebar-backdrop { display: none !important; }
 
+    .react-menu-button { display: none !important; }
+
     .react-player-main {
         position: relative;
         width: 100%;
@@ -12943,6 +12945,16 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-playlists-section { display: none; }
     .react-player-topbar { display: none !important; }
     .react-player-main { grid-template-rows: minmax(0, 1fr); }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+    .react-player-topbar { display: block !important; }
+    .react-player-topbar .react-menu-button {
+        position: absolute;
+        inset-block-start: .85rem;
+        inset-inline-start: 1.25rem;
+        z-index: 2;
+        pointer-events: auto;
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .react-sidebar-history button { transition: none; }

@@ -54,7 +54,12 @@ export function SelectMenu({ value, options, onChange, label, disabled = false }
     else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); setOpen(true); move(-1) }
     else if (event.key === 'Home') { event.preventDefault(); setOpen(true); setHighlighted(firstEnabledOption(options)) }
     else if (event.key === 'End') { event.preventDefault(); setOpen(true); setHighlighted(lastEnabledOption(options)) }
-    else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(current => !current) }
+    else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      if (!open) { setOpen(true); return }
+      const option = options[highlighted]
+      if (option && !option.disabled) choose(option)
+    }
     else if (event.key === 'Escape') { event.preventDefault(); setOpen(false) }
   }
   const choose = (option: AdminSelectOption) => { if (option.disabled) return; onChange(option.value); setOpen(false); window.requestAnimationFrame(() => triggerRef.current?.focus()) }

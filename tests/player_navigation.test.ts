@@ -8,6 +8,24 @@ const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
 
 describe('React player navigation and state restoration', () => {
+  it('keeps the complete sidebar reachable between mobile and desktop breakpoints', () => {
+    const shell = read('frontend/player/src/react/shell.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(shell).toContain('className="react-player-button react-menu-button"')
+    expect(shell).toContain('aria-controls="main-sidebar"')
+    expect(shell).toContain('aria-expanded={sidebarOpen}')
+    expect(css).toMatch(/@media \(max-width: 900px\) \{[\s\S]*?\.react-menu-button \{\s*display: inline-grid;/)
+    expect(css).toMatch(/@media \(max-width: 720px\) \{[\s\S]*?\.react-menu-button \{ display: none !important; \}/)
+    expect(css).toMatch(/@media \(min-width: 721px\) and \(max-width: 900px\) \{[\s\S]*?\.react-player-topbar \{ display: block !important; \}[\s\S]*?\.react-menu-button \{[\s\S]*?pointer-events: auto;/)
+  })
+
+  it('selects the highlighted option with Enter or Space in player SelectMenu', () => {
+    const components = read('frontend/player/src/react/components.tsx')
+    expect(components).toContain("if (event.key === 'Enter' || event.key === ' ')")
+    expect(components).toContain('const option = options[highlighted]')
+    expect(components).toContain('if (option && !option.disabled) choose(option)')
+  })
+
   it('keeps browser history boundaries and restores page payloads', () => {
     let currentState: unknown = null
     const stack: unknown[] = []

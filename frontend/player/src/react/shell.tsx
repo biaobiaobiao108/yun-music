@@ -266,6 +266,8 @@ function TopBar() {
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const setTab = usePlayerUiStore(state => state.setTab)
+  const sidebarOpen = usePlayerUiStore(state => state.sidebarOpen)
+  const toggleSidebar = usePlayerUiStore(state => state.toggleSidebar)
   const userName = useAuthStore(state => state.userName)
   const userLists = useLibraryStore(selectUserLists)
   const currentPlaylist = favoriteListId === 'love' ? null : userLists.find(list => String(list.id) === favoriteListId)
@@ -279,7 +281,7 @@ function TopBar() {
     return observeScrollEdges(scrollContainer, shell)
   }, [])
 
-  return <header ref={topbarRef} className="react-player-topbar"><div className="react-topbar-actions"><button type="button" className="player-secondary-action react-mobile-settings-button" aria-label="设置" onClick={() => setTab('settings')}><Icon name="gear" /></button>{userName ? <span className="react-user-chip" aria-label="已登录账户" role="img" title="已登录账户"><Icon name="circle-user" /></span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
+  return <header ref={topbarRef} className="react-player-topbar"><button type="button" className="react-player-button react-menu-button" aria-label={sidebarOpen ? '关闭主导航' : '打开主导航'} aria-controls="main-sidebar" aria-expanded={sidebarOpen} onClick={toggleSidebar}><Icon name={sidebarOpen ? 'xmark' : 'bars'} /></button><div className="react-topbar-actions"><button type="button" className="player-secondary-action react-mobile-settings-button" aria-label="设置" onClick={() => setTab('settings')}><Icon name="gear" /></button>{userName ? <span className="react-user-chip" aria-label="已登录账户" role="img" title="已登录账户"><Icon name="circle-user" /></span> : <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>登录</button>}</div></header>
 }
 
 function AudioRuntime() {

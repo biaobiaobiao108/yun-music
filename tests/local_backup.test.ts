@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 import { closeDb, createDatabaseSnapshot, getDb, initDatabase } from '@/database'
-import { restoreLocalBackup } from '@/server/localBackupService'
+import { createLocalBackup, LocalBackupTooLargeError, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '@/server/localBackupService'
 import { getUserDirname, syncUsersToDatabase } from '@/user'
 
 const createZip = async (entries: Array<{ name: string; content?: string; sourcePath?: string }>): Promise<Uint8Array> => {
@@ -85,5 +85,21 @@ describe('Local backup restore', () => {
 
     await expect(restoreLocalBackup(archive)).rejects.toThrow('备份文件包含不允许的路径')
     expect(fs.existsSync(path.join(tempDir, 'outside.txt'))).toBe(false)
+  })
+
+  test('generated archives stay within the restore limit and can be restored', async () => {
+    const archiveName = await createLocalBackup()
+    const archivePath = path.join(tempDir, archiveName)
+    const archiveBytes = fs.readFileSync(archivePath)
+
+    expect(archiveBytes.byteLength).toBeLessThanOrEqual(MAX_LOCAL_BACKUP_BYTES)
+    await expect(restoreLocalBackup(new Uint8Array(archiveBytes))).resolves.toBeDefined()
+    fs.rmSync(archivePath, { force: true })
+  })
+
+  test('rejects an oversized generated archive and removes the partial ZIP', async () => {
+    await expect(createLocalBackup(1)).rejects.toBeInstanceOf(LocalBackupTooLargeError)
+
+    expect(fs.readdirSync(tempDir).filter(name => name.startsWith('yun-yin-backup-'))).toEqual([])
   })
 })
