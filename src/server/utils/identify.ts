@@ -1,6 +1,7 @@
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
+import { execFile } from 'node:child_process'
 
 /**
  * AcoustID 歌曲识别工具类
@@ -15,10 +16,8 @@ const API_URL = 'https://api.acoustid.org/v2/lookup'
  */
 function getFpcalcPath(): string | null {
     // 1. 检查 PATH 中是否已存在 (例如 Linux/Docker 环境下安装了 chromaprint)
-    const checkGlobal = Bun.spawnSync([os.platform() === 'win32' ? 'where' : 'which', 'fpcalc'])
-    if (checkGlobal.exitCode === 0) {
-        return 'fpcalc'
-    }
+    const globalPath = Bun.which('fpcalc')
+    if (globalPath) return globalPath
 
     // 2. 检查本地打包目录
     const platform = os.platform() // win32, linux, darwin
@@ -55,16 +54,28 @@ function getFpcalcPath(): string | null {
 /**
  * 提取音频指纹
  */
-export function getFingerprint(filePath: string): { fingerprint: string; duration: number } {
+export async function getFingerprint(filePath: string): Promise<{ fingerprint: string; duration: number }> {
     const fpcalcPath = getFpcalcPath()
     if (!fpcalcPath) {
         throw new Error('未找到 fpcalc 二进制文件。Docker 环境请安装 chromaprint (apk add chromaprint)')
     }
 
-    const result = Bun.spawnSync([fpcalcPath, '-json', filePath])
-    if (result.exitCode !== 0) throw new Error(`fpcalc 报错: ${result.stderr.toString()}`)
-
-    return JSON.parse(result.stdout.toString())
+    try {
+        const stdout = await new Promise<string>((resolve, reject) => {
+            execFile(fpcalcPath, ['-json', filePath], {
+                timeout: 30_000,
+                maxBuffer: 1024 * 1024,
+                windowsHide: true,
+            }, (error, output) => error ? reject(error) : resolve(output))
+        })
+        const result = JSON.parse(stdout)
+        if (typeof result.fingerprint !== 'string' || !result.fingerprint || !Number.isFinite(result.duration) || result.duration <= 0) {
+            throw new Error('无效的音频指纹结果')
+        }
+        return result
+    } catch (error: any) {
+        throw new Error(error.killed ? '音频指纹提取超时' : `fpcalc 报错: ${error.message}`)
+    }
 }
 
 /**
@@ -100,7 +111,7 @@ export async function lookupSong(fingerprint: string, duration: number): Promise
  * 识别本地歌曲并返回格式化的结果
  */
 export async function identifyLocalSong(filePath: string) {
-    const { fingerprint, duration } = getFingerprint(filePath)
+    const { fingerprint, duration } = await getFingerprint(filePath)
     const data = await lookupSong(fingerprint, duration)
 
     if (!data.results || data.results.length === 0) {
