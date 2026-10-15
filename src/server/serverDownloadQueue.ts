@@ -79,6 +79,8 @@ let initialized = false
 let processing = false
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let saveChain: Promise<void> = Promise.resolve()
+let saveInProgress = false
+let pendingSave: { file: string; payload: string } | null = null
 
 const taskMapKey = (username: string, id: string) => `${username}:${id}`
 const getTaskProgressKey = (username: string, id: string) => `queue:${encodeURIComponent(username)}:${encodeURIComponent(id)}`
@@ -313,23 +315,35 @@ const saveNow = () => {
     console.log(`[ServerDownloadQueue] Pruned ${removed} old history task(s)`)
   }
   const file = getQueueFile()
-  const tempFile = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`
   const payload = JSON.stringify({
     version: 2,
     concurrencyByUser: Object.fromEntries(concurrencyByUser),
     tasks: Array.from(tasks.values()).map(serializeDownloadTask),
   }, null, 2)
-  const persist = async (): Promise<void> => {
+  // Keep at most the active write plus the newest pending snapshot. Slow disks
+  // must not accumulate a promise closure (and full JSON payload) per update.
+  pendingSave = { file, payload }
+  if (saveInProgress) return
+  saveInProgress = true
+  saveChain = (async () => {
     try {
-      await fs.promises.mkdir(path.dirname(file), { recursive: true })
-      await Bun.write(tempFile, payload)
-      await fs.promises.rename(tempFile, file)
-    } catch (err) {
-      console.warn('[ServerDownloadQueue] Failed to save queue:', err)
-      try { await fs.promises.unlink(tempFile) } catch { }
+      while (pendingSave) {
+        const current = pendingSave
+        pendingSave = null
+        const tempFile = `${current.file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`
+        try {
+          await fs.promises.mkdir(path.dirname(current.file), { recursive: true })
+          await Bun.write(tempFile, current.payload)
+          await fs.promises.rename(tempFile, current.file)
+        } catch (err) {
+          console.warn('[ServerDownloadQueue] Failed to save queue:', err)
+          try { await fs.promises.unlink(tempFile) } catch { }
+        }
+      }
+    } finally {
+      saveInProgress = false
     }
-  }
-  saveChain = saveChain.then(persist, persist)
+  })()
   void saveChain
 }
 

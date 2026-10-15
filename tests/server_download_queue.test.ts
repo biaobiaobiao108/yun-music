@@ -10,6 +10,7 @@ import {
   enqueue,
   suspendUser, releaseUser, renameUser, removeUser,
   initialize,
+  setConcurrency,
   isDownloadTaskRunnable,
   list,
   markDownloadTaskPausedIfAborted,
@@ -43,6 +44,50 @@ const makeTask = (
   background: false,
   createdAt: updatedAt,
   updatedAt,
+})
+
+test('slow queue persistence coalesces updates and rename/delete await the latest snapshot', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-coalesced-queue-'))
+  const originalWrite = Bun.write.bind(Bun)
+  let releaseWrite!: () => void
+  let firstWriteStarted!: () => void
+  const blocked = new Promise<void>(resolve => { releaseWrite = resolve })
+  const started = new Promise<void>(resolve => { firstWriteStarted = resolve })
+  let writes = 0
+  const write = spyOn(Bun, 'write').mockImplementation(async (destination, contents) => {
+    writes++
+    if (writes === 1) {
+      firstWriteStarted()
+      await blocked
+    }
+    return originalWrite(destination as string, contents as string)
+  })
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => { throw new Error('No downloads expected') })
+    setConcurrency('coalesce-old', 1)
+    await started
+    for (let index = 0; index < 20; index++) setConcurrency('coalesce-old', index % 5 + 1)
+    let renamed = false
+    const renaming = renameUser('coalesce-old', 'coalesce-new').then(() => { renamed = true })
+    await Promise.resolve()
+    expect(renamed).toBe(false)
+    releaseWrite()
+    await renaming
+    expect(writes).toBe(2)
+    const queueFile = path.join(root, 'server-download-queue.json')
+    const persisted = JSON.parse(fs.readFileSync(queueFile, 'utf8'))
+    expect(persisted.concurrencyByUser['coalesce-old']).toBeUndefined()
+    expect(persisted.concurrencyByUser['coalesce-new']).toBe(5)
+    await removeUser('coalesce-new')
+    expect(JSON.parse(fs.readFileSync(queueFile, 'utf8')).concurrencyByUser['coalesce-new']).toBeUndefined()
+  } finally {
+    releaseWrite()
+    write.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })
 
 test('playback caching preserves an explicit music download across active, paused and completed states', async () => {
