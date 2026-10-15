@@ -1,5 +1,6 @@
 import { weapi } from './utils/crypto'
 import { httpFetch } from '../../request'
+import { releaseRequestWhenSettled } from '../requestLifecycle'
 import musicDetailApi from './musicDetail'
 
 const topList = [{ id: 'wy__19723756', name: '飙升榜', bangid: '19723756' },
@@ -113,6 +114,7 @@ export default {
       method: 'post',
       form: weapi({}),
     })
+    releaseRequestWhenSettled(this, '_requestBoardsObj')
     return this._requestBoardsObj.promise
   },
   getData(id: any) {

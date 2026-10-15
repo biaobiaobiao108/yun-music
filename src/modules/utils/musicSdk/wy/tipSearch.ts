@@ -1,4 +1,5 @@
 import { httpFetch } from '../../request'
+import { releaseRequestWhenSettled } from '../requestLifecycle'
 import { weapi } from './utils/crypto'
 import { formatSingerName } from '../utils'
 
@@ -19,6 +20,7 @@ export default {
         s: str,
       }),
     })
+    releaseRequestWhenSettled(this, 'requestObj')
     return this.requestObj.promise.then(({ statusCode, body }: any) => {
       if (statusCode != 200 || body.code != 200) return Promise.reject(new Error('请求失败'))
       return body.result.songs

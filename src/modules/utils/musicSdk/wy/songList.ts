@@ -5,6 +5,7 @@
 
 import { weapi, linuxapi } from './utils/crypto'
 import { httpFetch } from '../../request'
+import { releaseRequestWhenSettled } from '../requestLifecycle'
 import { formatPlayTime, dateFormat, formatPlayCount } from '../../index'
 import musicDetailApi from './musicDetail'
 import { eapiRequest } from './utils/index'
@@ -182,6 +183,7 @@ export default {
         total: true,
       }),
     })
+    releaseRequestWhenSettled(this, '_requestObj_list')
     return this._requestObj_list.promise.then(({ body }: any) => {
       // console.log(body)
       if (body.code !== this.successCode) return this.getList(sortId, tagId, page, ++tryNum)
@@ -217,6 +219,7 @@ export default {
       method: 'post',
       form: weapi({}),
     })
+    releaseRequestWhenSettled(this, '_requestObj_tags')
     return this._requestObj_tags.promise.then(({ body }: any) => {
       // console.log(JSON.stringify(body))
       if (body.code !== this.successCode) return this.getTag(++tryNum)
@@ -255,6 +258,7 @@ export default {
       method: 'post',
       form: weapi({}),
     })
+    releaseRequestWhenSettled(this, '_requestObj_hotTags')
     return this._requestObj_hotTags.promise.then(({ body }: any) => {
       // console.log(JSON.stringify(body))
       if (body.code !== this.successCode) return this.getTag(++tryNum)

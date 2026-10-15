@@ -1,4 +1,5 @@
 import { httpFetch } from '../../request'
+import { releaseRequestWhenSettled } from '../requestLifecycle'
 
 export default {
   // regExps: {
@@ -12,6 +13,7 @@ export default {
         Referer: 'https://y.qq.com/portal/player.html',
       },
     })
+    releaseRequestWhenSettled(this, 'requestObj')
     return this.requestObj.promise.then(({ statusCode, body }: any) => {
       if (statusCode != 200 || body.code != 0) return Promise.reject(new Error('请求失败'))
       return body.data

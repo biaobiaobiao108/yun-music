@@ -1,4 +1,5 @@
 import { httpFetch } from '../../request'
+import { releaseRequestWhenSettled } from '../requestLifecycle'
 import { decodeName, formatPlayTime, dateFormat, formatPlayCount } from '../../index'
 import { formatSingerName } from '../utils'
 import { buildQualitys } from './quality'
@@ -72,6 +73,7 @@ export default {
     if (this._requestObj_tags) this._requestObj_tags.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_tags = httpFetch(this.tagsUrl)
+    releaseRequestWhenSettled(this, '_requestObj_tags')
     return this._requestObj_tags.promise.then(({ body }: any) => {
       if (body.code !== this.successCode) return this.getTag(++tryNum)
       return this.filterTagInfo(body.tags.data.v_group)
@@ -82,6 +84,7 @@ export default {
     if (this._requestObj_hotTags) this._requestObj_hotTags.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_hotTags = httpFetch(this.hotTagUrl)
+    releaseRequestWhenSettled(this, '_requestObj_hotTags')
     return this._requestObj_hotTags.promise.then(({ statusCode, body }: any) => {
       if (statusCode !== 200) return this.getHotTag(++tryNum)
       return this.filterInfoHotTag(body)
@@ -124,6 +127,7 @@ export default {
       this.getListUrl(sortId, tagId, page),
     )
     // console.log(this.getListUrl(sortId, tagId, page))
+    releaseRequestWhenSettled(this, '_requestObj_list')
     return this._requestObj_list.promise.then(({ body }: any) => {
       if (body.code !== this.successCode) return this.getList(sortId, tagId, page, ++tryNum)
       return tagId ? this.filterList2(body.playlist.data, page) : this.filterList(body.playlist.data, page)
