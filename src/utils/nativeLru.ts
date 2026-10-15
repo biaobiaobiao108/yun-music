@@ -20,10 +20,33 @@ export class NativeLruCache<K, V> {
   private readonly entries = new Map<K, CacheEntry<V>>()
   private readonly max: number
   private readonly ttl: number
+  private expiryTimer: ReturnType<typeof setTimeout> | undefined
+  private nextExpiryAt = 0
 
   constructor(options: NativeLruCacheOptions) {
-    this.max = Math.max(1, Math.floor(options.max))
-    this.ttl = Math.max(0, options.ttl ?? 0)
+    this.max = Number.isFinite(options.max) ? Math.max(1, Math.floor(options.max)) : 1
+    this.ttl = Number.isFinite(options.ttl) ? Math.max(0, options.ttl ?? 0) : 0
+  }
+
+  /** One unref'ed timer per cache releases cold entries even without another lookup. */
+  private scheduleExpiry(): void {
+    let earliest = Number.POSITIVE_INFINITY
+    if (this.ttl > 0) {
+      for (const entry of this.entries.values()) earliest = Math.min(earliest, entry.expiresAt)
+    }
+    if (this.expiryTimer && earliest === this.nextExpiryAt) return
+    if (this.expiryTimer) clearTimeout(this.expiryTimer)
+    this.expiryTimer = undefined
+    this.nextExpiryAt = 0
+    if (!Number.isFinite(earliest)) return
+    this.nextExpiryAt = earliest
+    this.expiryTimer = setTimeout(() => {
+      this.expiryTimer = undefined
+      this.nextExpiryAt = 0
+      this.removeExpired()
+      this.scheduleExpiry()
+    }, Math.min(2_147_483_647, Math.max(1, earliest - Date.now())))
+    this.expiryTimer.unref?.()
   }
 
   private isExpired(entry: CacheEntry<V>): boolean {
@@ -63,6 +86,7 @@ export class NativeLruCache<K, V> {
       if (oldest === undefined) break
       this.entries.delete(oldest)
     }
+    this.scheduleExpiry()
     return this
   }
 
@@ -77,11 +101,14 @@ export class NativeLruCache<K, V> {
   }
 
   delete(key: K): boolean {
-    return this.entries.delete(key)
+    const deleted = this.entries.delete(key)
+    if (deleted) this.scheduleExpiry()
+    return deleted
   }
 
   clear(): void {
     this.entries.clear()
+    this.scheduleExpiry()
   }
 
   keys(): IterableIterator<K> {
