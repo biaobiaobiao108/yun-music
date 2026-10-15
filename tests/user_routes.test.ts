@@ -172,7 +172,7 @@ describe('User snapshot permissions', () => {
     for (let index = 0; index < 12; index++) {
       await manager.saveSnapshotWithTime(
         `history-${index}`,
-        JSON.stringify({ ...initialData, userList: [{ id: `song-${index}` }] }),
+        JSON.stringify({ ...initialData, userList: [{ id: `song-${index}`, name: `History ${index}`, list: [] }] }),
         Date.now() + index,
       )
     }

@@ -1,5 +1,6 @@
 import { type UserDataManage } from '@/user/data'
 import { getDb } from '@/database'
+import { assertListData } from './listDataValidation'
 import {
   assertSnapshotData,
   assertSnapshotId,
@@ -38,7 +39,9 @@ export class SnapshotDataManage {
     ).get(this.userDataManage.userName, this.module, name)
     if (!row) return null
     try {
-      return JSON.parse(row.data) as LX.List.ListData
+      const data: unknown = JSON.parse(row.data)
+      assertListData(data)
+      return data
     } catch {
       return null
     }
@@ -47,6 +50,7 @@ export class SnapshotDataManage {
   saveSnapshot = async (name: string, data: string): Promise<void> => {
     assertSnapshotId(name)
     assertSnapshotData(data)
+    assertListData(JSON.parse(data))
     getDb().run(
       'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       [name, this.userDataManage.userName, this.module, data, Buffer.byteLength(data, 'utf8'), Date.now()]
@@ -56,6 +60,7 @@ export class SnapshotDataManage {
   saveSnapshotWithTime = async (name: string, data: string, time: number): Promise<void> => {
     assertSnapshotId(name)
     assertSnapshotData(data)
+    assertListData(JSON.parse(data))
     getDb().run(
       'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       [name, this.userDataManage.userName, this.module, data, Buffer.byteLength(data, 'utf8'), time || Date.now()]

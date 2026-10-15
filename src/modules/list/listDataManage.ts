@@ -1,6 +1,7 @@
 import { arrPush, arrPushByPosition, arrUnshift } from '@/utils/common'
 import { LIST_IDS } from '@/constants'
 import { type SnapshotDataManage } from './snapshotDataManage'
+import { assertListData } from './listDataValidation'
 
 export type PlaylistMutation =
   | { action: 'create'; playlist: LX.List.UserListInfo & { list: LX.Music.MusicInfo[]; img?: string } }
@@ -36,18 +37,19 @@ export class ListDataManage {
     })
   }
   restore = async (listData: LX.List.ListData) => {
+    assertListData(listData)
     // Wait for the asynchronous snapshot load. Otherwise the initializer can
     // finish after this mutation and overwrite it with the old snapshot.
     await this.initPromise
-    this.allMusicList.clear()
-    this.userLists = []
-
-    this.allMusicList.set(LIST_IDS.DEFAULT, listData.defaultList)
-    this.allMusicList.set(LIST_IDS.LOVE, listData.loveList)
-    this.userLists.push(...listData.userList.map(({ list, ...l }) => {
-      this.allMusicList.set(l.id, list)
+    const nextMusicList = new Map<string, LX.Music.MusicInfo[]>([
+      [LIST_IDS.DEFAULT, listData.defaultList], [LIST_IDS.LOVE, listData.loveList],
+    ])
+    const nextUserLists = listData.userList.map(({ list, ...l }) => {
+      nextMusicList.set(l.id, list)
       return l
-    }))
+    })
+    this.allMusicList = nextMusicList
+    this.userLists = nextUserLists
   }
   getListData = async (): Promise<LX.List.ListData> => {
     await this.initPromise
