@@ -14,6 +14,7 @@ import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
 import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
+import { temporaryFileStream } from '../temporaryFileStream'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -649,41 +650,7 @@ export const createSystemRouter = (): Router => {
       if (!zipName) throw new Error('Backup creation failed')
       const zipPath = resolveInside(global.lx.dataPath, zipName)
       if (!fs.existsSync(zipPath)) throw new Error('ZIP file not found')
-      const bunFile = Bun.file(zipPath)
-      const source = bunFile.stream()
-      let cleaned = false
-      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
-      const cleanup = () => {
-        if (cleaned) return
-        cleaned = true
-        try { fs.unlinkSync(zipPath) } catch { }
-      }
-      const body = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          const activeReader = source.getReader()
-          reader = activeReader
-          try {
-            while (true) {
-              const { done, value } = await activeReader.read()
-              if (done) break
-              controller.enqueue(value)
-            }
-            controller.close()
-          } catch (error) {
-            controller.error(error)
-          } finally {
-            activeReader.releaseLock()
-            if (reader === activeReader) reader = null
-            cleanup()
-          }
-        },
-        async cancel(reason) {
-          const activeReader = reader
-          reader = null
-          try { await activeReader?.cancel(reason) } catch { }
-          cleanup()
-        },
-      })
+      const body = temporaryFileStream(zipPath)
       return new Response(body, {
         headers: {
           'Content-Type': 'application/zip',
