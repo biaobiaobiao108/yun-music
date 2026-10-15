@@ -1074,6 +1074,38 @@ describe('File Cache Progress Lifecycle', () => {
 })
 
 describe('File Cache Post-processing Limiter', () => {
+  it('reuses validated cover metadata until the physical audio file changes', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cover-state-reuse-'))
+    const previousLx = global.lx
+    const song = { source: 'wy', songmid: 'cover-state', name: 'Cover State', singer: 'Singer' }
+    try {
+      closeDb()
+      global.lx = { appPath: root, dataPath: path.join(root, 'data'), config: {} } as any
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+      const file = path.join(fileCache.getCacheDir('cover-owner'), 'cover-state.mp3')
+      fs.writeFileSync(file, Buffer.alloc(128))
+      const stats = fs.statSync(file)
+      fileCache.indexManager.update('cover-owner', {
+        id: 'wy_cover-state', name: song.name, singer: song.singer, albumName: '', source: 'wy',
+        quality: '320k', filename: 'cover-state.mp3', folder: 'cache', mtime: stats.mtimeMs,
+        size: stats.size, ext: 'mp3', hasCover: true, coverType: 'embedded', coverCheckedVersion: 5,
+        coverCheckedMtime: stats.mtimeMs, coverCheckedSize: stats.size,
+      }, 'cache')
+      // The existing validated state must survive without parsing this dummy
+      // audio again. A changed file must invalidate that same state.
+      await fileCache.downloadAndCache(song, '', '320k', 'cover-owner', undefined, false, false, false)
+      expect(fileCache.indexManager.get('cover-owner', 'wy_cover-state', 'cache', '320k', true)?.coverType).toBe('embedded')
+      fs.writeFileSync(file, Buffer.alloc(129))
+      await fileCache.downloadAndCache(song, '', '320k', 'cover-owner', undefined, false, false, false)
+      expect(fileCache.indexManager.get('cover-owner', 'wy_cover-state', 'cache', '320k', true)?.coverType).toBe('none')
+    } finally {
+      closeDb()
+      global.lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
   it('keeps an aborted download alive until lyric enrichment exits and never writes late lyrics', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-abort-enrichment-'))
     const previousLx = global.lx

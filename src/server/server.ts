@@ -4,6 +4,7 @@ import { initMusicServices } from './services/musicService'
 import { serverStatus, getServerStatus } from './state'
 import { getAddress } from '@/utils/tools'
 import { startupLog } from '@/utils/log4js'
+import { memoryMaintenance } from './memoryMaintenance'
 
 let bunServerInstance: Server<Record<string, never>> | null = null
 
@@ -52,6 +53,7 @@ export const startServer = async (port: number, ip: string): Promise<void> => {
 }
 
 export const stopServer = async (closeActiveConnections = false): Promise<void> => {
+  memoryMaintenance.cancel()
   if (bunServerInstance) {
     startupLog.info('Stopping HTTP server...')
     bunServerInstance.stop(closeActiveConnections)

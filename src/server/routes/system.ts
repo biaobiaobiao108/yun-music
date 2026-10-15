@@ -15,6 +15,7 @@ import * as fileCache from '../fileCache'
 import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 import { temporaryFileStream } from '../temporaryFileStream'
+import { getProcessMemorySnapshot } from '../memoryMaintenance'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -350,15 +351,20 @@ export const createSystemRouter = (): Router => {
       return ((deltaUsage.user + deltaUsage.system) / deltaTime / os.cpus().length * 100).toFixed(2)
     }
 
+    const processMemory = getProcessMemorySnapshot()
     const status = {
       users: global.lx.config.users.length,
       publicAccess: global.lx.config['user.enablePublicNonAdminAccess'] === true,
       uptime: process.uptime(),
-      memory: process.memoryUsage().rss,
+      memory: processMemory.rss,
+      processSwap: processMemory.swap,
+      processFootprint: processMemory.footprint,
+      heapUsed: processMemory.heapUsed,
+      externalMemory: processMemory.external,
       totalMemory: totalMem,
       freeMemory: freeMem,
       systemMemoryUsage: ((totalMem - freeMem) / totalMem * 100).toFixed(2),
-      processMemoryUsage: (process.memoryUsage().rss / totalMem * 100).toFixed(2),
+      processMemoryUsage: (processMemory.rss / totalMem * 100).toFixed(2),
       cpuUsage: getSystemCpuUsage(),
       processCpuUsage: getProcessCpuUsage(),
       osUptime: os.uptime(),

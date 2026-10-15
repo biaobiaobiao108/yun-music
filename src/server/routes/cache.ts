@@ -18,6 +18,7 @@ import { resolveInsideAsync } from '@/utils/pathSecurity'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
+import { memoryMaintenance } from '../memoryMaintenance'
 
 // Reuse a small, bounded set of upstream sockets for the media relay. The
 // relay still validates every target URL and keeps the per-client concurrency
@@ -44,7 +45,10 @@ const getUpstreamAgent = (protocol: string): http.Agent | https.Agent => protoco
 /** Read tagged files on downstream demand and release resources only after the file handle closes. */
 export const createTempFileResponseStream = (tempPath: string, onFinished: () => void): ReadableStream => {
   const source = fs.createReadStream(tempPath, { highWaterMark: 64 * 1024 })
-  source.once('close', onFinished)
+  source.once('close', () => {
+    onFinished()
+    memoryMaintenance.schedule('tagged media response end')
+  })
   return Readable.toWeb(source, {
     strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
   }) as unknown as ReadableStream
@@ -64,6 +68,7 @@ export const createProxyResponseStream = (
     if (finished) return
     finished = true
     onFinished?.()
+    memoryMaintenance.schedule('media relay end')
   }
   const limited = new Transform({
     highWaterMark: 64 * 1024,
@@ -1721,7 +1726,7 @@ export const createCacheRouter = (): Router => {
                         if (songName) tagger.title = songName
                         if (artist) tagger.artist = artist
                         if (album) tagger.album = album
-                        if (cover) tagger.pictures = [new (getMusicTagNative().MetaPicture)(cover.mime, new Uint8Array(cover.data), 'Cover')]
+                        if (cover) tagger.pictures = [new (getMusicTagNative().MetaPicture)(cover.mime, cover.data, 'Cover')]
                         if (lyricText) tagger.lyrics = lyricText
                         tagger.save()
                       } finally {

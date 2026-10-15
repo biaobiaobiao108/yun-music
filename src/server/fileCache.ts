@@ -13,6 +13,7 @@ import { getDb } from '@/database'
 import { assertSafePathSegment, isPathInside, resolveInside } from '@/utils/pathSecurity'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from './networkSecurity'
 import { NativeLruCache } from '@/utils/nativeLru'
+import { memoryMaintenance } from './memoryMaintenance'
 
 type MusicTagNative = {
     MusicTagger: new () => any
@@ -207,7 +208,6 @@ const CACHE_POST_PROCESS_CONCURRENCY = 1
 const CACHE_MEMORY_GC_THRESHOLD = 256 * 1024 * 1024
 const CACHE_MEMORY_GC_INTERVAL = 30 * 1000
 let cachePostProcessActive = 0
-let lastForcedCacheGcAt = 0
 let lastCacheMemoryLogAt = 0
 type CachePostProcessWaiter = {
     resolve: () => void
@@ -276,25 +276,8 @@ const reportCacheMemory = (stage: string, force = false) => {
 }
 
 const maybeCollectCacheMemory = (stage: string) => {
-    const now = Date.now()
-    const before = getCacheMemoryUsage()
-    if (before.rss < CACHE_MEMORY_GC_THRESHOLD || now - lastForcedCacheGcAt < CACHE_MEMORY_GC_INTERVAL) {
-        reportCacheMemory(stage)
-        return
-    }
-    if (typeof Bun === 'undefined' || typeof Bun.gc !== 'function') {
-        reportCacheMemory(`${stage} (gc unavailable)`, true)
-        return
-    }
-
-    lastForcedCacheGcAt = now
-    try {
-        Bun.gc(true)
-    } catch (error: any) {
-        console.warn(`[FileCache][Memory] Full GC failed: ${error?.message || error}`)
-    }
-    const after = getCacheMemoryUsage()
-    reportCacheMemory(`${stage} gc ${formatMemoryMiB(before.rss)} -> ${formatMemoryMiB(after.rss)}`, true)
+    memoryMaintenance.schedule(stage)
+    reportCacheMemory(stage)
 }
 
 export const withCachePostProcess = async <T>(signal: AbortSignal | undefined, stage: string, callback: () => Promise<T>): Promise<T> => {
@@ -728,7 +711,7 @@ const getLegacyCoverCachePaths = (filename: string, username: string, stats?: St
 }
 
 const detectImageMime = (data: Buffer | Uint8Array) => {
-    const buffer = Buffer.from(data)
+    const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength)
     if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg'
     if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png'
     if (buffer.length >= 6 && ['GIF87a', 'GIF89a'].includes(buffer.subarray(0, 6).toString('ascii'))) return 'image/gif'
@@ -763,7 +746,7 @@ const hasCachedCover = (filename: string, username: string, stats?: Stats) => {
 }
 
 const writeCoverCache = (filename: string, username: string, data: Buffer | Uint8Array, mime: string, stats?: Stats) => {
-    const coverData = Buffer.from(data)
+    const coverData = data
     const detectedMime = detectImageMime(coverData)
     if (!detectedMime) return false
     const { binPath, mimePath } = getCoverCachePaths(filename, username, stats)
@@ -901,7 +884,12 @@ const reconcileCacheItemFromDisk = (
             if (lyricStats.isFile()) lyricSize = lyricStats.size
         } catch { }
     }
-    const hasEmbeddedCover = readEmbeddedCoverState(filePath)
+    const coverStateCurrent = item.coverCheckedVersion === COVER_CHECK_VERSION &&
+        item.coverCheckedMtime === actualStats.mtimeMs &&
+        item.coverCheckedSize === actualStats.size && item.coverType !== undefined
+    const hasEmbeddedCover = coverStateCurrent
+        ? item.coverType === 'embedded'
+        : readEmbeddedCoverState(filePath)
     const hasExternalCover = !hasEmbeddedCover && hasCachedCover(item.filename, username, actualStats)
     const coverType: CacheItem['coverType'] = hasEmbeddedCover
         ? 'embedded'
@@ -942,9 +930,9 @@ const reconcileCacheItemFromDisk = (
 }
 
 const hasValidPictureData = (picture: any) => {
-    if (!picture || !picture.data) return false
     try {
-        return !!detectImageMime(Buffer.from(picture.data))
+        const data = picture?.data
+        return !!data && !!detectImageMime(data)
     } catch (e) {
         return false
     }
@@ -1883,7 +1871,7 @@ export const batchUpdateMetadata = async (filenames: string[], username: string 
                 tagger.artist = item.singer || 'Unknown'
                 if (item.albumName) tagger.album = item.albumName
                 if (imageBuffer && imageBuffer.length > 0) {
-                    tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, new Uint8Array(imageBuffer), 'Cover')]
+                    tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, imageBuffer, 'Cover')]
                 }
                 tagger.save()
             } catch (e) {
@@ -3115,7 +3103,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                         tagger.title = metadata.name
                         tagger.artist = metadata.singer
                         tagger.album = metadata.albumName
-                        if (imageBuffer && imageBuffer.length > 0) tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, new Uint8Array(imageBuffer), 'Cover')]
+                        if (imageBuffer && imageBuffer.length > 0) tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, imageBuffer, 'Cover')]
                         tagger.save()
                         metadataWritable = true
                     } catch (e) {
@@ -3124,14 +3112,15 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     }
 
                     const taggedStats = fs.statSync(finalPath)
-                    let finalHasCover = readEmbeddedCoverState(finalPath)
+                    const finalHasEmbeddedCover = readEmbeddedCoverState(finalPath)
+                    let finalHasCover = finalHasEmbeddedCover
                     if (!finalHasCover && imageBuffer?.length) {
                         finalHasCover = writeCoverCache(finalBaseName + ext, normalizedUsername, imageBuffer, imageMime, taggedStats)
                     }
                     imageBuffer = undefined
                     const taggedItem = indexManager.get(normalizedUsername, id, folderType, actualQuality)
                     if (taggedItem) {
-                        taggedItem.coverType = readEmbeddedCoverState(finalPath)
+                        taggedItem.coverType = finalHasEmbeddedCover
                             ? 'embedded'
                             : finalHasCover
                                 ? 'cached'
