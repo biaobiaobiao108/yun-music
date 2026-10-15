@@ -1,5 +1,6 @@
 import type { Middleware } from './router'
 import { accessLog } from '@/utils/log4js'
+import { memoryCacheBudgets } from '../resourceBudget'
 
 export * from './context'
 export * from './router'
@@ -85,9 +86,11 @@ const COMPRESS_MIN_BYTES = 1024
 const COMPRESS_MAX_BUFFER_BYTES = 32 * 1024 * 1024
 /** 已压缩结果缓存上限：key 为 ETag + 编码，用于避免重复压缩同一静态资源 */
 const COMPRESS_CACHE_MAX_ENTRIES = 32
-const COMPRESS_CACHE_MAX_BYTES = 32 * 1024 * 1024
+const COMPRESS_CACHE_MAX_BYTES = memoryCacheBudgets.compressed
 const compressedCache = new Map<string, Uint8Array>()
 let compressedCacheBytes = 0
+export const getCompressedCacheStats = () => ({ entries: compressedCache.size, bytes: compressedCacheBytes,
+  maxEntries: COMPRESS_CACHE_MAX_ENTRIES, maxBytes: COMPRESS_CACHE_MAX_BYTES })
 
 /** Uint8Array 在运行时可作为 BodyInit，但 TS 的类型定义要求显式转换 */
 const asBody = (data: Uint8Array): BodyInit => data as unknown as BodyInit

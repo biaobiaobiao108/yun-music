@@ -1223,6 +1223,32 @@ describe('File Cache Post-processing Limiter', () => {
 })
 
 describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
+  it('returns oversized index results without retaining them or deleting persistent records', () => {
+    const previousLx = global.lx
+    try {
+      closeDb()
+      global.lx = { dataPath: process.cwd(), config: {} } as any
+      initDatabase(':memory:')
+      fileCache.indexManager.update('oversized-index-user', {
+        id: 'wy_large-index', name: 'x'.repeat(4 * 1024 * 1024), singer: 'Singer', albumName: '', source: 'wy',
+        quality: '320k', filename: 'large.mp3', folder: 'cache', mtime: 1, size: 1, ext: 'mp3',
+      }, 'cache')
+      const first = fileCache.indexManager.getAll('oversized-index-user', 'cache')
+      const second = fileCache.indexManager.getAll('oversized-index-user', 'cache')
+      expect(first.length).toBe(1)
+      expect(second.length).toBe(1)
+      expect(first).not.toBe(second)
+      const firstItem = fileCache.indexManager.get('oversized-index-user', 'wy_large-index', 'cache', '320k', true)
+      const secondItem = fileCache.indexManager.get('oversized-index-user', 'wy_large-index', 'cache', '320k', true)
+      expect(firstItem?.name.length).toBe(4 * 1024 * 1024)
+      expect(firstItem).not.toBe(secondItem)
+      const stats = fileCache.indexManager.getMemoryStats()
+      expect(stats.items.bytes + stats.lists.bytes).toBeLessThanOrEqual(8 * 1024 * 1024)
+    } finally {
+      closeDb()
+      global.lx = previousLx
+    }
+  })
   it('correctly aggregates global stats and clears only cache without touching music folder', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-global-cache-'))
     const previousLx = (global as any).lx

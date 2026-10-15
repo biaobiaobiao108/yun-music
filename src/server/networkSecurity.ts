@@ -5,6 +5,7 @@ import { Transform, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib'
 import { isIP, type LookupFunction } from 'node:net'
+import { acquireBufferedRequestBudget, type BufferedRequestLease } from './resourceBudget'
 
 const ipv4ToNumber = (value: string): number | null => {
   const parts = value.split('.')
@@ -95,6 +96,8 @@ const isBlockedHostname = (hostname: string): boolean => {
 export type SafeRemoteHttpUrl = URL & { lookup: LookupFunction }
 
 export interface SafeRemoteFetchOptions extends Omit<RequestInit, 'redirect'> {
+  /** Caller may hold this through parsing/callback dispatch to avoid nested reservations. */
+  budgetLease?: BufferedRequestLease
   /** Bun 原生 fetch 的代理扩展；配置代理时由调用方显式传入。 */
   proxy?: string
   /** 限制响应体大小，避免远端响应造成内存放大。 */
@@ -220,7 +223,7 @@ const readResponseBody = async (response: Response, maxBytes: number): Promise<B
   } finally {
     reader.releaseLock()
   }
-  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk)))
+  return Buffer.concat(chunks)
 }
 
 const fetchViaBunProxy = async (
@@ -267,7 +270,7 @@ const fetchViaBunProxy = async (
  * 使用 node:http(s)；只有显式配置了 Bun 代理时才交给 Bun fetch，由代理
  * 负责解析原始主机名。所有响应都经过统一的字节上限处理。
  */
-export const fetchSafeRemote = async (
+const fetchSafeRemoteTransport = async (
   safeUrl: SafeRemoteHttpUrl,
   options: SafeRemoteFetchOptions = {},
 ): Promise<Response> => {
@@ -377,7 +380,7 @@ export const fetchSafeRemote = async (
             callback(new Error('Remote response is too large'))
             return
           }
-          chunks.push(Buffer.from(chunk))
+          chunks.push(chunk)
           callback()
         },
       })
@@ -405,6 +408,28 @@ export const fetchSafeRemote = async (
     }
     request.end(body)
   })
+}
+
+export const fetchSafeRemote = async (
+  safeUrl: SafeRemoteHttpUrl,
+  options: SafeRemoteFetchOptions = {},
+): Promise<Response> => {
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, AbortSignal.timeout(normalizeRemoteTimeout(options.timeoutMs))])
+    : AbortSignal.timeout(normalizeRemoteTimeout(options.timeoutMs))
+  const { budgetLease: supplied, ...transportOptions } = options
+  const noBody = options.discardResponseBody || String(options.method || 'GET').toUpperCase() === 'HEAD'
+  const lease = supplied || await acquireBufferedRequestBudget(noBody ? 1024 : normalizeRemoteResponseLimit(options.maxBytes), signal)
+  try {
+    signal.throwIfAborted()
+    return await fetchSafeRemoteTransport(safeUrl, {
+      ...transportOptions,
+      signal,
+      maxBytes: Math.min(normalizeRemoteResponseLimit(options.maxBytes), lease.maxBytes),
+    })
+  } finally {
+    if (!supplied) lease.release()
+  }
 }
 
 /** Validate once and pin the connection to these addresses, keeping Host/TLS hostname intact. */

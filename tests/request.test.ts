@@ -8,6 +8,14 @@ afterEach(() => {
 })
 
 describe('Upstream request wrapper', () => {
+  test('HEAD metadata does not consume the resource body budget', async () => {
+    globalThis.fetch = Object.assign(async () => new Response(null, {
+      headers: { 'content-length': String(100 * 1024 * 1024) },
+    }), { preconnect: originalFetch.preconnect })
+    const response = await httpFetch('https://example.test/audio', { method: 'HEAD' }).promise
+    expect(response.raw.byteLength).toBe(0)
+    expect(response.headers['content-length']).toBe(String(100 * 1024 * 1024))
+  })
   test('rejects the public promise when an upstream request fails', async () => {
     globalThis.fetch = Object.assign(async () => {
       throw new Error('upstream failed')

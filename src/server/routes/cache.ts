@@ -19,6 +19,7 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
 import { memoryMaintenance } from '../memoryMaintenance'
+import { tryAcquireMediaStream } from '../resourceBudget'
 
 // Reuse a small, bounded set of upstream sockets for the media relay. The
 // relay still validates every target URL and keeps the per-client concurrency
@@ -42,16 +43,54 @@ const upstreamHttpsAgent = new https.Agent({
 
 const getUpstreamAgent = (protocol: string): http.Agent | https.Agent => protocol === 'https:' ? upstreamHttpsAgent : upstreamHttpAgent
 
+/** Own the slot through downstream consumption, including small prefetched responses. */
+const completeWhenConsumed = (stream: ReadableStream<Uint8Array>, onFinished: () => void): ReadableStream<Uint8Array> => {
+  const reader = stream.getReader()
+  let finished = false
+  let cancelled = false
+  const finish = () => {
+    if (finished) return
+    finished = true
+    reader.releaseLock()
+    onFinished()
+  }
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (cancelled) return
+        if (done) { controller.close(); finish() }
+        else controller.enqueue(value)
+      } catch (error) {
+        if (!cancelled) controller.error(error)
+        finish()
+      }
+    },
+    async cancel(reason) {
+      cancelled = true
+      try { await reader.cancel(reason) } finally { finish() }
+    },
+  }, { highWaterMark: 0 })
+}
+
 /** Read tagged files on downstream demand and release resources only after the file handle closes. */
 export const createTempFileResponseStream = (tempPath: string, onFinished: () => void): ReadableStream => {
   const source = fs.createReadStream(tempPath, { highWaterMark: 64 * 1024 })
-  source.once('close', () => {
+  let closed = false
+  let consumed = false
+  let finished = false
+  const finish = () => {
+    if (!closed || !consumed || finished) return
+    finished = true
     onFinished()
     memoryMaintenance.schedule('tagged media response end')
-  })
-  return Readable.toWeb(source, {
+  }
+  source.once('error', () => { consumed = true })
+  source.once('close', () => { closed = true; finish() })
+  const stream = Readable.toWeb(source, {
     strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
-  }) as unknown as ReadableStream
+  }) as unknown as ReadableStream<Uint8Array>
+  return completeWhenConsumed(stream, () => { consumed = true; finish() })
 }
 
 /** Keep upstream buffers bounded by downstream demand; cancellation tears down the whole pipeline. */
@@ -83,10 +122,9 @@ export const createProxyResponseStream = (
     strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
   }) as unknown as ReadableStream
   pipeline(source, limited, error => {
-    if (error) request.destroy()
-    finish()
+    if (error) { request.destroy(); finish() }
   })
-  return stream
+  return completeWhenConsumed(stream, finish)
 }
 
 /** 客户端离开页面或取消媒体请求时，Node 会以 AbortError 结束中继请求。
@@ -231,6 +269,8 @@ const tryAcquireDownloadProxySlot = (ip: string, tagging: boolean): (() => void)
     return null
   }
   if (!consumeDownloadProxyRequestBudget(ip)) return null
+  const releaseGlobalStream = tryAcquireMediaStream()
+  if (!releaseGlobalStream) return null
   downloadProxyActiveByIp.set(ip, active + 1)
   downloadProxyGlobalActive += 1
   if (tagging) downloadProxyTaggingByIp.set(ip, activeTagging + 1)
@@ -239,6 +279,7 @@ const tryAcquireDownloadProxySlot = (ip: string, tagging: boolean): (() => void)
   return () => {
     if (released) return
     released = true
+    releaseGlobalStream()
     const nextActive = (downloadProxyActiveByIp.get(ip) || 1) - 1
     if (nextActive > 0) downloadProxyActiveByIp.set(ip, nextActive)
     else downloadProxyActiveByIp.delete(ip)

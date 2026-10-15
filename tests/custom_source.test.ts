@@ -459,7 +459,7 @@ describe('Custom Source Security and Isolation', () => {
           return new Promise((resolve, reject) => {
             lx.request(info.url, { method: 'get' }, (err, resp, body) => {
               if (err) reject(err)
-              else resolve({ resp, body })
+              else resolve({ resp, body, sameBody: resp.body === body, rawIsBuffer: Buffer.isBuffer(resp.raw) })
             })
           })
         })
@@ -487,6 +487,10 @@ describe('Custom Source Security and Isolation', () => {
       expect(result.resp.statusMessage).toBe('OK')
       expect(result.resp.headers['x-custom-header']).toBe('lx-music')
       expect(result.body).toEqual({ code: 0, message: 'hello from test' })
+      expect(result.sameBody).toBe(true)
+      expect(result.rawIsBuffer).toBe(true)
+      expect(result.resp.body).toBe(result.body)
+      expect(result.resp.raw.toString('utf8')).toBe(JSON.stringify(result.body))
     } finally {
       remoteFetch.mockRestore()
       lookup.mockRestore()

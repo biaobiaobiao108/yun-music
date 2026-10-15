@@ -4,6 +4,7 @@ import { isSourceSupported, callUserApiGetMusicUrl } from '../userApi'
 import { getDownloadQualityCandidates } from '../downloadQuality'
 import * as fileCache from '../fileCache'
 import { NativeLruCache } from '@/utils/nativeLru'
+import { memoryCacheBudgets } from '../resourceBudget'
 
 export interface ServerSongResolveResult {
   url: string
@@ -75,18 +76,31 @@ export const normalizeSongInfo = (songInfo: any) => {
 
 const AUTO_SOURCE_ORDER = ['wy', 'tx'] as const
 const SOURCE_MATCH_CACHE_TTL = 60_000
-const sourceMatchCache = new NativeLruCache<string, Promise<any[]>>({
+const sourceMatchCache = new NativeLruCache<string, any[]>({
   max: 512,
   ttl: SOURCE_MATCH_CACHE_TTL,
+  maxBytes: memoryCacheBudgets.sourceMatch - Math.floor(memoryCacheBudgets.sourceMatch / 32),
 })
+const sourceMatchPending = new NativeLruCache<string, Promise<any[]>>({
+  max: 512,
+  ttl: SOURCE_MATCH_CACHE_TTL,
+  maxBytes: Math.floor(memoryCacheBudgets.sourceMatch / 32),
+  sizeCalculation: () => 128,
+})
+
+export const getSourceMatchCacheStats = () => ({ results: sourceMatchCache.getStats(), pending: sourceMatchPending.getStats() })
 
 export const clearServerSourceMatchCache = (username?: string) => {
   if (!username) {
     sourceMatchCache.clear()
+    sourceMatchPending.clear()
     return
   }
   for (const key of sourceMatchCache.keys()) {
     if (key.startsWith(`${username}:`)) sourceMatchCache.delete(key)
+  }
+  for (const key of sourceMatchPending.keys()) {
+    if (key.startsWith(`${username}:`)) sourceMatchPending.delete(key)
   }
 }
 
@@ -173,6 +187,8 @@ export const findServerSourceMatches = async (songInfo: any, username: string) =
   ].join(':')
   const cached = sourceMatchCache.get(cacheKey)
   if (cached) return cached
+  const pending = sourceMatchPending.get(cacheKey)
+  if (pending) return pending
 
   const searchSources = AUTO_SOURCE_ORDER.filter(source => (
     source !== songInfo.source && isSourceSupported(source, username) && getBuiltinSource(source)?.musicSearch?.search
@@ -194,12 +210,15 @@ export const findServerSourceMatches = async (songInfo: any, username: string) =
     .filter(item => item.score >= 0)
     .sort((a, b) => b.score - a.score)
     .map(item => item.candidate))
-  const trackedPromise = promise.catch(error => {
-    sourceMatchCache.delete(cacheKey)
-    throw error
+  const trackedPromise = promise.then(result => {
+    // Invalidated or evicted searches may finish, but cannot refill the cache.
+    if (sourceMatchPending.get(cacheKey) === trackedPromise) sourceMatchCache.set(cacheKey, result)
+    return result
+  }).finally(() => {
+    if (sourceMatchPending.get(cacheKey) === trackedPromise) sourceMatchPending.delete(cacheKey)
   })
 
-  sourceMatchCache.set(cacheKey, trackedPromise)
+  sourceMatchPending.set(cacheKey, trackedPromise)
   return trackedPromise
 }
 

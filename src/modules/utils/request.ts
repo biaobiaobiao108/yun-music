@@ -3,6 +3,7 @@ import httpsModule from 'node:https'
 import { debugRequest } from './env'
 import { requestMsg } from './message'
 import { bHh } from './musicSdk/options'
+import { acquireBufferedRequestBudget, type BufferedRequestLease } from '@/server/resourceBudget'
 
 const httpsRxp = /^https:/
 const defaultHeaders: Record<string, string> = {
@@ -154,7 +155,7 @@ const readResponseBody = async (response: Response, maxBytes: number): Promise<B
   } finally {
     reader.releaseLock()
   }
-  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk)))
+  return Buffer.concat(chunks)
 }
 
 const requestThroughSocks = async (
@@ -189,6 +190,13 @@ const requestThroughSocks = async (
       headers,
       agent,
     }, response => {
+      if (String(options.method).toUpperCase() === 'HEAD' || [204, 205, 304].includes(response.statusCode || 0)) {
+        response.on('error', fail)
+        response.resume()
+        finish(() => resolve(createResponse(response.statusCode || 0, response.statusMessage || '',
+          Object.fromEntries(Object.entries(response.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value ?? '')])), Buffer.alloc(0))))
+        return
+      }
       const declaredLength = Number(response.headers['content-length'] || 0)
       if (declaredLength > maxBytes) {
         response.resume()
@@ -255,7 +263,8 @@ const fetchResponse = async (
     fetchOptions.proxy = proxy.href
   }
   const response = await fetch(url, fetchOptions)
-  return createResponse(response.status, response.statusText, collectHeaders(response.headers), await readResponseBody(response, maxBytes))
+  const noBody = String(options.method).toUpperCase() === 'HEAD' || [204, 205, 304].includes(response.status)
+  return createResponse(response.status, response.statusText, collectHeaders(response.headers), noBody ? Buffer.alloc(0) : await readResponseBody(response, maxBytes))
 }
 
 const buildBody = (options: HttpOptions, headers: Record<string, string>): BodyInit | undefined => {
@@ -305,16 +314,18 @@ const fetchData = async (
   const timeoutMs = normalizeTimeout(timeout)
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined
   let callbackStarted = false
+  let budgetLease: BufferedRequestLease | undefined
   try {
     timeoutHandle = setTimeout(() => controller.abort(), timeoutMs)
     timeoutHandle.unref?.()
+    budgetLease = await acquireBufferedRequestBudget(normalizedMethod === 'HEAD' ? 1024 : responseLimit, controller.signal)
     const response = await fetchResponse(url, {
       method: normalizedMethod,
       headers: requestHeaders,
       body,
       signal: controller.signal,
       redirect: 'follow',
-    }, controller, responseLimit)
+    }, controller, Math.min(responseLimit, budgetLease.maxBytes))
     callbackStarted = true
     callback(null, response, response.body)
     return response
@@ -322,6 +333,7 @@ const fetchData = async (
     if (!callbackStarted) callback(error, null, null)
     throw error
   } finally {
+    budgetLease?.release()
     if (timeoutHandle) clearTimeout(timeoutHandle)
   }
 }

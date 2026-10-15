@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { Router, type HttpContext } from '../core'
+import { Router, getCompressedCacheStats, type HttpContext } from '../core'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses, toUserMessage } from '../core/context'
 import { revokeAllAdminSessions, revokeAllPlayerSessions, verifyAdminAuth } from '../auth'
 import { revokeAllUserSessions } from './auth'
@@ -16,6 +16,10 @@ import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 import { temporaryFileStream } from '../temporaryFileStream'
 import { getProcessMemorySnapshot } from '../memoryMaintenance'
+import { getResourceBudgetStats } from '../resourceBudget'
+import { getSourceMatchCacheStats } from '../services/musicResolver'
+import { getSingerCacheStats } from '../utils/singer'
+import { getGeneralCacheStats } from '@/utils/cache'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -361,6 +365,16 @@ export const createSystemRouter = (): Router => {
       processFootprint: processMemory.footprint,
       heapUsed: processMemory.heapUsed,
       externalMemory: processMemory.external,
+      containerMemoryLimit: processMemory.containerMemoryLimit ?? null,
+      gcPressureLimit: processMemory.pressureLimit,
+      resourceBudgets: getResourceBudgetStats(),
+      memoryCaches: {
+        sourceMatch: getSourceMatchCacheStats(),
+        singers: getSingerCacheStats(),
+        general: getGeneralCacheStats(),
+        index: fileCache.indexManager.getMemoryStats(),
+        compressed: getCompressedCacheStats(),
+      },
       totalMemory: totalMem,
       freeMemory: freeMem,
       systemMemoryUsage: ((totalMem - freeMem) / totalMem * 100).toFixed(2),

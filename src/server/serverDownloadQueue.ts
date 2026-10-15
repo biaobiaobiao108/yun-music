@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import * as fileCache from './fileCache'
+import { onMediaBudgetAvailable, tryAcquireDownloadSlot } from './resourceBudget'
 
 export type ServerDownloadStatus = 'waiting' | 'downloading' | 'tagging' | 'paused' | 'finished' | 'exists' | 'error'
 
@@ -667,7 +668,9 @@ const processQueue = async () => {
         }
       }
       if (!next) break
-      void runTask(next)
+      const release = tryAcquireDownloadSlot()
+      if (!release) break
+      void runTask(next).finally(release)
     }
   } finally {
     processing = false
@@ -686,6 +689,7 @@ export const initialize = (downloadResolver: DownloadResolver) => {
   resolver = downloadResolver
   if (!initialized) {
     initialized = true
+    onMediaBudgetAvailable(() => { void processQueue() })
     loadTasks()
     saveNow()
   }

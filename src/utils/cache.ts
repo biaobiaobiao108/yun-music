@@ -1,9 +1,11 @@
 import { NativeLruCache } from './nativeLru'
+import { memoryCacheBudgets } from '@/server/resourceBudget'
 
-export default {
+const cache = {
   store: new NativeLruCache({
     max: 2048,
     ttl: 1000 * 60 * 60 * 24 * 2,
+    maxBytes: memoryCacheBudgets.general,
     // updateAgeOnGet: true,
   }),
 
@@ -26,4 +28,11 @@ export default {
   clear() {
     this.store.clear()
   },
+
+  getStats() {
+    return this.store.getStats()
+  },
 }
+
+export const getGeneralCacheStats = () => cache.getStats()
+export default cache

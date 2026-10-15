@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as fileCache from '@/server/fileCache'
+import { getResourceBudgetStats, tryAcquireMediaStream } from '@/server/resourceBudget'
 import { closeDb, initDatabase } from '@/database'
 import {
   deduplicateDownloadTasks,
@@ -44,6 +45,50 @@ const makeTask = (
   background: false,
   createdAt: updatedAt,
   updatedAt,
+})
+
+test('global download admission spans users and relay completion wakes queued work', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-global-download-budget-'))
+  const heldMedia: Array<() => void> = []
+  const complete = new Map<string, () => void>()
+  const count = getResourceBudgetStats().downloads.maxActive
+  const users = Array.from({ length: count + 1 }, (_, index) => `global-budget-${index}`)
+  const cache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+  const worker = spyOn(fileCache, 'downloadAndCache').mockImplementation((song: any) => new Promise<void>(resolve => { complete.set(song.songmid, resolve) }))
+  const waitFor = async (predicate: () => boolean) => {
+    const deadline = Date.now() + 1000
+    while (!predicate() && Date.now() < deadline) await Bun.sleep(2)
+    expect(predicate()).toBe(true)
+  }
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    while (true) { const release = tryAcquireMediaStream(); if (!release) break; heldMedia.push(release) }
+    initialize(async () => ({ url: 'https://example.test/song' }))
+    for (const username of users) enqueue(username, [{ songInfo: { source: 'wy', songmid: username }, quality: '320k' }])
+    expect(worker).not.toHaveBeenCalled()
+    expect(users.every(username => list(username)[0]?.status === 'waiting')).toBe(true)
+    heldMedia.shift()!()
+    await waitFor(() => worker.mock.calls.length === 1)
+    for (const release of heldMedia.splice(0)) release()
+    await waitFor(() => worker.mock.calls.length === count)
+    expect(getResourceBudgetStats().downloads.active).toBe(count)
+    complete.get(users[0])!()
+    await waitFor(() => worker.mock.calls.length === count + 1)
+    expect(getResourceBudgetStats().downloads.active).toBe(count)
+  } finally {
+    for (const release of heldMedia) release()
+    // Pause queued tasks first, then release the mocked in-flight downloads.
+    for (const username of users) pause(username)
+    for (const resolve of complete.values()) resolve()
+    for (const username of users) { await suspendUser(username); await removeUser(username); releaseUser(username) }
+    await Bun.sleep(180)
+    cache.mockRestore()
+    worker.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+  expect(getResourceBudgetStats().downloads.active).toBe(0)
 })
 
 test('slow queue persistence coalesces updates and rename/delete await the latest snapshot', async () => {

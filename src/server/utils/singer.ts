@@ -5,6 +5,7 @@
 
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
 import { NativeLruCache } from '@/utils/nativeLru'
+import { memoryCacheBudgets } from '../resourceBudget'
 
 export interface SingerDetail {
     name: string
@@ -17,7 +18,10 @@ export interface SingerDetail {
 const singerCache = new NativeLruCache<string, SingerDetail>({
     max: 512,
     ttl: 30 * 60 * 1000,
+    maxBytes: memoryCacheBudgets.singers,
 })
+
+export const getSingerCacheStats = () => singerCache.getStats()
 
 /**
  * 根据歌手名称检索其在指定源或最优源的 MID

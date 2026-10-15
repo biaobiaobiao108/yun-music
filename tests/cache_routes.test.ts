@@ -668,6 +668,18 @@ test('tagged file response delivers bytes and releases resources on completion a
   }
 })
 
+test('small relay responses hold their slot until consumed or cancelled', async () => {
+  for (const cancel of [false, true]) {
+    let releases = 0
+    const stream = createProxyResponseStream(Readable.from([Buffer.alloc(1024)]), { destroy() {} } as any, 4096, () => { releases++ })
+    await Bun.sleep(10)
+    expect(releases).toBe(0)
+    if (cancel) await stream.cancel()
+    else expect((await new Response(stream).arrayBuffer()).byteLength).toBe(1024)
+    expect(releases).toBe(1)
+  }
+})
+
 test('proxy stream bounds unread data and cancels the upstream transport', async () => {
   let produced = 0
   let destroyed = false

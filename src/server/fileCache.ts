@@ -14,6 +14,7 @@ import { assertSafePathSegment, isPathInside, resolveInside } from '@/utils/path
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from './networkSecurity'
 import { NativeLruCache } from '@/utils/nativeLru'
 import { memoryMaintenance } from './memoryMaintenance'
+import { memoryCacheBudgets } from './resourceBudget'
 
 type MusicTagNative = {
     MusicTagger: new () => any
@@ -424,8 +425,16 @@ export interface DownloadProvenance {
 }
 
 class CacheIndexManager {
-    private readonly itemCache = new Map<string, { item: CacheItem | null; expiresAt: number }>()
-    private readonly listCache = new Map<string, { items: CacheItem[]; expiresAt: number }>()
+    private readonly itemCache = new NativeLruCache<string, { item: CacheItem | null }>({
+        max: CACHE_INDEX_MEMORY_MAX / 2, ttl: CACHE_INDEX_MEMORY_TTL_MS, maxBytes: Math.floor(memoryCacheBudgets.index / 4),
+    })
+    private readonly listCache = new NativeLruCache<string, { items: CacheItem[] }>({
+        max: CACHE_INDEX_MEMORY_MAX / 2, ttl: CACHE_INDEX_MEMORY_TTL_MS, maxBytes: Math.floor(memoryCacheBudgets.index * 3 / 4),
+    })
+
+    getMemoryStats() {
+        return { items: this.itemCache.getStats(), lists: this.listCache.getStats() }
+    }
 
     private itemCacheKey(username: string, folder: 'cache' | 'music', songId: string, quality: string | undefined, exact: boolean, location: string): string {
         return `${location}\u0000${username}\u0000${folder}\u0000${songId}\u0000${quality || ''}\u0000${exact ? '1' : '0'}`
@@ -433,19 +442,6 @@ class CacheIndexManager {
 
     private listCacheKey(username: string, folder: 'cache' | 'music', location: string): string {
         return `${location}\u0000${username}\u0000${folder}`
-    }
-
-    private trimMemoryCache(): void {
-        while (this.itemCache.size + this.listCache.size > CACHE_INDEX_MEMORY_MAX) {
-            const oldestItem = this.itemCache.keys().next().value
-            if (oldestItem) {
-                this.itemCache.delete(oldestItem)
-                continue
-            }
-            const oldestList = this.listCache.keys().next().value
-            if (!oldestList) break
-            this.listCache.delete(oldestList)
-        }
     }
 
     private invalidateMemoryCache(username?: string, folder?: 'cache' | 'music', location?: string): void {
@@ -465,8 +461,7 @@ class CacheIndexManager {
     }
 
     private cacheItem(username: string, folder: 'cache' | 'music', songId: string, quality: string | undefined, exact: boolean, location: string, item: CacheItem | null): void {
-        this.itemCache.set(this.itemCacheKey(username, folder, songId, quality, exact, location), { item, expiresAt: Date.now() + CACHE_INDEX_MEMORY_TTL_MS })
-        this.trimMemoryCache()
+        this.itemCache.set(this.itemCacheKey(username, folder, songId, quality, exact, location), { item })
     }
 
     private parseItem(data: string, lyricSize = 0): CacheItem | null {
@@ -509,9 +504,7 @@ class CacheIndexManager {
         const loc = location || currentCacheLocation
         const key = this.itemCacheKey(username, folder, songId, quality, exact, loc)
         const cached = this.itemCache.get(key)
-        if (cached && cached.expiresAt > Date.now()) {
-            this.itemCache.delete(key)
-            this.itemCache.set(key, cached)
+        if (cached) {
             return cached.item || undefined
         }
         this.itemCache.delete(key)
@@ -619,9 +612,7 @@ class CacheIndexManager {
         const loc = location || currentCacheLocation
         const key = this.listCacheKey(username, folder, loc)
         const cached = this.listCache.get(key)
-        if (cached && cached.expiresAt > Date.now()) {
-            this.listCache.delete(key)
-            this.listCache.set(key, cached)
+        if (cached) {
             return cached.items
         }
         this.listCache.delete(key)
@@ -636,8 +627,7 @@ class CacheIndexManager {
                 const item = this.parseItem(row.data, row.lyric_size)
                 if (item) list.push(item)
             }
-            this.listCache.set(key, { items: list, expiresAt: Date.now() + CACHE_INDEX_MEMORY_TTL_MS })
-            this.trimMemoryCache()
+            this.listCache.set(key, { items: list })
             return list
         } catch (e) {
             console.error(`[CacheIndex] Failed to getAll cache items for ${username}:${folder}:`, e)

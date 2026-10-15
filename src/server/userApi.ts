@@ -7,6 +7,7 @@ import * as crypto from 'crypto'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote } from './networkSecurity'
 import { assertSafePathSegment, resolveInside } from '@/utils/pathSecurity'
 import { isRetiredOnlineSource, UnsupportedSourceError } from '@/common/musicSources'
+import { acquireBufferedRequestBudget } from './resourceBudget'
 
 function writeJsonFileAtomic(filePath: string, value: unknown): void {
     const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
@@ -21,16 +22,20 @@ function writeJsonFileAtomic(filePath: string, value: unknown): void {
 }
 
 // 彻底切断与沙箱上下文的联系
-function decontextify(obj: any): any {
+function decontextify(obj: any, seen = new WeakMap<object, any>()): any {
     if (obj === null || obj === undefined) return obj
 
     // 非对象直接返回
     if (typeof obj !== 'object') return obj
+    if (seen.has(obj)) return seen.get(obj)
 
     // 处理 Buffer (极其重要：使用 Uint8Array 中转以切断 Proxy 链)
     try {
         if (Buffer.isBuffer(obj) || obj instanceof Uint8Array || (obj && obj.constructor && obj.constructor.name === 'Buffer')) {
-            return Buffer.from(Uint8Array.from(obj as any))
+            const bytes = Uint8Array.from(obj as any)
+            const copy = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+            seen.set(obj, copy)
+            return copy
         }
     } catch (e) { }
 
@@ -41,6 +46,7 @@ function decontextify(obj: any): any {
             || obj?.constructor?.name === 'FormData'
         if (isFormData && typeof obj.entries === 'function') {
             const formData = new FormData()
+            seen.set(obj, formData)
             for (const [key, value] of obj.entries()) {
                 if (value && typeof value === 'object' && (value instanceof Blob || ['Blob', 'File'].includes(value.constructor?.name))) {
                     formData.append(String(key), value as Blob, String((value as any).name || 'blob'))
@@ -55,7 +61,10 @@ function decontextify(obj: any): any {
     // 处理数组
     if (Array.isArray(obj)) {
         try {
-            return obj.map(item => decontextify(item))
+            const copy: any[] = []
+            seen.set(obj, copy)
+            for (const item of obj) copy.push(decontextify(item, seen))
+            return copy
         } catch (e) {
             return []
         }
@@ -65,16 +74,18 @@ function decontextify(obj: any): any {
     if (obj instanceof Error || (obj && obj.constructor && obj.constructor.name === 'Error')) {
         const err = new Error(obj.message)
         err.stack = obj.stack
+        seen.set(obj, err)
         return err
     }
 
     // 处理普通对象 (预防 Proxy Traps)
     try {
         const newObj: any = {}
+        seen.set(obj, newObj)
         const keys = Object.keys(obj)
         for (const key of keys) {
             try {
-                newObj[key] = decontextify(obj[key])
+                newObj[key] = decontextify(obj[key], seen)
             } catch (e) { }
         }
         return newObj
@@ -179,7 +190,7 @@ function createLxRequest(
         const dispatchCallback = (...args: any[]) => {
             try {
                 const result = invokeSandboxCallback
-                    ? invokeSandboxCallback(callback, args.map(decontextify))
+                    ? invokeSandboxCallback(callback, decontextify(args))
                     : callback.call(null, ...args)
                 if (result && typeof (result as any).then === 'function') {
                     void Promise.resolve(result).catch(error => {
@@ -254,7 +265,9 @@ function createLxRequest(
         const unregisterPendingRequest = registerPendingRequest ? registerPendingRequest(abort) : () => { }
 
         const start = async () => {
+            let budgetLease: Awaited<ReturnType<typeof acquireBufferedRequestBudget>> | undefined
             try {
+                budgetLease = await acquireBufferedRequestBudget(5 * 1024 * 1024, controller.signal)
                 const safeUrl = await assertSafeRemoteHttpUrl(url)
                 if (aborted) return
 
@@ -273,7 +286,8 @@ function createLxRequest(
                     body: ['GET', 'HEAD'].includes(normalizedMethod) ? undefined : fetchBody,
                     signal: controller.signal,
                     timeoutMs,
-                    maxBytes: 5 * 1024 * 1024,
+                    maxBytes: budgetLease.maxBytes,
+                    budgetLease,
                     proxy,
                 })
                 if (timer) clearTimeout(timer)
@@ -281,8 +295,6 @@ function createLxRequest(
                 const rawBuffer = Buffer.from(await resp.arrayBuffer())
 
                 completed = true
-                unregister()
-                unregisterPendingRequest()
 
                 const responseText = rawBuffer.toString('utf8')
                 let parsedBody: any = responseText
@@ -298,18 +310,21 @@ function createLxRequest(
                 const safeResp: any = {
                     statusCode: resp.status,
                     statusMessage: resp.statusText,
-                    headers: decontextify(headersObj),
-                    body: decontextify(parsedBody),
+                    headers: headersObj,
+                    body: parsedBody,
                     raw: rawBuffer,
                 }
 
                 dispatchCallback(null, safeResp, safeResp.body)
             } catch (error: any) {
+                completed = true
+                dispatchCallback(decontextify(error), null, null)
+            } finally {
                 if (timer) clearTimeout(timer)
                 completed = true
                 unregister()
                 unregisterPendingRequest()
-                dispatchCallback(decontextify(error), null, null)
+                budgetLease?.release()
             }
         }
 
@@ -543,10 +558,10 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     // 完整沙箱环境
     sandbox = {
         console: {
-            log: (...args: any[]) => console.log(`[CustomSource:${fullApiInfo.name}]`, ...args.map(decontextify)),
-            info: (...args: any[]) => console.info(`[CustomSource:${fullApiInfo.name}]`, ...args.map(decontextify)),
-            warn: (...args: any[]) => console.warn(`[CustomSource:${fullApiInfo.name}]`, ...args.map(decontextify)),
-            error: (...args: any[]) => console.error(`[CustomSource:${fullApiInfo.name}]`, ...args.map(decontextify)),
+            log: (...args: any[]) => console.log(`[CustomSource:${fullApiInfo.name}]`, ...decontextify(args)),
+            info: (...args: any[]) => console.info(`[CustomSource:${fullApiInfo.name}]`, ...decontextify(args)),
+            warn: (...args: any[]) => console.warn(`[CustomSource:${fullApiInfo.name}]`, ...decontextify(args)),
+            error: (...args: any[]) => console.error(`[CustomSource:${fullApiInfo.name}]`, ...decontextify(args)),
             debug: () => { },
         },
         setTimeout: trackedSetTimeout,
