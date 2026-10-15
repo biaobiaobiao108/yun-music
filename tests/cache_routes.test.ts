@@ -782,6 +782,50 @@ test('download proxy treats client aborts as normal request cancellation', async
   }
 })
 
+test('tagged download proxy waits for the shared native limit and cancels queued processing', async () => {
+  let release!: () => void
+  let entered!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  const started = new Promise<void>(resolve => { entered = resolve })
+  const held = fileCache.withCachePostProcess(undefined, 'test held native slot', async () => {
+    entered()
+    await gate
+  })
+  await started
+  const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
+  const request = spyOn(http, 'request').mockImplementation((_url: any, optionsOrCallback?: any, callback?: any): any => {
+    const responseCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+    const req = new EventEmitter() as any
+    req.destroy = () => req
+    req.end = () => {
+      responseCallback(Object.assign(Readable.from([Buffer.alloc(256)]), {
+        statusCode: 200, headers: { 'content-type': 'audio/mpeg', 'content-length': '256' },
+      }))
+      return req
+    }
+    return req
+  })
+  const controller = new AbortController()
+  try {
+    const response = createCacheRouter().handle(new Request(
+      'http://localhost/api/music/download?tag=1&url=http%3A%2F%2Fexample.com%2Faudio',
+      { signal: controller.signal },
+    ), { remoteAddress: '203.0.113.219' })
+    for (let attempt = 0; attempt < 100 && fileCache.getCachePostProcessStats().waiting === 0; attempt++) await Bun.sleep(5)
+    expect(fileCache.getCachePostProcessStats()).toMatchObject({ active: 1, waiting: 1 })
+    controller.abort()
+    expect((await response).status).toBe(499)
+    for (let attempt = 0; attempt < 100 && fileCache.getCachePostProcessStats().waiting; attempt++) await Bun.sleep(5)
+    expect(fileCache.getCachePostProcessStats()).toMatchObject({ active: 1, waiting: 0 })
+  } finally {
+    controller.abort()
+    release()
+    await held
+    request.mockRestore()
+    lookup.mockRestore()
+  }
+})
+
 test('local identification resolves its module and forwards a bounded file path', async () => {
   const previousLx = global.lx
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-identify-test-'))
@@ -891,7 +935,7 @@ test('/api/music/url intercepts request when cache exists and avoids online reso
       expect.objectContaining({ quality: '320k' }),
       '_open',
       false,
-      { ignoreActiveProgress: true, preferredFolder: 'music' },
+      { preferredFolder: 'music' },
     )
   } finally {
     checkCacheSpy.mockRestore()

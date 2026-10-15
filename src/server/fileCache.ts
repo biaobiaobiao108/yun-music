@@ -113,11 +113,30 @@ let cacheProgressCleanupTimer: ReturnType<typeof setTimeout> | null = null
 const ACTIVE_CACHE_PROGRESS_STATUSES = new Set(['downloading', 'tagging'])
 
 const getCacheProgressKey = (songId: string, quality?: string) => `${songId}_${quality || 'unknown'}`
+const scopedCacheProgress = new Map<string, string>()
+const scopedProgressKey = (username: string | undefined, songId: string, quality?: string) => JSON.stringify([normalizeCacheUsername(username), songId, quality || 'unknown'])
 
-export const getActiveCacheProgress = (songId: string, quality?: string) => {
+/** Associate opaque queue progress keys with their owning song and user. */
+export const bindCacheProgress = (username: string | undefined, songId: string, quality: string | undefined, progressKey: string) => {
+    const key = scopedProgressKey(username, songId, quality)
+    scopedCacheProgress.set(key, progressKey)
+    return () => { if (scopedCacheProgress.get(key) === progressKey) scopedCacheProgress.delete(key) }
+}
+
+export const getActiveCacheProgress = (songId: string, quality?: string, username?: string) => {
     const prefix = `${songId}_`
     const exactKey = quality ? getCacheProgressKey(songId, quality) : null
     const now = Date.now()
+
+    if (username !== undefined) {
+        for (const [scope, key] of scopedCacheProgress) {
+            const [owner, id, q] = JSON.parse(scope) as string[]
+            if (owner !== normalizeCacheUsername(username) || id !== songId || (quality && q !== quality)) continue
+            const progress = cacheProgress.get(key)
+            if (progress && ACTIVE_CACHE_PROGRESS_STATUSES.has(progress.status)) return { key, ...progress }
+        }
+        return null
+    }
 
     for (const [key, progress] of cacheProgress) {
         if ((exactKey && key !== exactKey) || (!exactKey && !key.startsWith(prefix))) continue
@@ -130,8 +149,8 @@ export const getActiveCacheProgress = (songId: string, quality?: string) => {
     return null
 }
 
-export const isCacheEntryProcessing = (songId: string, quality?: string) => (
-    !!getActiveCacheProgress(songId, quality)
+export const isCacheEntryProcessing = (songId: string, quality?: string, username?: string) => (
+    !!getActiveCacheProgress(songId, quality, username)
 )
 
 export const cleanupExpiredCacheProgress = (now = Date.now()) => {
@@ -297,7 +316,7 @@ export const getCachePostProcessStats = () => ({
 
 // [新增] 歌词获取钩子：由 server.ts 在启动时注入，避免 fileCache 直接依赖 musicSdk
 // 调用时会通过 /api/music/lyric 接口逻辑（先查本地 .lrc 缓存，再去源站）获取歌词文本
-type LyricFetcher = (songInfo: any) => Promise<string | null>
+type LyricFetcher = (songInfo: any, signal?: AbortSignal) => Promise<string | null>
 let _lyricFetcher: LyricFetcher | null = null
 export const setLyricFetcher = (fn: LyricFetcher) => { _lyricFetcher = fn }
 
@@ -1988,7 +2007,8 @@ export const linkLocalFile = async (oldFilename: string, songInfo: any, username
 }
 
 
-export const downloadCoverImage = async (imageUrl: string, redirects = 0): Promise<{ data: Buffer; mime: string } | null> => {
+export const downloadCoverImage = async (imageUrl: string, signal?: AbortSignal, redirects = 0): Promise<{ data: Buffer; mime: string } | null> => {
+    if (signal?.aborted) return null
     if (!hasUsableRemoteCover(imageUrl) || redirects > 3) return null
     let safeUrl: SafeRemoteHttpUrl
     try {
@@ -1999,6 +2019,7 @@ export const downloadCoverImage = async (imageUrl: string, redirects = 0): Promi
 
     try {
         const resp = await fetchSafeRemote(safeUrl, {
+            signal,
             method: 'GET',
             timeoutMs: 10000,
             maxBytes: 10 * 1024 * 1024,
@@ -2012,7 +2033,7 @@ export const downloadCoverImage = async (imageUrl: string, redirects = 0): Promi
             const location = resp.headers.get('location')
             if (location) {
                 const nextUrl = new URL(location, safeUrl).toString()
-                return await downloadCoverImage(nextUrl, redirects + 1)
+                return await downloadCoverImage(nextUrl, signal, redirects + 1)
             }
             return null
         }
@@ -2245,8 +2266,8 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
         const quality = songInfo.quality || 'unknown'
         const normalizedUsername = normalizeCacheUsername(username)
         const candidateUsernames = normalizedUsername === '_open' ? ['_open'] : [normalizedUsername, '_open']
-        const isProcessing = (songId: string, cachedQuality?: string) => (
-            !options.ignoreActiveProgress && isCacheEntryProcessing(songId, cachedQuality)
+        const isProcessing = (songId: string, cachedQuality?: string, owner?: string) => (
+            !options.ignoreActiveProgress && isCacheEntryProcessing(songId, cachedQuality, owner)
         )
 
         for (const targetUser of candidateUsernames) {
@@ -2266,7 +2287,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                             // 下载完成后还可能进入标签、封面和歌词后处理阶段。此时索引已经
                             // 指向最终文件，但文件仍可能被 tagger 原地修改；对外隐藏该条目，
                             // 避免播放器读到半成品后误触发换源/降级。
-                            if (isProcessing(cached.id, cached.quality)) continue
+                            if (isProcessing(cached.id, cached.quality, targetUser)) continue
                             const dir = getCacheDir(targetUser, folder === 'music', location, false)
                             const fileName = isLyricCheck ? cached.lyricFilename : cached.filename
                             if (!fileName) continue
@@ -2307,7 +2328,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                 )
 
                 if (collision) {
-                    if (isProcessing(collision.id, collision.quality)) continue
+                    if (isProcessing(collision.id, collision.quality, targetUser)) continue
                     const collisionDir = getCacheDir(targetUser, collision.folder === 'music', location, false)
                     const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''
                     const collisionFilePath = collisionFileName ? resolveCacheRelativePath(collisionDir, collisionFileName) : null
@@ -2357,7 +2378,7 @@ export const checkCache = (songInfo: any, username?: string, isLyricCheck: boole
                         for (const candidateId of ids) {
                             const cachedAny = indexManager.get(targetUser, candidateId, folder, undefined, false, location)
                             if (cachedAny) {
-                                if (isProcessing(cachedAny.id, cachedAny.quality)) continue
+                                if (isProcessing(cachedAny.id, cachedAny.quality, targetUser)) continue
                                 const dir = getCacheDir(targetUser, folder === 'music', location, false)
                                 const fileName = cachedAny.filename
                                 const filePath = resolveCacheRelativePath(dir, fileName)
@@ -2654,7 +2675,9 @@ const ensureCachedLyrics = async (
     folder: 'cache' | 'music',
     shouldCacheLyric: boolean,
     shouldEmbedLyric: boolean,
+    signal?: AbortSignal,
 ) => {
+    if (signal?.aborted) throw new Error('Aborted')
     if ((!shouldCacheLyric && !shouldEmbedLyric) || !_lyricFetcher || !fs.existsSync(audioPath)) return
 
     const normalizedUsername = normalizeCacheUsername(username)
@@ -2708,7 +2731,8 @@ const ensureCachedLyrics = async (
     }
 
     try {
-        const lyricText = await _lyricFetcher({ ...songInfo, quality: resolvedQuality })
+        const lyricText = await _lyricFetcher({ ...songInfo, quality: resolvedQuality }, signal)
+        if (signal?.aborted) throw new Error('Aborted')
         if (!lyricText) return
 
         if (shouldCacheLyric && !hasCachedLyric) {
@@ -2780,17 +2804,19 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
         if (result.folder === targetFolder && result.path && (!isOnlyDownload || result.foundIn === normalizeCacheUsername(username))) {
             const existingPath = result.path
             await withCachePostProcess(signal, 'existing cache', async () => {
-                await ensureCachedLyrics(songInfo, quality || result.quality, username, isOnlyDownload, existingPath, targetFolder, shouldCacheLyric, shouldEmbedLyric)
-                const existing = indexManager.getAll(normalizeCacheUsername(username), targetFolder)
-                    .find(item => item.filename === result.filename)
-                if (existing) reconcileCacheItemFromDisk(
-                    normalizeCacheUsername(username),
-                    targetFolder,
-                    existing,
-                    existingPath,
-                    undefined,
-                    result.location,
-                )
+                const owner = result.foundIn || normalizeCacheUsername(username)
+                const physicalItem = indexManager.getAll(owner, targetFolder, result.location).find(item => item.filename === result.filename)
+                const unbind = bindCacheProgress(owner, physicalItem?.id || normalizeSongId(songInfo), quality || result.quality, progressKey)
+                setCacheProgress(progressKey, { progress: 100, status: 'tagging' })
+                try {
+                    await ensureCachedLyrics(songInfo, quality || result.quality, username, isOnlyDownload, existingPath, targetFolder, shouldCacheLyric, shouldEmbedLyric, signal)
+                    if (signal?.aborted) throw new Error('Aborted')
+                    const existing = indexManager.getAll(normalizeCacheUsername(username), targetFolder)
+                        .find(item => item.filename === result.filename)
+                    if (existing) reconcileCacheItemFromDisk(
+                        normalizeCacheUsername(username), targetFolder, existing, existingPath, undefined, result.location,
+                    )
+                } finally { unbind() }
             })
             if (isOnlyDownload) removeDuplicateCacheForSong(songInfo, quality || result.quality, username)
             console.log(`[FileCache] Song already exists in ${targetFolder}, skipping download: ${result.filename}`)
@@ -2813,18 +2839,18 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
             const musicPath = musicResult.exists && !musicResult.isCollision ? musicResult.path : undefined
             if (musicPath) {
                 await withCachePostProcess(signal, 'promote cache', async () => {
-                    await ensureCachedLyrics(songInfo, quality || musicResult.quality || result.quality, username, true, musicPath, 'music', shouldCacheLyric, shouldEmbedLyric)
-                    const normalizedUsername = normalizeCacheUsername(username)
-                    const existing = indexManager.getAll(normalizedUsername, 'music')
-                        .find(item => item.filename === musicResult.filename)
-                    if (existing) reconcileCacheItemFromDisk(
-                        normalizedUsername,
-                        'music',
-                        existing,
-                        musicPath,
-                        undefined,
-                        musicResult.location,
-                    )
+                    const unbind = bindCacheProgress(username, normalizeSongId(songInfo), quality || musicResult.quality || result.quality, progressKey)
+                    setCacheProgress(progressKey, { progress: 100, status: 'tagging' })
+                    try {
+                        await ensureCachedLyrics(songInfo, quality || musicResult.quality || result.quality, username, true, musicPath, 'music', shouldCacheLyric, shouldEmbedLyric, signal)
+                        if (signal?.aborted) throw new Error('Aborted')
+                        const normalizedUsername = normalizeCacheUsername(username)
+                        const existing = indexManager.getAll(normalizedUsername, 'music')
+                            .find(item => item.filename === musicResult.filename)
+                        if (existing) reconcileCacheItemFromDisk(
+                            normalizedUsername, 'music', existing, musicPath, undefined, musicResult.location,
+                        )
+                    } finally { unbind() }
                 })
             }
             if (isOnlyDownload) removeDuplicateCacheForSong(songInfo, quality || musicResult.quality, username)
@@ -2843,6 +2869,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
     // An existing local file needs no remote connection. Validate the URL only
     // when a cache miss will actually start a network download.
     const safeUrl = await assertSafeRemoteHttpUrl(url)
+    if (signal?.aborted) throw new Error('Aborted')
     url = safeUrl.toString()
     console.log(`[FileCache] Starting download for: ${baseName}`)
 
@@ -2852,6 +2879,9 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
         let activeResponse: http.IncomingMessage | null = null
         let fileStream: fs.WriteStream | null = null
         let settled = false
+        let postProcessing = false
+        const unbindProgress = bindCacheProgress(username, normalizeSongId(songInfo), quality, progressKey)
+        let unbindActualProgress: (() => void) | undefined
 
         const fail = (err: Error) => {
             if (settled) return
@@ -2863,6 +2893,8 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
         const settle = (fn: () => void) => {
             if (settled) return
             settled = true
+            unbindProgress()
+            unbindActualProgress?.()
             if (signal) signal.removeEventListener('abort', abortHandler)
             activeResponse = null
             fileStream = null
@@ -2870,17 +2902,21 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
         }
 
         const abortHandler = () => {
+            if (postProcessing) return
             if (req) req.destroy()
             activeResponse?.destroy()
             fileStream?.destroy()
             if (fs.existsSync(tempPath)) fs.unlink(tempPath, () => { })
             cacheProgress.delete(progressKey)
+            // Native enrichment may still own the final path. Keep the worker
+            // alive until its finally block releases it before account cleanup.
             settle(() => reject(new Error('Aborted')))
         }
 
         if (signal) signal.addEventListener('abort', abortHandler)
 
         const requestWithRedirect = (currentUrl: SafeRemoteHttpUrl, depth = 0) => {
+            if (settled || signal?.aborted) return
             if (depth > 5) {
                 fail(new Error('Too many redirects'))
                 return
@@ -2998,6 +3034,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     return
                 }
                 let releasePostProcess: (() => void) | null = null
+                postProcessing = true
                 try {
                     await acquireCachePostProcess(signal)
                     releasePostProcess = () => {
@@ -3019,6 +3056,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                 const inspection = inspectAudioFile(tempPath, quality)
                 ext = inspection.extension || ext
                 const actualQuality = inspection.quality || quality || 'unknown'
+                if (actualQuality !== quality) unbindActualProgress = bindCacheProgress(username, normalizeSongId(songInfo), actualQuality, progressKey)
                 const finalBaseName = getFileName(songInfo, actualQuality, isOnlyDownload, username)
                 const finalPath = path.join(dir, finalBaseName + ext)
                 fs.rename(tempPath, finalPath, async (err) => {
@@ -3039,7 +3077,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     try {
                         const imageUrl = songInfo.img || (songInfo.meta && songInfo.meta.picUrl)
                         if (imageUrl && imageUrl.startsWith('http') && !isPlaceholderCoverUrl(imageUrl)) {
-                            const coverResult = await downloadCoverImage(imageUrl)
+                            const coverResult = await downloadCoverImage(imageUrl, signal)
                             if (coverResult) {
                                 imageBuffer = coverResult.data
                                 imageMime = coverResult.mime
@@ -3113,7 +3151,7 @@ export const downloadAndCache = async (songInfo: any, url: string, quality?: str
                     }
 
                     if (signal?.aborted) throw new Error('Aborted')
-                    await ensureCachedLyrics(songInfo, actualQuality, username, isOnlyDownload, finalPath, folderType, shouldCacheLyric, shouldEmbedLyric)
+                    await ensureCachedLyrics(songInfo, actualQuality, username, isOnlyDownload, finalPath, folderType, shouldCacheLyric, shouldEmbedLyric, signal)
                     const finalizedItem = indexManager.getAll(normalizedUsername, folderType)
                         .find(item => item.filename === finalBaseName + ext)
                     if (finalizedItem) reconcileCacheItemFromDisk(normalizedUsername, folderType, finalizedItem, finalPath)
@@ -3548,6 +3586,31 @@ export const clearOnlyAudioCache = (username?: string) => {
         addCleanupResult(result, removeDirectoryTree(dir))
         indexManager.clear(normalizedUsername, 'cache', location)
     }
+    // Covers are shared across both roots and folders. Keep only those still
+    // referenced by durable downloads, including unindexed local music.
+    const retainedCoverHashes = new Set<string>()
+    for (const location of getCacheLocations()) {
+        const musicDir = getCacheDir(normalizedUsername, true, location, false)
+        for (const file of getCacheFilesRecursively(musicDir)) {
+            const filename = path.relative(musicDir, file).replace(/\\/g, '/')
+            try {
+                retainedCoverHashes.add(getCoverCacheHash(filename, fs.statSync(file)))
+                retainedCoverHashes.add(getCoverCacheHash(filename))
+                retainedCoverHashes.add(crypto.createHash('md5').update(filename).digest('hex'))
+            } catch { }
+        }
+    }
+    for (const coverDir of getCoverCacheUserDirs(normalizedUsername, false)) {
+        for (const file of getCacheFilesRecursively(coverDir)) {
+            if (!/\.(?:bin|mime)$/.test(file) || retainedCoverHashes.has(path.basename(file, path.extname(file)))) continue
+            try {
+                const size = fs.statSync(file).size
+                fs.unlinkSync(file)
+                result.deletedCount++
+                result.freedSize += size
+            } catch { }
+        }
+    }
     invalidateCacheListSync(normalizedUsername)
     invalidateGlobalCacheStats()
     return result
@@ -3765,7 +3828,17 @@ export const switchFolder = async (filenames: string[], username: string | undef
             continue
         }
 
+        if (isCacheEntryProcessing(item.id, item.quality, normalizedUsername)) {
+            failCount++
+            continue
+        }
+
         const targetFolder: CacheFolder = requestedTargetFolder || (sourceFolder === 'cache' ? 'music' : 'cache')
+        const targetItem = indexManager.getAll(normalizedUsername, targetFolder, sourceLocation).find(entry => entry.filename === filename)
+        if (targetItem && isCacheEntryProcessing(targetItem.id, targetItem.quality, normalizedUsername)) {
+            failCount++
+            continue
+        }
 
         // [Constraint] Cannot move from music subfolder to cache
         if (sourceFolder === 'music' && item.subPath && item.subPath !== '') {
@@ -3889,12 +3962,15 @@ export const promoteCacheFile = async (filename: string, sourceUsername: string 
     for (const location of getCacheLocations()) {
         const item = indexManager.getAll(normalizedSource, sourceFolder, location).find(entry => entry.filename === filename)
         if (!item) continue
+        if (isCacheEntryProcessing(item.id, item.quality, normalizedSource)) return { successCount: 0, failCount: 1, moved: [] }
 
         const sourceDir = getCacheDir(normalizedSource, sourceFolder === 'music', location)
         const targetDir = getCacheDir(normalizedTarget, true, location)
         const sourcePath = resolveCacheRelativePath(sourceDir, filename)
         const targetPath = resolveCacheRelativePath(targetDir, filename)
         if (!sourcePath || !targetPath || !fs.existsSync(sourcePath)) continue
+        const activeTarget = indexManager.getAll(normalizedTarget, 'music', location).find(entry => entry.filename === filename)
+        if (activeTarget && isCacheEntryProcessing(activeTarget.id, activeTarget.quality, normalizedTarget)) return { successCount: 0, failCount: 1, moved: [] }
 
         if (fs.existsSync(targetPath)) {
             const targetItem = indexManager.getAll(normalizedTarget, 'music', location).find(entry => entry.filename === filename)
@@ -4009,6 +4085,12 @@ export const switchBaseLocation = async (filenames: string[], username: string |
         }
 
         const sourceDir = getLocalDir(sourceFolder, sourceLoc)
+        const targetItem = indexManager.getAll(normalizedUsername, sourceFolder, targetLoc).find(entry => entry.filename === filename)
+        if (isCacheEntryProcessing(item.id, item.quality, normalizedUsername) ||
+            (targetItem && isCacheEntryProcessing(targetItem.id, targetItem.quality, normalizedUsername))) {
+            failCount++
+            continue
+        }
         const targetDir = getLocalDir(sourceFolder, targetLoc)
 
         const sourcePath = resolveCacheRelativePath(sourceDir, filename)

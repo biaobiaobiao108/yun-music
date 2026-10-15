@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'bun:test'
+import { describe, it, expect, spyOn } from 'bun:test'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { createHash } from 'node:crypto'
+import http from 'node:http'
+import { EventEmitter } from 'node:events'
+import { Readable } from 'node:stream'
+import * as networkSecurity from '../src/server/networkSecurity'
 import { cleanupExpiredCacheProgress, resolveCompanionLyricFilename, setCacheProgress } from '../src/server/fileCache'
 import { closeDb, initDatabase } from '../src/database'
 import * as fileCache from '../src/server/fileCache'
@@ -505,7 +510,7 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
-  it('should hide a cache entry while background post-processing is still mutating the file', () => {
+  it('should hide a cache entry and block moves while queue post-processing mutates the file', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-processing-cache-'))
     const previousLx = (global as any).lx
     const dataPath = path.join(root, 'data')
@@ -520,6 +525,7 @@ describe('File Cache Path Traversal Defense', () => {
       albumName: 'Processing Album',
       quality: 'flac',
     }
+    let unbind = () => {}
     try {
       closeDb()
       ;(global as any).lx = { dataPath, config: {} }
@@ -546,16 +552,20 @@ describe('File Cache Path Traversal Defense', () => {
         ext: 'flac',
       }, 'cache')
 
-      const progressKey = `${fileCache.normalizeSongId(songInfo)}_flac`
+      const progressKey = 'queue:processing-cache-user:test-task'
+      unbind = fileCache.bindCacheProgress(username, fileCache.normalizeSongId(songInfo), 'flac', progressKey)
       setCacheProgress(progressKey, { progress: 100, status: 'tagging' })
       expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username).exists).toBe(false)
       expect(fileCache.checkCache({ ...songInfo, quality: '320k', exactQuality: false }, username).exists).toBe(false)
       expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username, false, { ignoreActiveProgress: true }).exists).toBe(true)
+      expect((await fileCache.switchFolder([filename], username, 'music')).failCount).toBe(1)
+      expect((await fileCache.promoteCacheFile(filename, username, 'other-user')).failCount).toBe(1)
 
       setCacheProgress(progressKey, { progress: 100, status: 'finished' })
       expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username).exists).toBe(true)
     } finally {
-      fileCache.cacheProgress.delete(`${fileCache.normalizeSongId(songInfo)}_flac`)
+      unbind()
+      fileCache.cacheProgress.delete('queue:processing-cache-user:test-task')
       closeDb()
       ;(global as any).lx = previousLx
       fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
@@ -1064,6 +1074,99 @@ describe('File Cache Progress Lifecycle', () => {
 })
 
 describe('File Cache Post-processing Limiter', () => {
+  it('keeps an aborted download alive until lyric enrichment exits and never writes late lyrics', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-abort-enrichment-'))
+    const previousLx = global.lx
+    const previousFetcher = fileCache.getLyricFetcher()
+    const controller = new AbortController()
+    let finishLyric!: (value: string) => void
+    let lyricStarted!: () => void
+    const started = new Promise<void>(resolve => { lyricStarted = resolve })
+    const lyric = new Promise<string>(resolve => { finishLyric = resolve })
+    const safeUrl = spyOn(networkSecurity, 'assertSafeRemoteHttpUrl').mockResolvedValue(new URL('http://example.com/audio') as any)
+    const request = spyOn(http, 'get').mockImplementation(((_url: any, _options: any, callback: any) => {
+      const req = new EventEmitter() as any
+      req.setTimeout = () => req
+      req.destroy = () => req
+      queueMicrotask(() => {
+        const response = Readable.from([Buffer.alloc(1024)]) as any
+        response.statusCode = 200
+        response.headers = { 'content-length': '1024', 'content-type': 'audio/mpeg' }
+        callback(response)
+      })
+      return req
+    }) as any)
+    let completion: Promise<unknown> | undefined
+    try {
+      closeDb()
+      global.lx = { appPath: root, dataPath: path.join(root, 'data'), config: {} } as any
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+      fileCache.setLyricFetcher(async (_song, signal) => {
+        expect(signal).toBe(controller.signal)
+        lyricStarted()
+        return lyric
+      })
+      let settled = false
+      completion = fileCache.downloadAndCache({ source: 'wy', songmid: 'abort-song', name: 'Abort Song', singer: 'Singer' },
+        'http://example.com/audio', '320k', 'abort-user', controller.signal, false, true, false)
+        .then(() => { settled = true; return null }, error => { settled = true; return error })
+      await started
+      controller.abort()
+      await Bun.sleep(5)
+      expect(settled).toBe(false)
+      expect(fileCache.getCachePostProcessStats().active).toBe(1)
+      finishLyric('[00:00.00]late lyrics')
+      expect((await completion as Error).message).toBe('Aborted')
+      expect(fileCache.getCachePostProcessStats()).toEqual({ active: 0, waiting: 0 })
+      const cacheDir = fileCache.getCacheDir('abort-user', false, undefined, false)
+      expect(fs.readdirSync(cacheDir).some(file => file.endsWith('.lrc'))).toBe(false)
+
+      let releaseHeld!: () => void
+      const held = fileCache.withCachePostProcess(undefined, 'test held slot', () => new Promise<void>(resolve => { releaseHeld = resolve }))
+      await Bun.sleep(0)
+      const waitingController = new AbortController()
+      const waiting = fileCache.downloadAndCache({ source: 'wy', songmid: 'waiting-song', name: 'Waiting Song', singer: 'Singer' },
+        'http://example.com/audio', '320k', 'abort-user', waitingController.signal, false, false, false).catch(error => error)
+      try {
+        const deadline = Date.now() + 1000
+        while (fileCache.getCachePostProcessStats().waiting === 0 && Date.now() < deadline) await Bun.sleep(2)
+        expect(fileCache.getCachePostProcessStats().waiting).toBe(1)
+        waitingController.abort()
+        expect((await waiting as Error).message).toBe('Aborted')
+        expect(fileCache.getCachePostProcessStats()).toEqual({ active: 1, waiting: 0 })
+      } finally {
+        releaseHeld()
+        await held
+        await waiting
+      }
+    } finally {
+      finishLyric?.('')
+      await completion
+      request.mockRestore()
+      safeUrl.mockRestore()
+      fileCache.setLyricFetcher(previousFetcher as any)
+      closeDb()
+      global.lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+  it('resolves opaque queue progress keys only for their owning user', () => {
+    const key = 'queue:progress-owner:task'
+    const unbind = fileCache.bindCacheProgress('progress-owner', 'wy_progress', '320k', key)
+    try {
+      setCacheProgress(key, { progress: 100, status: 'tagging' })
+      expect(fileCache.isCacheEntryProcessing('wy_progress', '320k', 'progress-owner')).toBe(true)
+      expect(fileCache.isCacheEntryProcessing('wy_progress', '320k', 'other-user')).toBe(false)
+      expect(fileCache.isCacheEntryProcessing('wy_progress', 'flac', 'progress-owner')).toBe(false)
+      unbind()
+      expect(fileCache.isCacheEntryProcessing('wy_progress', '320k', 'progress-owner')).toBe(false)
+    } finally {
+      unbind()
+      fileCache.cacheProgress.delete(key)
+    }
+  })
   it('serializes heavy post-processing and releases the slot after failures', async () => {
     let active = 0
     let maxActive = 0
@@ -1117,6 +1220,16 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
       fs.writeFileSync(path.join(user1MusicDir, 'downloaded1.mp3'), Buffer.alloc(2000))
       fs.writeFileSync(path.join(openCacheDir, 'open_cached.flac'), Buffer.alloc(3000))
 
+      const retainedStats = fs.statSync(path.join(user1MusicDir, 'downloaded1.mp3'))
+      const retainedHash = createHash('md5').update(`downloaded1.mp3:${retainedStats.size}:${retainedStats.mtimeMs}`).digest('hex')
+      const coverDirs = [path.join(root, 'cover_cache', 'user1'), path.join(dataPath, 'cover_cache', 'user1')]
+      for (const coverDir of coverDirs) {
+        fs.mkdirSync(coverDir, { recursive: true })
+        fs.writeFileSync(path.join(coverDir, `${retainedHash}.bin`), 'music-cover')
+        fs.writeFileSync(path.join(coverDir, 'orphan.bin'), 'old-cache-cover')
+        fs.writeFileSync(path.join(coverDir, 'orphan.mime'), 'image/jpeg')
+      }
+
       fileCache.invalidateGlobalCacheStats()
       const stats = fileCache.getGlobalCacheStats()
       expect(stats.cache.fileCount).toBe(2)
@@ -1131,6 +1244,11 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
       expect(fs.existsSync(path.join(user1CacheDir, 'cached1.mp3'))).toBe(false)
       expect(fs.existsSync(path.join(user1MusicDir, 'downloaded1.mp3'))).toBe(true) // Strictly preserved!
       expect(fs.existsSync(path.join(openCacheDir, 'open_cached.flac'))).toBe(true) // Untouched!
+      for (const coverDir of coverDirs) {
+        expect(fs.existsSync(path.join(coverDir, `${retainedHash}.bin`))).toBe(true)
+        expect(fs.existsSync(path.join(coverDir, 'orphan.bin'))).toBe(false)
+        expect(fs.existsSync(path.join(coverDir, 'orphan.mime'))).toBe(false)
+      }
 
       // Test clearAllUsersAudioCache
       await fileCache.clearAllUsersAudioCache()

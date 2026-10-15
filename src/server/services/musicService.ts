@@ -69,7 +69,7 @@ export const initMusicServices = async (): Promise<void> => {
   }
 
   // 2. 注入歌词获取钩子：用于服务器缓存时自动嵌入 USLT 标签
-  fileCache.setLyricFetcher(async (songInfo: any) => {
+  fileCache.setLyricFetcher(async (songInfo: any, signal?: AbortSignal) => {
     try {
       const source = songInfo.source
       const sourceApi = source ? getBuiltinSource(source) : undefined
@@ -88,7 +88,16 @@ export const initMusicServices = async (): Promise<void> => {
         hash: songInfo.hash || '',
         interval: songInfo.interval || '',
       })
-      const result = await requestObj.promise
+      const cancel = () => (requestObj.cancelHttp || requestObj.cancel)?.()
+      signal?.addEventListener('abort', cancel, { once: true })
+      if (signal?.aborted) cancel()
+      let result
+      try {
+        result = await requestObj.promise
+      } finally {
+        signal?.removeEventListener('abort', cancel)
+      }
+      if (signal?.aborted) return null
       if (!result) return null
       return typeof result === 'string' ? result : buildLyrics(result)
     } catch (e: any) {

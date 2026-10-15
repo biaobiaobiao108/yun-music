@@ -493,7 +493,7 @@ export const createMusicRouter = (): Router => {
           false,
           // A durable download is the strongest local source. If it is not
           // present, check the regular server cache before resolving online.
-          { ignoreActiveProgress: true, preferredFolder: 'music' },
+          { preferredFolder: 'music' },
         )
         cacheDurationMs = performance.now() - cacheStartedAt
         if (cached.exists && !cached.isCollision && cached.url) {

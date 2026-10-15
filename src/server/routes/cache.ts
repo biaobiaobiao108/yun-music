@@ -1663,7 +1663,6 @@ export const createCacheRouter = (): Router => {
                     fileCache.setCacheProgress(taskId, { progress: 100, status: 'finished', total: total || received, received, speed: 0, updatedAt: Date.now() })
                   }
 
-                  let tagger: any = null
                   const createTempFileResponse = () => {
                     const stream = createTempFileResponseStream(tempPath, () => {
                       releaseProxySlot()
@@ -1682,26 +1681,19 @@ export const createCacheRouter = (): Router => {
                     })
                     if (fs.statSync(tempPath).size < 100) throw new Error('File too small, possibly invalid')
 
-                    tagger = new (getMusicTagNative().MusicTagger)()
-                    tagger.loadPath(tempPath)
-                    if (songName) tagger.title = songName
-                    if (artist) tagger.artist = artist
-                    if (album) tagger.album = album
-
-                    if (imageUrl) {
-                      try {
-                        const cover = await fileCache.downloadCoverImage(imageUrl)
-                        if (cover) {
-                          tagger.pictures = [new (getMusicTagNative().MetaPicture)(cover.mime, new Uint8Array(cover.data), 'Cover')]
+                    await fileCache.withCachePostProcess(ctx.request.signal, 'download proxy', async () => {
+                      let cover: Awaited<ReturnType<typeof fileCache.downloadCoverImage>> = null
+                      let lyricText = ''
+                      if (imageUrl) {
+                        try {
+                          cover = await fileCache.downloadCoverImage(imageUrl, ctx.request.signal)
+                        } catch (e: any) {
+                          console.warn('[DownloadProxy] Picture fetch/embed failed:', e.message)
                         }
-                      } catch (e: any) {
-                        console.warn('[DownloadProxy] Picture fetch/embed failed:', imageUrl, e.message)
                       }
-                    }
-
-                    const lyricApi = lyricSource ? getBuiltinSource(lyricSource) : undefined
-                    if (embedLyric && lyricSongmid && lyricApi?.getLyric) {
-                      try {
+                      ctx.request.signal.throwIfAborted()
+                      const lyricApi = lyricSource ? getBuiltinSource(lyricSource) : undefined
+                      if (embedLyric && lyricSongmid && lyricApi?.getLyric) {
                         const lyricReqObj = lyricApi.getLyric({
                           songmid: lyricSongmid,
                           name: songName,
@@ -1709,21 +1701,43 @@ export const createCacheRouter = (): Router => {
                           hash: lyricHash,
                           interval: lyricInterval,
                         })
-                        const lyricResult = await lyricReqObj.promise
-                        const lyricText = lyricResult?.lyric || lyricResult?.lrc || ''
-                        if (lyricText) tagger.lyrics = lyricText
-                      } catch { }
-                    }
+                        const abortLyric = () => lyricReqObj.cancelHttp?.()
+                        ctx.request.signal.addEventListener('abort', abortLyric, { once: true })
+                        try {
+                          if (ctx.request.signal.aborted) abortLyric()
+                          const lyricResult = await lyricReqObj.promise
+                          lyricText = lyricResult?.lyric || lyricResult?.lrc || ''
+                        } catch { }
+                        finally { ctx.request.signal.removeEventListener('abort', abortLyric) }
+                      }
+                      ctx.request.signal.throwIfAborted()
 
-                    tagger.save()
-                    tagger.dispose()
-                    tagger = null
+                      // Keep native allocations inside the shared limit and create
+                      // the tagger only after remote enrichment has completed.
+                      let tagger: any = null
+                      try {
+                        tagger = new (getMusicTagNative().MusicTagger)()
+                        tagger.loadPath(tempPath)
+                        if (songName) tagger.title = songName
+                        if (artist) tagger.artist = artist
+                        if (album) tagger.album = album
+                        if (cover) tagger.pictures = [new (getMusicTagNative().MetaPicture)(cover.mime, new Uint8Array(cover.data), 'Cover')]
+                        if (lyricText) tagger.lyrics = lyricText
+                        tagger.save()
+                      } finally {
+                        try { tagger?.dispose() } finally { cover = null }
+                      }
+                    })
+
+                    if (ctx.request.signal.aborted || responseSettled) return
 
                     headers['Content-Length'] = fs.statSync(tempPath).size.toString()
                     finishProgress()
                     settleTaggedResponse(createTempFileResponse(), false, true)
                   } catch (e: any) {
-                    if (tempStreamError) {
+                    if (ctx.request.signal.aborted || responseSettled) {
+                      finishExpectedAbort()
+                    } else if (tempStreamError) {
                       markProgressError(tempStreamError.message || 'Download stream failed')
                       settleTaggedResponse(ctx.fail(502, '下载处理失败，请重试'))
                     } else if (fs.existsSync(tempPath)) {
@@ -1734,8 +1748,6 @@ export const createCacheRouter = (): Router => {
                       markProgressError(e?.message || 'Download processing failed')
                       settleTaggedResponse(ctx.fail(502, '下载处理失败，请重试'))
                     }
-                  } finally {
-                    if (tagger) tagger.dispose()
                   }
                 })
                 return
