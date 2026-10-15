@@ -31,6 +31,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ settings })
     persistLegacySettings(settings)
     applyAppearance(settings)
+    if (key === 'preferredQuality') usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
     void playerApi.saveSettings({ [key]: value }).catch(() => undefined)
   },
   hydrate: async () => {

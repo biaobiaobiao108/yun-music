@@ -163,6 +163,36 @@ describe('React player search state', () => {
 })
 
 describe('React player library persistence guard', () => {
+  it('discards queued mutations and late completions after switching accounts', async () => {
+    let release: (() => void) | undefined
+    const add = spyOn(playerApi, 'addToList').mockImplementation(() => new Promise<void>(resolve => { release = resolve }))
+    const hydrate = spyOn(playerApi, 'listData').mockResolvedValue({ loveList: [] })
+    setSessionScope('library-alice')
+    useLibraryStore.getState().reset()
+    try {
+      const first = useLibraryStore.getState().addSong('love', { id: 'alice-first', source: 'wy' })
+      const queued = useLibraryStore.getState().addSong('love', { id: 'alice-queued', source: 'wy' })
+      const queuedResult = queued.catch(error => error)
+      await Promise.resolve()
+      expect(add).toHaveBeenCalledTimes(1)
+      setSessionScope('library-bob')
+      useLibraryStore.getState().reset()
+      const bobData = { loveList: [{ id: 'bob-song', source: 'wy' }] }
+      useLibraryStore.setState({ data: bobData })
+      release?.()
+      await first
+      expect(await queuedResult).toBeInstanceOf(Error)
+      expect(add).toHaveBeenCalledTimes(1)
+      expect(hydrate).not.toHaveBeenCalled()
+      expect(useLibraryStore.getState().data).toBe(bobData)
+    } finally {
+      add.mockRestore()
+      hydrate.mockRestore()
+      useLibraryStore.getState().reset()
+      setSessionScope(null)
+    }
+  })
+
   it('shows local favorites and playlists newest first while preserving source playlist order', () => {
     const loveList = [{ id: 'love-old' }, { id: 'love-new' }]
     const userList = [
@@ -343,6 +373,24 @@ describe('React player authentication lifecycle', () => {
 
 
 describe('React player settings reset', () => {
+  it('applies a changed preferred quality to subsequent playback immediately', async () => {
+    const save = spyOn(playerApi, 'saveSettings').mockResolvedValue(undefined)
+    const previousSettings = useSettingsStore.getState().settings
+    const previousPlayback = usePlaybackStore.getState()
+    try {
+      usePlaybackStore.setState({ quality: 'flac' })
+      useSettingsStore.getState().setSetting('preferredQuality', '128k')
+      usePlaybackStore.getState().playSong({ id: 'quality-test', source: 'wy' })
+      expect(usePlaybackStore.getState().quality).toBe('128k')
+      expect(useSettingsStore.getState().settings.preferredQuality).toBe('128k')
+      expect(save).toHaveBeenCalledWith({ preferredQuality: '128k' })
+    } finally {
+      save.mockRestore()
+      useSettingsStore.setState({ settings: previousSettings })
+      usePlaybackStore.setState(previousPlayback)
+    }
+  })
+
   it('preserves an account playback snapshot until hydration restores its song, queue and progress', () => {
     const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
     const values = new Map<string, string>()

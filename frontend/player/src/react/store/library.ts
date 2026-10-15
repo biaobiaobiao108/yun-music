@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { playerApi, type PlaylistIconKey, type UserListData, type UserPlaylist } from '../api'
 import { invalidateRequestCache, isAbortError } from '../data/request'
+import { getSessionGeneration } from '../session'
 import { buildSongMatchSet, normalizeSongForList, sameSong, songListId, songKey, songMatchSetHas, type Song } from '../types'
 
 let libraryController: AbortController | null = null
@@ -8,6 +9,7 @@ let libraryRequestId = 0
 let libraryHydrateTimer: ReturnType<typeof setTimeout> | null = null
 const LIBRARY_HYDRATE_DEBOUNCE_MS = 320
 const libraryMutationQueues = new Map<string, Promise<void>>()
+let libraryMutationGeneration = 0
 
 export type LibraryState = {
   data: UserListData
@@ -76,12 +78,19 @@ function songsInList(data: UserListData, listId: string): Song[] {
   return data.userList?.find(list => String(list.id) === String(listId))?.list ?? []
 }
 
-function enqueueListMutation<T>(listId: string, mutation: () => Promise<T>): Promise<T> {
+function enqueueListMutation<T>(listId: string, mutation: (isCurrent: () => boolean) => Promise<T>): Promise<T> {
+  const sessionGeneration = getSessionGeneration()
+  const mutationGeneration = libraryMutationGeneration
+  const isCurrent = () => sessionGeneration === getSessionGeneration() && mutationGeneration === libraryMutationGeneration
+  const run = () => {
+    if (!isCurrent()) throw new Error('登录账户已变化，请重新操作')
+    return mutation(isCurrent)
+  }
   const key = String(listId)
   const previous = libraryMutationQueues.get(key)
   const operation = previous
-    ? previous.then(mutation)
-    : Promise.resolve().then(mutation)
+    ? previous.then(run)
+    : Promise.resolve().then(run)
   const settled = operation.then(() => undefined, () => undefined)
   libraryMutationQueues.set(key, settled)
   void settled.then(() => {
@@ -147,7 +156,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
     }
   },
-  addSong: (listId, song) => enqueueListMutation(listId, async () => {
+  addSong: (listId, song) => enqueueListMutation(listId, async isCurrent => {
     const normalizedSong = normalizeSongForList(song)
     const previousData = get().data
     const previousSongs = songsInList(previousData, listId)
@@ -156,12 +165,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     if (optimisticData !== previousData) set({ data: optimisticData })
     try {
       await playerApi.addToList(listId, [normalizedSong])
+      if (!isCurrent()) return
       invalidateRequestCache('library:lists')
       // The visible state is already updated optimistically. Refresh in the
       // background to reconcile server-side normalization without starting a
       // full-list request for every rapid favorite click.
       scheduleLibraryHydrate(get)
     } catch (error) {
+      if (!isCurrent()) throw error
       set(state => {
         const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
         return data === state.data ? {} : { data }
@@ -170,7 +181,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   }),
   removeSong: async (listId, song) => { await get().removeSongs(listId, [song]) },
-  removeSongs: (listId, songs) => enqueueListMutation(listId, async () => {
+  removeSongs: (listId, songs) => enqueueListMutation(listId, async isCurrent => {
     const songIds = [...new Set(songs.map(songListId).filter(Boolean))]
     if (!songIds.length) return
     const previousData = get().data
@@ -180,9 +191,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     if (optimisticData !== previousData) set({ data: optimisticData })
     try {
       await playerApi.removeFromList(listId, songIds)
+      if (!isCurrent()) return
       invalidateRequestCache('library:lists')
       scheduleLibraryHydrate(get)
     } catch (error) {
+      if (!isCurrent()) throw error
       set(state => {
         const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
         return data === state.data ? {} : { data }
@@ -229,6 +242,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     await get().hydrate({ force: true })
   },
   reset: () => {
+    libraryMutationGeneration += 1
+    libraryMutationQueues.clear()
     libraryRequestId += 1
     libraryController?.abort()
     if (libraryHydrateTimer) clearTimeout(libraryHydrateTimer)

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'yun-yin-admin-react-2be69f5';
-const VERSIONED_ASSET_CACHE = 'yun-yin-admin-react-assets-2be69f5';
+const CACHE_NAME = 'yun-yin-admin-react-6751f72';
+const VERSIONED_ASSET_CACHE = 'yun-yin-admin-react-assets-6751f72';
 const MAX_VERSIONED_ASSETS = 60;
 const ASSETS_TO_CACHE = [
     './',
@@ -90,7 +90,7 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    if (![CACHE_NAME, VERSIONED_ASSET_CACHE].includes(cacheName)) {
+                    if (cacheName.startsWith('yun-yin-admin-') && ![CACHE_NAME, VERSIONED_ASSET_CACHE].includes(cacheName)) {
                         return caches.delete(cacheName);
                     }
                 })

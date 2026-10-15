@@ -73,6 +73,12 @@ async function build() {
   }
   fs.mkdirSync(path.dirname(pageRuntimeTarget), { recursive: true })
   fs.copyFileSync(pageRuntimeSource, pageRuntimeTarget)
+  for (const [source, target] of [
+    ['../frontend/admin/src/sw.js', path.join(publicRoot, 'sw.js')],
+    ['../frontend/player/src/sw.js', path.join(publicMusicRoot, 'sw.js')],
+  ]) {
+    fs.copyFileSync(path.join(import.meta.dir, source), target)
+  }
 
   const brandIconSource = path.join(import.meta.dir, '../docs/assets/yun-yin.png')
   for (const iconDirectory of [path.join(publicRoot, 'assets'), path.join(publicMusicRoot, 'assets')]) {
