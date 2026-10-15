@@ -156,7 +156,7 @@ const mergeConfigFileEnv = (config: Partial<Record<ENV_PARAMS_Value_Type, string
         envParams[envKey] = value
       }
     } else if (envKey.startsWith('LX_USER_') && value) {
-      const name = k.replace('LX_USER_', '')
+      const name = envKey.slice('LX_USER_'.length)
       if (name) {
         envUsers.push({
           name,
