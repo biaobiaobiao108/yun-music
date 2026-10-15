@@ -138,11 +138,15 @@ export const initializeUsersFromDatabase = (bootstrapUsers: LX.Config['users']):
     add_music_location_type: string
   }, []>('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users ORDER BY name').all()
 
-  if (rows.length === 0) {
-    syncUsersToDatabase(bootstrapUsers)
+  const initialized = db.query<{ value: string }, []>("SELECT value FROM system_info WHERE key = 'users_initialized'").get()
+  if (rows.length === 0 && !initialized) {
+    db.transaction(() => {
+      syncUsersToDatabase(bootstrapUsers)
+      db.run("INSERT OR REPLACE INTO system_info (key, value) VALUES ('users_initialized', '1')")
+    })()
     return
   }
-
+  db.run("INSERT OR REPLACE INTO system_info (key, value) VALUES ('users_initialized', '1')")
   applyUsersFromDatabase(rows, bootstrapUsers)
 }
 
