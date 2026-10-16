@@ -42,15 +42,19 @@ export const normalizeSongInfo = (songInfo: any) => {
   // 3. 处理通用 ID 转换 (id -> songmid)
   if (!songInfo.songmid) {
     if (meta.songId) {
-      songInfo.songmid = meta.songId
+      songInfo.songmid = String(meta.songId)
     } else if (songInfo.id) {
+      const rawId = String(songInfo.id)
       const sourcePrefix = `${songInfo.source}_`
-      if (typeof songInfo.id === 'string' && songInfo.id.startsWith(sourcePrefix)) {
-        songInfo.songmid = songInfo.id.slice(sourcePrefix.length)
+      if (rawId.startsWith(sourcePrefix)) {
+        songInfo.songmid = rawId.slice(sourcePrefix.length)
       } else {
-        songInfo.songmid = songInfo.id
+        songInfo.songmid = rawId
       }
     }
+  }
+  if (songInfo.songmid != null) {
+    songInfo.songmid = String(songInfo.songmid)
   }
 
   // 4. 针对各平台 SDK 所需的特定字段进行补全

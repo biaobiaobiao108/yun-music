@@ -61,3 +61,16 @@ test('pending matches deduplicate and invalidated completions cannot refill resu
     supported.mockRestore()
   }
 })
+
+test('normalizeSongInfo converts numeric song id into string songmid', async () => {
+  const { normalizeSongInfo } = await import('@/server/services/musicResolver')
+  const normalized = normalizeSongInfo({
+    source: 'wy',
+    id: 12345678 as any,
+    name: 'Numeric ID Song',
+    singer: 'Singer',
+  })
+  expect(typeof normalized.songmid).toBe('string')
+  expect(normalized.songmid).toBe('12345678')
+  expect(normalized.songmid.startsWith('123')).toBe(true)
+})

@@ -10,7 +10,7 @@
     "dev:server": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir ./server --target bun --packages=external",
     "build:frontend": "bun run scripts/build-frontend.ts",
-    "check:frontend-assets": "bun run scripts/check-frontend-assets.ts",
+    "check:frontend-assets": "bun run build:frontend && bun run scripts/check-frontend-assets.ts",
     "reset:instance": "bun run scripts/reset-instance.ts",
     "dev:frontend": "bun run scripts/build-frontend.ts --watch",
     "test": "bun test --check"
