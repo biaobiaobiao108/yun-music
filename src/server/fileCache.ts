@@ -1840,8 +1840,8 @@ export const batchUpdateMetadata = async (filenames: string[], username: string 
             continue
         }
 
+        let imageBuffer: Buffer | undefined
         try {
-            let imageBuffer: Buffer | undefined
             let imageMime = 'image/jpeg'
             const imageUrl = item.img
             if (typeof imageUrl === 'string' && hasUsableRemoteCover(imageUrl)) {
@@ -1852,23 +1852,25 @@ export const batchUpdateMetadata = async (filenames: string[], username: string 
                 }
             }
 
-            let tagger: any
             let taggerError: any
-            try {
-                tagger = new (getMusicTagNative().MusicTagger)()
-                tagger.loadPath(filePath)
-                tagger.title = item.name || 'Unknown'
-                tagger.artist = item.singer || 'Unknown'
-                if (item.albumName) tagger.album = item.albumName
-                if (imageBuffer && imageBuffer.length > 0) {
-                    tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, imageBuffer, 'Cover')]
+            await withCachePostProcess(undefined, 'batch metadata update', async () => {
+                let tagger: any
+                try {
+                    tagger = new (getMusicTagNative().MusicTagger)()
+                    tagger.loadPath(filePath)
+                    tagger.title = item.name || 'Unknown'
+                    tagger.artist = item.singer || 'Unknown'
+                    if (item.albumName) tagger.album = item.albumName
+                    if (imageBuffer && imageBuffer.length > 0) {
+                        tagger.pictures = [new (getMusicTagNative().MetaPicture)(imageMime, imageBuffer, 'Cover')]
+                    }
+                    tagger.save()
+                } catch (e) {
+                    taggerError = e
+                } finally {
+                    try { if (tagger) tagger.dispose() } catch (e) { }
                 }
-                tagger.save()
-            } catch (e) {
-                taggerError = e
-            } finally {
-                try { if (tagger) tagger.dispose() } catch (e) { }
-            }
+            })
 
             const stats = fs.statSync(filePath)
             const hasEmbeddedCover = readEmbeddedCoverState(filePath)
@@ -1896,6 +1898,8 @@ export const batchUpdateMetadata = async (filenames: string[], username: string 
         } catch (e) {
             console.error(`[FileCache] Failed to update metadata for ${filename}:`, e)
             failCount++
+        } finally {
+            imageBuffer = undefined
         }
     }
 
@@ -2075,23 +2079,34 @@ export const getCacheCover = async (filename: string, username?: string, request
                     console.error(`[Cache] Error reading cover cache for: ${filename}`, e)
                 }
 
-                let tagger: any
                 try {
-                    tagger = new (getMusicTagNative().MusicTagger)()
-                    tagger.loadPath(filePath)
-                    const pics = tagger.pictures
-                    const pic = Array.isArray(pics) ? pics.find(hasValidPictureData) : null
-                    if (pic) {
-                        const mime = pic.mimeType || 'image/jpeg'
-                        const data = Buffer.from(pic.data)
+                    const picData = await withCachePostProcess(undefined, 'read cover tags', async () => {
+                        let tagger: any
+                        try {
+                            tagger = new (getMusicTagNative().MusicTagger)()
+                            tagger.loadPath(filePath)
+                            const pics = tagger.pictures
+                            const pic = Array.isArray(pics) ? pics.find(hasValidPictureData) : null
+                            if (pic) {
+                                return {
+                                    mime: pic.mimeType || 'image/jpeg',
+                                    data: Buffer.from(pic.data),
+                                }
+                            }
+                            return null
+                        } finally {
+                            try { if (tagger) tagger.dispose() } catch { }
+                        }
+                    })
+                    if (picData) {
+                        const mime = picData.mime
+                        const data = picData.data
                         writeCoverCache(filename, normalizedUsername, data, mime, stats)
                         setIndexCoverState(filename, normalizedUsername, 'embedded', stats, loc, folder)
                         return { data, mime: detectImageMime(data) || mime }
                     }
                 } catch (e) {
                     // console.error(`[Cache] Error reading tags for cover: ${filename}`, e)
-                } finally {
-                    try { if (tagger) tagger.dispose() } catch (e) { }
                 }
 
                 const item = roots

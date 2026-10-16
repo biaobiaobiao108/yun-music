@@ -134,7 +134,9 @@ export const tryAcquireMediaStream = (): Release | null => {
     if (released) return
     released = true
     release()
-    for (const listener of mediaAvailabilityListeners) listener()
+    for (const listener of mediaAvailabilityListeners) {
+      try { listener() } catch (err) { console.error('[ResourceBudget] listener error:', err) }
+    }
   }
 }
 

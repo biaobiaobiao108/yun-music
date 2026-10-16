@@ -11,15 +11,19 @@ import { buildLyrics } from '@/utils/lrcTool'
 import { startupLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { memoryMaintenance } from '../memoryMaintenance'
+import { isResourceBudgetBusy } from '../resourceBudget'
 
 /**
  * 初始化服务端所有音乐子系统
  * 包括：SDK/自定义源、文件缓存设置、歌词嵌入钩子、持久化下载队列与重制队列
  */
 export const initMusicServices = async (): Promise<void> => {
-  // Streaming connections may last for an entire track; only native work
-  // postpones collection so continuous playback cannot starve maintenance.
-  memoryMaintenance.setBusyCheck(() => fileCache.getCachePostProcessStats().active > 0)
+  // 综合评估系统繁忙状态（包含原生后处理、媒体缓冲流与活跃下载任务），避免在重型 I/O 高峰误触发 GC
+  memoryMaintenance.setBusyCheck(() => (
+    fileCache.getCachePostProcessStats().active > 0 ||
+    isResourceBudgetBusy() ||
+    serverDownloadQueue.getActiveTaskCount() > 0
+  ))
   // 1. 初始化文件缓存设置
   if (global.lx?.config) {
     if (global.lx.config.serverCacheLocation) {

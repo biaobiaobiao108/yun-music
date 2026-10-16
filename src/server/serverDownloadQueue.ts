@@ -1055,3 +1055,5 @@ export const removeUser = async (username: string) => {
   saveNow()
   await saveChain
 }
+
+export const getActiveTaskCount = (): number => activeTasks.size

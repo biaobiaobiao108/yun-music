@@ -1315,12 +1315,18 @@ export const createCacheRouter = (): Router => {
             continue
           }
 
-          let checkTagger: any
           let existingLyrics = ''
           try {
-            checkTagger = new (getMusicTagNative().MusicTagger)()
-            checkTagger.loadPath(filePath)
-            existingLyrics = checkTagger.lyrics || ''
+            existingLyrics = await fileCache.withCachePostProcess(undefined, 'check existing lyrics', async () => {
+              let checkTagger: any
+              try {
+                checkTagger = new (getMusicTagNative().MusicTagger)()
+                checkTagger.loadPath(filePath)
+                return checkTagger.lyrics || ''
+              } finally {
+                try { if (checkTagger) checkTagger.dispose() } catch { }
+              }
+            })
           } catch (checkError: any) {
             const unsupportedStatus = fileCache.getAudioMetadataUnsupportedStatus(filePath)
             fileCache.setIndexEmbedLyric(filename, username, false, {
@@ -1336,8 +1342,6 @@ export const createCacheRouter = (): Router => {
             })
             failCount++
             continue
-          } finally {
-            try { if (checkTagger) checkTagger.dispose() } catch { }
           }
 
           if (existingLyrics && existingLyrics.trim().length > 10) {
@@ -1374,7 +1378,9 @@ export const createCacheRouter = (): Router => {
             continue
           }
 
-          const embedResult = fileCache.embedLyricsIntoFile(filePath, lyricText)
+          const embedResult = await fileCache.withCachePostProcess(undefined, 'embed lyric file', async () => {
+            return fileCache.embedLyricsIntoFile(filePath, lyricText)
+          })
           fileCache.setIndexEmbedLyric(filename, username, embedResult.hasEmbedLyric, {
             audioContainer: embedResult.audioContainer,
             metadataWritable: embedResult.metadataWritable,
