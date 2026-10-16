@@ -34,7 +34,7 @@
     z-index: 1000;
     padding: 0.65rem 0.9rem;
     border-radius: 0.65rem;
-    background: var(--c-600, #059669);
+    background: var(--c-600, #e51e38);
     color: #fff;
     font-weight: 700;
     transform: translateY(-160%);
@@ -46,7 +46,7 @@
 }
 
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 1px solid color-mix(in srgb, var(--c-500, #10b981) 72%, white);
+    outline: 1px solid color-mix(in srgb, var(--c-500, #fa243c) 72%, white);
     outline-offset: -1px;
 }
 
@@ -84,8 +84,8 @@ body.overlay-open > *:not(.skip-link) {
 
 .player-menu-action:hover,
 .player-menu-action:focus-visible {
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, transparent);
-    color: var(--c-600, #059669);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, transparent);
+    color: var(--c-600, #e51e38);
 }
 
 .player-menu-action i {
@@ -133,7 +133,7 @@ body.overlay-open > *:not(.skip-link) {
 :where(#auth-form input, #user-login-form input) {
     color: var(--text-main, #0f172a) !important;
     -webkit-text-fill-color: var(--text-main, #0f172a) !important;
-    caret-color: var(--c-600, #059669) !important;
+    caret-color: var(--c-600, #e51e38) !important;
     opacity: 1 !important;
 }
 
@@ -184,7 +184,7 @@ body.overlay-open > *:not(.skip-link) {
 }
 
 :where([role="button"][tabindex="0"], .artist-album-card):focus-visible {
-    outline: 1px solid color-mix(in srgb, var(--c-500, #10b981) 72%, white);
+    outline: 1px solid color-mix(in srgb, var(--c-500, #fa243c) 72%, white);
     outline-offset: -1px;
 }
 
@@ -500,7 +500,7 @@ html, body {
         min-inline-size: 2.75rem !important;
         min-block-size: 2.75rem !important;
         font-size: 1.05rem !important;
-        box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4) !important;
+        box-shadow: 0 2px 10px color-mix(in srgb, var(--app-accent, #fa243c) 40%, transparent) !important;
     }
 
     #player-footer .player-footer-control-row #play-mode-menu,
@@ -1415,8 +1415,8 @@ body {
     background:
         linear-gradient(
             135deg,
-            color-mix(in srgb, var(--bg-main) 92%, var(--c-50, #ecfdf5)),
-            color-mix(in srgb, var(--bg-main) 84%, var(--c-50, #ecfdf5))
+            color-mix(in srgb, var(--bg-main) 92%, var(--c-50, #fff1f2)),
+            color-mix(in srgb, var(--bg-main) 84%, var(--c-50, #fff1f2))
         ) !important;
 }
 
@@ -1475,14 +1475,14 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 #main-sidebar .netease-nav-item.active-tab {
-    background: linear-gradient(135deg, var(--c-600, #059669), var(--c-700, #047857));
+    background: linear-gradient(135deg, var(--c-600, #e51e38), var(--c-700, #c81932));
     color: #fff !important;
-    box-shadow: 0 8px 18px color-mix(in srgb, var(--c-600, #059669) 24%, transparent) !important;
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--c-600, #e51e38) 24%, transparent) !important;
 }
 
 :root[data-appearance="dark"] #main-sidebar .netease-nav-item.active-tab,
 .dark #main-sidebar .netease-nav-item.active-tab {
-    background: linear-gradient(135deg, var(--c-600, #059669), var(--c-700, #047857));
+    background: linear-gradient(135deg, var(--c-600, #e51e38), var(--c-700, #c81932));
     color: #fff !important;
 }
 
@@ -1663,7 +1663,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 #comment-modal-content .comment-modal-header {
     flex: 0 0 auto;
-    background: color-mix(in srgb, var(--c-500, #10b981) 7%, var(--bg-panel));
+    background: color-mix(in srgb, var(--c-500, #fa243c) 7%, var(--bg-panel));
 }
 
 #comment-modal-content .comment-modal-header > div:first-child {
@@ -1691,7 +1691,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 #comment-modal-content .comment-modal-tabs button > div {
     bottom: 0.2rem;
     block-size: 0.2rem;
-    box-shadow: 0 0 12px color-mix(in srgb, var(--c-500, #10b981) 42%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--c-500, #fa243c) 42%, transparent);
 }
 
 #comment-list-container {
@@ -1716,7 +1716,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 #comment-modal-content .comment-modal-footer {
     flex: 0 0 auto;
-    background: color-mix(in srgb, var(--c-500, #10b981) 5%, var(--bg-panel));
+    background: color-mix(in srgb, var(--c-500, #fa243c) 5%, var(--bg-panel));
 }
 
 #comment-modal-content .comment-modal-footer #comment-source-info {
@@ -1779,7 +1779,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(16, 185, 129, 0.6);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 /* Glassmorphism utilities */
@@ -2114,9 +2114,9 @@ body > .flex.flex-1.overflow-hidden.relative {
 .list-header-action:hover:not(:disabled),
 .list-header-action:focus-visible,
 .list-header-action[aria-pressed="true"] {
-    border-color: color-mix(in srgb, var(--c-500, #10b981) 30%, transparent);
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, transparent);
-    color: var(--c-600, #059669);
+    border-color: color-mix(in srgb, var(--c-500, #fa243c) 30%, transparent);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, transparent);
+    color: var(--c-600, #e51e38);
 }
 
 .list-header-action:active:not(:disabled) {
@@ -2124,7 +2124,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 .list-header-action:focus-visible {
-    outline: 1px solid var(--c-500, #10b981);
+    outline: 1px solid var(--c-500, #fa243c);
     outline-offset: -1px;
 }
 
@@ -2169,8 +2169,8 @@ body > .flex.flex-1.overflow-hidden.relative {
 }
 
 .player-pagination-button:hover:not(:disabled) {
-    color: var(--c-600, #059669);
-    border-color: color-mix(in srgb, var(--c-500, #10b981) 45%, var(--border-main));
+    color: var(--c-600, #e51e38);
+    border-color: color-mix(in srgb, var(--c-500, #fa243c) 45%, var(--border-main));
     background: var(--bg-track);
 }
 
@@ -2233,7 +2233,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 .player-pagination-jump button {
     min-block-size: 1.5rem;
     padding-inline: 0.25rem;
-    color: var(--c-600, #059669);
+    color: var(--c-600, #e51e38);
     font-size: 0.625rem;
     font-weight: 700;
     white-space: nowrap;
@@ -2242,7 +2242,7 @@ body > .flex.flex-1.overflow-hidden.relative {
 .player-pagination-button:focus-visible,
 .player-pagination-jump input:focus-visible,
 .player-pagination-jump button:focus-visible {
-    outline: 1px solid var(--c-500, #10b981);
+    outline: 1px solid var(--c-500, #fa243c);
     outline-offset: -1px;
 }
 
@@ -2341,6 +2341,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding: 0.75rem;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid var(--c-100);
     border-radius: 0.75rem;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -2756,9 +2757,9 @@ aside {
 }
 
 .timer-preset-btn:hover {
-    background-color: #ecfdf5;
-    color: #059669;
-    border-color: #d1fae5;
+    background-color: var(--app-accent-soft, rgba(250, 36, 60, 0.08));
+    color: var(--app-accent, #fa243c);
+    border-color: color-mix(in srgb, var(--app-accent, #fa243c) 30%, transparent);
     transform: translateY(-1px);
 }
 
@@ -2859,7 +2860,7 @@ aside {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(16, 185, 129, 0.6);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 [data-appearance='dark'] .custom-scrollbar::-webkit-scrollbar-thumb {
@@ -2867,7 +2868,7 @@ aside {
 }
 
 [data-appearance='dark'] .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(16, 185, 129, 0.6);
+    background: rgba(255, 255, 255, 0.4);
 }
 
 /* Detail Title multi-line support */
@@ -2941,14 +2942,14 @@ aside {
 .player-history-button:not(:disabled):hover,
 .player-history-button:not(:disabled):focus-visible,
 .player-history-button:not(:disabled)[data-pressing="true"] {
-    background: color-mix(in srgb, var(--c-500, #10b981) 14%, transparent);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 14%, transparent);
     color: var(--c-600, var(--c-500));
 }
 
 .player-history-button:not(:disabled):active,
 .player-history-button:not(:disabled)[data-pressing="true"] {
     transform: translateY(1px) scale(0.92);
-    background: color-mix(in srgb, var(--c-500, #10b981) 22%, transparent);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 22%, transparent);
     box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.12);
 }
 
@@ -3192,7 +3193,14 @@ aside {
 
 .lm-select:focus {
     border-color: var(--c-500);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-500) 20%, transparent);
+    outline: 0;
+    color: var(--text-main);
+}
+
+.lm-select:focus-visible {
+    border-color: var(--c-500);
+    outline: 1px solid var(--c-500);
+    outline-offset: -1px;
     color: var(--text-main);
 }
 
@@ -3552,8 +3560,8 @@ aside {
 
 .lyric-offset-btn:hover {
     opacity: 1;
-    color: var(--c-500, #10b981);
-    background: color-mix(in srgb, var(--c-500, #10b981) 18%, transparent);
+    color: var(--c-500, #fa243c);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 18%, transparent);
     transform: scale(1.1);
 }
 
@@ -3579,12 +3587,12 @@ aside {
 
 .lyric-offset-val:hover {
     opacity: 1;
-    color: var(--c-500, #10b981);
-    background: color-mix(in srgb, var(--c-500, #10b981) 16%, transparent);
+    color: var(--c-500, #fa243c);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 16%, transparent);
 }
 
 .lyric-offset-val.is-offset {
-    color: var(--c-500, #10b981);
+    color: var(--c-500, #fa243c);
     opacity: 0.95;
     font-weight: 700;
 }
@@ -4188,7 +4196,7 @@ aside {
 .favorite-sidebar-item:focus-visible,
 .playlist-card:focus-visible,
 .player-track-grid:focus-visible {
-    outline: 1px solid var(--c-500, #10b981);
+    outline: 1px solid var(--c-500, #fa243c);
     outline-offset: -1px;
 }
 
@@ -4276,8 +4284,8 @@ aside {
 .favorite-sidebar-more-btn:hover,
 .favorite-sidebar-more-btn:focus-visible,
 .favorite-sidebar-more-btn[aria-expanded="true"] {
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, transparent);
-    color: var(--c-600, #059669);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, transparent);
+    color: var(--c-600, #e51e38);
 }
 
 .favorite-sidebar-menu {
@@ -4298,6 +4306,7 @@ aside {
     background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
     box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     opacity: 0;
     transform: translateY(-4px) scale(0.98);
     pointer-events: none;
@@ -4357,8 +4366,8 @@ aside {
 
 .favorite-sidebar-menu-item:hover,
 .favorite-sidebar-menu-item:focus-visible {
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, transparent);
-    color: var(--c-600, #059669);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, transparent);
+    color: var(--c-600, #e51e38);
 }
 
 .favorite-sidebar-menu-item.is-danger:hover,
@@ -4460,8 +4469,8 @@ aside {
 
 .player-pagination-button.is-page-changing {
     transform: scale(0.94);
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, var(--bg-main));
-    color: var(--c-600, #059669);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, var(--bg-main));
+    color: var(--c-600, #e51e38);
 }
 
 @keyframes leaderboard-page-next {
@@ -4490,7 +4499,7 @@ dialog.runtime-input-dialog #modal-input {
     min-block-size: 3rem;
     color: var(--text-main, #0f172a) !important;
     -webkit-text-fill-color: var(--text-main, #0f172a) !important;
-    caret-color: var(--c-600, #059669) !important;
+    caret-color: var(--c-600, #e51e38) !important;
     opacity: 1 !important;
 }
 
@@ -4503,14 +4512,14 @@ dialog.runtime-input-dialog #modal-input {
 }
 
 .favorite-sidebar-item.active-sub-item {
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, var(--bg-panel));
-    color: var(--c-600, #059669) !important;
+    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, var(--bg-panel));
+    color: var(--c-600, #e51e38) !important;
     font-weight: 700;
 }
 
 :root[data-appearance="dark"] .favorite-sidebar-item.active-sub-item,
 .dark .favorite-sidebar-item.active-sub-item {
-    background: color-mix(in srgb, var(--c-500, #10b981) 22%, transparent);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 22%, transparent);
     color: var(--c-400, #34d399) !important;
 }
 
@@ -4919,7 +4928,7 @@ dialog.runtime-input-dialog #modal-input {
 .lyric-detail-action:hover,
 .lyric-detail-action:focus-visible {
     color: var(--c-600, var(--c-500));
-    background: color-mix(in srgb, var(--c-500, #10b981) 12%, transparent);
+    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, transparent);
 }
 
 .lyric-detail-action:active {
@@ -5317,7 +5326,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding: 0.5rem 0.9rem;
     border: 1px solid color-mix(in srgb, var(--border-main) 82%, transparent);
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--bg-panel) 92%, var(--c-500, #10b981) 8%);
+    background: color-mix(in srgb, var(--bg-panel) 92%, var(--c-500, #fa243c) 8%);
     color: var(--text-muted);
     font-size: 0.75rem;
     font-weight: 600;
@@ -5326,9 +5335,9 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 .songlist-load-more-button:hover:not(:disabled),
 .songlist-load-more-button:focus-visible {
-    border-color: color-mix(in srgb, var(--c-500, #10b981) 45%, var(--border-main));
-    background: color-mix(in srgb, var(--c-500, #10b981) 10%, var(--bg-panel));
-    color: var(--c-600, #059669);
+    border-color: color-mix(in srgb, var(--c-500, #fa243c) 45%, var(--border-main));
+    background: color-mix(in srgb, var(--c-500, #fa243c) 10%, var(--bg-panel));
+    color: var(--c-600, #e51e38);
 }
 
 .songlist-load-more-button:active:not(:disabled) {
@@ -5379,8 +5388,8 @@ body > .flex.flex-1.overflow-hidden.relative {
 /* A selected nav item uses an inset ring instead of a rectangular external
    shadow, keeping the rounded highlight visually contained in the sidebar. */
 #main-sidebar .netease-nav-item.active-tab {
-    background: var(--c-50, #ecfdf5) !important;
-    color: var(--c-600, #059669) !important;
+    background: var(--c-50, #fff1f2) !important;
+    color: var(--c-600, #e51e38) !important;
     box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 18%, transparent) !important;
     border: 1px solid transparent;
 }
@@ -5595,7 +5604,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding: 0.5rem 0.95rem;
     border: 1px solid color-mix(in srgb, var(--border-main) 84%, transparent);
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--bg-panel) 90%, var(--c-500, #10b981) 10%);
+    background: color-mix(in srgb, var(--bg-panel) 90%, var(--c-500, #fa243c) 10%);
     color: var(--text-muted);
     font-size: 0.75rem;
     font-weight: 600;
@@ -5604,9 +5613,9 @@ body > .flex.flex-1.overflow-hidden.relative {
 
 .player-load-more-button:hover:not(:disabled),
 .player-load-more-button:focus-visible {
-    border-color: color-mix(in srgb, var(--c-500, #10b981) 45%, var(--border-main));
-    background: color-mix(in srgb, var(--c-500, #10b981) 10%, var(--bg-panel));
-    color: var(--c-600, #059669);
+    border-color: color-mix(in srgb, var(--c-500, #fa243c) 45%, var(--border-main));
+    background: color-mix(in srgb, var(--c-500, #fa243c) 10%, var(--bg-panel));
+    color: var(--c-600, #e51e38);
 }
 
 .player-load-more-button:active:not(:disabled) {
@@ -6240,7 +6249,7 @@ textarea:focus-visible {
 
 .react-global-search:focus-within {
     border-color: color-mix(in srgb, var(--app-accent) 60%, var(--app-border));
-    box-shadow: 0 0 0 .2rem var(--app-accent-soft);
+    outline: 0;
 }
 
 .react-global-search input {
@@ -6418,9 +6427,6 @@ textarea:focus-visible {
         linear-gradient(135deg, var(--react-home-shortcut-color-a), var(--react-home-shortcut-color-b) 48%, var(--react-home-shortcut-color-c));
     opacity: var(--react-home-shortcut-drift-opacity-from);
     transform: var(--react-home-shortcut-drift-from);
-    will-change: transform, opacity;
-    animation: react-home-shortcut-drift var(--react-home-shortcut-duration) ease-in-out infinite alternate;
-    animation-delay: var(--react-home-shortcut-delay);
 }
 
 .react-home-shortcut-surface::after {
@@ -6726,8 +6732,6 @@ textarea:focus-visible {
         radial-gradient(circle at 82% 68%, color-mix(in srgb, var(--app-accent) 18%, transparent) 0 8%, transparent 30%);
     opacity: .48;
     transform: translate3d(-2%, -1%, 0) scale(1);
-    animation: react-home-playlist-drift 20s ease-in-out infinite alternate;
-    animation-delay: var(--react-home-playlist-delay, 0s);
 }
 
 @keyframes react-home-playlist-drift {
@@ -13010,8 +13014,18 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 }
 
 @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+    .marquee, .loading-bounce {
+        animation: none !important;
+        transform: none !important;
+    }
     #main-sidebar.react-sidebar .react-sidebar-scroll-region::before,
     #main-sidebar.react-sidebar .react-sidebar-scroll-region::after {
-        transition: none;
+        transition: none !important;
     }
 }
