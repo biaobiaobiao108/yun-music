@@ -41,6 +41,13 @@ export const verifyConfiguredPassword = (password: unknown, passwordHash: unknow
   return safeStringEqual(password, legacyPassword)
 }
 
+/**
+ * A valid scrypt hash of a value nobody can supply. Verifying against it costs
+ * exactly as much as a real check, which keeps "user exists" out of the
+ * response-time side channel (the login limiter made that hard but not closed).
+ */
+export const DUMMY_PASSWORD_HASH = 'scrypt$28d36ecc35817cdf28df0879388882cf$564d93bc417ec2e8d48df0480871eb3133bb9f1d9b676838884c11475ae68e6c1dbc83b67f5ed3a27bb80e75102e8c98fc660b2058dd9b891ca15e3f16c1469f'
+
 export const hasConfiguredPassword = (passwordHash: unknown, legacyPassword: unknown): boolean => (
   isPasswordHash(passwordHash) || (typeof legacyPassword === 'string' && legacyPassword.trim() !== '')
 )

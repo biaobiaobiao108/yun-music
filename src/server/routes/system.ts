@@ -8,6 +8,7 @@ import { revokeAllUserSessions } from './auth'
 import { serverStatus } from '../state'
 import { startupLog } from '@/utils/log4js'
 import { resolveInside } from '@/utils/pathSecurity'
+import { parseConfigFile } from '@/utils/configLoader'
 import { createLocalBackup, LocalBackupTooLargeError, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '../localBackupService'
 import { refreshUsersFromDatabase } from '@/user/data'
 import { resetUserSpaces } from '@/user'
@@ -16,6 +17,7 @@ import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 import { temporaryFileStream } from '../temporaryFileStream'
 import { getProcessMemorySnapshot } from '../memoryMaintenance'
+import { isPrivateAddress } from '../networkSecurity'
 import { getResourceBudgetStats } from '../resourceBudget'
 import { getSourceMatchCacheStats } from '../services/musicResolver'
 import { getSingerCacheStats } from '../utils/singer'
@@ -155,6 +157,13 @@ const normalizeProxyAddress = (value: unknown): string => {
   if (!url.hostname || url.pathname !== '/' || url.search || url.hash) {
     throw new Error('代理地址格式无效')
   }
+  // A proxy address is an outbound connection target. Loopback/link-local
+  // literals are how an admin session gets turned into an internal port scanner
+  // (`test-proxy` reports the status code and latency back).
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  if (isPrivateAddress(host) && process.env.ALLOW_PRIVATE_PROXY !== '1') {
+    throw new Error('代理地址不能是内网或回环地址（如需内网代理请设置 ALLOW_PRIVATE_PROXY=1）')
+  }
   return address
 }
 
@@ -259,8 +268,10 @@ export const reloadServerData = async (): Promise<void> => {
   if (fs.existsSync(configPath)) {
     const previousConfig = { ...global.lx.config }
     try {
-      delete require.cache[require.resolve(configPath)]
-      const rootConfig = require(configPath)
+      // Parse instead of require(): requiring executes whatever is in the data
+      // directory as JS in this process, and it also registers the file with
+      // bun --watch (a config save would restart the server mid-response).
+      const rootConfig = parseConfigFile(configPath)
       if (!rootConfig || typeof rootConfig !== 'object' || Array.isArray(rootConfig)) throw new Error('配置文件格式无效')
       applyValidatedConfig(rootConfig, { includeSecrets: true })
       startupLog.info('Config.js re-loaded and merged.')
@@ -687,67 +698,100 @@ export const createSystemRouter = (): Router => {
   // 用户数据和 SQLite；恢复后撤销所有会话，避免备份中的旧凭证重新生效。
   router.post('/api/backup/upload', async (ctx) => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const contentType = (ctx.headers.get('content-type') || '').toLowerCase()
+    // The admin UI streams the zip as a raw body; multipart stays supported for
+    // older clients. Only the raw path avoids holding the whole upload in memory.
+    const isMultipart = contentType.startsWith('multipart/form-data')
+    const maxUploadBytes = isMultipart ? MAX_LOCAL_BACKUP_BYTES + 1024 * 1024 : MAX_LOCAL_BACKUP_BYTES
     const declaredLength = Number(ctx.headers.get('content-length') || 0)
-    const maxMultipartBytes = MAX_LOCAL_BACKUP_BYTES + 1024 * 1024
-    if (Number.isFinite(declaredLength) && declaredLength > maxMultipartBytes) {
+    if (Number.isFinite(declaredLength) && declaredLength > maxUploadBytes) {
       return ctx.fail(413, '备份文件大小不能超过 100 MB')
     }
 
+    const previousConfig = { ...global.lx.config }
+    const onRestored = async (restoredConfig: Record<string, unknown>) => {
+      try {
+        applyValidatedConfig(restoredConfig)
+        resetUserSpaces()
+        refreshUsersFromDatabase()
+        if (global.lx.config.serverCacheLocation) {
+          fileCache.setCacheLocation(global.lx.config.serverCacheLocation)
+        }
+        global.lx.config['cache.namingPattern'] = fileCache.setNamingPattern(global.lx.config['cache.namingPattern'])
+        if (global.lx.saveConfig) await global.lx.saveConfig()
+        revokeAllUserSessions()
+        revokeAllPlayerSessions()
+        revokeAllAdminSessions()
+      } catch (error) {
+        for (const key of Object.keys(global.lx.config)) {
+          if (!(key in previousConfig)) delete (global.lx.config as any)[key]
+        }
+        Object.assign(global.lx.config, previousConfig)
+        // If persistence failed after partially writing config.js, restore
+        // the in-memory configuration there as well. The backup service
+        // rolls the database and user directory back around this callback.
+        if (global.lx.saveConfig) {
+          try { await global.lx.saveConfig() } catch (rollbackError) {
+            console.error('[Backup] 配置回滚写盘失败:', rollbackError)
+          }
+        }
+        // The backup service rolls the database back only after this callback
+        // throws. Keep the users restored from previousConfig; refreshing now
+        // would overwrite them with the still-installed backup accounts.
+        try {
+          if (global.lx.config.serverCacheLocation) fileCache.setCacheLocation(global.lx.config.serverCacheLocation)
+          global.lx.config['cache.namingPattern'] = fileCache.setNamingPattern(global.lx.config['cache.namingPattern'])
+        } catch (cacheError) {
+          console.error('[Backup] 回滚后恢复缓存目录失败:', cacheError)
+        }
+        throw error
+      }
+    }
+
+    let tempUploadPath = ''
     try {
-      // Include a small multipart envelope allowance while keeping chunked
-      // uploads bounded before the platform parses FormData.
-      const form = await ctx.formData(maxMultipartBytes)
-      const upload = form.get('backup')
-      if (!(upload instanceof Blob)) return ctx.fail(400, '请选择 ZIP 备份文件')
-      if (upload.size <= 0 || upload.size > MAX_LOCAL_BACKUP_BYTES) {
-        return ctx.fail(413, '备份文件大小不能超过 100 MB')
+      let source: Uint8Array | Blob | { filePath: string }
+      if (isMultipart) {
+        // Include a small multipart envelope allowance while keeping chunked
+        // uploads bounded before the platform parses FormData.
+        const form = await ctx.formData(maxUploadBytes)
+        const upload = form.get('backup')
+        if (!(upload instanceof Blob)) return ctx.fail(400, '请选择 ZIP 备份文件')
+        if (upload.size <= 0 || upload.size > MAX_LOCAL_BACKUP_BYTES) {
+          return ctx.fail(413, '备份文件大小不能超过 100 MB')
+        }
+        source = upload
+      } else {
+        tempUploadPath = path.join(
+          global.lx.dataPath,
+          `.lx-backup-upload-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.zip`,
+        )
+        try {
+          const written = await ctx.writeBodyToFile(tempUploadPath, MAX_LOCAL_BACKUP_BYTES)
+          if (written === 0) return ctx.fail(400, '请选择 ZIP 备份文件')
+        } catch (writeError) {
+          fs.rmSync(tempUploadPath, { force: true })
+          if (writeError instanceof Error && writeError.message === 'Request body is too large') {
+            return ctx.fail(413, '备份文件大小不能超过 100 MB')
+          }
+          throw writeError
+        }
+        source = { filePath: tempUploadPath }
       }
 
-      const previousConfig = { ...global.lx.config }
-      await restoreLocalBackup(new Uint8Array(await upload.arrayBuffer()), { onRestored: async (restoredConfig) => {
-        try {
-          applyValidatedConfig(restoredConfig)
-          resetUserSpaces()
-          refreshUsersFromDatabase()
-          if (global.lx.config.serverCacheLocation) {
-            fileCache.setCacheLocation(global.lx.config.serverCacheLocation)
-          }
-          global.lx.config['cache.namingPattern'] = fileCache.setNamingPattern(global.lx.config['cache.namingPattern'])
-          if (global.lx.saveConfig) await global.lx.saveConfig()
-          revokeAllUserSessions()
-          revokeAllPlayerSessions()
-          revokeAllAdminSessions()
-        } catch (error) {
-          for (const key of Object.keys(global.lx.config)) {
-            if (!(key in previousConfig)) delete (global.lx.config as any)[key]
-          }
-          Object.assign(global.lx.config, previousConfig)
-          // If persistence failed after partially writing config.js, restore
-          // the in-memory configuration there as well. The backup service
-          // rolls the database and user directory back around this callback.
-          if (global.lx.saveConfig) {
-            try { await global.lx.saveConfig() } catch (rollbackError) {
-              console.error('[Backup] 配置回滚写盘失败:', rollbackError)
-            }
-          }
-          // The backup service rolls the database back only after this callback
-          // throws. Keep the users restored from previousConfig; refreshing now
-          // would overwrite them with the still-installed backup accounts.
-          try {
-            if (global.lx.config.serverCacheLocation) fileCache.setCacheLocation(global.lx.config.serverCacheLocation)
-            global.lx.config['cache.namingPattern'] = fileCache.setNamingPattern(global.lx.config['cache.namingPattern'])
-          } catch (cacheError) {
-            console.error('[Backup] 回滚后恢复缓存目录失败:', cacheError)
-          }
-          throw error
-        }
-      }})
+      try {
+        await restoreLocalBackup(source, { onRestored })
+      } finally {
+        if (tempUploadPath) fs.rmSync(tempUploadPath, { force: true })
+      }
 
       // 缓存媒体不在备份内，重新扫描宿主机现有目录，避免恢复后索引长期为空。
       void fileCache.syncCacheIndex('_open')
       for (const user of global.lx.config.users) void fileCache.syncCacheIndex(user.name)
       return ctx.json({ success: true, message: '备份还原成功，会话已重置', users: global.lx.config.users.length })
     } catch (err) {
+      if (tempUploadPath) fs.rmSync(tempUploadPath, { force: true })
+      if (err instanceof LocalBackupTooLargeError) return ctx.fail(413, err.message)
       return ctx.fail(400, toUserMessage(err, '备份文件无效或无法还原'))
     }
   })

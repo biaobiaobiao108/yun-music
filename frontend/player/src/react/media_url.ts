@@ -93,6 +93,7 @@ export function buildPlaybackUrl(
   song: Song,
   settings: PlaybackSettings = {},
   origin = typeof window === 'undefined' ? '' : window.location.origin,
+  downloadToken?: string,
 ): string {
   const url = String(rawUrl ?? '').trim()
   if (!url) throw new Error('音源未返回有效播放链接')
@@ -111,5 +112,8 @@ export function buildPlaybackUrl(
 
   const filename = `${String(song.singer || 'unknown')} - ${String(song.name || 'download')}.mp3`
   const params = new URLSearchParams({ url, filename, inline: '1' })
+  // The relay only accepts URLs signed by /api/music/url; without it the
+  // request is rejected as an anonymous open-proxy attempt.
+  if (downloadToken) params.set('token', downloadToken)
   return `/api/music/download?${params.toString()}`
 }

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { Router, type HttpContext } from '../core'
 import {
+  DUMMY_PASSWORD_HASH,
   verifyAdminAuth,
   createAdminSession,
   removeAdminSession,
@@ -188,11 +189,17 @@ export const createAuthRouter = (): Router => {
       if (typeof username !== 'string' || username.length > 128 || typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '用户名或密码格式错误')
       }
-      const user = configuredUsers().find(item => {
-        if (item.name !== username) return false
-        const row = getDb().query<{ password_hash: string }, [string]>('SELECT password_hash FROM users WHERE name = ?').get(item.name)
-        return verifyUserPassword(row?.password_hash || item.passwordHash, password)
-      })
+      // Hash first, look up second: an unknown username must cost the same as a
+      // wrong password, otherwise the response time enumerates accounts.
+      const storedRow = getDb().query<{ password_hash: string }, [string]>(
+        'SELECT password_hash FROM users WHERE name = ?'
+      ).get(username)
+      const matchedUser = configuredUsers().find(item => item.name === username)
+      const passwordOk = verifyUserPassword(
+        storedRow?.password_hash || matchedUser?.passwordHash || DUMMY_PASSWORD_HASH,
+        password,
+      )
+      const user = matchedUser && passwordOk ? matchedUser : undefined
       if (!user) {
         recordLoginFailure(ip, 'user')
         loginLog.warn(`User login failed: ${escapeLogControls(username || '[unknown]')} from ${ctx.remoteAddress}`)

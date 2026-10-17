@@ -415,12 +415,23 @@ export interface LocalBackupRestoreOptions {
   onRestored?: (config: Record<string, unknown>) => void | Promise<void>
 }
 
+/**
+ * Archive source. `filePath` lets a raw upload stream to disk without ever
+ * holding the whole zip in memory (see `HttpContext.writeBodyToFile`); the
+ * in-memory forms stay for callers that already have the bytes.
+ */
+export type LocalBackupSource = Uint8Array | Blob | { filePath: string }
+
 export const restoreLocalBackup = async (
-  archiveData: Uint8Array,
+  source: LocalBackupSource,
   options: LocalBackupRestoreOptions = {},
 ): Promise<Record<string, unknown>> => {
-  if (archiveData.byteLength === 0 || archiveData.byteLength > MAX_LOCAL_BACKUP_BYTES) {
-    throw new Error('备份文件大小超出限制')
+  const isPathSource = typeof source === 'object' && source !== null && 'filePath' in source
+  if (!isPathSource) {
+    const size = source instanceof Blob ? source.size : source.byteLength
+    if (size === 0 || size > MAX_LOCAL_BACKUP_BYTES) {
+      throw new Error('备份文件大小超出限制')
+    }
   }
 
   if (backupInProgress) throw new Error('备份任务正在进行中，请稍后重试')
@@ -438,7 +449,19 @@ export const restoreLocalBackup = async (
     const extractDir = path.join(tempDir, 'extracted')
     previousDbPath = path.join(tempDir, 'previous.db')
     previousUsersPath = path.join(tempDir, 'previous-users')
-    fs.writeFileSync(archivePath, archiveData, { mode: 0o600 })
+    if (isPathSource) {
+      const stat = fs.statSync(source.filePath)
+      if (stat.size === 0 || stat.size > MAX_LOCAL_BACKUP_BYTES) throw new Error('备份文件大小超出限制')
+      try {
+        // Same filesystem (both under dataPath): move instead of copying.
+        fs.renameSync(source.filePath, archivePath)
+      } catch {
+        fs.copyFileSync(source.filePath, archivePath)
+        fs.rmSync(source.filePath, { force: true })
+      }
+    } else {
+      await Bun.write(archivePath, source)
+    }
     const archiveTool = detectArchiveTool()
     const entriesListing = archiveTool === 'unzip'
       ? await runArchiveCommand(['unzip', '-Z1', archivePath])

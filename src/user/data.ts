@@ -54,7 +54,7 @@ export const verifyUserPassword = verifyPasswordHash
 /** 将运行时配置中的 Web 用户同步到 SQLite；只写入密码哈希。 */
 export const syncUsersToDatabase = (
   users: LX.Config['users'],
-  options: { removeMissing?: boolean } = {},
+  options: { removeMissing?: boolean; purgeMissingData?: readonly string[] } = {},
 ): void => {
   if (!Array.isArray(users)) throw new Error('用户配置格式无效')
   const db = getDb()
@@ -69,7 +69,7 @@ export const syncUsersToDatabase = (
   const preparedUsers = users.map(user => {
     assertPrivateUserNameNotReserved(user.name)
     assertSafePathSegment(user.name, 'user name')
-    const maxSnapshotNum = user.maxSnapshotNum ?? 10
+    const maxSnapshotNum = user.maxSnapshotNum ?? global.lx.config.maxSnapshotNum ?? 10
     const addMusicLocationType = user['list.addMusicLocationType'] ?? 'bottom'
     if (!Number.isInteger(maxSnapshotNum) || maxSnapshotNum < 1 || maxSnapshotNum > 10000) {
       throw new Error(`用户 ${user.name} 的快照数量配置无效`)
@@ -84,15 +84,25 @@ export const syncUsersToDatabase = (
     return { user, passwordHash, maxSnapshotNum, addMusicLocationType }
   })
   const currentNames = new Set(preparedUsers.map(({ user }) => user.name))
+  // Names whose structured data must be destroyed together with the account.
+  // Everything else (e.g. an entry removed by hand from config.js) keeps its
+  // playlists and settings: the users row is dropped, but snapshots,
+  // snapshot_meta and user_settings stay so that recreating a user with the
+  // same name restores them. Deleting them silently was the P0 in CODE_REVIEW.
+  const purgeNames = new Set(options.purgeMissingData ?? [])
   db.transaction(() => {
     if (options.removeMissing) {
       for (const row of existingRows) {
         if (row.name === '_open' || currentNames.has(row.name)) continue
-        db.run('DELETE FROM snapshots WHERE user_name = ?', [row.name])
-        db.run('DELETE FROM snapshot_meta WHERE user_name = ?', [row.name])
-        db.run('DELETE FROM user_settings WHERE user_name = ?', [row.name])
+        if (purgeNames.has(row.name)) {
+          purgeUserRows(db, row.name)
+          continue
+        }
+        // Sessions and the derived cache index never outlive the account.
         db.run('DELETE FROM user_sessions WHERE user_name = ?', [row.name])
         db.run('DELETE FROM cache_index WHERE user_name = ?', [row.name])
+        // The users row must always go: keeping it would resurrect a deleted
+        // account (and its password) on the next startup.
         db.run('DELETE FROM users WHERE name = ?', [row.name])
       }
     }
@@ -158,15 +168,23 @@ const applyUsersFromDatabase = (rows: Array<{
 }>, configuredUsers: LX.Config['users']): void => {
   for (const row of rows) validateStoredUserRow(row)
   const configuredByName = new Map(configuredUsers.map(user => [user.name, user]))
-  global.lx.config.users = rows.map(row => ({
-    ...configuredByName.get(row.name),
-    name: row.name,
-    password: '',
-    passwordHash: row.password_hash,
-    maxSnapshotNum: row.max_snapshot_num,
-    'list.addMusicLocationType': row.add_music_location_type as LX.AddMusicLocationType,
-    dataPath: path.join(global.lx.userPath, getUserDirname(row.name)),
-  }))
+  global.lx.config.users = rows.map(row => {
+    const configured = configuredByName.get(row.name)
+    const user: LX.Config['users'][number] = {
+      ...configured,
+      name: row.name,
+      password: '',
+      passwordHash: row.password_hash,
+      'list.addMusicLocationType': row.add_music_location_type as LX.AddMusicLocationType,
+      dataPath: path.join(global.lx.userPath, getUserDirname(row.name)),
+    }
+    // only keep an explicit per-user override. Copying the stored value into
+    // the runtime object made `POST /api/config` (global maxSnapshotNum) a
+    // no-op for every existing account, because the DB row always won.
+    if (configured?.maxSnapshotNum !== undefined) user.maxSnapshotNum = configured.maxSnapshotNum
+    else delete user.maxSnapshotNum
+    return user
+  })
   for (const user of global.lx.config.users) {
     if (user.dataPath && !fs.existsSync(user.dataPath)) fs.mkdirSync(user.dataPath, { recursive: true })
   }
@@ -187,46 +205,14 @@ export const refreshUsersFromDatabase = (): void => {
   applyUsersFromDatabase(rows, global.lx.config.users)
 }
 
-/** 删除用户的全部结构化业务数据和用户目录。 */
-export const deleteUserDataFromDatabase = (userName: string): void => {
-  const db = getDb()
-  db.transaction(() => {
-    db.run('DELETE FROM snapshots WHERE user_name = ?', [userName])
-    db.run('DELETE FROM snapshot_meta WHERE user_name = ?', [userName])
-    db.run('DELETE FROM user_settings WHERE user_name = ?', [userName])
-    db.run('DELETE FROM user_sessions WHERE user_name = ?', [userName])
-    db.run('DELETE FROM cache_index WHERE user_name = ?', [userName])
-    db.run('DELETE FROM users WHERE name = ?', [userName])
-  })()
-}
-
-export const getUserConfig = (userName: string): Required<LX.User> => {
-  const row = getDb().query<{
-    name: string
-    password_hash: string
-    max_snapshot_num: number
-    add_music_location_type: string
-  }, [string]>('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users WHERE name = ?').get(userName)
-
-  const user = global.lx.config.users?.find(item => item.name === userName)
-  if (row) validateStoredUserRow(row)
-  if (!user && !row && userName === '_open') {
-    return {
-      name: '_open',
-      password: '',
-      passwordHash: '',
-      maxSnapshotNum: global.lx.config.maxSnapshotNum,
-      'list.addMusicLocationType': global.lx.config['list.addMusicLocationType'],
-    }
-  }
-  if (!user && !row) throw new Error(`user not found: ${userName}`)
-  return {
-    name: user?.name ?? row!.name,
-    password: '',
-    passwordHash: user?.passwordHash ?? row?.password_hash ?? '',
-    maxSnapshotNum: row?.max_snapshot_num ?? user?.maxSnapshotNum ?? global.lx.config.maxSnapshotNum,
-    'list.addMusicLocationType': (row?.add_music_location_type ?? user?.['list.addMusicLocationType'] ?? global.lx.config['list.addMusicLocationType']) as LX.AddMusicLocationType,
-  }
+/** 在调用方的事务内删除该用户的全部结构化数据（含 users 行）。 */
+const purgeUserRows = (db: ReturnType<typeof getDb>, userName: string): void => {
+  db.run('DELETE FROM snapshots WHERE user_name = ?', [userName])
+  db.run('DELETE FROM snapshot_meta WHERE user_name = ?', [userName])
+  db.run('DELETE FROM user_settings WHERE user_name = ?', [userName])
+  db.run('DELETE FROM user_sessions WHERE user_name = ?', [userName])
+  db.run('DELETE FROM cache_index WHERE user_name = ?', [userName])
+  db.run('DELETE FROM users WHERE name = ?', [userName])
 }
 
 /**

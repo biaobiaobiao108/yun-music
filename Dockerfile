@@ -54,9 +54,12 @@ COPY --from=builder /app/public ./public
 # 将系统 chromaprint (fpcalc) 直接软链接至播放器二进制目录，免去容器内外部下载
 RUN mkdir -p /server/public/music/bin && ln -sf /usr/bin/fpcalc /server/public/music/bin/fpcalc
 
-# 云鹿音乐按 root 用户运行，以兼容宿主机挂载目录的权限模型。
-RUN mkdir -p /server/data /server/cache /server/music /server/cover_cache
-USER root
+# 自定义音源脚本在进程内执行，一旦逃逸就是"容器内任意命令执行"。
+# 因此这里不再以 root 运行：所有可写目录提前交给非特权用户 bun(uid 1000)。
+# 宿主机挂载目录若属 root，需在宿主机执行 chown -R 1000:1000 后再启动。
+RUN mkdir -p /server/data /server/cache /server/music /server/cover_cache && \
+  chown -R bun:bun /server
+USER bun
 
 # /server/cache 与 /server/music 位于工作目录之下，不在 /server/data 内：
 # 前者是歌曲缓存根目录，后者是仅下载模式下保存的音乐文件目录。

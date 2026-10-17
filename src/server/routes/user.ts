@@ -53,7 +53,7 @@ const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | 
   return tokenUser && tokenUser === reqUsername ? tokenUser : null
 }
 
-const saveUsers = () => {
+const saveUsers = (options: { purgeDataFor?: readonly string[] } = {}) => {
   try {
     const db = getDb()
     const currentNames = new Set(global.lx.config.users.map((u: any) => u.name))
@@ -61,10 +61,18 @@ const saveUsers = () => {
     const removedNames = existingUsers
       .map(user => user.name)
       .filter(name => name !== '_open' && !currentNames.has(name))
-    syncUsersToDatabase(global.lx.config.users, { removeMissing: true })
+    syncUsersToDatabase(global.lx.config.users, { removeMissing: true, purgeMissingData: options.purgeDataFor })
     // Keep the in-memory session cache in sync only after the DB transaction
     // succeeds. A failed user update must not revoke valid sessions.
     for (const username of removedNames) revokeUserAuth(username)
+    const preserved = removedNames.filter(name => !(options.purgeDataFor ?? []).includes(name))
+    if (preserved.length > 0) {
+      console.warn(
+        `[User] 账号已移除但歌单/设置被保留：${preserved.join(', ')}。` +
+        `如需彻底清除，请在删除时勾选“同时删除用户数据”。`,
+      )
+    }
+    return { removedNames, preserved }
   } catch (err) {
     console.error('Failed to sync users to SQLite:', err)
     throw err
@@ -322,7 +330,11 @@ export const createUserRouter = (): Router => {
 
       if (deletedCount > 0) {
         try {
-          saveUsers()
+          // deleteData now means what the UI says: it also wipes the account's
+          // playlists/settings. Without it, only the account (and its sessions
+          // plus derived cache index) is removed; snapshots and settings stay
+          // so that recreating the same user name restores them.
+          saveUsers({ purgeDataFor: body.deleteData ? deletedUsers.map(user => user.name) : [] })
         } catch (error) {
           global.lx.config.users.splice(0, global.lx.config.users.length, ...previousUsers)
           throw error
@@ -343,7 +355,12 @@ export const createUserRouter = (): Router => {
             }
           }
         }
-        return ctx.json({ success: true, deletedCount, ...(cleanupWarnings.length > 0 ? { cleanupWarnings } : {}) })
+        return ctx.json({
+          success: true,
+          deletedCount,
+          ...(body.deleteData ? {} : { dataPreserved: deletedUsers.map(user => user.name) }),
+          ...(cleanupWarnings.length > 0 ? { cleanupWarnings } : {}),
+        })
       }
       return ctx.fail(404, '用户不存在')
     } catch {

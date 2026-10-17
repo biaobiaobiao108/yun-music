@@ -223,7 +223,10 @@ export class Router {
       console.error(`[Router Error] ${ctx.requestId} ${ctx.method} ${ctx.pathname}:`, err)
       return ctx.fail(500, '服务器内部错误，请稍后重试', {
         requestId: ctx.requestId,
-        detail: process.env.NODE_ENV !== 'production' ? detail : undefined,
+        // Only opt in explicitly. Treating anything but 'production' as debug
+        // leaked absolute paths and raw SQLite/SDK errors in `bun run start`
+        // and pm2 setups that never set NODE_ENV.
+        detail: process.env.NODE_ENV === 'development' ? detail : undefined,
       })
     }
   }

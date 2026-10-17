@@ -93,7 +93,7 @@ export const playerApi = {
     }
     return []
   },
-  songUrl: (songInfo: Song, quality: string, signal?: AbortSignal, enableAutoSwitchApiSource = true, priority: RequestPriority = 'high') => requestJson<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }>('/api/music/url', { method: 'POST', body: JSON.stringify({ songInfo, quality, enableAutoSwitchApiSource }), signal, priority }),
+  songUrl: (songInfo: Song, quality: string, signal?: AbortSignal, enableAutoSwitchApiSource = true, priority: RequestPriority = 'high') => requestJson<{ url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean; downloadToken?: string }>('/api/music/url', { method: 'POST', body: JSON.stringify({ songInfo, quality, enableAutoSwitchApiSource }), signal, priority }),
   lyric: (songInfo: Song, signal?: AbortSignal) => requestJson<Record<string, unknown>>('/api/music/lyric', { method: 'POST', body: JSON.stringify({ songInfo }), signal }),
   listData: (user?: string, signal?: AbortSignal, policy?: RequestPolicy) => requestJson<UserListData>(user ? `/api/user/list?user=${encodeURIComponent(user)}` : '/api/user/list', { signal, ...policy }),
   mutatePlaylist: (mutation: { action: 'create' | 'toggle'; playlist: UserPlaylist } | { action: 'rename'; id: string; name: string } | { action: 'delete'; id: string }) => requestJson<{ success: boolean; added: boolean }>('/api/user/playlists', { method: 'POST', body: JSON.stringify(mutation) }),

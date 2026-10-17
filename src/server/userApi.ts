@@ -555,7 +555,14 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
         }
     }
 
-    // 完整沙箱环境
+    // SECURITY BOUNDARY, stated plainly: node:vm is NOT a security boundary.
+    // Everything injected below (console, Buffer, timers, lx.*) is a host-realm
+    // function, so a script can reach `globalThis.constructor` and run arbitrary
+    // code as this process. codeGeneration.strings=false only blocks eval/new
+    // Function *inside* the context. Loading a custom source therefore means
+    // handing that script full control of the server; the container runs as a
+    // non-root user (Dockerfile) purely to limit the damage. Do not add a new
+    // native capability here expecting the context to hide it.
     sandbox = {
         console: {
             log: (...args: any[]) => console.log(`[CustomSource:${fullApiInfo.name}]`, ...decontextify(args)),
@@ -584,7 +591,7 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
         globalThis: null,
         atob: (s: string) => Buffer.from(s, 'base64').toString('binary'),
         btoa: (s: string) => Buffer.from(s, 'binary').toString('base64'),
-        // Do not expose the host crypto module or other native capabilities.
+        // Nothing below is isolated: see the note above `sandbox`.
         crypto: undefined,
     }
     sandbox.global = sandbox

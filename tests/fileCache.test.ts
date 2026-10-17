@@ -1227,7 +1227,7 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
     const previousLx = global.lx
     try {
       closeDb()
-      global.lx = { dataPath: process.cwd(), config: {} } as any
+      global.lx = { dataPath: os.tmpdir(), config: {} } as any
       initDatabase(':memory:')
       fileCache.indexManager.update('oversized-index-user', {
         id: 'wy_large-index', name: 'x'.repeat(4 * 1024 * 1024), singer: 'Singer', albumName: '', source: 'wy',

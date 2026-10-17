@@ -94,5 +94,5 @@ docs/node_modules
 
 .codegraph
 /cover_cache
-b u i l d / 
+build/
 config.js

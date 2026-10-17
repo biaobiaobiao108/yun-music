@@ -273,7 +273,9 @@ export const adminApi = {
   databaseStats: () => adminRequest<{ success?: boolean; data?: Record<string, unknown> }>('/api/admin/database/stats'),
   vacuum: () => adminRequest('/api/admin/database/vacuum', { method: 'POST' }),
   backup: () => requestBlob('/api/backup/download'),
-  restoreBackup: (file: File) => { const form = new FormData(); form.append('backup', file); return adminRequest('/api/backup/upload', { method: 'POST', body: form }) },
+  // Raw body upload: the server streams it straight to a temp file, so a
+  // 100 MB backup never has to be copied through memory three times.
+  restoreBackup: (file: File) => adminRequest('/api/backup/upload', { method: 'POST', body: file, headers: { 'Content-Type': 'application/zip' } }),
   customSources: async (owner: CustomSourceOwner = 'open', signal?: AbortSignal) => normalizeAdminCustomSources(await adminRequest<unknown>(`/api/custom-source/list?username=${encodeURIComponent(owner)}`, { signal })),
   uploadCustomSource: (filename: string, content: string, type: string, owner: CustomSourceOwner) => adminRequest('/api/custom-source/upload', { method: 'POST', body: JSON.stringify({ filename, content, type, username: owner }) }),
   importCustomSource: (url: string, filename: string | undefined, owner: CustomSourceOwner) => adminRequest('/api/custom-source/import', { method: 'POST', body: JSON.stringify({ url, filename, username: owner }) }),

@@ -356,8 +356,33 @@ const scheduleSave = () => {
   }, 150)
 }
 
+/**
+ * Remove temp files left behind by an atomic write that never completed
+ * (SIGKILL / OOM kill / power loss). The write path only unlinks its own temp
+ * file on a caught error, so nothing else would ever collect them.
+ */
+const cleanupOrphanTempFiles = (file: string): void => {
+  const directory = path.dirname(file)
+  const prefix = `${path.basename(file)}.`
+  let entries: string[]
+  try {
+    entries = fs.readdirSync(directory)
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix) || !entry.endsWith('.tmp')) continue
+    try {
+      fs.unlinkSync(path.join(directory, entry))
+    } catch {
+      // A live writer may still own it; leave it for the next start.
+    }
+  }
+}
+
 const loadTasks = () => {
   const file = getQueueFile()
+  cleanupOrphanTempFiles(file)
   if (!fs.existsSync(file)) return
   try {
     const data = JSON.parse(fs.readFileSync(file, 'utf8'))

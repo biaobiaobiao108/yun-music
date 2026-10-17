@@ -18,6 +18,7 @@ import { userSessions } from '@/server/routes/auth'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 import { closeDb, getDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user'
+import { issueDownloadToken } from '@/server/downloadToken'
 
 const persistUserSession = (sessionId: string, username: string, createdAt = Date.now()) => {
   getDb().run(
@@ -753,7 +754,7 @@ test('download proxy isolates active content and preserves media responses', asy
     for (const type of ['text/html', 'image/svg+xml', 'application/xhtml+xml', 'audio/mpeg', 'image/png']) {
       mime = type
       const target = 'http://example.com/file'
-      const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/download?inline=1&url=${encodeURIComponent(target)}`))
+      const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/download?inline=1&url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`))
       expect(response.status).toBe(200)
       expect(response.headers.get('x-content-type-options')).toBe('nosniff')
       expect(response.headers.get('content-security-policy')).toContain('sandbox')
@@ -813,7 +814,7 @@ test('download proxy closes an unfinished redirect body before following its loc
   try {
     const target = 'http://example.com/redirect'
     const response = await createCacheRouter().handle(new Request(
-      `http://localhost/api/music/download?url=${encodeURIComponent(target)}`,
+      `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
     ))
     expect(response.status).toBe(200)
     expect(Buffer.from(await response.arrayBuffer())).toEqual(content)
@@ -849,7 +850,7 @@ test('download proxy treats client aborts as normal request cancellation', async
   try {
     const target = 'http://example.com/audio'
     const response = await createCacheRouter().handle(new Request(
-      `http://localhost/api/music/download?url=${encodeURIComponent(target)}`,
+      `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
     ))
     expect(response.status).toBe(499)
     expect(errorLog).not.toHaveBeenCalled()
@@ -887,7 +888,7 @@ test('tagged download proxy waits for the shared native limit and cancels queued
   try {
     const target = 'http://example.com/audio'
     const response = createCacheRouter().handle(new Request(
-      `http://localhost/api/music/download?tag=1&url=${encodeURIComponent(target)}`,
+      `http://localhost/api/music/download?tag=1&url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
       { signal: controller.signal },
     ), { remoteAddress: '203.0.113.219' })
     for (let attempt = 0; attempt < 100 && fileCache.getCachePostProcessStats().waiting === 0; attempt++) await Bun.sleep(5)

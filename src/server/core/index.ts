@@ -54,6 +54,11 @@ export const securityHeadersMiddleware: Middleware = async (ctx, next) => {
   headers.set('Referrer-Policy', headers.get('Referrer-Policy') || 'strict-origin-when-cross-origin')
   headers.set('Permissions-Policy', headers.get('Permissions-Policy') || 'camera=(), microphone=(), geolocation=()')
   headers.set('X-Frame-Options', headers.get('X-Frame-Options') || 'DENY')
+  // Only meaningful over TLS; behind a plain-HTTP reverse proxy the browser
+  // must not be told to force HTTPS on this host.
+  if (ctx.isSecure) {
+    headers.set('Strict-Transport-Security', headers.get('Strict-Transport-Security') || 'max-age=31536000; includeSubDomains')
+  }
   headers.set('Content-Security-Policy', headers.get('Content-Security-Policy') || [
     "default-src 'self'",
     "base-uri 'self'",
@@ -83,7 +88,12 @@ export const accessLogMiddleware: Middleware = async (ctx, next) => {
 /** 值得压缩的响应类型（文本类） */
 const COMPRESSIBLE_TYPE = /^(?:text\/|application\/(?:json|javascript|xml|xhtml\+xml|manifest\+json)|image\/svg\+xml)/i
 const COMPRESS_MIN_BYTES = 1024
-const COMPRESS_MAX_BUFFER_BYTES = 32 * 1024 * 1024
+/**
+ * Buffering is only worth it for small text responses. Larger bodies stream
+ * through CompressionStream: a synchronous gzip on a multi-MB JSON export
+ * blocks the whole event loop (SSE heartbeats and media relays included).
+ */
+const COMPRESS_MAX_BUFFER_BYTES = 1024 * 1024
 /** 已压缩结果缓存上限：key 为 ETag + 编码，用于避免重复压缩同一静态资源 */
 const COMPRESS_CACHE_MAX_ENTRIES = 32
 const COMPRESS_CACHE_MAX_BYTES = memoryCacheBudgets.compressed
@@ -94,6 +104,16 @@ export const getCompressedCacheStats = () => ({ entries: compressedCache.size, b
 
 /** Uint8Array 在运行时可作为 BodyInit，但 TS 的类型定义要求显式转换 */
 const asBody = (data: Uint8Array): BodyInit => data as unknown as BodyInit
+
+/**
+ * Async gzip. `Bun.gzipSync` blocks the event loop for the whole payload, so a
+ * 1 MiB text response could stall every concurrent request. CompressionStream
+ * does the same work off the main thread's critical path.
+ */
+const gzipBytes = async (data: Uint8Array): Promise<Uint8Array> => {
+  const stream = new Blob([data as unknown as BlobPart]).stream().pipeThrough(new CompressionStream('gzip'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
 
 const readCompressedCache = (key: string): Uint8Array | null => {
   const hit = compressedCache.get(key)
@@ -142,9 +162,9 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
 
   const etag = response.headers.get('etag')
   // Static validators are intentionally inexpensive (size + mtime), so two
-  // different files can share an ETag. Include the request path to keep their
-  // compressed representations isolated in the process-wide cache.
-  const cacheKey = etag ? `${ctx.pathname}|${etag}|gzip` : ''
+  // different files can share an ETag. Include the request path and query to
+  // keep their compressed representations isolated in the process-wide cache.
+  const cacheKey = etag ? `${ctx.pathname}${ctx.url.search}|${etag}|gzip` : ''
   if (cacheKey) {
     const cached = readCompressedCache(cacheKey)
     if (cached) {
@@ -185,7 +205,7 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
     return new Response(asBody(body), { status: response.status, statusText: response.statusText, headers: headerForRebuild })
   }
 
-  const compressed = Bun.gzipSync(body)
+  const compressed = await gzipBytes(body)
   if (compressed.byteLength >= body.byteLength) {
     return new Response(asBody(body), { status: response.status, statusText: response.statusText, headers: headerForRebuild })
   }

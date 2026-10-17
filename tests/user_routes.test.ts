@@ -329,6 +329,48 @@ describe('Deleted account credentials', () => {
     fs.rmSync(tempDir, { recursive: true, force: true })
   })
 
+  const deleteAccount = (deleteData: boolean) => createUserRouter().handle(new Request('http://localhost/api/users', {
+    method: 'DELETE', headers: adminHeaders, body: JSON.stringify({ name: username, deleteData }),
+  }))
+
+  const seedUserData = () => {
+    const now = Date.now()
+    getDb().run(
+      'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at, stored_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ['pre-delete', username, 'list', JSON.stringify({ defaultList: [], loveList: [], userList: [] }), 40, now, now],
+    )
+    getDb().run(
+      'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
+      [username, 'pref', '"kept"', now],
+    )
+  }
+
+  const countRows = () => ({
+    snapshots: Number(getDb().query<{ c: number }, [string]>('SELECT COUNT(*) c FROM snapshots WHERE user_name = ?').get(username)?.c ?? 0),
+    settings: Number(getDb().query<{ c: number }, [string]>('SELECT COUNT(*) c FROM user_settings WHERE user_name = ?').get(username)?.c ?? 0),
+    users: Number(getDb().query<{ c: number }, [string]>('SELECT COUNT(*) c FROM users WHERE name = ?').get(username)?.c ?? 0),
+    sessions: Number(getDb().query<{ c: number }, [string]>('SELECT COUNT(*) c FROM user_sessions WHERE user_name = ?').get(username)?.c ?? 0),
+  })
+
+  test('deleting an account keeps its playlists unless deleteData is set', async () => {
+    seedUserData()
+    const response = await deleteAccount(false)
+    expect(response.status).toBe(200)
+    const body = await response.json() as { dataPreserved?: string[] }
+    expect(body.dataPreserved).toEqual([username])
+    // Account gone (login must not be revived) but structured data kept.
+    expect(countRows()).toEqual({ snapshots: 1, settings: 1, users: 0, sessions: 0 })
+  })
+
+  test('deleting an account with deleteData wipes playlists and settings', async () => {
+    seedUserData()
+    const response = await deleteAccount(true)
+    expect(response.status).toBe(200)
+    const body = await response.json() as { dataPreserved?: string[] }
+    expect(body.dataPreserved).toBeUndefined()
+    expect(countRows()).toEqual({ snapshots: 0, settings: 0, users: 0, sessions: 0 })
+  })
+
   test('deletion drains active downloads, rejects recreation during cleanup and removes old tasks', async () => {
     const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
     let settle!: () => void

@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite'
 import path from 'node:path'
 import fs from 'node:fs'
+import os from 'node:os'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
@@ -15,10 +16,34 @@ export const getDbPath = (): string => {
   return path.join(dataPath, 'yun-yin.db')
 }
 
+/**
+ * 测试环境禁止打开仓库内的真实数据库。
+ *
+ * 单例被 closeDb() 之后，任何无参 getDb() 都会重新走 getDbPath()，即
+ * `${global.lx.dataPath}/yun-yin.db`。测试里 dataPath 常被设成 process.cwd()，
+ * 于是 `bun test` 会静默写进开发者本地库（曾导致 admin_sessions 增长、
+ * 以及 restoreDatabaseSnapshot 这类全表重写的用例有清库风险）。
+ * 这里让污染变成一次响亮的失败，而不是等到数据丢了才发现。
+ */
+const assertTestDatabasePath = (dbPath: string): void => {
+  if (process.env.NODE_ENV !== 'test') return
+  if (dbPath === ':memory:' || dbPath === '') return
+  const resolved = path.resolve(dbPath)
+  const tmpRoot = path.resolve(os.tmpdir())
+  const relative = path.relative(tmpRoot, resolved)
+  const insideTemp = !relative.startsWith('..') && !path.isAbsolute(relative)
+  if (insideTemp) return
+  throw new Error(
+    `测试环境拒绝打开非内存/非临时目录的数据库：${dbPath}。` +
+    `请改用 initDatabase(':memory:')，或使用 os.tmpdir() 下的临时目录。`,
+  )
+}
+
 export const initDatabase = (customDbPath?: string): Database => {
   if (dbInstance) return dbInstance
 
   const dbPath = customDbPath ?? getDbPath()
+  assertTestDatabasePath(dbPath)
   const db = new Database(dbPath, { create: true })
 
   const existingTables = db.query<{ name: string }, []>(

@@ -10,6 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from '../networkSecurity'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
+import { issueDownloadToken } from '../downloadToken'
 
 // These endpoints only need compact song metadata and pagination fields.
 const MAX_MUSIC_JSON_BODY_BYTES = 512 * 1024
@@ -503,6 +504,7 @@ export const createMusicRouter = (): Router => {
             quality: cached.quality || quality || '128k',
             sourceName: '本地缓存',
             fromCache: true,
+            downloadToken: issueDownloadToken(cached.url),
           }, 200, { 'Server-Timing': `cache;dur=${cacheDurationMs.toFixed(1)}, total;dur=${(performance.now() - urlStartedAt).toFixed(1)}` })
         }
       }
@@ -577,6 +579,10 @@ export const createMusicRouter = (): Router => {
         result.requestedSource = songInfo.source
         result.downloadSource = fileCache.detectDownloadSource(result.url, songInfo.source)
       }
+
+      // Signed proof that this URL came from this server, required by the
+      // /api/music/download relay so it cannot be used as an open proxy.
+      if (typeof result.url === 'string' && result.url) result.downloadToken = issueDownloadToken(result.url)
 
       return ctx.json(result, 200, {
         'Server-Timing': `cache;dur=${cacheDurationMs.toFixed(1)}, resolve;dur=${(performance.now() - resolveStartedAt).toFixed(1)}, total;dur=${(performance.now() - urlStartedAt).toFixed(1)}`,

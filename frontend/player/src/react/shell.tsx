@@ -30,7 +30,7 @@ const SettingsView = lazy(() => import('./views').then(module => ({ default: mod
 const UserLoginDialog = lazy(() => import('./views').then(module => ({ default: module.UserLoginDialog })))
 
 const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
-type SongUrlResult = { url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean }
+type SongUrlResult = { url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean; downloadToken?: string }
 type PendingSongUrlRequest = {
   promise: Promise<SongUrlResult>
   controller: AbortController
@@ -563,7 +563,7 @@ function AudioRuntime() {
         }
         setResolvedUrl(result.url)
         resolvedSongKey.current = songId
-        audio.src = buildPlaybackUrl(result.url, currentSong, settings)
+        audio.src = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
         audio.load()
         if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
           notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')

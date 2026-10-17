@@ -23,8 +23,8 @@ export const parseConfigFile = (filePath: string): any => {
   const sandbox = {
     module: { exports: {} as any },
     exports: {} as any,
-    process: { env: { ...process.env } },
-    console,
+    // No `process`/`console`: a config file should be data. Exposing process.env
+    // handed DB paths and proxy credentials to anything that could write here.
   }
   vm.runInNewContext(content, sandbox, { timeout: 2000 })
   const result = sandbox.module.exports || sandbox.exports

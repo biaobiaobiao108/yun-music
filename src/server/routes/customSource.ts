@@ -15,7 +15,10 @@ export const createCustomSourceRouter = (): Router => {
   // 自定义源的写入、校验和状态管理均属于后台管理能力。列表查询仍然
   // 保留给播放器使用，以便服务端按当前用户返回公共/专属源。
   router.use('/api/custom-source/*', async (ctx, next) => {
-    if (ctx.pathname !== '/api/custom-source/list' && !verifyAdminAuth(ctx.request)) {
+    // Only the list *read* is public; matching on the pathname alone would have
+    // exempted e.g. a future POST /api/custom-source/list from admin checks.
+    const isPublicList = ctx.method === 'GET' && ctx.pathname === '/api/custom-source/list'
+    if (!isPublicList && !verifyAdminAuth(ctx.request)) {
       return ctx.json({ success: false, error: '管理员权限不足：自定义源仅允许管理员管理。' }, 403)
     }
     const config = (global.lx?.config ?? {}) as any

@@ -426,8 +426,10 @@ try {
 console.log(`Users:
 ${global.lx.config.users.map(user => `  ${user.name}: [PROTECTED]`).join('\n') || '  No User'}
 `)
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { getUserDirname } = require('@/user')
+// Loaded lazily on purpose: '@/user' pulls in the cache layer, which needs the
+// runtime config above to be initialized first. `await import` keeps that
+// ordering without mixing CommonJS require into this ESM entry.
+const { getUserDirname } = await import('@/user')
 for (const user of global.lx.config.users) {
   const dataPath = path.join(global.lx.userPath, getUserDirname(user.name))
   checkAndCreateDir(dataPath)

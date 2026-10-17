@@ -18,6 +18,7 @@ import { resolveInsideAsync } from '@/utils/pathSecurity'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
+import { verifyDownloadToken } from '../downloadToken'
 import { memoryMaintenance } from '../memoryMaintenance'
 import { tryAcquireMediaStream } from '../resourceBudget'
 
@@ -1493,6 +1494,15 @@ export const createCacheRouter = (): Router => {
 
     if (!urlStr) return ctx.fail(400, '缺少必要参数：url')
     if (urlStr.length > 4096) return ctx.fail(413, '远程地址过长')
+
+    // This endpoint fetches any URL it is given, so it must not be reachable as
+    // an anonymous proxy. A signed token is issued with every /api/music/url
+    // result; authenticated callers (admin or a logged-in user) already can
+    // download through the cache routes.
+    const isAuthenticated = Boolean(verifyAdminAuth(ctx.request) || verifyUserAuth(ctx))
+    if (!isAuthenticated && !verifyDownloadToken(urlStr, ctx.query.get('token'))) {
+      return ctx.fail(403, '下载链接已失效，请重新开始播放')
+    }
 
     const releaseProxySlot = tryAcquireDownloadProxySlot(ctx.remoteAddress || 'unknown', isTaggingMode)
     if (!releaseProxySlot) return ctx.fail(429, '下载请求过于频繁或当前连接额度已用尽，请稍后重试')

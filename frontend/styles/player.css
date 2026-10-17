@@ -1194,9 +1194,9 @@ html, body {
 .react-empty, .react-loading { min-height: 190px; display: grid; place-items: center; align-content: center; gap: .55rem; color: var(--text-muted); }
 .react-empty i, .react-loading i { color: var(--c-500); font-size: 1.4rem; }
 .react-loading i { animation: react-player-spin 1s linear infinite; }
-.react-error { color: #dc2626; padding: .75rem; border-radius: .65rem; background: rgba(239,68,68,.08); }
+.react-error { color: var(--danger, #c0392b); padding: .75rem; border-radius: .65rem; background: color-mix(in srgb, var(--danger, #c0392b) 8%, transparent); }
 .react-error-view { min-height: min(28rem, 60vh); display: grid; place-items: center; align-content: center; gap: .75rem; padding: 2rem; color: var(--text-muted); text-align: center; }
-.react-error-view > i { color: #dc2626; font-size: 2rem; }
+.react-error-view > i { color: var(--danger, #c0392b); font-size: 2rem; }
 .react-error-view h2 { color: var(--text-main); }
 .react-error-view p { max-width: 34rem; }
 .react-toolbar-card { display: flex; flex-wrap: wrap; gap: .85rem; align-items: center; padding: .85rem 1rem; }
@@ -8674,6 +8674,14 @@ textarea:focus-visible {
     .react-entity-card button:focus-visible,
     .react-playlist-card button:hover,
     .react-playlist-card button:focus-visible,
+    /* the hover scale is applied to the <img>, so resetting the button alone
+       left the zoom running for reduced-motion users */
+    .react-artwork-button img,
+    .react-artwork-button:hover img,
+    .react-entity-card button:hover img,
+    .react-entity-card button:focus-visible img,
+    .react-playlist-card button:hover img,
+    .react-playlist-card button:focus-visible img,
     .react-home-playlist:hover,
     .react-home-playlist:focus-visible,
     .react-home-playlist-arrow,

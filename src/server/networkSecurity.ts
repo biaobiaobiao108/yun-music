@@ -83,9 +83,15 @@ const isSyntheticDnsAddress = (value: string): boolean => {
   return isSyntheticDnsAddress(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`)
 }
 
-const isPrivateAddress = (value: string): boolean => {
+export const isPrivateAddress = (value: string): boolean => {
   if (isIP(value) === 4) return isPrivateIpv4(value)
   return isPrivateIpv6(value)
+}
+
+/** True when a global outbound proxy is configured, i.e. fake-ip DNS is in play. */
+const isOutboundProxyConfigured = (): boolean => {
+  const config = global.lx?.config as unknown as Record<string, unknown> | undefined
+  return Boolean(config?.['proxy.all.enabled']) && Boolean(String(config?.['proxy.all.address'] || '').trim())
 }
 
 const isBlockedHostname = (hostname: string): boolean => {
@@ -452,7 +458,12 @@ export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemot
   const hostnameIsIpLiteral = isIP(hostname) !== 0
   const addresses = await lookupRemoteAddresses(hostname)
   const hasPrivateAddress = addresses.some(address => isPrivateAddress(address.address))
-  const onlySyntheticAddresses = !hostnameIsIpLiteral
+  // Fake-ip answers (198.18/15 & friends) only make sense when the connection
+  // is handed to a configured proxy, which then resolves the real host. In
+  // direct mode nothing routes those prefixes, so accepting them was pure
+  // filter bypass.
+  const onlySyntheticAddresses = isOutboundProxyConfigured()
+    && !hostnameIsIpLiteral
     && addresses.length > 0
     && addresses.every(address => isSyntheticDnsAddress(address.address))
   if (addresses.length === 0 || (hasPrivateAddress && !onlySyntheticAddresses)) {

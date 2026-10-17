@@ -4,6 +4,7 @@ import http from 'node:http'
 import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from '@/server/networkSecurity'
 import { createCacheRouter } from '@/server/routes/cache'
+import { issueDownloadToken } from '@/server/downloadToken'
 
 describe('Outbound URL network boundaries', () => {
   test.each([
@@ -32,7 +33,12 @@ describe('Outbound URL network boundaries', () => {
   })
 
   test('retains hostname-based synthetic DNS support while rejecting private or literal targets', async () => {
+    const previousLx = global.lx
     const lookup = spyOn(dns, 'lookup')
+    // Fake-ip answers are only meaningful when an outbound proxy is configured.
+    global.lx = {
+      config: { 'proxy.all.enabled': true, 'proxy.all.address': 'http://proxy.example.com:7890' },
+    } as typeof global.lx
     try {
       lookup.mockResolvedValue([{ address: '198.18.0.1', family: 4 }] as any)
       expect((await assertSafeRemoteHttpUrl('https://example.com/audio')).hostname).toBe('example.com')
@@ -69,6 +75,20 @@ describe('Outbound URL network boundaries', () => {
       expect(connectedAddress).toBe('198.18.0.86')
     } finally {
       lookup.mockRestore()
+      global.lx = previousLx
+    }
+  })
+
+  test('rejects fake-ip DNS answers when no outbound proxy is configured', async () => {
+    const previousLx = global.lx
+    const lookup = spyOn(dns, 'lookup')
+    global.lx = { config: { 'proxy.all.enabled': false } } as typeof global.lx
+    try {
+      lookup.mockResolvedValue([{ address: '198.18.0.1', family: 4 }] as any)
+      await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow('Private network URL is not allowed')
+    } finally {
+      lookup.mockRestore()
+      global.lx = previousLx
     }
   })
 
@@ -76,9 +96,26 @@ describe('Outbound URL network boundaries', () => {
     const request = spyOn(http, 'request').mockImplementation(() => { throw new Error('Unexpected outbound request') })
     try {
       const router = createCacheRouter()
-      const response = await router.handle(new Request('http://localhost/api/music/download?url='
-        + encodeURIComponent('http://[::ffff:127.0.0.1]:9527/')))
+      const target = 'http://[::ffff:127.0.0.1]:9527/'
+      const response = await router.handle(new Request(
+        `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+      ))
       expect(response.status).toBeGreaterThanOrEqual(400)
+      expect(request).not.toHaveBeenCalled()
+    } finally {
+      request.mockRestore()
+    }
+  })
+
+  test('anonymous download proxy requires a signed URL', async () => {
+    const request = spyOn(http, 'request').mockImplementation(() => { throw new Error('Unexpected outbound request') })
+    try {
+      const router = createCacheRouter()
+      const target = 'http://example.com/audio'
+      const response = await router.handle(new Request(
+        `http://localhost/api/music/download?url=${encodeURIComponent(target)}`,
+      ))
+      expect(response.status).toBe(403)
       expect(request).not.toHaveBeenCalled()
     } finally {
       request.mockRestore()
@@ -90,7 +127,8 @@ describe('Outbound URL network boundaries', () => {
     try {
       const router = createCacheRouter()
       const remoteAddress = '203.0.113.247'
-      const url = `http://localhost/api/music/download?url=${encodeURIComponent('http://127.0.0.1/audio')}`
+      const target = 'http://127.0.0.1/audio'
+      const url = `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`
       let limited = false
       for (let attempt = 0; attempt < 300; attempt += 1) {
         const response = await router.handle(new Request(url), { remoteAddress })
@@ -132,7 +170,10 @@ describe('Outbound URL network boundaries', () => {
       throw new Error('Transport intercepted by test')
     })
     try {
-      await createCacheRouter().handle(new Request('http://localhost/api/music/download?url=http%3A%2F%2Fexample.com%2Faudio'))
+      const target = 'http://example.com/audio'
+      await createCacheRouter().handle(new Request(
+        `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+      ))
       expect(options.agent).toMatchObject({ keepAlive: true, maxSockets: 8 })
       const connectedAddress = await new Promise(resolve => options.lookup('example.com', {}, (_error: any, address: string) => resolve(address)))
       expect(connectedAddress).toBe('8.8.8.8')

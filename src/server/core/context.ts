@@ -336,6 +336,29 @@ export class HttpContext {
     })
   }
 
+  /**
+   * 将请求体直接流式写入文件，全程不把整个 body 放进内存。
+   * 用于备份还原这类百 MB 级上传：formData() 会在内存里同时持有
+   * “原始字节 + 解析副本 + Blob 副本”，在 256MiB 容器里足以 OOM。
+   * 返回实际写入的字节数；超限时抛错并留下部分文件，由调用方清理。
+   */
+  async writeBodyToFile(destPath: string, maxBytes: number): Promise<number> {
+    if (!this.request.body) throw new Error('Request body is empty')
+    let total = 0
+    const limiter = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        total += chunk.byteLength
+        if (total > maxBytes) {
+          controller.error(new Error('Request body is too large'))
+          return
+        }
+        controller.enqueue(chunk)
+      },
+    })
+    await Bun.write(destPath, this.request.body.pipeThrough(limiter))
+    return total
+  }
+
   /** 构造 JSON 响应 */
   json(data: unknown, status = 200, headers?: HeadersInit): Response {
     return Response.json(data, {
