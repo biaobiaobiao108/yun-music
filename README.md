@@ -114,6 +114,8 @@ bun run dev:frontend
 
 前端源码位于 `frontend/`，由 Bun Bundler 编译到 `public/`。播放器和管理后台使用 React、TypeScript 与 Zustand，服务端使用 Bun、TypeScript 和 `bun:sqlite`。
 
+HTML 入口、Service Worker 和 JavaScript 包由构建脚本生成，不纳入 Git 跟踪；请修改 `frontend/` 中的源模板。`bun run dev` 和 `bun start` 会先构建前端，Docker 构建也会生成这些资源。新检出项目运行测试前，请先执行 `bun run build:frontend`。
+
 ## 许可证
 
 本项目基于 [Apache-2.0 License](./LICENSE) 协议分发。

@@ -201,6 +201,11 @@ for (const file of ['public/music/index.html']) {
 
 const trackedFiles = collectTrackedFiles();
 const generatedFiles = [
+  'public/index.html',
+  'public/sw.js',
+  'public/music/index.html',
+  'public/music/login.html',
+  'public/music/sw.js',
   'public/app.js',
   'public/music/app.js',
   'public/music/js/songlist_manager.js',
