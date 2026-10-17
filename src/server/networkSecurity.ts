@@ -117,6 +117,11 @@ export interface SafeRemoteFetchOptions extends Omit<RequestInit, 'redirect'> {
 const DEFAULT_REMOTE_RESPONSE_BYTES = 10 * 1024 * 1024
 const MAX_REMOTE_RESPONSE_BYTES = 50 * 1024 * 1024
 const REMOTE_DNS_TIMEOUT_MS = 5_000
+const MAX_REMOTE_ADDRESS_ATTEMPTS = 8
+const RETRYABLE_CONNECTION_ERRORS = new Set([
+  'ECONNRESET', 'ECONNREFUSED', 'ECONNABORTED', 'ETIMEDOUT',
+  'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE', 'ERR_SOCKET_CLOSED',
+])
 
 const normalizeRemoteResponseLimit = (value: unknown): number => {
   try {
@@ -139,6 +144,19 @@ const normalizeRemoteTimeout = (value: unknown): number => {
 }
 
 type ResolvedRemoteAddress = { address: string; family: number }
+
+const pinnedLookup = (hostname: string, addresses: readonly ResolvedRemoteAddress[]): LookupFunction => (
+  requestedHostname, options, callback,
+) => {
+  const family = Number(options.family) || 0
+  const candidates = addresses.filter(address => !family || address.family === family)
+  if (requestedHostname !== hostname || candidates.length === 0) {
+    callback(new Error('No validated address for requested host'), '', 0)
+    return
+  }
+  if (options.all) callback(null, candidates)
+  else callback(null, candidates[0].address, candidates[0].family)
+}
 
 const lookupRemoteAddresses = async (hostname: string): Promise<ResolvedRemoteAddress[]> => {
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -282,6 +300,44 @@ const fetchSafeRemoteTransport = async (
 ): Promise<Response> => {
   if (options.proxy) return fetchViaBunProxy(safeUrl, options)
 
+  const hostname = safeUrl.hostname.replace(/^\[|\]$/g, '')
+  const method = String(options.method || 'GET').toUpperCase()
+  let lookups = [safeUrl.lookup]
+  if (method === 'GET' || method === 'HEAD') {
+    // Read the validated DNS snapshot, never resolve again during failover.
+    const addresses = await new Promise<ResolvedRemoteAddress[]>((resolve, reject) => {
+      safeUrl.lookup(hostname, { all: true }, (error, address, family) => {
+        if (error) reject(error)
+        else resolve(typeof address === 'string' ? [{ address, family: Number(family) }] : address)
+      })
+    })
+    const unique = new Map(addresses.map(address => [`${address.family}:${address.address}`, address]))
+    lookups = [...unique.values()].slice(0, MAX_REMOTE_ADDRESS_ATTEMPTS).map(address => pinnedLookup(hostname, [address]))
+    if (lookups.length === 0) throw new Error('No validated address for requested host')
+  }
+
+  for (let attempt = 0; ; attempt++) {
+    options.signal?.throwIfAborted()
+    let receivedHeaders = false
+    try {
+      return await fetchPinnedRemote(safeUrl, options, lookups[attempt], () => { receivedHeaders = true })
+    } catch (error) {
+      // A response, even an HTTP error, means the request reached the server.
+      // Only replay safe reads that failed before headers, within the original
+      // request's signal/deadline and buffered-response reservation.
+      const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined
+      if (options.signal?.aborted || receivedHeaders || attempt + 1 >= lookups.length
+        || !code || !RETRYABLE_CONNECTION_ERRORS.has(code)) throw error
+    }
+  }
+}
+
+const fetchPinnedRemote = async (
+  safeUrl: SafeRemoteHttpUrl,
+  options: SafeRemoteFetchOptions,
+  lookup: LookupFunction,
+  onHeaders: () => void,
+): Promise<Response> => {
   const {
     method = 'GET',
     headers: inputHeaders,
@@ -322,7 +378,11 @@ const fetchSafeRemoteTransport = async (
     }
 
     const fail = (error: unknown): void => {
-      finish(() => reject(error instanceof Error ? error : new Error(String(error))))
+      finish(() => {
+        response?.destroy()
+        request.destroy()
+        reject(error instanceof Error ? error : new Error(String(error)))
+      })
     }
 
     const onAbort = (): void => {
@@ -338,10 +398,11 @@ const fetchSafeRemoteTransport = async (
       path: `${safeUrl.pathname}${safeUrl.search}`,
       method: normalizedMethod,
       headers: Object.fromEntries(requestHeaders.entries()),
-      lookup: safeUrl.lookup,
+      lookup,
       agent: false,
     }, (incomingResponse) => {
       response = incomingResponse
+      onHeaders()
       const status = incomingResponse.statusCode || 0
       const headers = responseHeaderEntries(incomingResponse.headers)
       if (discardResponseBody || hasNoResponseBody(normalizedMethod, status)) {
@@ -472,15 +533,5 @@ export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemot
   const validatedAddresses = onlySyntheticAddresses
     ? [...addresses].sort((left, right) => Number(right.family === 4) - Number(left.family === 4))
     : addresses
-  const lookup: LookupFunction = (requestedHostname, options, callback) => {
-    const family = Number(options.family) || 0
-    const candidates = validatedAddresses.filter(address => !family || address.family === family)
-    if (requestedHostname !== hostname || candidates.length === 0) {
-      callback(new Error('No validated address for requested host'), '', 0)
-      return
-    }
-    if (options.all) callback(null, candidates)
-    else callback(null, candidates[0].address, candidates[0].family)
-  }
-  return Object.assign(url, { lookup })
+  return Object.assign(url, { lookup: pinnedLookup(hostname, validatedAddresses) })
 }
