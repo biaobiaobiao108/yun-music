@@ -8,6 +8,7 @@ import {
   MAX_SNAPSHOT_ID_BYTES,
   pruneSnapshots,
   removeSnapshot as removeStoredSnapshot,
+  writeSnapshot,
   type SnapshotInfo,
 } from '@/modules/snapshotStorage'
 
@@ -39,22 +40,11 @@ export class SnapshotDataManage {
   }
 
   saveSnapshot = async (name: string, data: string): Promise<void> => {
-    assertSnapshotId(name)
-    assertSnapshotData(data)
-    getDb().run(
-      'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, this.userDataManage.userName, this.module, data, Buffer.byteLength(data, 'utf8'), Date.now()]
-    )
+    writeSnapshot(this.userDataManage.userName, this.module, name, data, Date.now())
   }
 
   saveSnapshotWithTime = async (name: string, data: string, time: number): Promise<void> => {
-    assertSnapshotId(name)
-    assertSnapshotData(data)
-    getDb().run(
-      'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, this.userDataManage.userName, this.module, data, Buffer.byteLength(data, 'utf8'), time || Date.now()]
-    )
-    pruneSnapshots(this.userDataManage.userName, this.module)
+    writeSnapshot(this.userDataManage.userName, this.module, name, data, time, { prune: true })
   }
 
   removeSnapshot = async (name: string): Promise<void> => {

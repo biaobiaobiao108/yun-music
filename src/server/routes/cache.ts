@@ -1584,7 +1584,9 @@ export const createCacheRouter = (): Router => {
               if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode)) {
                 const location = proxyRes.headers.location
                 if (location) {
-                  proxyRes.resume()
+                  // Only the redirect headers are needed. Draining an unbounded
+                  // body would keep an unmetered socket alive after this hop.
+                  proxyRes.destroy()
                   try {
                     const nextUrl = new URL(location, parsedUrl).href
                     void doFetch(nextUrl, attempt + 1)

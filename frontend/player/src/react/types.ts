@@ -139,11 +139,16 @@ export function songDurationValue(song: Song | null | undefined): unknown {
   const songInfo = recordOf(record.songInfo)
   const info = recordOf(record.info)
   const data = recordOf(record.data)
-  return record.interval ?? record.duration ?? record.durationMs
-    ?? meta.interval ?? meta.duration ?? meta.durationMs
-    ?? songInfo.interval ?? songInfo.duration ?? songInfo.durationMs
-    ?? info.interval ?? info.duration ?? info.durationMs
-    ?? data.interval ?? data.duration ?? data.durationMs
+  for (const source of [record, meta, songInfo, info, data]) {
+    const value = source.interval ?? source.duration
+    if (value !== undefined && value !== null) return value
+    if (source.durationMs !== undefined && source.durationMs !== null) {
+      // Keep the named millisecond field's unit before passing through the
+      // legacy auto-unit formatter used by generic duration/interval values.
+      return formatDuration(source.durationMs, 'milliseconds')
+    }
+  }
+  return undefined
 }
 
 export function formatSongDuration(value: unknown): string {

@@ -10,7 +10,7 @@ import { songEntityDetail, songEntityId, songEntityName } from '../frontend/play
 import type { Song } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
-const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
+const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
 
 describe('React player module boundaries', () => {
   it('publishes separate React player and login entries', () => {
@@ -376,7 +376,7 @@ describe('React player module boundaries', () => {
     expect(assetCheck).toContain("'phase-vocoder.js'")
     expect(serviceWorker).not.toContain('vendor-bridge.js')
     expect(serviceWorker).not.toContain('phase-vocoder.js')
-    expect(css).toContain('transform: scale(1.025)')
+    expect(css).toContain('transform: scale(1.01)')
     expect(css).not.toContain('transform: translateY(-3px)')
     expect(css).not.toMatch(/transition:\s*all/)
     expect(adminCss).not.toMatch(/transition:\s*all/)

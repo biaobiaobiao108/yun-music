@@ -229,6 +229,33 @@ export const getUserConfig = (userName: string): Required<LX.User> => {
   }
 }
 
+/**
+ * 快照数量上限的解析顺序：用户级显式覆盖 → 全局配置 → 数据库镜像值 → 10。
+ *
+ * 不抛 "user not found"：账号删除后如果保留了歌单数据（deleteData=false），
+ * 之后的历史列表/裁剪仍需要读这个值，否则每次请求都会 500。
+ */
+export const resolveMaxSnapshotNum = (userName: string, storedValue?: number): number => {
+  const user = global.lx.config.users?.find(item => item.name === userName)
+  const candidates: Array<number | undefined> = [
+    user?.maxSnapshotNum,
+    global.lx.config.maxSnapshotNum,
+    storedValue,
+    10,
+  ]
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 1 && candidate <= 10000) return candidate
+  }
+  return 10
+}
+
+export const getMaxSnapshotNum = (userName: string): number => {
+  const row = getDb().query<{ max_snapshot_num: number }, [string]>(
+    'SELECT max_snapshot_num FROM users WHERE name = ?'
+  ).get(userName)
+  return resolveMaxSnapshotNum(userName, row?.max_snapshot_num)
+}
+
 /** 重命名用户时同步 SQLite 归属和文件夹；不保留旧协议状态。 */
 export const migrateUserData = (oldName: string, newName: string): string => {
   const oldDirPath = path.join(global.lx.userPath, getUserDirname(oldName))

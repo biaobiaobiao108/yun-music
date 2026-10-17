@@ -48,10 +48,22 @@ export function safeImageUrl(value: unknown, fallback = '/music/assets/yun-yin.p
   return fallback
 }
 
-export function formatDuration(value: unknown): string {
+/**
+ * Format a track/position duration as `mm:ss`.
+ *
+ * Sources disagree on the unit (some send seconds, some milliseconds), so the
+ * default `auto` mode only treats a value as milliseconds when it cannot be a
+ * plausible number of seconds (> 24h). The old `> 1000` threshold turned every
+ * 16:41–49:59 track into `00:01`–`00:02`.
+ */
+export function formatDuration(value: unknown, unit: 'auto' | 'seconds' | 'milliseconds' = 'auto'): string {
   const numeric = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(numeric) || numeric < 0) return '00:00'
-  const totalSeconds = Math.floor(numeric > 1000 ? numeric / 1000 : numeric)
+  const totalSeconds = unit === 'milliseconds'
+    ? Math.floor(numeric / 1000)
+    : unit === 'seconds'
+      ? Math.floor(numeric)
+      : Math.floor(numeric > 86_400 ? numeric / 1000 : numeric)
   return `${Math.floor(totalSeconds / 60).toString().padStart(2, '0')}:${(totalSeconds % 60).toString().padStart(2, '0')}`
 }
 

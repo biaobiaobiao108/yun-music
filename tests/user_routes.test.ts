@@ -12,6 +12,8 @@ import * as fileCache from '@/server/fileCache'
 import { spyOn } from 'bun:test'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-user-routes-test-'))
+
 describe('User snapshot permissions', () => {
   let previousLx: typeof global.lx
   const username = 'snapshot_owner'
@@ -26,7 +28,7 @@ describe('User snapshot permissions', () => {
     closeDb()
     initDatabase(':memory:')
     global.lx = {
-      userPath: process.cwd(),
+      userPath: testDataDir,
       config: {
         users: [{ name: username, password: 'password' }],
         'frontend.password': 'snapshot-admin',
@@ -116,8 +118,15 @@ describe('User snapshot permissions', () => {
         .toEqual({ latest_id: 'original' })
 
       const remove = await router.handle(snapshotRequest('delete', owner, headers))
-      expect(remove.status).toBe(200)
-      expect(await getUserSpace(owner).listManage.getSnapshot('original')).toBeNull()
+      expect(remove.status).toBe(409)
+      expect(await getUserSpace(owner).listManage.getSnapshot('original')).toEqual(initialData)
+
+      // Non-current history remains removable.
+      const deleteHistory = await router.handle(new Request(`http://localhost/api/data/delete-snapshot?user=${owner}`, {
+        method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ id: 'uploaded' }),
+      }))
+      expect(deleteHistory.status).toBe(200)
+      expect(await getUserSpace(owner).listManage.getSnapshot('uploaded')).toBeNull()
     }
     expect((await router.handle(snapshotRequest('upload', 'another_user', userHeaders))).status).toBe(403)
   })
@@ -167,7 +176,7 @@ describe('User snapshot permissions', () => {
     expect(await read.json()).toEqual({ defaultList: [], loveList: [song], userList: [] })
   })
 
-  test('bounds imported snapshot history and repairs latest metadata after deletion', async () => {
+  test('bounds imported history and protects the current snapshot across a user-space reload', async () => {
     const manager = getUserSpace(username).listManage
     for (let index = 0; index < 12; index++) {
       await manager.saveSnapshotWithTime(
@@ -182,12 +191,70 @@ describe('User snapshot permissions', () => {
     expect(retained.some(item => item.id === 'history-11')).toBe(true)
 
     await manager.restoreSnapshot('history-11')
-    await manager.removeSnapshot('history-11')
+    const savedData = await manager.getListData()
+    await expect(manager.removeSnapshot('history-11')).rejects.toThrow('不能删除当前使用的快照')
     const latest = getDb().query<{ latest_id: string }, [string, string]>(
       'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?'
     ).get(username, 'list')
-    expect(latest?.latest_id).toBeTruthy()
-    expect(latest?.latest_id).not.toBe('history-11')
+    expect(latest?.latest_id).toBe('history-11')
+    releaseUserSpace(username, true)
+    expect(await getUserSpace(username).listManage.getListData()).toEqual(savedData)
+  })
+
+  test('rejects an import atomically when the current snapshot fills the configured limit', async () => {
+    global.lx.config.users[0].maxSnapshotNum = 1
+    const manager = getUserSpace(username).listManage
+    const current = await manager.createSnapshot()
+    const before = getDb().query('SELECT * FROM snapshots WHERE user_name = ?').all(username)
+    const router = createUserRouter()
+    const response = await router.handle(snapshotRequest('upload', username, userHeaders))
+    expect(response.status).toBe(409)
+    expect((await response.json() as { message: string }).message).toContain('快照保留空间不足')
+    expect(getDb().query('SELECT * FROM snapshots WHERE user_name = ?').all(username)).toEqual(before)
+    for (let read = 0; read < 2; read++) expect((await manager.getSnapshotList()).map(row => row.id)).toEqual([current])
+    releaseUserSpace(username, true)
+    expect(await getUserSpace(username).listManage.getListData()).toEqual(initialData)
+
+    // With enough capacity the same upload survives subsequent list pruning.
+    global.lx.config.users[0].maxSnapshotNum = 2
+    expect((await router.handle(snapshotRequest('upload', username, userHeaders))).status).toBe(200)
+    const reloaded = getUserSpace(username).listManage
+    for (let read = 0; read < 2; read++) expect((await reloaded.getSnapshotList()).map(row => row.id)).toContain('uploaded')
+    expect(await reloaded.getSnapshot('uploaded')).toEqual(uploadedData)
+  })
+
+  test('rejects importing different data over the current snapshot identifier', async () => {
+    const manager = getUserSpace(username).listManage
+    const current = await manager.createSnapshot()
+    await expect(manager.saveSnapshotWithTime(current, JSON.stringify(uploadedData), 1)).rejects.toThrow('不能覆盖当前使用的快照')
+    releaseUserSpace(username, true)
+    expect(await getUserSpace(username).listManage.getListData()).toEqual(initialData)
+  })
+
+  test('keeps an imported snapshot whose timestamp predates the whole history', async () => {
+    const manager = getUserSpace(username).listManage
+    const payload = JSON.stringify({ ...initialData, userList: [{ id: 'kept', name: 'Kept', locationUpdateTime: null, list: [] }] })
+    for (let index = 0; index < 12; index++) {
+      await manager.saveSnapshotWithTime(`recent-${index}`, payload, Date.now() - 60_000 + index)
+    }
+    expect((await manager.getSnapshotList()).length).toBe(10)
+
+    // A backup file's mtime is usually older than every stored snapshot.
+    await manager.saveSnapshotWithTime('imported-old-backup', payload, 1)
+
+    const retained = await manager.getSnapshotList()
+    expect(retained.some(item => item.id === 'imported-old-backup')).toBe(true)
+    expect(retained.length).toBe(10)
+    // Display order still uses the file timestamp, so it shows up as the oldest.
+    expect(retained[retained.length - 1].id).toBe('imported-old-backup')
+  })
+
+  test('pruning never deletes data just because its created_at is old once stored', async () => {
+    const manager = getUserSpace(username).listManage
+    // Repeated read paths also prune; the imported row must survive them all.
+    await manager.saveSnapshotWithTime('imported-old-backup', JSON.stringify(uploadedData), 1)
+    for (let index = 0; index < 3; index++) await manager.getSnapshotList()
+    expect((await manager.getSnapshotList()).some(item => item.id === 'imported-old-backup')).toBe(true)
   })
 
   test('public library writes require an administrator while personal libraries remain writable', async () => {

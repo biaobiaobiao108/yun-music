@@ -7,6 +7,8 @@ import { PassThrough } from 'node:stream'
 import { closeDb, createDatabaseSnapshot, getDb, initDatabase } from '@/database'
 import { createLocalBackup, LocalBackupTooLargeError, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '@/server/localBackupService'
 import { getUserDirname, syncUsersToDatabase } from '@/user'
+import { createSystemRouter } from '@/server/routes/system'
+import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
 const createZip = async (entries: Array<{ name: string; content?: string; sourcePath?: string }>): Promise<Uint8Array> => {
   const output = new PassThrough()
@@ -85,6 +87,42 @@ describe('Local backup restore', () => {
 
     await expect(restoreLocalBackup(archive)).rejects.toThrow('备份文件包含不允许的路径')
     expect(fs.existsSync(path.join(tempDir, 'outside.txt'))).toBe(false)
+  })
+
+  test('failed backup configuration persistence restores the original runtime accounts and database', async () => {
+    const backupDbPath = path.join(tempDir, 'backup-source.db')
+    createDatabaseSnapshot(backupDbPath)
+    const archive = await createZip([
+      { name: 'database/yun-yin.db', sourcePath: backupDbPath },
+      { name: 'config.js', content: 'module.exports = {"serverName":"restored"}\n' },
+    ])
+    global.lx.config.users = [{ name: 'current-user', password: 'current-secret', maxSnapshotNum: 3, dataPath: path.join(global.lx.userPath, getUserDirname('current-user')) }]
+    syncUsersToDatabase(global.lx.config.users, { removeMissing: true })
+    const originalUsers = structuredClone(global.lx.config.users)
+    let saveAttempts = 0
+    global.lx.saveConfig = async () => {
+      if (++saveAttempts === 1) {
+        // The failure must happen after the restored database has been loaded
+        // into memory, so the two account lists actually differ at this point.
+        expect(global.lx.config.users.map(user => user.name)).toEqual(['backup-user'])
+        throw new Error('simulated config write failure')
+      }
+    }
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const upload = new FormData()
+    upload.append('backup', new Blob([Buffer.from(archive)], { type: 'application/zip' }), 'backup.zip')
+
+    const response = await createSystemRouter().handle(new Request('http://localhost/api/backup/upload', {
+      method: 'POST',
+      headers: { cookie },
+      body: upload,
+    }))
+
+    expect(response.status).toBe(400)
+    expect(saveAttempts).toBe(2)
+    expect(global.lx.config.users).toEqual(originalUsers)
+    expect(getDb().query('SELECT name FROM users').all()).toEqual([{ name: 'current-user' }])
+    expect(fs.readFileSync(path.join(global.lx.userPath, 'old.txt'), 'utf8')).toBe('old')
   })
 
   test('generated archives stay within the restore limit and can be restored', async () => {

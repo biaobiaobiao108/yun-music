@@ -730,6 +730,15 @@ export const createSystemRouter = (): Router => {
               console.error('[Backup] 配置回滚写盘失败:', rollbackError)
             }
           }
+          // The backup service rolls the database back only after this callback
+          // throws. Keep the users restored from previousConfig; refreshing now
+          // would overwrite them with the still-installed backup accounts.
+          try {
+            if (global.lx.config.serverCacheLocation) fileCache.setCacheLocation(global.lx.config.serverCacheLocation)
+            global.lx.config['cache.namingPattern'] = fileCache.setNamingPattern(global.lx.config['cache.namingPattern'])
+          } catch (cacheError) {
+            console.error('[Backup] 回滚后恢复缓存目录失败:', cacheError)
+          }
           throw error
         }
       }})

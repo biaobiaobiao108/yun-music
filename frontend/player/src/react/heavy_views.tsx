@@ -283,7 +283,7 @@ export function LocalMusicView() {
   }
   const serverSongs = visibleCacheItems.map(cacheSong)
   const cacheDuration = (item: CacheItem, song: Song): string => {
-    const value = item.duration ?? item.interval ?? songDurationValue(song)
+    const value = item.duration ?? item.interval ?? songDurationValue(item) ?? songDurationValue(song)
     if (typeof value === 'string' && value.includes(':')) return value
     return formatDuration(value)
   }

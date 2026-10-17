@@ -18,6 +18,7 @@ import { startupLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { assertSnapshotId } from '@/modules/list/snapshotDataManage'
+import { SnapshotConflictError } from '@/modules/snapshotStorage'
 import type { PlaylistMutation } from '@/modules/list/listDataManage'
 import { deleteUserCacheData } from '@/server/fileCache'
 import * as downloadQueue from '@/server/serverDownloadQueue'
@@ -725,6 +726,7 @@ export const createUserRouter = (): Router => {
       await userSpace.listManage.removeSnapshot(id)
       return ctx.json({ success: true })
     } catch (err: any) {
+      if (err instanceof SnapshotConflictError) return ctx.fail(409, err.message)
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
     }
   })
@@ -763,6 +765,7 @@ export const createUserRouter = (): Router => {
       await userSpace.listManage.saveSnapshotWithTime(name, finalData, time)
       return ctx.json({ success: true })
     } catch (err: any) {
+      if (err instanceof SnapshotConflictError) return ctx.fail(409, err.message)
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
     }
   })

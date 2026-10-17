@@ -2,10 +2,11 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createPlayerHistoryController } from '../frontend/player/src/react/player_history'
+import { formatDuration } from '../frontend/shared/src/runtime'
 import { formatSongDuration, songAlbum, songArtist, songDurationValue, songFormatValue, songSizeBytes, songSizeValue, songTitle } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
-const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
+const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
 
 describe('React player navigation and state restoration', () => {
   it('keeps the complete sidebar reachable between mobile and desktop breakpoints', () => {
@@ -270,6 +271,20 @@ describe('React player navigation and state restoration', () => {
     expect(formatSongDuration(251000)).toBe('04:11')
     expect(formatSongDuration('--/--')).toBe('—')
     expect(formatSongDuration(undefined)).toBe('—')
+  })
+
+  it('preserves explicit milliseconds in source metadata and seconds in audio positions', () => {
+    for (const durationMs of [1000, 60000, 86000, 251000]) {
+      const expected = formatDuration(durationMs, 'milliseconds')
+      for (const song of [{ durationMs }, { meta: { durationMs } }, { songInfo: { durationMs } }, { info: { durationMs } }, { data: { durationMs } }]) {
+        expect(formatSongDuration(songDurationValue(song))).toBe(expected)
+      }
+    }
+    expect(formatSongDuration(songDurationValue({ durationMs: 60000 }))).toBe('01:00')
+    expect(formatSongDuration(songDurationValue({ duration: 1200, durationMs: 60000 }))).toBe('20:00')
+    expect(formatSongDuration(songDurationValue({ duration: 251000 }))).toBe('04:11')
+    expect(formatDuration(90000, 'seconds')).toBe('1500:00')
+    expect(read('frontend/player/src/react/components.tsx')).toContain("formatDuration(value, 'seconds')")
   })
 
   it('uses fixed queue columns and swaps duration for the remove control on hover', () => {

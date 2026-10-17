@@ -5,7 +5,7 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
 let activeDbPath: string | null = null
-const DATABASE_VERSION = 4
+const DATABASE_VERSION = 5
 
 export const getDbPath = (): string => {
   const dataPath = global.lx?.dataPath ?? path.join(process.cwd(), 'data')
@@ -25,7 +25,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
   ).all().map(row => row.name)
   const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
-  if (currentVersion !== 0 && currentVersion !== 3 && currentVersion !== DATABASE_VERSION) {
+  if (currentVersion !== 0 && currentVersion !== 3 && currentVersion !== 4 && currentVersion !== DATABASE_VERSION) {
     db.close()
     throw new Error('数据库版本不兼容，请先执行 bun run reset:instance')
   }
@@ -60,6 +60,8 @@ export const initDatabase = (customDbPath?: string): Database => {
     );
   `)
   // 3. 快照数据表 (歌单、黑名单)
+  // created_at 是展示用的时间（导入备份时等于文件 mtime）；stored_at 是实际
+  // 写入时间，裁剪历史时按它排序，否则导入的旧备份会被自己的裁剪逻辑立刻删掉。
   db.run(`
     CREATE TABLE IF NOT EXISTS snapshots (
       id TEXT NOT NULL,
@@ -68,6 +70,7 @@ export const initDatabase = (customDbPath?: string): Database => {
       data TEXT NOT NULL,
       size INTEGER NOT NULL,
       created_at INTEGER NOT NULL,
+      stored_at INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (user_name, module, id)
     );
   `)
@@ -184,6 +187,19 @@ export const initDatabase = (customDbPath?: string): Database => {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_cache_stats ON cache_index(user_name, folder, location, audio_size, lyric_size);')
 
+  // v4 -> v5: separate "when it was stored" from "the timestamp it displays".
+  // Legacy rows fall back to created_at; the whole step is idempotent so a
+  // crash between ALTER and PRAGMA user_version is safe to retry.
+  if (currentVersion !== 0 && currentVersion < DATABASE_VERSION) {
+    const snapshotColumns = db.query<{ name: string }, []>('PRAGMA table_info(snapshots)').all().map(column => column.name)
+    db.transaction(() => {
+      if (!snapshotColumns.includes('stored_at')) {
+        db.run('ALTER TABLE snapshots ADD COLUMN stored_at INTEGER NOT NULL DEFAULT 0')
+      }
+      db.run('UPDATE snapshots SET stored_at = created_at WHERE stored_at = 0')
+    })()
+  }
+
   db.run(`PRAGMA user_version = ${DATABASE_VERSION}`)
 
   dbInstance = db
@@ -275,7 +291,12 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
   const target = getDb()
   const tables = ['system_info', 'users', 'snapshots', 'snapshot_meta', 'user_settings', 'player_sessions', 'user_sessions', 'admin_sessions', 'login_failures', 'cache_index']
   const optionalTables = new Set(['admin_sessions', 'login_failures'])
-  const additiveColumns = new Set(['audio_size', 'lyric_size'])
+  // Columns introduced after a backup may have been produced. They are filled
+  // with defaults during the copy, so older snapshots stay restorable.
+  const missingAllowedByTable = new Map<string, Set<string>>([
+    ['cache_index', new Set(['audio_size', 'lyric_size'])],
+    ['snapshots', new Set(['stored_at'])],
+  ])
   try {
     source.run('PRAGMA trusted_schema = OFF')
     const check = source.query<{ quick_check: string }, []>('PRAGMA quick_check').get()
@@ -292,7 +313,7 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
       if (definition.type !== 'table' || !/^CREATE TABLE\s/i.test(definition.sql)) throw new Error('备份数据库结构不兼容')
       const backupColumns = source.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all().map(column => column.name)
       const missingColumns = targetColumns.filter(column => !backupColumns.includes(column))
-      const allowedMissingColumns = table === 'cache_index' ? additiveColumns : new Set<string>()
+      const allowedMissingColumns = missingAllowedByTable.get(table) ?? new Set<string>()
       if (backupColumns.some(column => !targetColumns.includes(column)) || missingColumns.some(column => !allowedMissingColumns.has(column))) {
         throw new Error('备份数据库版本不兼容')
       }
@@ -339,6 +360,9 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
           insert.finalize()
         }
       }
+      // Backups from before v5 have no stored_at; fall back to their display
+      // timestamp so pruning still has a meaningful recency order.
+      target.run('UPDATE snapshots SET stored_at = created_at WHERE stored_at = 0')
       // Sessions from a historical backup must not revive logged-out credentials.
       target.run('DELETE FROM user_sessions')
       target.run('DELETE FROM player_sessions')

@@ -26,10 +26,14 @@ const persistUserSession = (sessionId: string, username: string, createdAt = Dat
   )
 }
 
+// 所有落盘路径必须指向临时目录：否则 closeDb() 之后的 getDb() 会重新打开
+// 仓库内的 data/yun-yin.db（见 database/index.ts 的 assertTestDatabasePath）。
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-cache-routes-test-'))
+
 const createMinimalLxFixture = (enablePublicLocalMusic: boolean): typeof global.lx => ({
-  logPath: process.cwd(),
-  dataPath: process.cwd(),
-  userPath: process.cwd(),
+  logPath: testDataDir,
+  dataPath: testDataDir,
+  userPath: testDataDir,
   staticPath: path.join(process.cwd(), 'public'),
   config: {
     'serverName': 'Test',
@@ -58,7 +62,7 @@ describe('cache list user scope', () => {
     closeDb()
     initDatabase(':memory:')
     global.lx = {
-      userPath: process.cwd(),
+      userPath: testDataDir,
       config: {
         users: [{ name: username, password: 'password' }],
         'frontend.password': 'cache-admin',
@@ -748,7 +752,8 @@ test('download proxy isolates active content and preserves media responses', asy
   try {
     for (const type of ['text/html', 'image/svg+xml', 'application/xhtml+xml', 'audio/mpeg', 'image/png']) {
       mime = type
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/download?inline=1&url=http%3A%2F%2Fexample.com%2Ffile'))
+      const target = 'http://example.com/file'
+      const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/download?inline=1&url=${encodeURIComponent(target)}`))
       expect(response.status).toBe(200)
       expect(response.headers.get('x-content-type-options')).toBe('nosniff')
       expect(response.headers.get('content-security-policy')).toContain('sandbox')
@@ -761,6 +766,66 @@ test('download proxy isolates active content and preserves media responses', asy
   } finally {
     request.mockRestore()
     lookup.mockRestore()
+  }
+})
+
+test('download proxy closes an unfinished redirect body before following its location', async () => {
+  const previousLx = global.lx
+  global.lx = createMinimalLxFixture(false)
+  closeDb()
+  initDatabase(':memory:')
+  const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
+  const content = Buffer.from('audio bytes')
+  let redirectBodyReads = 0
+  const redirect = Object.assign(new Readable({
+    read() { redirectBodyReads += 1 },
+  }), {
+    statusCode: 302,
+    headers: { location: '/audio' },
+  }) as http.IncomingMessage
+  const visited: string[] = []
+  let redirectClosedBeforeNextHop = false
+  const mockRequest = (
+    url: string | URL | http.RequestOptions,
+    optionsOrCallback?: http.RequestOptions | ((response: http.IncomingMessage) => void),
+    callback?: (response: http.IncomingMessage) => void,
+  ): http.ClientRequest => {
+    const responseCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+    const req = new EventEmitter() as http.ClientRequest
+    req.destroy = () => req
+    req.end = () => {
+      visited.push(String(url))
+      queueMicrotask(() => {
+        if (visited.length === 1) responseCallback?.(redirect)
+        else {
+          redirectClosedBeforeNextHop = redirect.destroyed
+          responseCallback?.(Object.assign(Readable.from([content]), {
+            statusCode: 200,
+            headers: { 'content-type': 'audio/mpeg' },
+          }) as http.IncomingMessage)
+        }
+      })
+      return req
+    }
+    return req
+  }
+  const request = spyOn(http, 'request').mockImplementation(mockRequest)
+  try {
+    const target = 'http://example.com/redirect'
+    const response = await createCacheRouter().handle(new Request(
+      `http://localhost/api/music/download?url=${encodeURIComponent(target)}`,
+    ))
+    expect(response.status).toBe(200)
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(content)
+    expect(visited).toEqual([target, 'http://example.com/audio'])
+    expect(redirectClosedBeforeNextHop).toBe(true)
+    expect(redirectBodyReads).toBe(0)
+  } finally {
+    redirect.destroy()
+    request.mockRestore()
+    lookup.mockRestore()
+    closeDb()
+    global.lx = previousLx
   }
 })
 
@@ -782,8 +847,9 @@ test('download proxy treats client aborts as normal request cancellation', async
   })
   const errorLog = spyOn(console, 'error').mockImplementation(() => {})
   try {
+    const target = 'http://example.com/audio'
     const response = await createCacheRouter().handle(new Request(
-      'http://localhost/api/music/download?url=http%3A%2F%2Fexample.com%2Faudio',
+      `http://localhost/api/music/download?url=${encodeURIComponent(target)}`,
     ))
     expect(response.status).toBe(499)
     expect(errorLog).not.toHaveBeenCalled()
@@ -819,8 +885,9 @@ test('tagged download proxy waits for the shared native limit and cancels queued
   })
   const controller = new AbortController()
   try {
+    const target = 'http://example.com/audio'
     const response = createCacheRouter().handle(new Request(
-      'http://localhost/api/music/download?tag=1&url=http%3A%2F%2Fexample.com%2Faudio',
+      `http://localhost/api/music/download?tag=1&url=${encodeURIComponent(target)}`,
       { signal: controller.signal },
     ), { remoteAddress: '203.0.113.219' })
     for (let attempt = 0; attempt < 100 && fileCache.getCachePostProcessStats().waiting === 0; attempt++) await Bun.sleep(5)
@@ -843,7 +910,9 @@ test('local identification resolves its module and forwards a bounded file path'
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-identify-test-'))
   const file = path.join(dir, 'song.mp3')
   fs.writeFileSync(file, 'fixture')
-  global.lx = { config: { 'frontend.password': 'identify-admin' } } as typeof global.lx
+  closeDb()
+  initDatabase(':memory:')
+  global.lx = { dataPath: dir, config: { 'frontend.password': 'identify-admin' } } as typeof global.lx
   const cacheDir = spyOn(fileCache, 'getCacheDir').mockReturnValue(dir)
   const identifySong = spyOn(identify, 'identifyLocalSong').mockResolvedValue([{ name: 'Identified song' }] as any)
   try {
@@ -862,6 +931,7 @@ test('local identification resolves its module and forwards a bounded file path'
   } finally {
     identifySong.mockRestore()
     cacheDir.mockRestore()
+    closeDb()
     global.lx = previousLx
     fs.unlinkSync(file)
     fs.rmdirSync(dir)
