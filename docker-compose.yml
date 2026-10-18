@@ -4,9 +4,9 @@ services:
   yun-yin:
     build: .
     container_name: yun-yin
-    # 默认 UID/GID 为 0。可在 .env 设置 PUID/PGID 以使用非 root 身份运行。
+    # 默认使用镜像中的 bun 用户（UID/GID 1000）；可在 .env 设置 PUID/PGID 覆盖。
     # cap_drop: ALL 会移除 DAC 绕过能力，因此容器 UID/GID 必须对挂载目录有写权限。
-    user: "${PUID:-0}:${PGID:-0}"
+    user: "${PUID:-1000}:${PGID:-1000}"
     restart: always
     read_only: true
     tmpfs:

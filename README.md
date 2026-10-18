@@ -43,6 +43,7 @@ services:
   yun-yin:
     image: ghcr.io/biaobiaobiao108/yun-music:latest
     container_name: yun-yin
+    user: "${PUID:-1000}:${PGID:-1000}"
     restart: always
     ports:
       - "9527:9527"
@@ -70,7 +71,28 @@ docker compose logs -f yun-yin
 - 管理后台：`http://服务器地址:9527/`
 - 健康检查：`http://服务器地址:9527/healthz`
 
-`FRONTEND_PASSWORD` 是必填的管理员密码，请替换成高强度随机值。`LX_USER_admin` 会创建初始播放器账户，同样应换成独立的强密码。也可以在 `.env` 中设置 `PUID` 和 `PGID`，让容器使用专用的宿主机 UID/GID；请确保挂载目录对该身份可读写。生产环境建议经由 HTTPS 反向代理访问。
+`FRONTEND_PASSWORD` 是必填的管理员密码，请替换成高强度随机值。`LX_USER_admin` 会创建初始播放器账户，同样应换成独立的强密码。容器默认以 `bun` 用户运行，UID/GID 为 `1000:1000`；Compose 中的 `user` 设置会覆盖镜像默认身份。需要使用其他宿主机 UID/GID 时，可在 `.env` 中设置 `PUID` 和 `PGID`，并按对应 UID 调整挂载目录属主。生产环境建议经由 HTTPS 反向代理访问。
+
+### 挂载目录权限
+
+首次部署前，或从 root 运行切换到 `bun` 用户后，确保 Compose 项目目录下的 `data/`、`cache/`、`music/` 和 `cover_cache/` 对容器 UID 可读写。已有文件通常需要一并调整属主。下面以默认 UID 1000 为例；如果设置了自定义 `PUID`，请将命令中的 `1000` 替换为该值。已有容器先执行停服命令；首次部署时跳过该命令。操作保留现有组属主，不要使用 `chmod 777`：
+
+```bash
+docker compose stop yun-yin
+mkdir -p ./data ./cache ./music ./cover_cache
+sudo chown -R 1000 ./data ./cache ./music ./cover_cache
+sudo chmod -R u+rwX ./data ./cache ./music ./cover_cache
+docker compose up -d yun-yin
+```
+
+在 NAS 上通过 SSH 执行时，将四个相对目录替换为实际挂载路径下的 `data`、`cache`、`music` 和 `cover_cache`。权限调整后，可确认容器身份及关键目录可写：
+
+```bash
+docker compose exec yun-yin id
+docker compose exec yun-yin sh -c 'test -r /server/data/config.js && test -w /server/data/config.js && test -w /server/data/yun-yin.db && test -w /server/cache && test -w /server/music && test -w /server/cover_cache'
+```
+
+第二条命令成功退出（无错误输出）表示检查通过。如果 NAS ACL 限制导致 `chown` 失败或检查不通过，请在 NAS 的权限管理界面为对应 UID 授予目录遍历、文件读取和写入权限；同时确保 Docker bind mount 本身以读写方式挂载。
 
 ## 数据由你保存
 
