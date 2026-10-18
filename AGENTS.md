@@ -32,7 +32,6 @@
 - **Docker 容器化 (`Dockerfile`)**：
   - 基于 `oven/bun:1.4.3-alpine` 的多阶段极简构建（`builder` ➡️ `prod-deps` ➡️ `runner`）。
   - 内置原生音频库 `chromaprint` 与 `gcompat`，生产镜像彻底剔除源码及开发依赖，专攻极致的小体积与秒级启动。
-  - 生产 `runner` 必须以 `root` 运行（`Dockerfile` 中保留 `USER root`）。NAS 上已有挂载数据由 root 创建，UID 1000 的 `bun` 用户无法读写配置、数据库及缓存子目录；**不得擅自改回 `USER bun` 或添加递归 `chown` 来切换非 root 运行**。这是为兼容现有挂载权限而接受的部署决定。
 
 ### 核心目录指引
 ```text
@@ -132,7 +131,7 @@ yun-music/
 
 - **自定义音源脚本沙箱**：项目仅使用可信自定义音源，生产环境以容器部署；接受 `src/server/userApi.ts` 中 VM 脚本可取得宿主能力的风险，不为此引入额外进程/容器沙箱复杂度。若音源信任模型或部署隔离边界改变，必须重新评估。
   - 注意措辞：逃逸**不需要技巧**，`codeGeneration.strings=false` 只限制 context 内部的 `eval`/`new Function`，注入的 `console`/`Buffer`/`lx.*` 都是宿主函数，脚本访问其 `constructor` 即可拿到宿主 `Function`。因此"安装第三方音源"等价于"把服务器交给该脚本"。
-  - 当前生产容器按部署兼容要求以 `root` 运行，见 `Dockerfile`；不要将其描述为安全隔离。自定义音源逃逸后可获得容器内 root 权限，因此容器挂载、网络及宿主机隔离边界必须按此风险评估。若要改变运行用户，必须先迁移并验证所有现有挂载数据的属主/ACL，并获得用户明确要求。
+  - 因此生产容器以非 root 用户（`bun`，uid 1000）运行，见 `Dockerfile`；宿主机挂载目录需 `chown -R 1000:1000`。这是目前唯一的实际隔离手段。
 
 ## 4. 播放器与服务端缓存内存规范
 
