@@ -5,6 +5,7 @@ const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './assets/yun-yin.png',
+    './assets/yun-yin-favicon.png',
     './manifest.json',
     './tailwind.generated.css',
     './music/assets/fontawesome/css/solid-subset.min.css'

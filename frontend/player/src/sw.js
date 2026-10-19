@@ -15,6 +15,7 @@ const ASSETS_TO_CACHE = [
     './css/tailwind.generated.css',
     // 静态资源
     './assets/yun-yin.png',
+    './assets/yun-yin-favicon.png',
 ];
 
 self.addEventListener('install', (event) => {

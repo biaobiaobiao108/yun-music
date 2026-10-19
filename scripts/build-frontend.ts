@@ -81,9 +81,11 @@ async function build() {
   }
 
   const brandIconSource = path.join(import.meta.dir, '../docs/assets/yun-yin.png')
+  const faviconSource = path.join(import.meta.dir, '../docs/assets/yun-yin-favicon.png')
   for (const iconDirectory of [path.join(publicRoot, 'assets'), path.join(publicMusicRoot, 'assets')]) {
     fs.mkdirSync(iconDirectory, { recursive: true })
     fs.copyFileSync(brandIconSource, path.join(iconDirectory, 'yun-yin.png'))
+    fs.copyFileSync(faviconSource, path.join(iconDirectory, 'yun-yin-favicon.png'))
   }
 
   // These files belonged to the retired command-driven player. Remove stale
