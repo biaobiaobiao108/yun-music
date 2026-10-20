@@ -43,7 +43,16 @@ const prefetchedUrls = new Map<string, CachedSongUrl>()
 const pendingSongUrlRequests = new Map<string, PendingSongUrlRequest>()
 const SONG_URL_CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CACHED_SONG_URLS = 16
+const CROSSFADE_DURATION_MS = 300
 let songUrlCacheGeneration = getSessionGeneration()
+
+type ScreenWakeLockSentinel = {
+  release: () => Promise<void>
+  addEventListener: (type: 'release', listener: () => void, options?: AddEventListenerOptions | boolean) => void
+}
+type WakeLockNavigator = Navigator & {
+  wakeLock?: { request: (type: 'screen') => Promise<ScreenWakeLockSentinel> }
+}
 
 function songUrlPerformanceName(key: string): string {
   return `yun-music:url:${encodeURIComponent(key).slice(0, 160)}`
@@ -337,6 +346,59 @@ function AudioRuntime() {
   const lastProgressEmitAt = useRef(0)
   const lastMediaSessionAt = useRef(0)
   const playbackTraceName = songId ? `yun-music:play:${encodeURIComponent(songId).slice(0, 120)}:${encodeURIComponent(quality)}` : ''
+  const volumeTarget = useRef(muted ? 0 : volume)
+  const fadeFactor = useRef(1)
+  const volumeAnimation = useRef<{ frame: number; finish: () => void } | null>(null)
+  const crossfadeTransition = useRef<{ from: string; to: string } | null>(null)
+  const crossfadeIncoming = useRef(false)
+  const naturalFadeKey = useRef('')
+  volumeTarget.current = muted ? 0 : volume
+
+  const syncAudioVolume = () => {
+    const audio = audioRef.current
+    if (audio) audio.volume = Math.max(0, Math.min(1, volumeTarget.current * fadeFactor.current))
+  }
+
+  const cancelVolumeAnimation = () => {
+    const animation = volumeAnimation.current
+    if (!animation) return
+    cancelAnimationFrame(animation.frame)
+    volumeAnimation.current = null
+    animation.finish()
+  }
+
+  const animateVolumeFactor = (target: number, duration: number) => new Promise<void>(resolve => {
+    const audio = audioRef.current
+    if (!audio || duration <= 0) {
+      fadeFactor.current = target
+      syncAudioVolume()
+      resolve()
+      return
+    }
+    cancelVolumeAnimation()
+    const startFactor = fadeFactor.current
+    const startTime = performance.now()
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      if (volumeAnimation.current?.finish === finish) volumeAnimation.current = null
+      resolve()
+    }
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startTime) / duration)
+      fadeFactor.current = startFactor + (target - startFactor) * progress
+      syncAudioVolume()
+      if (progress >= 1) {
+        fadeFactor.current = target
+        syncAudioVolume()
+        finish()
+      } else if (volumeAnimation.current?.finish === finish) {
+        volumeAnimation.current.frame = requestAnimationFrame(tick)
+      }
+    }
+    volumeAnimation.current = { frame: requestAnimationFrame(tick), finish }
+  })
 
   const cancelScheduledPrefetch = () => {
     prefetchController.current?.abort()
@@ -357,6 +419,51 @@ function AudioRuntime() {
     historyRecordedKey.current = ''
     playbackStatusKey.current = ''
   }, [userName])
+
+  useEffect(() => {
+    if (!settings.keepScreenAwake || !isPlaying) return
+    let disposed = false
+    let requesting = false
+    let sentinel: ScreenWakeLockSentinel | null = null
+    const wakeLock = (navigator as WakeLockNavigator).wakeLock
+    if (!wakeLock) return
+
+    const release = () => {
+      const active = sentinel
+      sentinel = null
+      if (active) void active.release().catch(() => undefined)
+    }
+    const request = async () => {
+      if (disposed || requesting || sentinel || document.visibilityState !== 'visible') return
+      requesting = true
+      try {
+        const active = await wakeLock.request('screen')
+        if (disposed || document.visibilityState !== 'visible') {
+          void active.release().catch(() => undefined)
+          return
+        }
+        sentinel = active
+        active.addEventListener('release', () => {
+          if (sentinel === active) sentinel = null
+        }, { once: true })
+      } catch {
+        // The browser or operating system may deny a screen wake lock.
+      } finally {
+        requesting = false
+      }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void request()
+      else release()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    void request()
+    return () => {
+      disposed = true
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      release()
+    }
+  }, [isPlaying, settings.keepScreenAwake])
 
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
@@ -404,6 +511,7 @@ function AudioRuntime() {
     playbackStatusKey.current = ''
     lastProgressEmitAt.current = 0
     lastMediaSessionAt.current = 0
+    naturalFadeKey.current = ''
     cancelScheduledPrefetch()
     return cancelScheduledPrefetch
   }, [quality, songId])
@@ -434,12 +542,13 @@ function AudioRuntime() {
       },
       pause: () => audio.pause(),
       seek: time => { if (Number.isFinite(time)) audio.currentTime = Math.max(0, time) },
-      volume: next => { audio.volume = next },
+      volume: next => { volumeTarget.current = next; syncAudioVolume() },
     })
-    audio.volume = muted ? 0 : volume
+    syncAudioVolume()
     const onPlay = () => {
       setMediaSessionPlaybackState('playing')
       emitPlaybackService({ type: 'play' })
+      if (resolvedSongKey.current !== songId) return
       if (currentSong) {
         const playback = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current : null
         const playbackUrl = playback?.url || currentSong.url || ''
@@ -480,18 +589,50 @@ function AudioRuntime() {
       }
     }
     const onPlaying = () => {
+      if (resolvedSongKey.current !== songId) return
+      if (crossfadeIncoming.current) {
+        crossfadeIncoming.current = false
+        void animateVolumeFactor(1, CROSSFADE_DURATION_MS)
+      }
       if (!playbackTraceName) return
       const endMark = `${playbackTraceName}:playing-end`
       markPlayerPerformance(endMark)
       measurePlayerPerformance(`${playbackTraceName}:playing`, `${playbackTraceName}:start`, endMark)
     }
     const onPause = () => {
+      if (resolvedSongKey.current !== songId) return
       setMediaSessionPlaybackState(currentSong ? 'paused' : 'none')
       emitPlaybackService({ type: 'pause' })
     }
     const onTime = () => {
+      if (resolvedSongKey.current !== songId) return
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
+      if (settings.enableCrossfade && duration > 0 && currentTime < duration) {
+        const state = usePlaybackStore.getState()
+        let nextSong: Song | undefined
+        if (state.priorityNextSongKey) {
+          nextSong = state.queue.find(song => songKey(song) === state.priorityNextSongKey)
+        } else if (state.mode !== 'single' && state.queue.length > 1) {
+          const nextIndex = state.mode === 'random'
+            ? state.queue.findIndex((_, index) => index !== state.currentIndex)
+            : (state.currentIndex + 1) % state.queue.length
+          nextSong = state.queue[nextIndex]
+        }
+        const remaining = duration - currentTime
+        if (nextSong && songKey(nextSong) !== songId && remaining <= CROSSFADE_DURATION_MS / 1000 && remaining > 0) {
+          const fadeKey = `${songId}:${songKey(nextSong)}`
+          if (naturalFadeKey.current !== fadeKey) {
+            naturalFadeKey.current = fadeKey
+            void animateVolumeFactor(0, Math.min(CROSSFADE_DURATION_MS, remaining * 1000))
+          }
+        } else if (naturalFadeKey.current && (!nextSong || songKey(nextSong) === songId || remaining > CROSSFADE_DURATION_MS / 1000)) {
+          naturalFadeKey.current = ''
+          cancelVolumeAnimation()
+          fadeFactor.current = 1
+          syncAudioVolume()
+        }
+      }
       const now = Date.now()
       // Safari can dispatch timeupdate more often than the footer needs. Keep
       // the imperative audio element smooth while limiting store, React and
@@ -513,6 +654,7 @@ function AudioRuntime() {
       }
     }
     const onLoaded = () => {
+      if (resolvedSongKey.current !== songId) return
       const state = usePlaybackStore.getState()
       const resumeTime = state.currentTime
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
@@ -531,6 +673,7 @@ function AudioRuntime() {
       }
     }
     const onEnded = () => {
+      if (resolvedSongKey.current !== songId) return
       const state = usePlaybackStore.getState()
       if (state.mode === 'single' && !state.priorityNextSongKey) {
         audio.currentTime = 0
@@ -557,6 +700,7 @@ function AudioRuntime() {
       setResolvedError(message); notify(message)
     }
     const onError = () => {
+      if (resolvedSongKey.current !== songId) return
       const activePlayback = resolvedPlayback.current
       const refreshKey = `url-refresh:${songId}:${quality}`
       if (
@@ -619,6 +763,27 @@ function AudioRuntime() {
   }, [currentSong, enqueueCache, notify, notifyPlayback, playbackTraceName, quality, recordRecent, settings, setPlaying, setQuality, setResolvedUrl, songId, userName, volume, muted])
 
   useEffect(() => {
+    if (!volumeAnimation.current) syncAudioVolume()
+  }, [muted, volume])
+
+  useEffect(() => {
+    if (settings.enableCrossfade || (!crossfadeTransition.current && !naturalFadeKey.current)) return
+    cancelVolumeAnimation()
+    naturalFadeKey.current = ''
+    const hadTransition = Boolean(crossfadeTransition.current)
+    crossfadeTransition.current = null
+    crossfadeIncoming.current = false
+    fadeFactor.current = 1
+    syncAudioVolume()
+    const audio = audioRef.current
+    if (audio && hadTransition) {
+      audio.pause()
+      audio.removeAttribute('src')
+      audio.load()
+    }
+  }, [settings.enableCrossfade])
+
+  useEffect(() => {
     const audio = audioRef.current
     if (!audio || !currentSong || !songId) return
     let cancelled = false
@@ -637,6 +802,38 @@ function AudioRuntime() {
           ? { url: storedCacheUrl, fromCache: true, sourceName: '本地缓存' }
           : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, controller.signal)
         if (cancelled || controller.signal.aborted) return
+        const transition = crossfadeTransition.current
+        const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
+        if (transition?.to === songId) {
+          const state = usePlaybackStore.getState()
+          if (crossfadeEnabled && state.isPlaying) {
+            if (audio.paused || audio.ended || fadeFactor.current <= 0) fadeFactor.current = 0
+            else await animateVolumeFactor(0, CROSSFADE_DURATION_MS)
+            if (cancelled || controller.signal.aborted) return
+            const latestState = usePlaybackStore.getState()
+            if (crossfadeTransition.current?.to === songId && useSettingsStore.getState().settings.enableCrossfade && latestState.isPlaying) {
+              audio.pause()
+              crossfadeTransition.current = null
+              crossfadeIncoming.current = true
+              fadeFactor.current = 0
+            } else {
+              cancelVolumeAnimation()
+              crossfadeTransition.current = null
+              crossfadeIncoming.current = false
+              fadeFactor.current = 1
+            }
+          } else {
+            cancelVolumeAnimation()
+            audio.pause()
+            crossfadeTransition.current = null
+            crossfadeIncoming.current = false
+            fadeFactor.current = 1
+          }
+        } else {
+          crossfadeIncoming.current = false
+          fadeFactor.current = 1
+        }
+        syncAudioVolume()
         prefetchedUrls.delete(prefetchKey)
         resolvedPlayback.current = {
           songKey: songId,
@@ -667,6 +864,17 @@ function AudioRuntime() {
         }
       } catch (error) {
         if (cancelled) return
+        if (crossfadeTransition.current?.to === songId) {
+          cancelVolumeAnimation()
+          crossfadeTransition.current = null
+          crossfadeIncoming.current = false
+          fadeFactor.current = 1
+          syncAudioVolume()
+          audio.pause()
+          audio.removeAttribute('src')
+          audio.load()
+          resolvedSongKey.current = ''
+        }
         setResolvedUrl(null)
         setPlaying(false)
         setResolvedError(error instanceof Error ? error.message : '歌曲解析失败')
@@ -677,18 +885,63 @@ function AudioRuntime() {
       cancelled = true
       controller.abort()
       if (playbackTraceName) clearPlayerPerformanceMark(`${playbackTraceName}:start`)
+      const state = usePlaybackStore.getState()
+      const selectedSongKey = state.currentSong ? songKey(state.currentSong) : ''
+      const transition = crossfadeTransition.current
+      const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
+      const preserveTransition = Boolean(
+        crossfadeEnabled
+        && state.isPlaying
+        && selectedSongKey === songId
+        && transition?.to === songId,
+      )
+      const startTransition = Boolean(
+        crossfadeEnabled
+        && state.isPlaying
+        && selectedSongKey
+        && selectedSongKey !== songId
+        && (resolvedSongKey.current === songId || transition),
+      )
+      if (startTransition) {
+        crossfadeTransition.current = { from: transition?.from || songId, to: selectedSongKey }
+        crossfadeIncoming.current = false
+      }
       const playbackUrl = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current.url : null
       if (resolvedSongKey.current === songId) resolvedSongKey.current = ''
       if (resolvedPlayback.current?.songKey === songId) resolvedPlayback.current = null
       if (playbackUrl && usePlaybackStore.getState().resolvedUrl === playbackUrl) setResolvedUrl(null)
-      audio.pause(); audio.removeAttribute('src'); audio.load()
+      if (!startTransition && !preserveTransition) {
+        cancelVolumeAnimation()
+        crossfadeTransition.current = null
+        crossfadeIncoming.current = false
+        fadeFactor.current = 1
+        syncAudioVolume()
+        audio.pause(); audio.removeAttribute('src'); audio.load()
+      }
     }
   }, [currentSong, notify, notifyPlayback, playbackTraceName, quality, setPlaying, setResolvedUrl, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !currentSong || !isPlaying || resolvedSongKey.current !== songId) {
-      if (audio && !isPlaying) audio.pause()
+      if (audio && !isPlaying) {
+        audio.pause()
+        if (naturalFadeKey.current) {
+          naturalFadeKey.current = ''
+          cancelVolumeAnimation()
+          fadeFactor.current = 1
+          syncAudioVolume()
+        }
+        if (crossfadeTransition.current) {
+          cancelVolumeAnimation()
+          crossfadeTransition.current = null
+          crossfadeIncoming.current = false
+          fadeFactor.current = 1
+          syncAudioVolume()
+          audio.removeAttribute('src')
+          audio.load()
+        }
+      }
       return
     }
     const requestedSource = audio.currentSrc || audio.src
