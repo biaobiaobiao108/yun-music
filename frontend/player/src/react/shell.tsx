@@ -67,6 +67,22 @@ function setMediaSessionPlaybackState(state: MediaSessionPlaybackState): void {
   try { navigator.mediaSession.playbackState = state } catch { /* media session may be unavailable in this context */ }
 }
 
+function syncMediaSessionMetadata(song: Song | null): void {
+  if (!('mediaSession' in navigator)) return
+  if (!song) {
+    navigator.mediaSession.metadata = null
+    setMediaSessionPlaybackState('none')
+    return
+  }
+  const artwork = safeImageUrl(songImage(song))
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: songTitle(song),
+    artist: songArtist(song),
+    album: songAlbum(song),
+    artwork: [{ src: new URL(artwork, document.baseURI).href }],
+  })
+}
+
 function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise
   if (signal.aborted) return Promise.reject(abortError())
@@ -324,8 +340,6 @@ function AudioRuntime() {
   const volume = usePlaybackStore(state => state.volume)
   const muted = usePlaybackStore(state => state.muted)
   const setQuality = usePlaybackStore(state => state.setQuality)
-  const previousPlayback = usePlaybackStore(state => state.previous)
-  const nextPlayback = usePlaybackStore(state => state.next)
   const recordRecent = useRecentStore(state => state.record)
   const enqueueCache = useCacheStore(state => state.enqueue)
   const settings = useSettingsStore(state => state.settings)
@@ -546,6 +560,7 @@ function AudioRuntime() {
     })
     syncAudioVolume()
     const onPlay = () => {
+      if (currentSong) syncMediaSessionMetadata(currentSong)
       setMediaSessionPlaybackState('playing')
       emitPlaybackService({ type: 'play' })
       if (resolvedSongKey.current !== songId) return
@@ -958,20 +973,6 @@ function AudioRuntime() {
       try { mediaSession.setActionHandler?.(action, handler) } catch { /* action is not supported by this browser */ }
     }
     const actions: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack']
-    if (!currentSong) {
-      mediaSession.metadata = null
-      setMediaSessionPlaybackState('none')
-      actions.forEach(action => setActionHandler(action, null))
-      return
-    }
-
-    mediaSession.metadata = new MediaMetadata({
-      title: String(currentSong.name || '未知歌曲'),
-      artist: String(currentSong.singer || ''),
-      album: songAlbum(currentSong),
-      artwork: [{ src: safeImageUrl(songImage(currentSong)) }],
-    })
-    setMediaSessionPlaybackState(audioRef.current && !audioRef.current.paused ? 'playing' : 'paused')
     setActionHandler('play', () => {
       const state = usePlaybackStore.getState()
       if (!state.isPlaying) state.toggle()
@@ -980,10 +981,32 @@ function AudioRuntime() {
       const state = usePlaybackStore.getState()
       if (state.isPlaying) state.toggle()
     })
-    setActionHandler('previoustrack', previousPlayback)
-    setActionHandler('nexttrack', nextPlayback)
+    setActionHandler('previoustrack', () => usePlaybackStore.getState().previous())
+    setActionHandler('nexttrack', () => usePlaybackStore.getState().next())
     return () => actions.forEach(action => setActionHandler(action, null))
-  }, [currentSong, nextPlayback, previousPlayback])
+  }, [])
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    syncMediaSessionMetadata(currentSong)
+    if (currentSong) setMediaSessionPlaybackState(audioRef.current && !audioRef.current.paused ? 'playing' : 'paused')
+  }, [currentSong])
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    const refresh = () => {
+      const audio = audioRef.current
+      const song = usePlaybackStore.getState().currentSong
+      if (song && audio && !audio.paused) {
+        syncMediaSessionMetadata(song)
+        setMediaSessionPlaybackState('playing')
+      }
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('pageshow', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('pageshow', refresh)
+    }
+  }, [])
   return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
 }
 
