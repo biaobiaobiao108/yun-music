@@ -383,7 +383,7 @@ function AudioRuntime() {
 
   const animateVolumeFactor = (target: number, duration: number) => new Promise<void>(resolve => {
     const audio = audioRef.current
-    if (!audio || duration <= 0) {
+    if (!audio || duration <= 0 || (typeof document !== 'undefined' && document.hidden)) {
       fadeFactor.current = target
       syncAudioVolume()
       resolve()
@@ -607,7 +607,12 @@ function AudioRuntime() {
       if (resolvedSongKey.current !== songId) return
       if (crossfadeIncoming.current) {
         crossfadeIncoming.current = false
-        void animateVolumeFactor(1, CROSSFADE_DURATION_MS)
+        if (typeof document !== 'undefined' && document.hidden) {
+          fadeFactor.current = 1
+          syncAudioVolume()
+        } else {
+          void animateVolumeFactor(1, CROSSFADE_DURATION_MS)
+        }
       }
       if (!playbackTraceName) return
       const endMark = `${playbackTraceName}:playing-end`
@@ -635,13 +640,14 @@ function AudioRuntime() {
           nextSong = state.queue[nextIndex]
         }
         const remaining = duration - currentTime
-        if (nextSong && songKey(nextSong) !== songId && remaining <= CROSSFADE_DURATION_MS / 1000 && remaining > 0) {
+        const isHidden = typeof document !== 'undefined' && document.hidden
+        if (!isHidden && nextSong && songKey(nextSong) !== songId && remaining <= CROSSFADE_DURATION_MS / 1000 && remaining > 0) {
           const fadeKey = `${songId}:${songKey(nextSong)}`
           if (naturalFadeKey.current !== fadeKey) {
             naturalFadeKey.current = fadeKey
             void animateVolumeFactor(0, Math.min(CROSSFADE_DURATION_MS, remaining * 1000))
           }
-        } else if (naturalFadeKey.current && (!nextSong || songKey(nextSong) === songId || remaining > CROSSFADE_DURATION_MS / 1000)) {
+        } else if (naturalFadeKey.current && (isHidden || !nextSong || songKey(nextSong) === songId || remaining > CROSSFADE_DURATION_MS / 1000)) {
           naturalFadeKey.current = ''
           cancelVolumeAnimation()
           fadeFactor.current = 1
@@ -691,6 +697,10 @@ function AudioRuntime() {
       if (resolvedSongKey.current !== songId) return
       const state = usePlaybackStore.getState()
       if (state.mode === 'single' && !state.priorityNextSongKey) {
+        cancelVolumeAnimation()
+        naturalFadeKey.current = ''
+        fadeFactor.current = 1
+        syncAudioVolume()
         audio.currentTime = 0
         void audio.play()
         return
@@ -799,6 +809,35 @@ function AudioRuntime() {
   }, [settings.enableCrossfade])
 
   useEffect(() => {
+    const handleVisibility = () => {
+      if (typeof document === 'undefined') return
+      if (document.hidden) {
+        cancelVolumeAnimation()
+        if (crossfadeIncoming.current) crossfadeIncoming.current = false
+        if (naturalFadeKey.current) naturalFadeKey.current = ''
+        if (crossfadeTransition.current) crossfadeTransition.current = null
+        fadeFactor.current = 1
+        syncAudioVolume()
+      } else {
+        const state = usePlaybackStore.getState()
+        if (state.isPlaying && !crossfadeTransition.current && fadeFactor.current < 1) {
+          cancelVolumeAnimation()
+          crossfadeIncoming.current = false
+          naturalFadeKey.current = ''
+          fadeFactor.current = 1
+          syncAudioVolume()
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('pageshow', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('pageshow', handleVisibility)
+    }
+  }, [])
+
+  useEffect(() => {
     const audio = audioRef.current
     if (!audio || !currentSong || !songId) return
     let cancelled = false
@@ -819,14 +858,15 @@ function AudioRuntime() {
         if (cancelled || controller.signal.aborted) return
         const transition = crossfadeTransition.current
         const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
-        if (transition?.to === songId) {
+        const isHidden = typeof document !== 'undefined' && document.hidden
+        if (!isHidden && transition?.to === songId) {
           const state = usePlaybackStore.getState()
           if (crossfadeEnabled && state.isPlaying) {
             if (audio.paused || audio.ended || fadeFactor.current <= 0) fadeFactor.current = 0
             else await animateVolumeFactor(0, CROSSFADE_DURATION_MS)
             if (cancelled || controller.signal.aborted) return
             const latestState = usePlaybackStore.getState()
-            if (crossfadeTransition.current?.to === songId && useSettingsStore.getState().settings.enableCrossfade && latestState.isPlaying) {
+            if (crossfadeTransition.current?.to === songId && useSettingsStore.getState().settings.enableCrossfade && latestState.isPlaying && !(typeof document !== 'undefined' && document.hidden)) {
               audio.pause()
               crossfadeTransition.current = null
               crossfadeIncoming.current = true
@@ -845,6 +885,8 @@ function AudioRuntime() {
             fadeFactor.current = 1
           }
         } else {
+          cancelVolumeAnimation()
+          crossfadeTransition.current = null
           crossfadeIncoming.current = false
           fadeFactor.current = 1
         }
@@ -904,14 +946,17 @@ function AudioRuntime() {
       const selectedSongKey = state.currentSong ? songKey(state.currentSong) : ''
       const transition = crossfadeTransition.current
       const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
+      const isHidden = typeof document !== 'undefined' && document.hidden
       const preserveTransition = Boolean(
-        crossfadeEnabled
+        !isHidden
+        && crossfadeEnabled
         && state.isPlaying
         && selectedSongKey === songId
         && transition?.to === songId,
       )
       const startTransition = Boolean(
-        crossfadeEnabled
+        !isHidden
+        && crossfadeEnabled
         && state.isPlaying
         && selectedSongKey
         && selectedSongKey !== songId
