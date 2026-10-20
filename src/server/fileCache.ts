@@ -1244,6 +1244,22 @@ export const detectDownloadSource = (rawUrl: string, fallbackSource?: string) =>
     return fallbackSource || undefined
 }
 
+// Leave room within Linux's 255-byte component limit for the staging file's
+// PID, timestamp, random token and extension (at most 55 additional bytes).
+const CACHE_BASENAME_MAX_BYTES = 200
+
+const truncateFilenameUtf8 = (value: string, maxBytes: number): string => {
+    let result = ''
+    let bytes = 0
+    for (const character of value) {
+        const characterBytes = Buffer.byteLength(character, 'utf8')
+        if (bytes + characterBytes > maxBytes) break
+        result += character
+        bytes += characterBytes
+    }
+    return result
+}
+
 // Generate consistent filename based on pattern with collision handling
 const getFileName = (songInfo: any, quality?: string, isOnlyDownload?: boolean, username?: string) => {
     const sanitizeFilename = (str: any) => String(str || '').replace(/[\\/:*?"<>|]/g, '_')
@@ -1263,6 +1279,16 @@ const getFileName = (songInfo: any, quality?: string, isOnlyDownload?: boolean, 
         // Default/Standard: {Name}_-_{Singer}_-_{Source}_-_{ID}_-_{Quality}
         baseName = `${nameStr}_-_${singerStr}_-_${sanitizeFilename(source)}_-_${sanitizeFilename(id)}_-_${sanitizeFilename(q)}`
     }
+
+    // Hash the full, untruncated identity, including quality. Long simple names
+    // must stay stable regardless of which conflicting songs are indexed first.
+    const identityName = baseName
+    const shortenName = () => {
+        const hash = crypto.createHash('sha256').update(JSON.stringify([source, id, identityName])).digest('hex').slice(0, 16)
+        const suffix = `_-_${truncateFilenameUtf8(sanitizeFilename(q), 32)}_-_${hash}`
+        return truncateFilenameUtf8(identityName, CACHE_BASENAME_MAX_BYTES - Buffer.byteLength(suffix, 'utf8')) + suffix
+    }
+    if (Buffer.byteLength(baseName, 'utf8') > CACHE_BASENAME_MAX_BYTES) return shortenName()
 
     // --- Collision Handling ---
     // Only apply suffix logic if we have a username and it's not the standard pattern (which is already unique)
@@ -1292,7 +1318,7 @@ const getFileName = (songInfo: any, quality?: string, isOnlyDownload?: boolean, 
         }
     }
 
-    if (baseName.length > 200) baseName = baseName.substring(0, 200)
+    if (Buffer.byteLength(baseName, 'utf8') > CACHE_BASENAME_MAX_BYTES) return shortenName()
     return baseName
 }
 

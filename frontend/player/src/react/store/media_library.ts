@@ -8,6 +8,8 @@ import { songImage, type Song } from '../types'
 let mediaController: AbortController | null = null
 let mediaRequestId = 0
 const mediaToggleRequestIds: Record<'albums' | 'artists', number> = { albums: 0, artists: 0 }
+const mediaMutationQueues = new Map<'albums' | 'artists', Promise<void>>()
+let mediaMutationGeneration = 0
 
 function normalizeLibraryItems(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -77,41 +79,53 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
       }
     }
   },
-  toggle: async (kind, item) => {
+  toggle: (kind, item) => {
     const key = kind === 'artist' ? 'artists' : 'albums'
     const sessionScope = getSessionScope()
     const sessionGeneration = getSessionGeneration()
-    const requestId = ++mediaToggleRequestIds[key]
-    const current = get()[key]
-    const itemKey = mediaLibraryItemKey(item, kind)
-    const exists = current.some(candidate => mediaLibraryItemKey(candidate, kind) === itemKey)
-    const next = exists
-      ? current.filter(candidate => mediaLibraryItemKey(candidate, kind) !== itemKey)
-      : [...current, normalizeMediaItem(item, kind)]
-    set({ [key]: next } as Pick<MediaLibraryState, typeof key>)
-    try {
-      invalidateRequestCache('media-library:')
-      if (kind === 'artist') await playerApi.saveLibraryArtists(next)
-      else await playerApi.saveLibraryAlbums(next)
-      if (
-        sessionScope === getSessionScope() &&
-        sessionGeneration === getSessionGeneration() &&
-        requestId === mediaToggleRequestIds[key]
-      ) set({ loadedAt: Date.now(), error: '' })
-      return !exists
-    } catch (error) {
-      if (
-        sessionScope === getSessionScope() &&
-        sessionGeneration === getSessionGeneration() &&
-        requestId === mediaToggleRequestIds[key] &&
-        get()[key] === next
-      ) {
-        set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<MediaLibraryState, typeof key | 'error'>)
+    const mutationGeneration = mediaMutationGeneration
+    const isCurrent = () => sessionScope === getSessionScope()
+      && sessionGeneration === getSessionGeneration()
+      && mutationGeneration === mediaMutationGeneration
+    // Serialize the read/modify/write operation, including optimistic state,
+    // so a failed save is rolled back before the next snapshot is constructed.
+    const run = async () => {
+      if (!isCurrent()) throw new Error('登录账户已变化，请重新操作')
+      mediaRequestId += 1
+      mediaController?.abort()
+      mediaController = null
+      const requestId = ++mediaToggleRequestIds[key]
+      const current = get()[key]
+      const itemKey = mediaLibraryItemKey(item, kind)
+      const exists = current.some(candidate => mediaLibraryItemKey(candidate, kind) === itemKey)
+      const next = exists
+        ? current.filter(candidate => mediaLibraryItemKey(candidate, kind) !== itemKey)
+        : [...current, normalizeMediaItem(item, kind)]
+      set({ [key]: next, loading: false, refreshing: false } as Pick<MediaLibraryState, typeof key | 'loading' | 'refreshing'>)
+      try {
+        invalidateRequestCache('media-library:')
+        if (kind === 'artist') await playerApi.saveLibraryArtists(next)
+        else await playerApi.saveLibraryAlbums(next)
+        if (isCurrent() && requestId === mediaToggleRequestIds[key]) set({ loadedAt: Date.now(), error: '' })
+        return !exists
+      } catch (error) {
+        if (isCurrent() && requestId === mediaToggleRequestIds[key] && get()[key] === next) {
+          set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<MediaLibraryState, typeof key | 'error'>)
+        }
+        throw error
       }
-      throw error
     }
+    const operation = (mediaMutationQueues.get(key) ?? Promise.resolve()).then(run)
+    const settled = operation.then(() => undefined, () => undefined)
+    mediaMutationQueues.set(key, settled)
+    void settled.then(() => {
+      if (mediaMutationQueues.get(key) === settled) mediaMutationQueues.delete(key)
+    })
+    return operation
   },
   reset: () => {
+    mediaMutationGeneration += 1
+    mediaMutationQueues.clear()
     mediaRequestId += 1
     mediaToggleRequestIds.albums += 1
     mediaToggleRequestIds.artists += 1

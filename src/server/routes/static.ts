@@ -178,6 +178,8 @@ export const createStaticRouter = (): Router => {
       const normalizedPrefix = (activePrefix === '/' || activePrefix === '') ? '' : activePrefix.replace(/\/+$/, '')
 
       const isLoginPage = ctx.pathname === `${normalizedPrefix}/login` || ctx.pathname === `${normalizedPrefix}/login.html`
+      // 登录入口位于播放器根目录，未登录时也必须能加载其构建脚本。
+      const isLoginScript = /^\/login-[a-z0-9]{8,}\.js$/i.test(ctx.pathname.slice(normalizedPrefix.length))
       const isPublicAsset = ctx.pathname.startsWith(`${normalizedPrefix}/assets/`) ||
         ctx.pathname.startsWith(`${normalizedPrefix}/css/`) ||
         ctx.pathname.startsWith(`${normalizedPrefix}/js/`) ||
@@ -185,6 +187,7 @@ export const createStaticRouter = (): Router => {
         ctx.pathname.startsWith(`${normalizedPrefix}/img/`) ||
         ctx.pathname === `${normalizedPrefix}/manifest.json` ||
         ctx.pathname === `${normalizedPrefix}/sw.js` ||
+        isLoginScript ||
         isLegacyPlayerAsset
 
       // 播放器鉴权检查

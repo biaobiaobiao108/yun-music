@@ -124,6 +124,29 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     expect(res.status).not.toBe(302)
   })
 
+  test.each(['/music', '/listen'])('Built login entry loads without a session at %s', async (playerPath) => {
+    global.lx.config['player.enableAuth'] = true
+    global.lx.config['player.path'] = playerPath
+    const router = createStaticRouter()
+    const loginUrl = `http://localhost:9527${playerPath}/login`
+    const loginPage = await router.handle(new Request(loginUrl))
+    expect(loginPage.status).toBe(200)
+    const html = await loginPage.text()
+    const loginEntry = html.match(/<script type="module" src="([^"]+)"/i)?.[1]
+    expect(loginEntry).toMatch(/^login-[a-z0-9]{8,}\.js$/i)
+
+    const script = await router.handle(new Request(new URL(loginEntry!, loginUrl)))
+    expect(script.status).toBe(200)
+    expect(script.headers.get('Content-Type')).toContain('javascript')
+    expect((await script.text()).length).toBeGreaterThan(0)
+
+    for (const suffix of ['/', '/index.html', '/login-private.html']) {
+      const protectedPage = await router.handle(new Request(`http://localhost:9527${playerPath}${suffix}`))
+      expect(protectedPage.status).toBe(302)
+      expect(protectedPage.headers.get('Location')).toBe(`${playerPath}/login`)
+    }
+  })
+
   test('GET / serves index.html for default admin path', async () => {
     const router = new Router()
     router.mount('/', createStaticRouter())

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { readJson, readString, writeJson, writeString } from '../../../../shared/src/storage'
 import { subscribePlaybackService, type PlaybackServiceEvent } from '../playback_service'
-import { scopedStorageKey } from '../session'
+import { getSessionGeneration, scopedStorageKey } from '../session'
 import type { PlayMode, Song } from '../types'
 import { songKey } from '../types'
 import { browserStorage } from './shared'
@@ -32,7 +32,7 @@ export type PlaybackState = {
   setMode: (mode: PlayMode) => void
   setQuality: (quality: string) => void
   setResolvedUrl: (url: string | null) => void
-  setCurrentSongUrl: (url: string) => void
+  setSongUrl: (song: Song, url: string, sessionGeneration: number) => void
   seek: (time: number) => void
   next: () => void
   previous: () => void
@@ -206,12 +206,14 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     persistPlaybackNow({ ...get(), quality: next })
   },
   setResolvedUrl: resolvedUrl => set({ resolvedUrl }),
-  setCurrentSongUrl: url => {
+  setSongUrl: (song, url, sessionGeneration) => {
+    if (sessionGeneration !== getSessionGeneration()) return
     const state = get()
-    if (!state.currentSong) return
-    const currentKey = songKey(state.currentSong)
-    const currentSong = { ...state.currentSong, url }
-    const queue = state.queue.map(song => songKey(song) === currentKey ? { ...song, url } : song)
+    const targetKey = songKey(song)
+    const currentSong = state.currentSong && songKey(state.currentSong) === targetKey
+      ? { ...state.currentSong, url }
+      : state.currentSong
+    const queue = state.queue.map(item => songKey(item) === targetKey ? { ...item, url } : item)
     set({ currentSong, queue })
     persistPlaybackNow({ ...state, currentSong, queue })
   },

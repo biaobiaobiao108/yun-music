@@ -5,6 +5,7 @@ import { SongActionsPopover } from './song_actions'
 import { isSongInLoveList, useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore } from './store'
 import { sameSong, songArtist, songImage, songTitle } from './types'
 import { buildCachePlaybackUrl, extractRemotePlaybackUrl, parseCachePlaybackUrl } from './media_url'
+import { getSessionGeneration } from './session'
 
 let immersiveLyricsTrigger: HTMLButtonElement | null = null
 
@@ -105,7 +106,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   const seek = usePlaybackStore(state => state.seek)
   const setVolume = usePlaybackStore(state => state.setVolume)
   const setMode = usePlaybackStore(state => state.setMode)
-  const setCurrentSongUrl = usePlaybackStore(state => state.setCurrentSongUrl)
+  const setSongUrl = usePlaybackStore(state => state.setSongUrl)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const setImmersiveLyrics = usePlayerUiStore(state => state.setImmersiveLyrics)
   const drawer = usePlayerUiStore(state => state.drawer)
@@ -149,6 +150,8 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
 
   const download = useCallback(async () => {
     if (!currentSong) return
+    const sessionGeneration = getSessionGeneration()
+    const isCurrentSession = () => sessionGeneration === getSessionGeneration()
     try {
       const currentReference = parseCachePlaybackUrl(currentSong.url) ?? parseCachePlaybackUrl(resolvedUrl)
       let cachedItem = currentReference ? {
@@ -164,6 +167,7 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
       if (!cachedItem) {
         try {
           const listed = await playerApi.cacheList(userName || undefined)
+          if (!isCurrentSession()) return
           const items = listed.data ?? []
           const matches = items.filter(item => {
             if (item.songInfo && sameSong(item.songInfo, currentSong)) return true
@@ -182,15 +186,16 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
       if (cachedItem) {
         if (cachedItem.folder === 'music') {
           const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username })
-          setCurrentSongUrl(nextUrl)
+          setSongUrl(currentSong, nextUrl, sessionGeneration)
           notify('歌曲已经在下载目录中，已切换到下载路径')
           setDrawer('download')
           return
         }
         const result = await playerApi.cacheMove([{ filename: cachedItem.filename, folder: cachedItem.folder, user: cachedItem.username, rawUsername: cachedItem.username, sourceUser: cachedItem.username }], 'music')
+        if (!isCurrentSession()) return
         if (Number(result.successCount || 0) < 1) throw new Error('缓存文件尚未准备好，请稍后再试')
         const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username })
-        setCurrentSongUrl(nextUrl)
+        setSongUrl(currentSong, nextUrl, sessionGeneration)
         notify('已移入下载目录，后续播放不会重复消耗音源次数')
         setDrawer('download')
         return
@@ -200,11 +205,13 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
       const result = remoteUrl && quality === preferredQuality
         ? { url: remoteUrl }
         : await playerApi.songUrl(currentSong, preferredQuality, undefined, enableAutoSwitchSource)
+      if (!isCurrentSession()) return
       await playerApi.download(currentSong, result.url, preferredQuality)
+      if (!isCurrentSession()) return
       notify(remoteUrl && quality === preferredQuality ? '已加入下载队列，继续复用当前播放链接' : `已加入下载队列，音质：${preferredQuality}`)
       setDrawer('download')
-    } catch (error) { notify(error instanceof Error ? error.message : '下载失败') }
-  }, [currentSong, enableAutoSwitchSource, notify, preferredQuality, quality, resolvedUrl, setCurrentSongUrl, setDrawer, userName])
+    } catch (error) { if (isCurrentSession()) notify(error instanceof Error ? error.message : '下载失败') }
+  }, [currentSong, enableAutoSwitchSource, notify, preferredQuality, quality, resolvedUrl, setSongUrl, setDrawer, userName])
 
   const toggleLike = useCallback(async () => {
     if (!currentSong) { notify('请选择歌曲后再收藏'); return }

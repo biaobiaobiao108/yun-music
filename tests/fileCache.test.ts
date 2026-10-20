@@ -187,6 +187,62 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('preserves distinct long lyric names and qualities within the UTF-8 staging filename budget', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-long-lyric-names-'))
+    const previousLx = (global as any).lx
+    const previousPattern = fileCache.getNamingPattern()
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath: path.join(root, 'data'), config: {} }
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      for (const pattern of ['standard', 'simple']) {
+        fileCache.setNamingPattern(pattern)
+        for (const [index, prefix] of ['A'.repeat(205), '长歌名'.repeat(40), '🎵'.repeat(70)].entries()) {
+          const username = `${pattern}-${index}`
+          const song = { source: 'wy', id: '1', name: `${prefix}1`, singer: 'Singer', albumName: 'Album', quality: 'flac' }
+          const secondSong = { ...song, id: '2', name: `${prefix}2` }
+          expect(fileCache.saveLyricCache(song, { lyric: '[00:01.00]First song' }, username)).toBe(true)
+          expect(fileCache.saveLyricCache(secondSong, { lyric: '[00:01.00]Second song' }, username)).toBe(true)
+          expect(fileCache.saveLyricCache({ ...song, quality: '320k' }, { lyric: '[00:01.00]Other quality' }, username)).toBe(true)
+
+          const dir = fileCache.getCacheDir(username)
+          const files = fs.readdirSync(dir)
+          expect(files).toHaveLength(3)
+          expect(files.map(filename => fs.readFileSync(path.join(dir, filename), 'utf8')).sort()).toEqual([
+            '[00:01.00]First song', '[00:01.00]Other quality', '[00:01.00]Second song',
+          ])
+          for (const filename of files) {
+            const basename = path.basename(filename, '.lrc')
+            expect(Buffer.byteLength(basename, 'utf8')).toBeLessThanOrEqual(200)
+            expect(basename).toMatch(/_-(?:_flac|_320k)_-_[a-f0-9]{16}$/)
+            expect(basename).not.toContain('\uFFFD')
+            const stagingName = `${basename}.2147483647.9999999999999.abcdefabcdef.tmp`
+            expect(Buffer.byteLength(stagingName, 'utf8')).toBeLessThanOrEqual(255)
+            fs.writeFileSync(path.join(dir, stagingName), '')
+            fs.unlinkSync(path.join(dir, stagingName))
+          }
+
+          // Adding a same-metadata conflict later must not change the long
+          // simple name or create a second lyric for the same song.
+          fileCache.indexManager.update(username, {
+            ...secondSong, id: 'wy_conflicting', songmid: 'conflicting',
+            filename: 'conflict.flac', folder: 'cache', mtime: Date.now(), size: 1, ext: 'flac',
+          }, 'cache')
+          expect(fileCache.saveLyricCache(secondSong, { lyric: '[00:01.00]Second song' }, username)).toBe(true)
+          expect(fs.readdirSync(dir).sort()).toEqual(files.sort())
+        }
+      }
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setNamingPattern(previousPattern)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should clean up obsolete unknown lyric file when concrete quality lyric is saved', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-lyric-unknown-cleanup-'))
     const previousLx = (global as any).lx
