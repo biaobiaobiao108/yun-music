@@ -4,6 +4,15 @@ import fs from 'fs'
 const isWatch = process.argv.includes('--watch')
 const publicRoot = path.join(import.meta.dir, '../public')
 const publicMusicRoot = path.join(publicRoot, 'music')
+const STALE_ASSET_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
+function isPastAssetRetention(filePath: string, now = Date.now()): boolean {
+  try {
+    return now - fs.statSync(filePath).mtimeMs > STALE_ASSET_RETENTION_MS
+  } catch {
+    return false
+  }
+}
 
 function copyHtml(source: string, target: string, entryName?: string): void {
   let content = fs.readFileSync(source, 'utf8')
@@ -15,8 +24,9 @@ function copyHtml(source: string, target: string, entryName?: string): void {
 function cleanupStaleEntryBundles(directory: string, pattern: RegExp, keepName: string): void {
   if (!fs.existsSync(directory)) return
   for (const filename of fs.readdirSync(directory)) {
-    if (pattern.test(filename) && filename !== keepName) {
-      fs.rmSync(path.join(directory, filename), { force: true })
+    const filePath = path.join(directory, filename)
+    if (pattern.test(filename) && filename !== keepName && isPastAssetRetention(filePath)) {
+      fs.rmSync(filePath, { force: true })
     }
   }
 }
@@ -30,7 +40,7 @@ function cleanupStaleChunks(directory: string, keepPaths: Set<string>): void {
       if (fs.readdirSync(entryPath).length === 0) fs.rmSync(entryPath, { recursive: true, force: true })
       continue
     }
-    if (/\.(?:js|map)$/i.test(entry.name) && !keepPaths.has(path.resolve(entryPath))) {
+    if (/\.(?:js|map)$/i.test(entry.name) && !keepPaths.has(path.resolve(entryPath)) && isPastAssetRetention(entryPath)) {
       fs.rmSync(entryPath, { force: true })
     }
   }
@@ -189,9 +199,9 @@ async function build() {
   fs.copyFileSync(playerManifestSource, path.join(publicMusicRoot, 'manifest.json'))
   copyHtml(playerLoginSource, path.join(publicMusicRoot, 'login.html'), loginFileName)
 
-  // Keep old assets available until every new bundle and HTML reference has
-  // been written. Only then remove stale outputs, so a watch rebuild cannot
-  // briefly make the active player or lyric page reference a missing file.
+  // Keep old hashed bundles for a grace period so open tabs can still request
+  // lazy chunks after a deploy. Remove only assets older than 30 days to bound
+  // disk growth while allowing long-lived sessions to finish.
   cleanupStaleEntryBundles(publicRoot, /^app(?:-[a-z0-9]+)?\.js$/i, adminFileName)
   cleanupStaleEntryBundles(publicMusicRoot, /^app(?:-[a-z0-9]+)?\.js$/i, playerFileName)
   cleanupStaleEntryBundles(publicMusicRoot, /^login(?:-[a-z0-9]+)?\.js$/i, loginFileName)

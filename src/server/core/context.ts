@@ -197,8 +197,15 @@ export class HttpContext {
       const headerName = (global.lx.config['proxy.header'] || 'x-forwarded-for').toLowerCase()
       const forwarded = this.headers.get(headerName)
       if (forwarded) {
-        const first = forwarded.split(',')[0]?.trim()
-        const normalized = normalizeForwardedAddress(first)
+        const forwardedValues = forwarded.split(',')
+        // A trusted reverse proxy commonly appends the peer address to an
+        // incoming X-Forwarded-For chain. The rightmost value is therefore the
+        // address supplied by that proxy, while the leftmost may be client-
+        // controlled. Do not fall back to an earlier value if it is malformed.
+        const value = headerName === 'x-forwarded-for'
+          ? forwardedValues[forwardedValues.length - 1]
+          : forwardedValues[0]
+        const normalized = normalizeForwardedAddress(value?.trim())
         if (normalized) return normalized
       }
     }

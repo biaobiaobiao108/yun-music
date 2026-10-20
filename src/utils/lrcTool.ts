@@ -1,13 +1,13 @@
 const timeFieldExp = /^(?:\[[\d:.]+\])+/g
-const timeExp = /\d{1,3}(:\d{1,3}){0,2}(?:\.\d{1,3})/g
-
-const t_rxp_1 = /^0+(\d+)/
-const t_rxp_2 = /:0+(\d+)/g
-const t_rxp_3 = /\.0+(\d+)/
+const timeExp = /\d{1,3}(:\d{1,3}){0,2}(?:\.\d{1,3})?/g
 const formatTimeLabel = (label: string) => {
-    return label.replace(t_rxp_1, '$1')
-        .replace(t_rxp_2, ':$1')
-        .replace(t_rxp_3, '.$1')
+    const parts = label.split(':')
+    const lastPart = parts.pop() || ''
+    const [seconds, fraction] = lastPart.split('.')
+    const normalizedTime = [...parts, String(Number(seconds))].map(part => String(Number(part))).join(':')
+    const trimmedFraction = fraction?.replace(/0+$/, '') || ''
+    const normalizedFraction = trimmedFraction ? `.${trimmedFraction}` : ''
+    return `${normalizedTime}${normalizedFraction}`
 }
 
 const filterExtendedLyricLabel = (lrcTimeLabels: Set<string>, extendedLyric: string) => {

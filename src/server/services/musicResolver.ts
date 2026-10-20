@@ -182,13 +182,16 @@ export const getSongMatchScore = (candidate: any, target: any) => {
 export const findServerSourceMatches = async (songInfo: any, username: string) => {
   if (!songInfo?.name || !songInfo?.singer) return []
 
-  const cacheKey = [
-    username,
+  // Search uses the original title/singer and ranking also considers the album.
+  // Keep those inputs in the key so a cached ordering cannot leak across
+  // versions, albums, or distinct source queries that normalize alike.
+  const cacheKey = `${username}:${JSON.stringify([
     songInfo.source,
-    normalizeSongMatchText(songInfo.name),
-    normalizeSongMatchText(songInfo.singer),
+    String(songInfo.name),
+    String(songInfo.singer),
     getSongDurationSeconds(songInfo.interval),
-  ].join(':')
+    String(songInfo.albumName || ''),
+  ])}`
   const cached = sourceMatchCache.get(cacheKey)
   if (cached) return cached
   const pending = sourceMatchPending.get(cacheKey)

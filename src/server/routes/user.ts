@@ -19,7 +19,7 @@ import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { assertSnapshotId } from '@/modules/list/snapshotDataManage'
 import { SnapshotConflictError } from '@/modules/snapshotStorage'
-import type { PlaylistMutation } from '@/modules/list/listDataManage'
+import { PlaylistIdConflictError, type PlaylistMutation } from '@/modules/list/listDataManage'
 import { deleteUserCacheData } from '@/server/fileCache'
 import * as downloadQueue from '@/server/serverDownloadQueue'
 
@@ -254,6 +254,11 @@ export const createUserRouter = (): Router => {
             }
           }
           Object.assign(user, previousUser)
+          try {
+            saveUsers()
+          } catch (rollbackError) {
+            console.error('[User] 用户重命名配置回滚失败:', rollbackError)
+          }
           return ctx.fail(500, toUserMessage(err, '数据迁移失败，请稍后重试'))
         } finally {
           finishRenameUserSpace(normalizedName)
@@ -416,6 +421,7 @@ export const createUserRouter = (): Router => {
       await manager.createSnapshot()
       return ctx.json({ success: true, ...result })
     } catch (err: any) {
+      if (err instanceof PlaylistIdConflictError) return ctx.fail(409, err.message)
       return ctx.fail(400, toUserMessage(err, '歌单操作失败，请稍后重试'))
     }
   })

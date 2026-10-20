@@ -293,7 +293,10 @@ describe('Bounded remote response transport', () => {
   test('proxy HEAD and no-content statuses preserve null bodies', async () => {
     const fetchMock = spyOn(globalThis, 'fetch')
     try {
-      const url = new URL('https://remote.example/') as SafeRemoteHttpUrl
+      const url = Object.assign(new URL('https://remote.example/'), {
+        // This transport fixture bypasses DNS validation intentionally.
+        proxyTargetResolutionSafe: true,
+      }) as SafeRemoteHttpUrl
       fetchMock.mockResolvedValue(new Response(null, { headers: { 'content-length': '104857600' } }))
       const head = await fetchSafeRemote(url, { method: 'HEAD', maxBytes: 1024, proxy: 'http://proxy.example' })
       expect(head.body).toBeNull()

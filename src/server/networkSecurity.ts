@@ -99,7 +99,11 @@ const isBlockedHostname = (hostname: string): boolean => {
   return normalized === 'localhost' || normalized.endsWith('.localhost') || normalized === 'local'
 }
 
-export type SafeRemoteHttpUrl = URL & { lookup: LookupFunction }
+export type SafeRemoteHttpUrl = URL & {
+  lookup: LookupFunction
+  /** Proxy may resolve the target only for literal IPs or synthetic fake-IP DNS. */
+  proxyTargetResolutionSafe?: boolean
+}
 
 export interface SafeRemoteFetchOptions extends Omit<RequestInit, 'redirect'> {
   /** Caller may hold this through parsing/callback dispatch to avoid nested reservations. */
@@ -290,15 +294,21 @@ const fetchViaBunProxy = async (
 /**
  * 使用已验证的 DNS 地址发起远程请求。
  *
- * Bun fetch 目前没有 Node `lookup` 等价的连接级钉扎参数，因此直连请求
- * 使用 node:http(s)；只有显式配置了 Bun 代理时才交给 Bun fetch，由代理
- * 负责解析原始主机名。所有响应都经过统一的字节上限处理。
+ * Bun fetch 目前没有 Node `lookup` 等价的连接级钉扎参数。普通域名交给
+ * 代理会让代理自行解析，绕开这里验证过的地址，因此启用代理时对此类
+ * 请求明确失败；代理只用于公网 IP 字面量和 fake-IP DNS。未配置代理时
+ * 直连使用 node:http(s) 与固定 DNS 地址。所有响应都经过统一的字节上限处理。
  */
 const fetchSafeRemoteTransport = async (
   safeUrl: SafeRemoteHttpUrl,
   options: SafeRemoteFetchOptions = {},
 ): Promise<Response> => {
-  if (options.proxy) return fetchViaBunProxy(safeUrl, options)
+  if (options.proxy) {
+    if (safeUrl.proxyTargetResolutionSafe !== true) {
+      throw new Error('全局代理无法安全地重新解析该域名；请使用 fake-IP DNS 或关闭全局代理')
+    }
+    return fetchViaBunProxy(safeUrl, options)
+  }
 
   const hostname = safeUrl.hostname.replace(/^\[|\]$/g, '')
   const method = String(options.method || 'GET').toUpperCase()
@@ -518,7 +528,9 @@ export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemot
   const hostname = url.hostname.replace(/^\[|\]$/g, '')
   const hostnameIsIpLiteral = isIP(hostname) !== 0
   const addresses = await lookupRemoteAddresses(hostname)
-  const hasPrivateAddress = addresses.some(address => isPrivateAddress(address.address))
+  const hasPrivateAddress = addresses.some(address => (
+    isPrivateAddress(address.address) || isSyntheticDnsAddress(address.address)
+  ))
   // Fake-ip answers (198.18/15 & friends) only make sense when the connection
   // is handed to a configured proxy, which then resolves the real host. In
   // direct mode nothing routes those prefixes, so accepting them was pure
@@ -533,5 +545,12 @@ export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemot
   const validatedAddresses = onlySyntheticAddresses
     ? [...addresses].sort((left, right) => Number(right.family === 4) - Number(left.family === 4))
     : addresses
-  return Object.assign(url, { lookup: pinnedLookup(hostname, validatedAddresses) })
+  return Object.assign(url, {
+    lookup: pinnedLookup(hostname, validatedAddresses),
+    // With a real hostname, Bun's proxy transport would resolve it independently
+    // and could reach a private address even though local DNS returned a public
+    // one. Keep fake-IP compatibility: the configured proxy must resolve the
+    // original hostname because the synthetic address is not the target.
+    proxyTargetResolutionSafe: hostnameIsIpLiteral || onlySyntheticAddresses,
+  })
 }

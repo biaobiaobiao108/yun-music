@@ -9,6 +9,13 @@ export type PlaylistMutation =
   | { action: 'rename'; id: string; name: string }
   | { action: 'delete'; id: string }
 
+export class PlaylistIdConflictError extends Error {
+  constructor() {
+    super('歌单 ID 已存在')
+    this.name = 'PlaylistIdConflictError'
+  }
+}
+
 function musicInfoId(musicInfo: LX.Music.MusicInfo): string {
   const record = musicInfo as unknown as Record<string, unknown>
   const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
@@ -74,6 +81,9 @@ export class ListDataManage {
         this.removeUserList(existing.id)
         this.removeMusicList(existing.id)
         return { added: false }
+      }
+      if (mutation.action === 'toggle' && this.userLists.some(item => item.id === info.id)) {
+        throw new PlaylistIdConflictError()
       }
       this.userLists.push(info)
       this.setMusicList(info.id, list)

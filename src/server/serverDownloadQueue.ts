@@ -308,8 +308,8 @@ const pruneHistory = () => {
   return removed
 }
 
-const saveNow = () => {
-  if (!initialized) return
+const saveNow = (throwOnError = false): Promise<void> => {
+  if (!initialized) return Promise.resolve()
   deduplicateTasksInMemory()
   const removed = pruneHistory()
   if (removed > 0) {
@@ -324,28 +324,36 @@ const saveNow = () => {
   // Keep at most the active write plus the newest pending snapshot. Slow disks
   // must not accumulate a promise closure (and full JSON payload) per update.
   pendingSave = { file, payload }
-  if (saveInProgress) return
-  saveInProgress = true
-  saveChain = (async () => {
-    try {
-      while (pendingSave) {
-        const current = pendingSave
-        pendingSave = null
-        const tempFile = `${current.file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`
-        try {
-          await fs.promises.mkdir(path.dirname(current.file), { recursive: true })
-          await Bun.write(tempFile, current.payload)
-          await fs.promises.rename(tempFile, current.file)
-        } catch (err) {
-          console.warn('[ServerDownloadQueue] Failed to save queue:', err)
-          try { await fs.promises.unlink(tempFile) } catch { }
+  if (!saveInProgress) {
+    saveInProgress = true
+    saveChain = (async () => {
+      let lastError: unknown
+      try {
+        while (pendingSave) {
+          const current = pendingSave
+          pendingSave = null
+          const tempFile = `${current.file}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`
+          try {
+            await fs.promises.mkdir(path.dirname(current.file), { recursive: true })
+            await Bun.write(tempFile, current.payload)
+            await fs.promises.rename(tempFile, current.file)
+            lastError = undefined
+          } catch (err) {
+            lastError = err
+            console.warn('[ServerDownloadQueue] Failed to save queue:', err)
+            try { await fs.promises.unlink(tempFile) } catch { }
+          }
         }
+        if (lastError) throw lastError
+      } finally {
+        saveInProgress = false
       }
-    } finally {
-      saveInProgress = false
-    }
-  })()
-  void saveChain
+    })()
+    // Background state changes are best-effort; explicit identity changes
+    // await this same promise and receive any persistence error.
+    void saveChain.catch(() => {})
+  }
+  return throwOnError ? saveChain : saveChain.catch(() => {})
 }
 
 const scheduleSave = () => {
@@ -354,6 +362,32 @@ const scheduleSave = () => {
     saveTimer = null
     saveNow()
   }, 150)
+}
+
+const captureUserQueueState = (usernames: string[]) => {
+  const selected = new Set(usernames)
+  return {
+    tasks: Array.from(tasks.entries())
+      .filter(([, task]) => selected.has(task.username))
+      .map(([key, task]) => ({ key, task, values: { ...task } })),
+    concurrency: usernames.map(username => [username, concurrencyByUser.get(username)] as const),
+  }
+}
+
+const restoreUserQueueState = (usernames: string[], state: ReturnType<typeof captureUserQueueState>) => {
+  const selected = new Set(usernames)
+  for (const [key, task] of tasks) {
+    if (selected.has(task.username)) tasks.delete(key)
+  }
+  for (const { key, task, values } of state.tasks) {
+    Object.assign(task, values)
+    tasks.set(key, task)
+  }
+  for (const username of usernames) concurrencyByUser.delete(username)
+  for (const [username, concurrency] of state.concurrency) {
+    if (concurrency !== undefined) concurrencyByUser.set(username, concurrency)
+  }
+  rebuildTaskIndexes()
 }
 
 /**
@@ -1055,30 +1089,50 @@ export const releaseUser = (username: string) => {
 /** Only called after workers settle; pending work remains paused for explicit resume. */
 export const renameUser = async (username: string, newName: string) => {
   if (!Array.from(tasks.values()).some(task => task.username === username) && !concurrencyByUser.has(username)) return
-  for (const [key, task] of tasks) {
-    if (task.username !== username) continue
-    tasks.delete(key)
-    task.username = newName
-    task.resolvedUrl = undefined
-    task.resolvedUrlAt = undefined
-    tasks.set(taskMapKey(newName, task.id), task)
+  const usernames = [username, newName]
+  const previousState = captureUserQueueState(usernames)
+  try {
+    for (const [key, task] of tasks) {
+      if (task.username !== username) continue
+      tasks.delete(key)
+      task.username = newName
+      task.resolvedUrl = undefined
+      task.resolvedUrlAt = undefined
+      tasks.set(taskMapKey(newName, task.id), task)
+    }
+    const concurrency = concurrencyByUser.get(username)
+    concurrencyByUser.delete(username)
+    if (concurrency !== undefined) concurrencyByUser.set(newName, concurrency)
+    rebuildTaskIndexes()
+    await saveNow(true)
+  } catch (error) {
+    restoreUserQueueState(usernames, previousState)
+    notifyQueueListeners(username)
+    notifyQueueListeners(newName)
+    throw error
   }
-  const concurrency = concurrencyByUser.get(username)
-  concurrencyByUser.delete(username)
-  if (concurrency !== undefined) concurrencyByUser.set(newName, concurrency)
-  rebuildTaskIndexes()
-  saveNow()
   notifyQueueListeners(username)
   notifyQueueListeners(newName)
-  await saveChain
 }
 
 export const removeUser = async (username: string) => {
   if (!Array.from(tasks.values()).some(task => task.username === username) && !concurrencyByUser.has(username)) return
-  remove(username, { all: true })
+  for (const [key, task] of tasks) {
+    if (task.username !== username) continue
+    controllers.get(key)?.abort()
+    tasks.delete(key)
+  }
   concurrencyByUser.delete(username)
-  saveNow()
-  await saveChain
+  rebuildTaskIndexes()
+  try {
+    await saveNow(true)
+  } catch (error) {
+    notifyQueueListeners(username)
+    void processQueue()
+    throw error
+  }
+  notifyQueueListeners(username)
+  void processQueue()
 }
 
 export const getActiveTaskCount = (): number => activeTasks.size

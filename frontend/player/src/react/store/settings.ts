@@ -14,7 +14,7 @@ export type SettingsState = {
   reset: () => void
 }
 
-const REMOVED_SETTING_KEYS = ['showFooterVisualizer', 'enableSoundEffects', 'soundEffectsPreset', 'soundEffectsGain'] as const
+const REMOVED_SETTING_KEYS = ['showFooterVisualizer', 'enableSoundEffects', 'soundEffectsPreset', 'soundEffectsGain', 'enableCrossfade', 'keepScreenAwake'] as const
 
 function sanitizeSettings(value: Record<string, unknown>): PlayerSettings {
   const next = { ...value } as Record<string, unknown>

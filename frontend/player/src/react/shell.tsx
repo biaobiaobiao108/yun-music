@@ -38,8 +38,11 @@ type PendingSongUrlRequest = {
   settled: boolean
 }
 
-const prefetchedUrls = new Map<string, SongUrlResult>()
+type CachedSongUrl = { result: SongUrlResult; expiresAt: number }
+const prefetchedUrls = new Map<string, CachedSongUrl>()
 const pendingSongUrlRequests = new Map<string, PendingSongUrlRequest>()
+const SONG_URL_CACHE_TTL_MS = 5 * 60 * 1000
+const MAX_CACHED_SONG_URLS = 16
 let songUrlCacheGeneration = getSessionGeneration()
 
 function songUrlPerformanceName(key: string): string {
@@ -94,11 +97,17 @@ function songUrlCacheKey(song: Song, quality: string): string {
   return `${generation}:${songKey(song)}:${quality}`
 }
 
-function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boolean, signal?: AbortSignal, priority: 'high' | 'low' = 'high'): Promise<SongUrlResult> {
+function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boolean, signal?: AbortSignal, priority: 'high' | 'low' = 'high', refresh = false): Promise<SongUrlResult> {
   const key = songUrlCacheKey(song, quality)
   if (signal?.aborted) return Promise.reject(abortError())
+  if (refresh) prefetchedUrls.delete(key)
   const cached = prefetchedUrls.get(key)
-  if (cached) return Promise.resolve(cached)
+  if (cached && cached.expiresAt > Date.now()) {
+    prefetchedUrls.delete(key)
+    prefetchedUrls.set(key, cached)
+    return Promise.resolve(cached.result)
+  }
+  if (cached) prefetchedUrls.delete(key)
   const pending = pendingSongUrlRequests.get(key)
   if (pending) return joinSongUrlRequest(pending, signal)
 
@@ -110,7 +119,19 @@ function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boo
     .then(result => {
       markPlayerPerformance(`${performanceName}:end`)
       measurePlayerPerformance(`yun-music:url:${encodeURIComponent(key).slice(0, 160)}`, `${performanceName}:start`, `${performanceName}:end`)
-      if (result.url) prefetchedUrls.set(key, result)
+      if (result.url) {
+        const now = Date.now()
+        for (const [cachedKey, cachedUrl] of prefetchedUrls) {
+          if (cachedUrl.expiresAt <= now) prefetchedUrls.delete(cachedKey)
+        }
+        prefetchedUrls.delete(key)
+        prefetchedUrls.set(key, { result, expiresAt: now + SONG_URL_CACHE_TTL_MS })
+        while (prefetchedUrls.size > MAX_CACHED_SONG_URLS) {
+          const oldestKey = prefetchedUrls.keys().next().value
+          if (oldestKey === undefined) break
+          prefetchedUrls.delete(oldestKey)
+        }
+      }
       return result
     }, error => {
       markPlayerPerformance(`${performanceName}:end`)
@@ -353,7 +374,10 @@ function AudioRuntime() {
     if (!nextSong || nextIndex === state.currentIndex || nextSong.url) return
     const key = songUrlCacheKey(nextSong, quality)
     prefetchTriggeredKey.current = currentPlaybackKey
-    if (prefetchedUrls.has(key) || pendingSongUrlRequests.has(key)) return
+    const cachedUrl = prefetchedUrls.get(key)
+    if (cachedUrl && cachedUrl.expiresAt > Date.now()) return
+    if (cachedUrl) prefetchedUrls.delete(key)
+    if (pendingSongUrlRequests.has(key)) return
 
     const runPrefetch = () => {
       prefetchIdleHandle.current = null
@@ -387,6 +411,8 @@ function AudioRuntime() {
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    let retryCancelled = false
+    let retryController: AbortController | null = null
     connectAudioCommands({
       play: () => {
         const requestedSource = audio.currentSrc || audio.src
@@ -513,7 +539,7 @@ function AudioRuntime() {
       }
       state.next()
     }
-    const onError = () => {
+    const reportPlaybackError = () => {
       if (settings.enableAutoDegradeQuality && currentSong && !currentSong.url) {
         const currentQualityIndex = QUALITY_FALLBACKS.indexOf(quality)
         const nextQuality = currentQualityIndex >= 0 ? QUALITY_FALLBACKS[currentQualityIndex + 1] : undefined
@@ -530,8 +556,66 @@ function AudioRuntime() {
       emitPlaybackService({ type: 'error', message })
       setResolvedError(message); notify(message)
     }
+    const onError = () => {
+      const activePlayback = resolvedPlayback.current
+      const refreshKey = `url-refresh:${songId}:${quality}`
+      if (
+        currentSong
+        && activePlayback?.songKey === songId
+        && activePlayback.quality === quality
+        && !activePlayback.fromCache
+        && !parseCachePlaybackUrl(activePlayback.url)
+        && !recoveryAttempts.current.has(refreshKey)
+      ) {
+        recoveryAttempts.current.add(refreshKey)
+        prefetchedUrls.delete(songUrlCacheKey(currentSong, quality))
+        retryController?.abort()
+        retryController = new AbortController()
+        const signal = retryController.signal
+        const wasPlaying = usePlaybackStore.getState().isPlaying
+        setResolvedError('')
+        notifyPlayback('刷新播放链接')
+        void requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, signal, 'high', true)
+          .then(async result => {
+            const state = usePlaybackStore.getState()
+            if (
+              retryCancelled
+              || signal.aborted
+              || audioRef.current !== audio
+              || !state.currentSong
+              || songKey(state.currentSong) !== songId
+              || state.quality !== quality
+            ) return
+            resolvedPlayback.current = {
+              songKey: songId,
+              quality,
+              url: result.url,
+              fromCache: Boolean(result.fromCache) || /\/api\/music\/cache\/file\//.test(result.url),
+              sourceName: result.sourceName,
+            }
+            setResolvedUrl(result.url)
+            audio.src = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
+            audio.load()
+            if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
+              notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')
+            }
+            if (wasPlaying || state.isPlaying) await audio.play()
+          })
+          .catch(error => {
+            if (retryCancelled || signal.aborted) return
+            if (error instanceof DOMException && error.name === 'NotAllowedError') {
+              setPlaying(false)
+              notify('歌曲已就绪，请点击播放按钮继续')
+              return
+            }
+            reportPlaybackError()
+          })
+        return
+      }
+      reportPlaybackError()
+    }
     audio.addEventListener('play', onPlay); audio.addEventListener('playing', onPlaying); audio.addEventListener('pause', onPause); audio.addEventListener('timeupdate', onTime); audio.addEventListener('loadedmetadata', onLoaded); audio.addEventListener('ended', onEnded); audio.addEventListener('error', onError)
-    return () => { audio.removeEventListener('play', onPlay); audio.removeEventListener('playing', onPlaying); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
+    return () => { retryCancelled = true; retryController?.abort(); audio.removeEventListener('play', onPlay); audio.removeEventListener('playing', onPlaying); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
   }, [currentSong, enqueueCache, notify, notifyPlayback, playbackTraceName, quality, recordRecent, settings, setPlaying, setQuality, setResolvedUrl, songId, userName, volume, muted])
 
   useEffect(() => {

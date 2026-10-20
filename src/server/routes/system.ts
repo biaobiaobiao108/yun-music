@@ -39,6 +39,155 @@ const parseBoundedInteger = (value: unknown, min: number, max: number, fallback:
 
 const MAX_LOG_TAIL_BYTES = 4 * 1024 * 1024
 
+class MultipartUploadTooLargeError extends Error {}
+
+const findBytes = (buffer: Uint8Array, pattern: Uint8Array): number => {
+  if (!pattern.length || buffer.length < pattern.length) return -1
+  return Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength).indexOf(Buffer.from(pattern))
+}
+
+const appendBytes = (left: Uint8Array, right: Uint8Array): Uint8Array => {
+  if (!left.length) return right
+  if (!right.length) return left
+  const result = new Uint8Array(left.length + right.length)
+  result.set(left)
+  result.set(right, left.length)
+  return result
+}
+
+/** Extract the first `backup` file part without buffering the multipart body. */
+const writeMultipartBackupToFile = async (
+  stream: ReadableStream<Uint8Array>,
+  boundary: string,
+  destination: string,
+  maxBytes: number,
+): Promise<number> => {
+  const marker = new TextEncoder().encode(`--${boundary}`)
+  const separator = new TextEncoder().encode(`\r\n--${boundary}`)
+  const headerTerminator = new Uint8Array([13, 10, 13, 10])
+  const crlf = new Uint8Array([13, 10])
+  const finalMarker = new Uint8Array([45, 45])
+  const reader = stream.getReader()
+  let buffer: Uint8Array<ArrayBufferLike> = new Uint8Array(0)
+  let state: 'start' | 'suffix' | 'headers' | 'body' | 'done' = 'start'
+  let inBackupFile = false
+  let backupFieldSeen = false
+  let backupBytes = 0
+  let fileHandle: fs.promises.FileHandle | undefined
+  let failed = false
+
+  const writePart = async (bytes: Uint8Array) => {
+    if (!inBackupFile || !bytes.length) return
+    backupBytes += bytes.length
+    if (backupBytes > maxBytes) throw new MultipartUploadTooLargeError('备份文件大小不能超过 100 MB')
+    if (!fileHandle) fileHandle = await fs.promises.open(destination, 'w')
+    let offset = 0
+    while (offset < bytes.length) {
+      const result = await fileHandle.write(bytes, offset, bytes.length - offset)
+      if (!result.bytesWritten) throw new Error('备份文件写入失败')
+      offset += result.bytesWritten
+    }
+  }
+
+  const processBuffer = async () => {
+    let progressed = true
+    while (progressed) {
+      progressed = false
+      if (state === 'start') {
+        const index = findBytes(buffer, marker)
+        if (index < 0) {
+          if (buffer.length > marker.length - 1) buffer = buffer.slice(buffer.length - marker.length + 1)
+          continue
+        }
+        buffer = buffer.slice(index + marker.length)
+        state = 'suffix'
+        progressed = true
+      } else if (state === 'suffix') {
+        if (buffer.length >= finalMarker.length && buffer[0] === 45 && buffer[1] === 45) {
+          buffer = buffer.slice(2)
+          state = 'done'
+          progressed = true
+        } else if (buffer.length >= crlf.length && buffer[0] === 13 && buffer[1] === 10) {
+          buffer = buffer.slice(2)
+          state = 'headers'
+          progressed = true
+        } else if (buffer.length >= 2) {
+          throw new Error('multipart 备份格式无效')
+        }
+      } else if (state === 'headers') {
+        const index = findBytes(buffer, headerTerminator)
+        if (index < 0) {
+          if (buffer.length > 16 * 1024) throw new Error('multipart 文件头过大')
+          continue
+        }
+        const headers = new TextDecoder('latin1').decode(buffer.slice(0, index))
+        buffer = buffer.slice(index + headerTerminator.length)
+        const disposition = headers.split('\r\n').find(line => /^content-disposition\s*:/i.test(line)) || ''
+        const name = disposition.match(/(?:^|;)\s*name="([^"]*)"/i)?.[1]
+        const hasFilename = /(?:^|;)\s*filename\s*=/i.test(disposition)
+        inBackupFile = name === 'backup' && hasFilename && !backupFieldSeen
+        if (name === 'backup') backupFieldSeen = true
+        state = 'body'
+        progressed = true
+      } else if (state === 'body') {
+        const index = findBytes(buffer, separator)
+        if (index >= 0) {
+          const suffixOffset = index + separator.length
+          if (buffer.length < suffixOffset + 2) {
+            await writePart(buffer.slice(0, index))
+            buffer = buffer.slice(index)
+          } else if ((buffer[suffixOffset] === 45 && buffer[suffixOffset + 1] === 45)
+            || (buffer[suffixOffset] === 13 && buffer[suffixOffset + 1] === 10)) {
+            await writePart(buffer.slice(0, index))
+            buffer = buffer.slice(suffixOffset)
+            inBackupFile = false
+            state = 'suffix'
+            progressed = true
+          } else {
+            // A zip may contain the boundary prefix as ordinary bytes. Only
+            // treat it as framing when its required CRLF/closing suffix follows.
+            await writePart(buffer.slice(0, index + 1))
+            buffer = buffer.slice(index + 1)
+            progressed = true
+          }
+        } else if (buffer.length >= separator.length) {
+          const safeLength = buffer.length - separator.length + 1
+          await writePart(buffer.slice(0, safeLength))
+          buffer = buffer.slice(safeLength)
+        }
+      }
+    }
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer = appendBytes(buffer, value)
+      await processBuffer()
+    }
+    await processBuffer()
+    if ((state as string) !== 'done') throw new Error('multipart 备份内容不完整')
+    return backupBytes
+  } catch (error) {
+    failed = true
+    try { await reader.cancel(error) } catch { }
+    throw error
+  } finally {
+    reader.releaseLock()
+    if (fileHandle) {
+      await fileHandle.close()
+      if (failed) await fs.promises.unlink(destination).catch(() => {})
+    }
+  }
+}
+
+const readMultipartBoundary = (contentType: string): string | null => {
+  const value = contentType.match(/(?:^|;)\s*boundary=(?:"([^"]+)"|([^;\s]+))/i)?.slice(1).find(Boolean)
+  if (!value || value.length > 200 || /[\r\n]/.test(value)) return null
+  return value
+}
+
 const readLogTail = async (filePath: string, lineLimit: number): Promise<string[]> => {
   const handle = await fs.promises.open(filePath, 'r')
   try {
@@ -698,11 +847,12 @@ export const createSystemRouter = (): Router => {
   // 用户数据和 SQLite；恢复后撤销所有会话，避免备份中的旧凭证重新生效。
   router.post('/api/backup/upload', async (ctx) => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const contentType = (ctx.headers.get('content-type') || '').toLowerCase()
-    // The admin UI streams the zip as a raw body; multipart stays supported for
-    // older clients. Only the raw path avoids holding the whole upload in memory.
+    const rawContentType = ctx.headers.get('content-type') || ''
+    const contentType = rawContentType.toLowerCase()
     const isMultipart = contentType.startsWith('multipart/form-data')
     const maxUploadBytes = isMultipart ? MAX_LOCAL_BACKUP_BYTES + 1024 * 1024 : MAX_LOCAL_BACKUP_BYTES
+    const boundary = isMultipart ? readMultipartBoundary(rawContentType) : null
+    if (isMultipart && !boundary) return ctx.fail(400, 'multipart 备份格式无效')
     const declaredLength = Number(ctx.headers.get('content-length') || 0)
     if (Number.isFinite(declaredLength) && declaredLength > maxUploadBytes) {
       return ctx.fail(413, '备份文件大小不能超过 100 MB')
@@ -749,18 +899,36 @@ export const createSystemRouter = (): Router => {
     }
 
     let tempUploadPath = ''
+    let tempMultipartPath = ''
     try {
-      let source: Uint8Array | Blob | { filePath: string }
+      let source: { filePath: string }
       if (isMultipart) {
-        // Include a small multipart envelope allowance while keeping chunked
-        // uploads bounded before the platform parses FormData.
-        const form = await ctx.formData(maxUploadBytes)
-        const upload = form.get('backup')
-        if (!(upload instanceof Blob)) return ctx.fail(400, '请选择 ZIP 备份文件')
-        if (upload.size <= 0 || upload.size > MAX_LOCAL_BACKUP_BYTES) {
-          return ctx.fail(413, '备份文件大小不能超过 100 MB')
+        const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        tempMultipartPath = path.join(global.lx.dataPath, `.lx-backup-multipart-${suffix}.tmp`)
+        tempUploadPath = path.join(global.lx.dataPath, `.lx-backup-upload-${suffix}.zip`)
+        try {
+          await ctx.writeBodyToFile(tempMultipartPath, maxUploadBytes)
+        } catch (writeError) {
+          if (writeError instanceof Error && writeError.message === 'Request body is too large') {
+            fs.rmSync(tempMultipartPath, { force: true })
+            tempMultipartPath = ''
+            return ctx.fail(413, '备份文件大小不能超过 100 MB')
+          }
+          throw writeError
         }
-        source = upload
+        const uploadSize = await writeMultipartBackupToFile(
+          Bun.file(tempMultipartPath).stream(),
+          boundary!,
+          tempUploadPath,
+          MAX_LOCAL_BACKUP_BYTES,
+        )
+        fs.rmSync(tempMultipartPath, { force: true })
+        tempMultipartPath = ''
+        if (uploadSize === 0) {
+          fs.rmSync(tempUploadPath, { force: true })
+          return ctx.fail(400, '请选择 ZIP 备份文件')
+        }
+        source = { filePath: tempUploadPath }
       } else {
         tempUploadPath = path.join(
           global.lx.dataPath,
@@ -768,7 +936,10 @@ export const createSystemRouter = (): Router => {
         )
         try {
           const written = await ctx.writeBodyToFile(tempUploadPath, MAX_LOCAL_BACKUP_BYTES)
-          if (written === 0) return ctx.fail(400, '请选择 ZIP 备份文件')
+          if (written === 0) {
+            fs.rmSync(tempUploadPath, { force: true })
+            return ctx.fail(400, '请选择 ZIP 备份文件')
+          }
         } catch (writeError) {
           fs.rmSync(tempUploadPath, { force: true })
           if (writeError instanceof Error && writeError.message === 'Request body is too large') {
@@ -783,6 +954,7 @@ export const createSystemRouter = (): Router => {
         await restoreLocalBackup(source, { onRestored })
       } finally {
         if (tempUploadPath) fs.rmSync(tempUploadPath, { force: true })
+        if (tempMultipartPath) fs.rmSync(tempMultipartPath, { force: true })
       }
 
       // 缓存媒体不在备份内，重新扫描宿主机现有目录，避免恢复后索引长期为空。
@@ -791,6 +963,8 @@ export const createSystemRouter = (): Router => {
       return ctx.json({ success: true, message: '备份还原成功，会话已重置', users: global.lx.config.users.length })
     } catch (err) {
       if (tempUploadPath) fs.rmSync(tempUploadPath, { force: true })
+      if (tempMultipartPath) fs.rmSync(tempMultipartPath, { force: true })
+      if (err instanceof MultipartUploadTooLargeError) return ctx.fail(413, err.message)
       if (err instanceof LocalBackupTooLargeError) return ctx.fail(413, err.message)
       return ctx.fail(400, toUserMessage(err, '备份文件无效或无法还原'))
     }

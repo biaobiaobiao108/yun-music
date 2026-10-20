@@ -19,8 +19,6 @@ export const DEFAULT_SETTINGS = {
   lyricFontFamily: '',
   autoResume: true,
   showSidebarSongInfo: false,
-  enableCrossfade: true,
-  keepScreenAwake: true,
   enableKeyboardShortcuts: true,
   showLyricTranslation: true,
   showLyricRoma: false,
