@@ -4,6 +4,6 @@
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#10b981",
+  "theme_color": "#ffffff",
   "icons": [{ "src": "./assets/yun-yin-favicon.png", "sizes": "256x256", "type": "image/png" }]
 }

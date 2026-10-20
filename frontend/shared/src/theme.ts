@@ -11,6 +11,7 @@ export type ThemePreferences = {
 }
 
 const SETTINGS_KEY = 'lx_settings'
+const TITLE_BAR_COLORS = { light: '#ffffff', dark: '#1c1c1e' } as const
 
 function root(): HTMLElement | null {
   return typeof document === 'undefined' ? null : document.documentElement
@@ -32,6 +33,14 @@ export function applyThemePreferences(preferences: ThemePreferences): void {
   // in storage, but intentionally no longer affect the UI.
   element.dataset.theme = 'netease'
   element.style.colorScheme = appearance === 'system' ? 'light dark' : appearance
+  // The manifest color is only a fallback. Keep the installed app's title bar
+  // aligned with the selected appearance, including a later return to system.
+  for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+    const color = appearance === 'system'
+      ? meta.media.includes('dark') ? TITLE_BAR_COLORS.dark : TITLE_BAR_COLORS.light
+      : TITLE_BAR_COLORS[appearance]
+    meta.content = color
+  }
 }
 
 export function updateThemePreferences(next: Partial<ThemePreferences>): ThemePreferences {
