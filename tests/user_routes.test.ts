@@ -37,7 +37,7 @@ describe('User snapshot permissions', () => {
         'user.enablePublicRestriction': true,
       },
     } as typeof global.lx
-    syncUsersToDatabase(global.lx.config.users)
+    await syncUsersToDatabase(global.lx.config.users)
     adminHeaders = { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` }
     const createdAt = Date.now()
     userSessions.set(sessionToken, { username, createdAt })
@@ -302,7 +302,7 @@ describe('Deleted account credentials', () => {
   const username = 'deleted_account'
   let adminHeaders: Record<string, string>
 
-  beforeEach(() => {
+  beforeEach(async () => {
     previousLx = global.lx
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-account-test-'))
     closeDb()
@@ -315,7 +315,7 @@ describe('Deleted account credentials', () => {
         'frontend.password': 'account-admin',
       },
     } as typeof global.lx
-    syncUsersToDatabase(global.lx.config.users)
+    await syncUsersToDatabase(global.lx.config.users)
     adminHeaders = { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`, 'content-type': 'application/json' }
   })
 

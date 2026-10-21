@@ -39,12 +39,12 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     expect(sessionSchema.sql).toContain('FOREIGN KEY (user_name) REFERENCES users(name)')
   })
 
-  it('should CRUD user records', () => {
+  it('should CRUD user records', async () => {
     const db = getDb()
     const now = Date.now()
     db.run(
       'INSERT OR REPLACE INTO users (name, password_hash, max_snapshot_num, add_music_location_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ['alice', hashUserPassword('secret'), 10, 'top', now, now]
+      ['alice', await hashUserPassword('secret'), 10, 'top', now, now]
     )
 
     const user = db.query('SELECT name, password_hash, max_snapshot_num FROM users WHERE name = ?').get('alice') as any
@@ -52,7 +52,7 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     expect(user).toBeDefined()
     expect(user?.name).toBe('alice')
     expect(user?.password_hash).not.toBe('secret')
-    expect(verifyUserPassword(user?.password_hash, 'secret')).toBe(true)
+    expect(await verifyUserPassword(user?.password_hash, 'secret')).toBe(true)
     expect(user?.max_snapshot_num).toBe(10)
   })
 
@@ -72,21 +72,21 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     expect(JSON.parse(snap.data)).toEqual({ defaultList: [], userList: [] })
   })
 
-  it('refreshes Web user metadata without persisting passwords', () => {
+  it('refreshes Web user metadata without persisting passwords', async () => {
     const db = getDb()
     const users = [{ name: 'paired_user', password: 'secret', maxSnapshotNum: 5, dataPath: path.join(testDataDir, 'paired_user') }]
-    syncUsersToDatabase(users)
+    await syncUsersToDatabase(users)
     db.run('UPDATE users SET created_at = 123 WHERE name = ?', ['paired_user'])
 
     users[0].maxSnapshotNum = 20
-    syncUsersToDatabase([...users, { name: 'new_user', password: 'another', maxSnapshotNum: 10, dataPath: path.join(testDataDir, 'new_user') }])
-    syncUsersToDatabase(users)
+    await syncUsersToDatabase([...users, { name: 'new_user', password: 'another', maxSnapshotNum: 10, dataPath: path.join(testDataDir, 'new_user') }])
+    await syncUsersToDatabase(users)
 
     const persisted = db.query('SELECT created_at, max_snapshot_num, password_hash FROM users WHERE name = ?').get('paired_user') as any
     expect(persisted?.created_at).toBe(123)
     expect(persisted?.max_snapshot_num).toBe(20)
     expect(persisted?.password_hash).not.toBe('secret')
-    expect(verifyUserPassword(persisted?.password_hash, 'secret')).toBe(true)
+    expect(await verifyUserPassword(persisted?.password_hash, 'secret')).toBe(true)
     expect(db.query('SELECT name FROM users WHERE name = ?').get('new_user')).toEqual({ name: 'new_user' })
     expect(db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('devices', 'device_snapshot_state')").all()).toEqual([])
   })

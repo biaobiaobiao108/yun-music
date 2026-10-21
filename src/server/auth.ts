@@ -36,7 +36,7 @@ export const safeStringEqual = (left: unknown, right: unknown): boolean => {
 }
 
 /** 兼容旧内存配置，同时优先使用持久化密码哈希。 */
-export const verifyConfiguredPassword = (password: unknown, passwordHash: unknown, legacyPassword: unknown): boolean => {
+export const verifyConfiguredPassword = async (password: unknown, passwordHash: unknown, legacyPassword: unknown): Promise<boolean> => {
   if (isPasswordHash(passwordHash)) return verifyPasswordHash(passwordHash, password)
   return safeStringEqual(password, legacyPassword)
 }

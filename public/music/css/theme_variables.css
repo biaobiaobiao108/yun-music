@@ -7,7 +7,7 @@
 :root {
     color-scheme: light;
     /* Base Transition */
-    --theme-transition: 0.3s ease;
+    --theme-transition: var(--app-motion) ease;
 
     /* Apple Music-inspired neutral surfaces. */
     --bg-main: #ffffff;
@@ -100,7 +100,7 @@
 .transition-colors {
     transition-property: background-color, border-color, color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
+    transition-duration: var(--app-motion);
 }
 
 /* Apply transition to common elements that will change color */
@@ -109,14 +109,14 @@ button,
 input,
 .active-tab,
 i {
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease;
 }
 
 /* Dynamic Logo Filtering - Applies to placeholder SVG or when transitioning to real image */
 .dynamic-logo[src*="yun-yin.png"],
 .dynamic-logo.is-placeholder {
     filter: var(--logo-filter, none);
-    transition: filter 0.3s ease;
+    transition: filter var(--app-motion) ease;
 }
 
 /* Theme Utilities to replace hardcoded Tailwind classes */

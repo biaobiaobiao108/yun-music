@@ -127,7 +127,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     set({ busy: true, error: '' })
     try {
       if (view === 'dashboard') {
-        const [status, users] = await Promise.all([adminApi.status(), adminApi.users(signal)])
+        const [status, users] = await Promise.all([adminApi.status(signal), adminApi.users(signal)])
         if (sequence !== loadSequence) return
         set({ status, users })
       } else if (view === 'users') {
@@ -136,21 +136,21 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         set({ users })
       } else if (view === 'storage') {
         const user = get().selectedUser || 'all'
-        const result = await adminApi.cacheList(user)
+        const result = await adminApi.cacheList(user, signal)
         if (sequence !== loadSequence) return
         set({ storage: Array.isArray(result?.data) ? result.data : [] })
       } else if (view === 'config') {
-        const config = await adminApi.config()
+        const config = await adminApi.config(signal)
         if (sequence !== loadSequence) return
         set({ config })
       } else if (view === 'logs') {
-        const result = await adminApi.logs(get().logType)
+        const result = await adminApi.logs(get().logType, signal)
         if (sequence !== loadSequence) return
         set({ logs: result.logs ?? result.lines ?? [] })
       } else if (view === 'snapshots') {
         const user = get().selectedUser
         if (user) {
-          const snapshots = await adminApi.snapshots(user)
+          const snapshots = await adminApi.snapshots(user, signal)
           if (sequence !== loadSequence) return
           set({ snapshots })
         } else if (sequence === loadSequence) set({ snapshots: [] })

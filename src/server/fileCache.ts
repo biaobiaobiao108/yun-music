@@ -10,22 +10,12 @@ import { PassThrough } from 'stream'
 import { buildLyrics, parseLyrics } from '../utils/lrcTool'
 import { formatPlayTime } from '../utils/common'
 import { getDb } from '@/database'
-import { assertSafePathSegment, isPathInside, resolveInside } from '@/utils/pathSecurity'
+import { assertSafePathSegment, isPathInside, resolveInside, resolveInsideAsync } from '@/utils/pathSecurity'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from './networkSecurity'
 import { NativeLruCache } from '@/utils/nativeLru'
 import { memoryMaintenance } from './memoryMaintenance'
 import { memoryCacheBudgets } from './resourceBudget'
-
-type MusicTagNative = {
-    MusicTagger: new () => any
-    MetaPicture: new (mime: string, data: Uint8Array, type: string) => any
-}
-
-let musicTagNative: MusicTagNative | null = null
-const getMusicTagNative = (): MusicTagNative => {
-    if (!musicTagNative) musicTagNative = require('music-tag-native') as MusicTagNative
-    return musicTagNative
-}
+import { getMusicTagNative } from './musicTagNative'
 
 // --- Cache Naming Patterns ---
 export const CACHE_NAMING_PATTERNS = {
@@ -2431,40 +2421,163 @@ type LyricCacheResult =
     | { exists: true; path: string; content: any; filename: string }
     | { exists: false }
 
-export const checkLyricCache = (songInfo: any, username?: string): LyricCacheResult => {
+const LYRIC_CACHE_SCAN_MAX_ENTRIES = 100_000
+const LYRIC_CACHE_SCAN_MAX_DEPTH = 32
+const LYRIC_CACHE_MAX_FILE_BYTES = 2 * 1024 * 1024
+
+const readLyricCacheFile = async (root: string, filename: string): Promise<{ path: string; content: any } | null> => {
+    try {
+        const filePath = await resolveInsideAsync(root, filename)
+        const stats = await fs.promises.lstat(filePath)
+        if (!stats.isFile() || stats.isSymbolicLink() || stats.size > LYRIC_CACHE_MAX_FILE_BYTES) return null
+
+        // Recheck the resolved path immediately before opening it so a cached
+        // index entry or a replaced directory cannot escape the cache root.
+        await resolveInsideAsync(root, filename)
+        const content = parseLyrics(await fs.promises.readFile(filePath, 'utf-8'))
+        return { path: filePath, content }
+    } catch {
+        return null
+    }
+}
+
+const findCompanionLyricFileAsync = async (root: string, audioFilename: string): Promise<CompanionLyricFile | null> => {
+    const normalizedAudioFilename = String(audioFilename || '').replace(/\\/g, '/')
+    const extension = path.extname(normalizedAudioFilename)
+    if (!extension) return null
+
+    const baseFilename = normalizedAudioFilename.slice(0, -extension.length)
+    const expectedName = `${path.basename(baseFilename)}.lrc`.toLowerCase()
+    const parentRelativePath = path.dirname(baseFilename).replace(/\\/g, '/')
+    const parentFilename = parentRelativePath === '.' ? '' : parentRelativePath
+
+    // The normal cache naming path is an exact companion lookup. Check it
+    // directly first, and only enumerate the directory for case-only legacy
+    // matches on case-sensitive filesystems.
+    const exactFilename = `${baseFilename}.lrc`
+    try {
+        const lyricPath = await resolveInsideAsync(root, exactFilename)
+        const stats = await fs.promises.lstat(lyricPath)
+        if (stats.isFile() && !stats.isSymbolicLink()) return { filename: exactFilename, path: lyricPath }
+    } catch {
+        // Fall through to the case-insensitive legacy lookup.
+    }
+
+    try {
+        const parentPath = await resolveInsideAsync(root, parentFilename)
+        const handle = await fs.promises.opendir(parentPath)
+        let scanned = 0
+        for await (const entry of handle) {
+            scanned++
+            if (scanned > 20_000) break
+            if (!entry.isFile() || entry.name.toLowerCase() !== expectedName) continue
+
+            const filename = path.posix.join(parentFilename, entry.name)
+            const lyricPath = await resolveInsideAsync(root, filename)
+            const stats = await fs.promises.lstat(lyricPath)
+            return stats.isFile() && !stats.isSymbolicLink() ? { filename, path: lyricPath } : null
+        }
+        return null
+    } catch {
+        return null
+    }
+}
+
+const findLyricByIdOnDisk = async (
+    root: string,
+    targetIds: Set<string>,
+    budget: { remainingEntries: number },
+): Promise<{ filename: string; path: string; content: any } | null> => {
+    const scanDirectory = async (directory: string, depth: number): Promise<{ filename: string; path: string; content: any } | null> => {
+        if (depth > LYRIC_CACHE_SCAN_MAX_DEPTH || budget.remainingEntries <= 0) return null
+
+        try {
+            // opendir streams entries, so a single directory with many files
+            // does not allocate a full listing or block the event loop.
+            const handle = await fs.promises.opendir(directory)
+            for await (const entry of handle) {
+                budget.remainingEntries--
+                if (budget.remainingEntries < 0) return null
+                if (entry.isSymbolicLink()) continue
+
+                const fullPath = path.join(directory, entry.name)
+                if (entry.isDirectory()) {
+                    const relativeDirectory = path.relative(root, fullPath).replace(/\\/g, '/')
+                    let safeDirectory: string
+                    try {
+                        safeDirectory = await resolveInsideAsync(root, relativeDirectory)
+                        const stats = await fs.promises.lstat(safeDirectory)
+                        if (!stats.isDirectory() || stats.isSymbolicLink()) continue
+                    } catch {
+                        continue
+                    }
+                    const nested = await scanDirectory(safeDirectory, depth + 1)
+                    if (nested) return nested
+                    if (budget.remainingEntries <= 0) return null
+                    continue
+                }
+
+                if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.lrc') continue
+                const basename = path.basename(entry.name, path.extname(entry.name))
+                const segments = basename.split('_-_')
+                if (segments.length < 2) continue
+                const fileId = segments[segments.length - 2]
+                const cleanFileId = fileId.replace(/^(tx|wy)_/, '')
+                if (!targetIds.has(fileId) && !targetIds.has(cleanFileId)) continue
+
+                const filename = path.relative(root, fullPath).replace(/\\/g, '/')
+                const lyric = await readLyricCacheFile(root, filename)
+                if (lyric) return { filename, path: lyric.path, content: lyric.content }
+            }
+        } catch {
+            // A directory may disappear or become inaccessible during a scan.
+        }
+        return null
+    }
+
+    return scanDirectory(root, 0)
+}
+
+export const checkLyricCache = async (songInfo: any, username?: string): Promise<LyricCacheResult> => {
     const id = normalizeSongId(songInfo)
     const normalizedUsername = normalizeCacheUsername(username)
 
-    const readLyricForIndexedItem = (folder: 'cache' | 'music', item: CacheItem): Exclude<LyricCacheResult, { exists: false }> | null => {
-        const dir = getCacheDir(normalizedUsername, folder === 'music')
-        const audioPath = resolveCacheRelativePath(dir, item.filename)
-        if (!audioPath || !fs.existsSync(audioPath)) return null
-
-        const companion = findCompanionLyricFile(dir, item.filename)
-        const indexedLyricPath = item.lyricFilename
-            ? resolveCacheRelativePath(dir, item.lyricFilename)
-            : null
-        const lyricFile = indexedLyricPath && fs.existsSync(indexedLyricPath)
-            ? { filename: item.lyricFilename!, path: indexedLyricPath }
-            : companion
-        if (!lyricFile || !fs.existsSync(lyricFile.path)) return null
-
+    const readLyricForIndexedItem = async (folder: 'cache' | 'music', item: CacheItem): Promise<Exclude<LyricCacheResult, { exists: false }> | null> => {
+        const dir = getCacheDir(normalizedUsername, folder === 'music', undefined, false)
+        let audioPath: string
         try {
-            const content = parseLyrics(fs.readFileSync(lyricFile.path, 'utf-8'))
-            if (item.hasLyric !== true || item.lyricFilename !== lyricFile.filename) {
-                item.hasLyric = true
-                item.lyricFilename = lyricFile.filename
-                indexManager.update(normalizedUsername, item, folder)
-                invalidateCacheListSync(normalizedUsername)
-            }
-            return {
-                exists: true,
-                path: lyricFile.path,
-                content,
-                filename: lyricFile.filename,
-            }
+            audioPath = await resolveInsideAsync(dir, item.filename)
+            const audioStats = await fs.promises.stat(audioPath)
+            if (!audioStats.isFile()) return null
         } catch {
             return null
+        }
+
+        const indexedLyric = item.lyricFilename
+            ? await readLyricCacheFile(dir, item.lyricFilename)
+            : null
+        const companion = indexedLyric ? null : await findCompanionLyricFileAsync(dir, item.filename)
+        const lyricFilename = indexedLyric
+            ? item.lyricFilename!
+            : companion?.filename
+        if (!lyricFilename) return null
+        const lyricContents = indexedLyric || await readLyricCacheFile(dir, lyricFilename)
+        const lyricFile = lyricContents
+            ? { filename: lyricFilename, ...lyricContents }
+            : null
+        if (!lyricFile) return null
+
+        if (item.hasLyric !== true || item.lyricFilename !== lyricFile.filename) {
+            item.hasLyric = true
+            item.lyricFilename = lyricFile.filename
+            indexManager.update(normalizedUsername, item, folder)
+            invalidateCacheListSync(normalizedUsername)
+        }
+        return {
+            exists: true,
+            path: lyricFile.path,
+            content: lyricFile.content,
+            filename: lyricFile.filename,
         }
     }
 
@@ -2481,7 +2594,7 @@ export const checkLyricCache = (songInfo: any, username?: string): LyricCacheRes
                 return (a.quality === requestedQuality ? -1 : 0) - (b.quality === requestedQuality ? -1 : 0)
             })
         for (const item of candidates) {
-            const lyric = readLyricForIndexedItem(folder, item)
+            const lyric = await readLyricForIndexedItem(folder, item)
             if (lyric) return lyric
         }
     }
@@ -2498,54 +2611,24 @@ export const checkLyricCache = (songInfo: any, username?: string): LyricCacheRes
                 item.singer.toLowerCase() === targetSinger
             )
             for (const matched of matchedItems) {
-                const lyric = readLyricForIndexedItem(folder, matched)
+                const lyric = await readLyricForIndexedItem(folder, matched)
                 if (lyric) return lyric
             }
         }
     }
 
     // Physical scan fallback (for standard naming pattern: Name_-_Singer_-_Source_-_ID_-_Quality)
-    const roots = ['cache', 'music']
-    const basePaths = roots.map(folder => getCacheDir(normalizedUsername, folder === 'music'))
-
-    // [Fix] Recursively search for lyrics if not in index
-    const getAllLrcFiles = (dirPath: string, acc: string[] = []) => {
-        if (!fs.existsSync(dirPath)) return acc
-        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
-        for (const entry of entries) {
-            if (entry.isSymbolicLink()) continue
-            const fullPath = path.join(dirPath, entry.name)
-            if (entry.isDirectory()) {
-                getAllLrcFiles(fullPath, acc)
-            } else if (entry.name.endsWith('.lrc')) {
-                acc.push(fullPath)
-            }
+    const targetCleanId = id.replace(/^(tx|wy)_/, '')
+    const targetIds = new Set([id, targetCleanId].filter(Boolean))
+    const roots: Array<'cache' | 'music'> = ['cache', 'music']
+    const scanBudget = { remainingEntries: LYRIC_CACHE_SCAN_MAX_ENTRIES }
+    for (const folder of roots) {
+        const dirPath = getCacheDir(normalizedUsername, folder === 'music', undefined, false)
+        const result = await findLyricByIdOnDisk(dirPath, targetIds, scanBudget)
+        if (result) {
+            return { exists: true, ...result }
         }
-        return acc
-    }
-
-    const cleanId = (sid: string) => String(sid || '').replace(/^(tx|wy)_/, '')
-    const targetCleanId = cleanId(id)
-
-    for (const dirPath of basePaths) {
-        const lrcFiles = getAllLrcFiles(dirPath)
-        for (const filePath of lrcFiles) {
-            const file = path.basename(filePath)
-            const fileNameWithoutExt = file.substring(0, file.lastIndexOf('.'))
-            const segments = fileNameWithoutExt.split('_-_')
-            if (segments.length >= 2) {
-                const fileId = segments[segments.length - 2]
-                const fileCleanId = cleanId(fileId)
-                if (fileId === id || fileCleanId === id || fileId === targetCleanId || fileCleanId === targetCleanId) {
-                    return {
-                        exists: true,
-                        path: filePath,
-                        content: parseLyrics(fs.readFileSync(filePath, 'utf-8')),
-                        filename: path.relative(dirPath, filePath).replace(/\\/g, '/')
-                    }
-                }
-            }
-        }
+        if (scanBudget.remainingEntries <= 0) break
     }
 
     return { exists: false }

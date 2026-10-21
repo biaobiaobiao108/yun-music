@@ -10,13 +10,13 @@ import { createAdminSession } from '@/server/auth'
 let previous: typeof global.lx
 let directory: string
 let cookie: string
-beforeEach(() => {
+beforeEach(async () => {
   previous = global.lx
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-playlist-mutations-'))
   closeDb()
   initDatabase(':memory:')
   global.lx = { userPath: directory, config: { users: [{ name: 'playlist_owner', password: 'password' }], 'frontend.password': 'admin' } } as typeof global.lx
-  syncUsersToDatabase(global.lx.config.users)
+  await syncUsersToDatabase(global.lx.config.users)
   cookie = `lx_admin_session=${createAdminSession()}`
 })
 afterEach(() => {

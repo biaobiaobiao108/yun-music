@@ -113,10 +113,13 @@ describe('React player module boundaries', () => {
 
   it('keeps audio lifecycle lightweight and cache APIs isolated behind services', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
+    const audioRuntime = read('frontend/player/src/react/audio_runtime.tsx')
     const api = read('frontend/player/src/react/api.ts')
-    expect(shell).toContain('preload="metadata"')
-    expect(shell).toContain('removeAttribute(\'src\')')
-    expect(shell).toContain('navigator.mediaSession')
+    expect(shell).toContain("import { AudioRuntime } from './audio_runtime'")
+    expect(shell).toContain('<AudioRuntime />')
+    expect(audioRuntime).toContain('preload="metadata"')
+    expect(audioRuntime).toContain('removeAttribute(\'src\')')
+    expect(audioRuntime).toContain('navigator.mediaSession')
     expect(api).toContain("'/api/music/url'")
     expect(api).toContain("'/api/music/cache/queue'")
     expect(api).toContain("'/api/music/lyric'")
@@ -293,6 +296,7 @@ describe('React player module boundaries', () => {
 
   it('publishes the reference navigation and shared theme contracts', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
+    const audioRuntime = read('frontend/player/src/react/audio_runtime.tsx')
     const playerCss = read('frontend/styles/player.css')
     const library = read('frontend/player/src/react/library_views.tsx')
     const store = read('frontend/player/src/react/store.ts')
@@ -330,7 +334,7 @@ describe('React player module boundaries', () => {
     expect(playerCss).not.toContain('.react-queue-next-chip')
     expect(shell).toContain('prefers-reduced-motion: reduce')
     expect(shell).toContain("event.key !== 'ArrowUp' && event.key !== 'ArrowDown'")
-    expect(shell).toContain('priorityNextSongKey')
+    expect(audioRuntime).toContain('priorityNextSongKey')
     expect(shell).toContain('正在恢复播放列表…')
     expect(shell).toContain('播放列表为空')
     expect(shell).toContain('下载任务加载失败')

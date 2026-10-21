@@ -174,7 +174,7 @@ body {
     caret-color: var(--accent-primary);
     opacity: 1;
     font-size: 0.95rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .login-password-field {
@@ -227,7 +227,7 @@ body {
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -259,7 +259,7 @@ body {
     justify-content: center;
     gap: 0.5rem;
     white-space: nowrap;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-secondary:hover {
@@ -354,7 +354,7 @@ body {
     color: var(--text-secondary);
     text-decoration: none;
     font-weight: 500;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
     cursor: pointer;
 }
 
@@ -393,7 +393,7 @@ body {
     gap: 0.5rem;
     cursor: pointer;
     font-weight: 500;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .btn-logout svg {
@@ -513,7 +513,7 @@ body {
     display: flex;
     align-items: center;
     gap: 1.25rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .stat-card:hover {
@@ -654,7 +654,7 @@ body {
     align-items: center;
     gap: 1rem;
     text-align: left;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
     border-radius: 16px;
 }
 
@@ -710,7 +710,7 @@ body {
     border: 1px solid var(--glass-border);
     border-radius: 16px;
     padding: 1.5rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .user-card:hover {
@@ -745,7 +745,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .user-actions button svg {
@@ -853,7 +853,7 @@ body {
     border-radius: 8px;
     color: var(--text-primary);
     font-size: 0.95rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .form-input:focus {
@@ -909,7 +909,7 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    transition: box-shadow 0.3s ease, transform 0.2s ease;
+    transition: box-shadow var(--app-motion) ease, transform 0.2s ease;
 }
 
 .config-card:hover {
@@ -1152,7 +1152,7 @@ select.form-input,
     color: var(--text-primary);
     font-size: 0.95rem;
     cursor: pointer;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' fill-opacity='0.6' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -1214,7 +1214,7 @@ select.form-input option:checked {
     border: 1px solid var(--glass-border);
     border-radius: 12px;
     cursor: pointer;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
     color: var(--text-primary);
     font: inherit;
     text-align: left;
@@ -1236,7 +1236,7 @@ select.form-input option:checked {
     height: 16px;
     color: var(--text-secondary);
     margin-left: auto;
-    transition: transform 0.3s ease;
+    transition: transform var(--app-motion) ease;
 }
 
 .custom-user-selector.open .chevron-icon {
@@ -1322,7 +1322,7 @@ select.form-input option:checked {
     padding: 2rem 1.5rem;
     text-align: center;
     cursor: pointer;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1377,7 +1377,7 @@ select.form-input option:checked {
     opacity: 0.6;
     filter: blur(1px);
     pointer-events: none;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
     position: relative;
     min-height: 100px;
 }
@@ -1493,7 +1493,7 @@ select.form-input option:checked {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1812,7 +1812,7 @@ select.form-input option:checked {
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.875rem;
-    transition: color 0.3s ease;
+    transition: color var(--app-motion) ease;
 }
 
 .file-breadcrumb a:hover {
@@ -1853,7 +1853,7 @@ select.form-input option:checked {
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--glass-border);
     align-items: center;
-    transition: background 0.3s ease;
+    transition: background var(--app-motion) ease;
 }
 
 .file-item:hover {
@@ -1909,7 +1909,7 @@ select.form-input option:checked {
     color: var(--text-primary);
     border-radius: 6px;
     cursor: pointer;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .file-item-actions button:hover {
@@ -2031,7 +2031,7 @@ select.form-input option:checked {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: transform var(--app-motion) ease, box-shadow var(--app-motion) ease;
 }
 
 .playlist-card:hover {
@@ -2107,7 +2107,7 @@ select.form-input option:checked {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .btn-view {
@@ -2150,7 +2150,7 @@ select.form-input option:checked {
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 1rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .btn-back:hover {
@@ -2181,7 +2181,7 @@ select.form-input option:checked {
 /* =============== 可点击的统计卡片 =============== */
 .data-stat-card.clickable {
     cursor: pointer;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .data-stat-card.clickable:hover {
@@ -2221,7 +2221,7 @@ select.form-input option:checked {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .btn-edit-name:hover {
@@ -2261,7 +2261,7 @@ select.form-input option:checked {
     color: var(--text-primary);
     cursor: pointer;
     font-size: 0.85rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
     white-space: nowrap;
 }
 
@@ -2281,7 +2281,7 @@ select.form-input option:checked {
     gap: 0.5rem;
     font-size: 0.875rem;
     cursor: pointer;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
     white-space: nowrap;
 }
 
@@ -2382,7 +2382,7 @@ select.form-input option:checked {
     position: relative;
     max-width: 400px;
     min-width: 250px;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .search-box input {
@@ -2393,7 +2393,7 @@ select.form-input option:checked {
     border-radius: 8px;
     color: var(--text-primary);
     font-size: 0.95rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .search-box input:focus-visible {
@@ -2422,7 +2422,7 @@ select.form-input option:checked {
     color: var(--text-primary);
     font-size: 0.95rem;
     cursor: pointer;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' fill-opacity='0.6' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -2523,7 +2523,7 @@ select.form-input option:checked {
     border: 1px solid var(--glass-border);
     border-radius: 14px;
     align-items: center;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--shadow-sm);
 }
 
@@ -2551,7 +2551,7 @@ select.form-input option:checked {
     background: rgba(255, 255, 255, 0.05);
     cursor: pointer;
     position: relative;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #view-users input[type="checkbox"]:checked {
@@ -2586,7 +2586,7 @@ select.form-input option:checked {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .status-badge.active {
@@ -2675,7 +2675,7 @@ select.form-input option:checked {
     justify-content: center;
     gap: 0.5rem;
     white-space: nowrap;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -2824,7 +2824,7 @@ input:-webkit-autofill:active {
     border-bottom: 1px solid var(--glass-border);
     align-items: center;
     min-width: 0;
-    transition: background 0.3s ease;
+    transition: background var(--app-motion) ease;
 }
 
 .snapshot-row:hover {
@@ -2864,7 +2864,7 @@ input:-webkit-autofill:active {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .btn-download {
@@ -3032,7 +3032,7 @@ input:-webkit-autofill:active {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease, box-shadow var(--app-motion) ease, opacity var(--app-motion) ease, transform var(--app-motion) ease, filter var(--app-motion) ease;
 }
 
 .btn-delete-song:hover {
@@ -3060,7 +3060,7 @@ input:-webkit-autofill:active {
     /* 占位背景色 */
     flex-shrink: 0;
     object-fit: cover;
-    transition: opacity 0.3s ease;
+    transition: opacity var(--app-motion) ease;
 }
 
 .song-cover.loading {
@@ -3546,7 +3546,7 @@ input:-webkit-autofill:active {
         background: rgba(255, 255, 255, 0.96);
         backdrop-filter: blur(30px);
         -webkit-backdrop-filter: blur(30px);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
         border-right: 1px solid var(--glass-border);
         border-radius: 0 16px 16px 0;
         transform: none;
@@ -3568,7 +3568,7 @@ input:-webkit-autofill:active {
         z-index: 999;
         opacity: 0;
         pointer-events: none;
-        transition: opacity 0.3s ease;
+        transition: opacity var(--app-motion) ease;
         backdrop-filter: blur(4px);
         -webkit-backdrop-filter: blur(4px);
         display: none;
@@ -4067,7 +4067,7 @@ select {
     border-radius: 16px;
     box-shadow: var(--shadow-sm);
     cursor: pointer;
-    transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1), filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
     user-select: none;
     position: relative;
 }

@@ -27,7 +27,7 @@ const { createAuthRouter, userSessions, verifyUserAuth } = await import('@/serve
 const { PLAYER_SESSION_TTL, clearLoginFailures } = await import('@/server/auth')
 
 describe('Web Cookie Authentication', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     closeDb()
     initDatabase(':memory:')
     const lxGlobal = (global as any).lx
@@ -36,7 +36,7 @@ describe('Web Cookie Authentication', () => {
     delete lxGlobal.config['frontend.passwordHash']
     delete lxGlobal.config['player.passwordHash']
     lxGlobal.config.users = [{ name: 'test_user', password: 'password123' }]
-    syncUsersToDatabase(lxGlobal.config.users)
+    await syncUsersToDatabase(lxGlobal.config.users)
     userSessions.clear()
   })
 
@@ -97,8 +97,8 @@ describe('Web Cookie Authentication', () => {
 
   test('admin and player login verify persisted password hashes', async () => {
     const lxGlobal = (global as any).lx
-    lxGlobal.config['frontend.passwordHash'] = hashPassword('admin123')
-    lxGlobal.config['player.passwordHash'] = hashPassword('player456')
+    lxGlobal.config['frontend.passwordHash'] = await hashPassword('admin123')
+    lxGlobal.config['player.passwordHash'] = await hashPassword('player456')
     delete lxGlobal.config['frontend.password']
     delete lxGlobal.config['player.password']
     const router = createAuthRouter()
@@ -114,6 +114,32 @@ describe('Web Cookie Authentication', () => {
 
     expect(admin.status).toBe(200)
     expect(player.status).toBe(200)
+  })
+
+  test('password calculation overload is bounded across IPs and reports 503', async () => {
+    const lxGlobal = (global as any).lx
+    lxGlobal.config['frontend.passwordHash'] = await hashPassword('admin123')
+    lxGlobal.config['player.passwordHash'] = await hashPassword('player456')
+    delete lxGlobal.config['frontend.password']
+    delete lxGlobal.config['player.password']
+    const routes = [
+      { path: '/api/login', body: { password: 'admin123' } },
+      { path: '/api/user/login', body: { username: 'test_user', password: 'password123' } },
+      { path: '/api/music/auth', body: { password: 'player456' } },
+    ]
+    const router = createAuthRouter()
+    const requestCount = 35
+    const responses = await Promise.all(Array.from({ length: requestCount }, (_, index) => router.handle(
+      new Request(`http://localhost${routes[index % routes.length]!.path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(routes[index % routes.length]!.body),
+      }),
+      { remoteAddress: `192.0.2.${index + 1}` },
+    )))
+
+    expect(responses.filter(response => response.status === 503)).toHaveLength(1)
+    expect(responses.every(response => response.status === 200 || response.status === 503)).toBe(true)
   })
 
   test('HTTPS reverse proxy requests keep same-origin access and secure cookies', async () => {

@@ -22,7 +22,7 @@ describe('Custom Source Security and Isolation', () => {
   let tempRoot: string
   let prevGlobalLx: any
 
-  beforeEach(() => {
+  beforeEach(async () => {
     closeDb()
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-custom-source-test-'))
     prevGlobalLx = (global as any).lx
@@ -35,7 +35,7 @@ describe('Custom Source Security and Isolation', () => {
       },
     }
     initDatabase(':memory:')
-    syncUsersToDatabase((global as any).lx.config.users)
+    await syncUsersToDatabase((global as any).lx.config.users)
   })
 
   afterEach(() => {

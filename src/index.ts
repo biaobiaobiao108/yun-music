@@ -104,7 +104,7 @@ const saveConfigToFile = async () => {
       throw new Error(`${hashKey} 格式无效`)
     }
     if (!isPasswordHash(existingHash) && typeof plainPassword === 'string' && plainPassword.trim()) {
-      configForFile[hashKey] = hashPassword(plainPassword)
+      configForFile[hashKey] = await hashPassword(plainPassword)
     }
     // Never persist legacy/runtime plaintext credentials.
     delete configForFile[plainKey]
@@ -372,7 +372,7 @@ const checkUserConfig = (users: LX.Config['users']) => {
   }
 }
 
-const normalizeConfiguredPassword = (plainKey: 'frontend.password' | 'player.password', hashKey: 'frontend.passwordHash' | 'player.passwordHash', label: string, required: boolean): void => {
+const normalizeConfiguredPassword = async (plainKey: 'frontend.password' | 'player.password', hashKey: 'frontend.passwordHash' | 'player.passwordHash', label: string, required: boolean): Promise<void> => {
   const config = global.lx.config as unknown as Record<string, unknown>
   const configuredHash = config[hashKey]
   if (configuredHash !== undefined && configuredHash !== '' && !isPasswordHash(configuredHash)) {
@@ -398,7 +398,7 @@ const normalizeConfiguredPassword = (plainKey: 'frontend.password' | 'player.pas
     return
   }
   if (password === '123456') throw new Error(`${label}不能使用示例密码`)
-  config[hashKey] = hashPassword(password)
+  config[hashKey] = await hashPassword(password)
   delete config[plainKey]
 }
 
@@ -417,8 +417,8 @@ checkAndCreateDir(global.lx.userPath)
 
 checkUserConfig(global.lx.config.users)
 try {
-  normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
-  normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
+  await normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
+  await normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
 } catch (error) {
   exit(error instanceof Error ? error.message : String(error))
 }
@@ -465,7 +465,7 @@ function normalizePort(val: string) {
 const { initDatabase, closeDb } = await import('@/database')
 initDatabase()
 const { initializeUsersFromDatabase } = await import('@/user/data')
-initializeUsersFromDatabase(global.lx.config.users)
+await initializeUsersFromDatabase(global.lx.config.users)
 
 // 初始化 Web 服务
 const { startServer, stopServer } = await import('@/server')
@@ -512,8 +512,8 @@ if (fs.existsSync(rootConfigPath)) {
         void (async () => {
           try {
             if (!margeConfig(rootConfigPath, true)) return
-            normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
-            normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
+            await normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
+            await normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
             await saveConfigToFile()
           } catch (e) {
             for (const key of Object.keys(global.lx.config)) {

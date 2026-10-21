@@ -24,6 +24,7 @@ import {
 import { loginLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { verifyUserPassword } from '@/user/data'
+import { PasswordHashCapacityError } from '@/utils/passwordHash'
 
 /** Web 用户会话只允许通过 HttpOnly Cookie 使用。 */
 export const userSessions = new Map<string, { username: string; createdAt: number }>()
@@ -132,6 +133,7 @@ const cookie = (name: string, value: string, maxAge: number, secure: boolean): s
 const loginRateLimitedResponse = (ctx: HttpContext): Response => ctx.fail(429, '登录失败次数过多，已暂时限制登录，请 15 分钟后再试', {
   retryAfter: 15 * 60,
 })
+const passwordCapacityResponse = (ctx: HttpContext): Response => ctx.fail(503, '登录服务繁忙，请稍后重试')
 
 const configuredUsers = (): LX.Config['users'] => global.lx.config.users ?? []
 
@@ -143,7 +145,7 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
     if (typeof password !== 'string' || password.length > 1024) {
       return ctx.fail(400, '密码格式错误')
     }
-    if (!verifyConfiguredPassword(password, global.lx.config['frontend.passwordHash'], global.lx.config['frontend.password'])) {
+    if (!await verifyConfiguredPassword(password, global.lx.config['frontend.passwordHash'], global.lx.config['frontend.password'])) {
       recordLoginFailure(ip)
       loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
       return ctx.fail(401, '管理员密码错误')
@@ -152,7 +154,8 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
     const sessionId = createAdminSession()
     loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
     return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, ADMIN_SESSION_TTL / 1000, ctx.isSecure) })
-  } catch {
+  } catch (error) {
+    if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
     return ctx.fail(400, '请求格式错误，请刷新页面后重试')
   }
 }
@@ -195,7 +198,7 @@ export const createAuthRouter = (): Router => {
         'SELECT password_hash FROM users WHERE name = ?'
       ).get(username)
       const matchedUser = configuredUsers().find(item => item.name === username)
-      const passwordOk = verifyUserPassword(
+      const passwordOk = await verifyUserPassword(
         storedRow?.password_hash || matchedUser?.passwordHash || DUMMY_PASSWORD_HASH,
         password,
       )
@@ -209,7 +212,8 @@ export const createAuthRouter = (): Router => {
       const sessionId = issueUserSession(user.name)
       loginLog.info(`User login success: ${escapeLogControls(user.name)} from ${ctx.remoteAddress}`)
       return ctx.json({ success: true, username: user.name }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, sessionId, USER_SESSION_TTL / 1000, ctx.isSecure) })
-    } catch {
+    } catch (error) {
+      if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
   })
@@ -233,7 +237,7 @@ export const createAuthRouter = (): Router => {
       if (typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '密码格式错误')
       }
-      if (!verifyConfiguredPassword(password, global.lx.config['player.passwordHash'], global.lx.config['player.password'])) {
+      if (!await verifyConfiguredPassword(password, global.lx.config['player.passwordHash'], global.lx.config['player.password'])) {
         recordLoginFailure(ip, 'player')
         loginLog.warn(`Player login failed from ${ctx.remoteAddress}`)
         return ctx.fail(401, '播放器密码错误，请重新输入')
@@ -242,7 +246,8 @@ export const createAuthRouter = (): Router => {
       const sessionId = createPlayerSession()
       loginLog.info(`Player login success from ${ctx.remoteAddress}`)
       return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, sessionId, PLAYER_SESSION_TTL / 1000, ctx.isSecure) })
-    } catch {
+    } catch (error) {
+      if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
   })

@@ -253,14 +253,14 @@ const pathsOverlap = (left: string, right: string): boolean => {
     normalizedRight.startsWith(`${normalizedLeft}/`)
 }
 
-const applyConfiguredPassword = (
+const applyConfiguredPassword = async (
   config: Record<string, any>,
   restored: Record<string, unknown>,
   plainKey: 'frontend.password' | 'player.password',
   hashKey: 'frontend.passwordHash' | 'player.passwordHash',
   label: string,
   required: boolean,
-): void => {
+): Promise<void> => {
   if (restored[hashKey] !== undefined) {
     if (!isPasswordHash(restored[hashKey])) throw new Error(`${hashKey} 格式无效`)
     config[hashKey] = restored[hashKey]
@@ -272,16 +272,16 @@ const applyConfiguredPassword = (
   if (typeof password !== 'string' || password.length > 1024 || (required && !password.trim()) || password === '123456') {
     throw new Error(`${label}配置无效`)
   }
-  if (password.trim()) config[hashKey] = hashPassword(password)
+  if (password.trim()) config[hashKey] = await hashPassword(password)
   else delete config[hashKey]
   delete config[plainKey]
 }
 
-const getConfiguredPasswordHash = (
+const getConfiguredPasswordHash = async (
   config: Record<string, any>,
   plainKey: 'frontend.password' | 'player.password',
   hashKey: 'frontend.passwordHash' | 'player.passwordHash',
-): string => {
+): Promise<string> => {
   if (isPasswordHash(config[hashKey])) return config[hashKey]
   if (typeof config[plainKey] === 'string' && config[plainKey].trim()) return hashPassword(config[plainKey])
   return ''
@@ -317,7 +317,7 @@ const normalizeProxyAddress = (value: unknown): string => {
 }
 
 /** 只应用当前版本已知且经过基本校验的运行时配置。 */
-const applyValidatedConfig = (restored: Record<string, unknown>, options: { includeSecrets?: boolean } = {}): void => {
+const applyValidatedConfig = async (restored: Record<string, unknown>, options: { includeSecrets?: boolean } = {}): Promise<void> => {
   const config = global.lx.config as Record<string, any>
   const scalarKeys = [
     'proxy.enabled',
@@ -395,10 +395,10 @@ const applyValidatedConfig = (restored: Record<string, unknown>, options: { incl
 
   if (options.includeSecrets) {
     if ((restored['frontend.password'] !== undefined || restored['frontend.passwordHash'] !== undefined) && !process.env.FRONTEND_PASSWORD) {
-      applyConfiguredPassword(config, restored, 'frontend.password', 'frontend.passwordHash', '管理员密码', true)
+      await applyConfiguredPassword(config, restored, 'frontend.password', 'frontend.passwordHash', '管理员密码', true)
     }
     if ((restored['player.password'] !== undefined || restored['player.passwordHash'] !== undefined) && !process.env.WEBPLAYER_PASSWORD) {
-      applyConfiguredPassword(config, restored, 'player.password', 'player.passwordHash', '播放器密码', Boolean(config['player.enableAuth']))
+      await applyConfiguredPassword(config, restored, 'player.password', 'player.passwordHash', '播放器密码', Boolean(config['player.enableAuth']))
     }
   }
 
@@ -422,7 +422,7 @@ export const reloadServerData = async (): Promise<void> => {
       // bun --watch (a config save would restart the server mid-response).
       const rootConfig = parseConfigFile(configPath)
       if (!rootConfig || typeof rootConfig !== 'object' || Array.isArray(rootConfig)) throw new Error('配置文件格式无效')
-      applyValidatedConfig(rootConfig, { includeSecrets: true })
+      await applyValidatedConfig(rootConfig, { includeSecrets: true })
       startupLog.info('Config.js re-loaded and merged.')
     } catch (err: any) {
       for (const key of Object.keys(global.lx.config)) {
@@ -686,14 +686,14 @@ export const createSystemRouter = (): Router => {
             rollbackConfig()
             return ctx.json({ success: false, error: '管理员密码不能使用示例密码' }, 422)
           }
-          c['frontend.passwordHash'] = hashPassword(newConfig['frontend.password'])
+          c['frontend.passwordHash'] = await hashPassword(newConfig['frontend.password'])
           delete c['frontend.password']
         }
       }
       const nextPlayerEnableAuth = newConfig['player.enableAuth'] !== undefined
         ? parseBoolean(newConfig['player.enableAuth'], false)
         : Boolean(c['player.enableAuth'])
-      let nextPlayerPasswordHash = getConfiguredPasswordHash(c, 'player.password', 'player.passwordHash')
+      let nextPlayerPasswordHash = await getConfiguredPasswordHash(c, 'player.password', 'player.passwordHash')
       if (newConfig['player.password'] !== undefined) {
         if (typeof newConfig['player.password'] !== 'string') {
           rollbackConfig()
@@ -708,7 +708,7 @@ export const createSystemRouter = (): Router => {
             rollbackConfig()
             return ctx.json({ success: false, error: '播放器密码不能使用示例密码' }, 422)
           }
-          nextPlayerPasswordHash = hashPassword(newConfig['player.password'])
+          nextPlayerPasswordHash = await hashPassword(newConfig['player.password'])
         }
       }
       if (nextPlayerEnableAuth && !nextPlayerPasswordHash) {
@@ -861,7 +861,7 @@ export const createSystemRouter = (): Router => {
     const previousConfig = { ...global.lx.config }
     const onRestored = async (restoredConfig: Record<string, unknown>) => {
       try {
-        applyValidatedConfig(restoredConfig)
+        await applyValidatedConfig(restoredConfig)
         resetUserSpaces()
         refreshUsersFromDatabase()
         if (global.lx.config.serverCacheLocation) {

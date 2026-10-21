@@ -184,7 +184,7 @@ describe('System Routes (routes/system.ts)', () => {
   })
 
   test('restored player password hashes satisfy the enabled-auth validation', async () => {
-    const passwordHash = hashPassword('restored-player-secret')
+    const passwordHash = await hashPassword('restored-player-secret')
     const previousConfigPath = process.env.CONFIG_PATH
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-music-system-route-test-'))
     const configPath = path.join(tempRoot, 'config.js')

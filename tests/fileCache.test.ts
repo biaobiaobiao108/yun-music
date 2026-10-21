@@ -128,7 +128,7 @@ describe('File Cache Path Traversal Defense', () => {
         bitrate: 1000,
       }, 'music')
 
-      const lyric = fileCache.checkLyricCache({
+      const lyric = await fileCache.checkLyricCache({
         source: 'wy',
         songmid: 'test-song',
         id: 'wy_test-song',
@@ -144,6 +144,59 @@ describe('File Cache Path Traversal Defense', () => {
       expect(repaired?.albumName).toBe('Test Album')
       expect('album' in (repaired ?? {})).toBe(false)
     } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('uses async bounded disk lookup for cold standard-name lyric cache misses', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-lyric-cache-async-scan-'))
+    const previousLx = (global as any).lx
+    let readdirSyncSpy: ReturnType<typeof spyOn> | undefined
+    let readFileSyncSpy: ReturnType<typeof spyOn> | undefined
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath: path.join(root, 'data'), config: {} }
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const cacheDir = fileCache.getCacheDir('async-scan-user')
+      const nestedDir = path.join(cacheDir, 'nested', 'album')
+      fs.mkdirSync(nestedDir, { recursive: true })
+      const lyricFilename = 'nested/album/Song_-_Singer_-_wy_-_wy_777_-_flac.lrc'
+      fs.writeFileSync(path.join(cacheDir, lyricFilename), '[00:00.00]matched lyric')
+
+      const outsidePath = path.join(root, 'outside.lrc')
+      fs.writeFileSync(outsidePath, '[00:00.00]must not be read')
+      let symlinkCreated = false
+      try {
+        fs.symlinkSync(outsidePath, path.join(cacheDir, 'Song_-_Singer_-_wy_-_wy_778_-_flac.lrc'))
+        symlinkCreated = true
+      } catch {
+        // Windows can disallow symlink creation in an unprivileged test run.
+      }
+
+      readdirSyncSpy = spyOn(fs, 'readdirSync')
+      readFileSyncSpy = spyOn(fs, 'readFileSync')
+      const resultPromise = fileCache.checkLyricCache({ source: 'wy', id: '777' }, 'async-scan-user')
+      expect(resultPromise).toBeInstanceOf(Promise)
+      const result = await resultPromise
+
+      expect(result.exists).toBe(true)
+      if (result.exists) {
+        expect(result.filename).toBe(lyricFilename)
+        expect(result.content.lyric).toBe('[00:00.00]matched lyric')
+      }
+      if (symlinkCreated) {
+        expect((await fileCache.checkLyricCache({ source: 'wy', id: '778' }, 'async-scan-user')).exists).toBe(false)
+      }
+      expect(readdirSyncSpy).not.toHaveBeenCalled()
+      expect(readFileSyncSpy).not.toHaveBeenCalled()
+    } finally {
+      readdirSyncSpy?.mockRestore()
+      readFileSyncSpy?.mockRestore()
       closeDb()
       ;(global as any).lx = previousLx
       fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)

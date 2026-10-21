@@ -51,14 +51,21 @@ const validateStoredUserRow = (row: {
 export const hashUserPassword = hashPassword
 export const verifyUserPassword = verifyPasswordHash
 
-/** 将运行时配置中的 Web 用户同步到 SQLite；只写入密码哈希。 */
-export const syncUsersToDatabase = (
-  users: LX.Config['users'],
-  options: { removeMissing?: boolean; purgeMissingData?: readonly string[] } = {},
-): void => {
+type PreparedUser = {
+  user: LX.Config['users'][number]
+  passwordHash: string
+  maxSnapshotNum: number
+  addMusicLocationType: LX.AddMusicLocationType
+}
+type StoredUserPassword = { name: string; password_hash: string }
+
+const prepareUsersForDatabase = async (users: LX.Config['users']): Promise<{
+  db: ReturnType<typeof getDb>
+  existingRows: StoredUserPassword[]
+  preparedUsers: PreparedUser[]
+}> => {
   if (!Array.isArray(users)) throw new Error('用户配置格式无效')
   const db = getDb()
-  const now = Date.now()
   const existingRows = db.query<{ name: string; password_hash: string }, []>('SELECT name, password_hash FROM users').all()
   for (const row of existingRows) {
     if (isReservedUserAlias(row.name)) throw new Error('SQLite 用户表包含系统保留用户名 default/open/_open')
@@ -66,7 +73,8 @@ export const syncUsersToDatabase = (
   const existingHashes = new Map(existingRows.map(row => [row.name, row.password_hash]))
   // Compute credentials before entering the transaction. A failed transaction
   // must not leave the in-memory config with passwords cleared or newly hashed.
-  const preparedUsers = users.map(user => {
+  const preparedUsers: PreparedUser[] = []
+  for (const user of users) {
     assertPrivateUserNameNotReserved(user.name)
     assertSafePathSegment(user.name, 'user name')
     const maxSnapshotNum = user.maxSnapshotNum ?? global.lx.config.maxSnapshotNum ?? 10
@@ -77,12 +85,22 @@ export const syncUsersToDatabase = (
     if (addMusicLocationType !== 'top' && addMusicLocationType !== 'bottom') {
       throw new Error(`用户 ${user.name} 的歌单配置无效`)
     }
-    const passwordHash = user.passwordHash || (user.password ? hashUserPassword(user.password) : existingHashes.get(user.name))
+    const passwordHash = user.passwordHash || (user.password ? await hashUserPassword(user.password) : existingHashes.get(user.name))
     if (typeof passwordHash !== 'string' || !PASSWORD_HASH_PATTERN.test(passwordHash)) {
       throw new Error(`用户 ${user.name} 缺少有效密码`)
     }
-    return { user, passwordHash, maxSnapshotNum, addMusicLocationType }
-  })
+    preparedUsers.push({ user, passwordHash, maxSnapshotNum, addMusicLocationType })
+  }
+  return { db, existingRows, preparedUsers }
+}
+
+const writePreparedUsersToDatabase = (
+  db: ReturnType<typeof getDb>,
+  existingRows: StoredUserPassword[],
+  preparedUsers: PreparedUser[],
+  options: { removeMissing?: boolean; purgeMissingData?: readonly string[] },
+): void => {
+  const now = Date.now()
   const currentNames = new Set(preparedUsers.map(({ user }) => user.name))
   // Names whose structured data must be destroyed together with the account.
   // Everything else (e.g. an entry removed by hand from config.js) keeps its
@@ -90,23 +108,22 @@ export const syncUsersToDatabase = (
   // snapshot_meta and user_settings stay so that recreating a user with the
   // same name restores them. Deleting them silently was the P0 in CODE_REVIEW.
   const purgeNames = new Set(options.purgeMissingData ?? [])
-  db.transaction(() => {
-    if (options.removeMissing) {
-      for (const row of existingRows) {
-        if (row.name === '_open' || currentNames.has(row.name)) continue
-        if (purgeNames.has(row.name)) {
-          purgeUserRows(db, row.name)
-          continue
-        }
-        // Sessions and the derived cache index never outlive the account.
-        db.run('DELETE FROM user_sessions WHERE user_name = ?', [row.name])
-        db.run('DELETE FROM cache_index WHERE user_name = ?', [row.name])
-        // The users row must always go: keeping it would resurrect a deleted
-        // account (and its password) on the next startup.
-        db.run('DELETE FROM users WHERE name = ?', [row.name])
+  if (options.removeMissing) {
+    for (const row of existingRows) {
+      if (row.name === '_open' || currentNames.has(row.name)) continue
+      if (purgeNames.has(row.name)) {
+        purgeUserRows(db, row.name)
+        continue
       }
+      // Sessions and the derived cache index never outlive the account.
+      db.run('DELETE FROM user_sessions WHERE user_name = ?', [row.name])
+      db.run('DELETE FROM cache_index WHERE user_name = ?', [row.name])
+      // The users row must always go: keeping it would resurrect a deleted
+      // account (and its password) on the next startup.
+      db.run('DELETE FROM users WHERE name = ?', [row.name])
     }
-    const stmt = db.prepare(`
+  }
+  const stmt = db.prepare(`
       INSERT INTO users (name, password_hash, max_snapshot_num, add_music_location_type, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(name) DO UPDATE SET
@@ -114,23 +131,24 @@ export const syncUsersToDatabase = (
         max_snapshot_num = excluded.max_snapshot_num,
         add_music_location_type = excluded.add_music_location_type,
         updated_at = excluded.updated_at
-    `)
-    try {
-      for (const { user, passwordHash, maxSnapshotNum, addMusicLocationType } of preparedUsers) {
-        stmt.run(
-          user.name,
-          passwordHash,
-          maxSnapshotNum,
-          addMusicLocationType,
-          now,
-          now,
-        )
-      }
-    } finally {
-      stmt.finalize()
+  `)
+  try {
+    for (const { user, passwordHash, maxSnapshotNum, addMusicLocationType } of preparedUsers) {
+      stmt.run(
+        user.name,
+        passwordHash,
+        maxSnapshotNum,
+        addMusicLocationType,
+        now,
+        now,
+      )
     }
-  })()
+  } finally {
+    stmt.finalize()
+  }
+}
 
+const publishPreparedUsers = (preparedUsers: PreparedUser[]): void => {
   // Only publish the normalized runtime representation after the DB commit.
   for (const { user, passwordHash } of preparedUsers) {
     user.passwordHash = passwordHash
@@ -138,8 +156,24 @@ export const syncUsersToDatabase = (
   }
 }
 
+/** 将运行时配置中的 Web 用户同步到 SQLite；只写入密码哈希。 */
+export const syncUsersToDatabase = async (
+  users: LX.Config['users'],
+  options: { removeMissing?: boolean; purgeMissingData?: readonly string[] } = {},
+): Promise<void> => {
+  const prepared = await prepareUsersForDatabase(users)
+  if (prepared.db !== getDb()) throw new Error('数据库在用户同步期间发生变更，请重试')
+  prepared.db.transaction(() => writePreparedUsersToDatabase(
+    prepared.db,
+    prepared.existingRows,
+    prepared.preparedUsers,
+    options,
+  ))()
+  publishPreparedUsers(prepared.preparedUsers)
+}
+
 /** 启动时以 SQLite 为唯一用户来源；只有全新数据库才使用配置中的初始用户播种。 */
-export const initializeUsersFromDatabase = (bootstrapUsers: LX.Config['users']): void => {
+export const initializeUsersFromDatabase = async (bootstrapUsers: LX.Config['users']): Promise<void> => {
   const db = getDb()
   const rows = db.query<{
     name: string
@@ -150,10 +184,13 @@ export const initializeUsersFromDatabase = (bootstrapUsers: LX.Config['users']):
 
   const initialized = db.query<{ value: string }, []>("SELECT value FROM system_info WHERE key = 'users_initialized'").get()
   if (rows.length === 0 && !initialized) {
+    const prepared = await prepareUsersForDatabase(bootstrapUsers)
+    if (prepared.db !== db || prepared.db !== getDb()) throw new Error('数据库在用户初始化期间发生变更，请重试')
     db.transaction(() => {
-      syncUsersToDatabase(bootstrapUsers)
+      writePreparedUsersToDatabase(db, prepared.existingRows, prepared.preparedUsers, {})
       db.run("INSERT OR REPLACE INTO system_info (key, value) VALUES ('users_initialized', '1')")
     })()
+    publishPreparedUsers(prepared.preparedUsers)
     return
   }
   db.run("INSERT OR REPLACE INTO system_info (key, value) VALUES ('users_initialized', '1')")

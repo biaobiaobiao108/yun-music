@@ -53,7 +53,7 @@ const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | 
   return tokenUser && tokenUser === reqUsername ? tokenUser : null
 }
 
-const saveUsers = (options: { purgeDataFor?: readonly string[] } = {}) => {
+const saveUsers = async (options: { purgeDataFor?: readonly string[] } = {}) => {
   try {
     const db = getDb()
     const currentNames = new Set(global.lx.config.users.map((u: any) => u.name))
@@ -61,7 +61,7 @@ const saveUsers = (options: { purgeDataFor?: readonly string[] } = {}) => {
     const removedNames = existingUsers
       .map(user => user.name)
       .filter(name => name !== '_open' && !currentNames.has(name))
-    syncUsersToDatabase(global.lx.config.users, { removeMissing: true, purgeMissingData: options.purgeDataFor })
+    await syncUsersToDatabase(global.lx.config.users, { removeMissing: true, purgeMissingData: options.purgeDataFor })
     // Keep the in-memory session cache in sync only after the DB transaction
     // succeeds. A failed user update must not revoke valid sessions.
     for (const username of removedNames) revokeUserAuth(username)
@@ -174,7 +174,7 @@ export const createUserRouter = (): Router => {
       }
       global.lx.config.users.push(newUser)
       try {
-        saveUsers()
+        await saveUsers()
       } catch (error) {
         global.lx.config.users.pop()
         if (!dataPathExisted) {
@@ -239,10 +239,10 @@ export const createUserRouter = (): Router => {
           user.name = normalizedNewName
           user.dataPath = newDataPath
           if (password !== undefined) {
-            user.passwordHash = hashUserPassword(password)
+            user.passwordHash = await hashUserPassword(password)
             user.password = ''
           }
-          saveUsers()
+          await saveUsers()
           await downloadQueue.renameUser(normalizedName, normalizedNewName)
           return ctx.json({ success: true })
         } catch (err: any) {
@@ -255,7 +255,7 @@ export const createUserRouter = (): Router => {
           }
           Object.assign(user, previousUser)
           try {
-            saveUsers()
+            await saveUsers()
           } catch (rollbackError) {
             console.error('[User] 用户重命名配置回滚失败:', rollbackError)
           }
@@ -267,10 +267,10 @@ export const createUserRouter = (): Router => {
         const previousUser = { ...user }
         try {
           if (password !== undefined) {
-            user.passwordHash = hashUserPassword(password)
+            user.passwordHash = await hashUserPassword(password)
             user.password = ''
           }
-          saveUsers()
+          await saveUsers()
           if (password !== undefined) revokeUserAuth(normalizedName)
           return ctx.json({ success: true })
         } catch (error) {
@@ -339,7 +339,7 @@ export const createUserRouter = (): Router => {
           // playlists/settings. Without it, only the account (and its sessions
           // plus derived cache index) is removed; snapshots and settings stay
           // so that recreating the same user name restores them.
-          saveUsers({ purgeDataFor: body.deleteData ? deletedUsers.map(user => user.name) : [] })
+          await saveUsers({ purgeDataFor: body.deleteData ? deletedUsers.map(user => user.name) : [] })
         } catch (error) {
           global.lx.config.users.splice(0, global.lx.config.users.length, ...previousUsers)
           throw error

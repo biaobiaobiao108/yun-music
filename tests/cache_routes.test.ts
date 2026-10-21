@@ -58,7 +58,7 @@ describe('cache list user scope', () => {
   const sessionId = 'cache-owner-session'
   let previousLx: typeof global.lx
 
-  beforeEach(() => {
+  beforeEach(async () => {
     previousLx = global.lx
     closeDb()
     initDatabase(':memory:')
@@ -70,7 +70,7 @@ describe('cache list user scope', () => {
         'user.enablePublicNonAdminLocalMusic': false,
       },
     } as typeof global.lx
-    syncUsersToDatabase(global.lx.config.users)
+    await syncUsersToDatabase(global.lx.config.users)
     const createdAt = Date.now()
     userSessions.set(sessionId, { username, createdAt })
     persistUserSession(sessionId, username, createdAt)
@@ -498,7 +498,7 @@ test('cache file routes honor the requested folder and keep personal media priva
   closeDb()
   initDatabase(':memory:')
   global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'file-route-admin' } } as typeof global.lx
-  syncUsersToDatabase(global.lx.config.users)
+  await syncUsersToDatabase(global.lx.config.users)
   const createdAt = Date.now()
   userSessions.set(sessionId, { username, createdAt })
   persistUserSession(sessionId, username, createdAt)
@@ -577,7 +577,7 @@ test('cover routes forward the requested folder and return public cache headers 
   closeDb()
   initDatabase(':memory:')
   global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'cover-route-admin' } } as typeof global.lx
-  syncUsersToDatabase(global.lx.config.users)
+  await syncUsersToDatabase(global.lx.config.users)
   const createdAt = Date.now()
   userSessions.set(sessionId, { username, createdAt })
   persistUserSession(sessionId, username, createdAt)

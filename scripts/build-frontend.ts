@@ -229,10 +229,14 @@ async function main() {
 
   if (isWatch) {
     const watchRoots = [
-      path.join(import.meta.dir, '../frontend/admin/src'),
-      path.join(import.meta.dir, '../frontend/player/src'),
+      // Watch each app root so changes to its HTML, manifest, and copied
+      // Service Worker files trigger the same rebuild as source changes.
+      path.join(import.meta.dir, '../frontend/admin'),
+      path.join(import.meta.dir, '../frontend/player'),
       path.join(import.meta.dir, '../frontend/shared'),
       path.join(import.meta.dir, '../frontend/styles'),
+      // The build also copies these icons to both published app directories.
+      path.join(import.meta.dir, '../docs/assets'),
     ]
     let debounceTimer: Timer | null = null
     let buildInProgress = false

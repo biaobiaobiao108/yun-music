@@ -250,18 +250,18 @@ export async function verifySession(): Promise<AdminStatus> {
 }
 
 export const adminApi = {
-  status: () => adminRequest<AdminStatus>('/api/status'),
+  status: (signal?: AbortSignal) => adminRequest<AdminStatus>('/api/status', { signal }),
   users: (signal?: AbortSignal) => adminRequest<AdminUser[]>('/api/users', { signal }),
-  config: () => adminRequest<AdminConfig>('/api/config'),
+  config: (signal?: AbortSignal) => adminRequest<AdminConfig>('/api/config', { signal }),
   saveConfig: (config: Record<string, unknown>) => adminRequest<{ success: boolean; warning?: string }>('/api/config', { method: 'POST', body: JSON.stringify(config) }),
-  logs: (type: string) => adminRequest<{ logs?: string[]; lines?: string[] }>(`/api/logs?type=${encodeURIComponent(type)}&lines=300`),
-  snapshots: (user: string) => adminRequest<Snapshot[]>(`/api/data/snapshots?user=${encodeURIComponent(user)}`),
+  logs: (type: string, signal?: AbortSignal) => adminRequest<{ logs?: string[]; lines?: string[] }>(`/api/logs?type=${encodeURIComponent(type)}&lines=300`, { signal }),
+  snapshots: (user: string, signal?: AbortSignal) => adminRequest<Snapshot[]>(`/api/data/snapshots?user=${encodeURIComponent(user)}`, { signal }),
   snapshot: async (user: string, id: string) => normalizeAdminData(await adminRequest<unknown>(`/api/data/snapshot?id=${encodeURIComponent(id)}&user=${encodeURIComponent(user)}`)),
   restoreSnapshot: (user: string, id: string) => adminRequest(`/api/data/restore-snapshot?user=${encodeURIComponent(user)}`, { method: 'POST', body: JSON.stringify({ id }) }),
   deleteSnapshot: (user: string, id: string) => adminRequest(`/api/data/delete-snapshot?user=${encodeURIComponent(user)}`, { method: 'POST', body: JSON.stringify({ id }) }),
   uploadSnapshot: (user: string, file: File) => file.text().then(content => adminRequest(`/api/data/upload-snapshot?user=${encodeURIComponent(user)}&time=${file.lastModified || Date.now()}&filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: content, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })),
   cacheStats: () => adminRequest<{ success?: boolean; data?: Record<string, unknown> }>('/api/music/cache/stats'),
-  cacheList: (user: string) => adminRequest<{ success?: boolean; data?: StorageItem[] }>(`/api/music/cache/list?user=${encodeURIComponent(user)}`),
+  cacheList: (user: string, signal?: AbortSignal) => adminRequest<{ success?: boolean; data?: StorageItem[] }>(`/api/music/cache/list?user=${encodeURIComponent(user)}`, { signal }),
   removeCache: (items: Array<{ filename: string; folder?: 'cache' | 'music'; user?: string }>) => adminRequest('/api/music/cache/remove', { method: 'POST', body: JSON.stringify({ items }) }),
   moveCache: (items: Array<{ filename: string; user?: string }>) => adminRequest('/api/music/cache/move', { method: 'POST', body: JSON.stringify({ items }) }),
   clearCache: (user: string) => adminRequest(`/api/music/cache/clear?user=${encodeURIComponent(user)}`, { method: 'POST' }),

@@ -671,7 +671,7 @@ export const createMusicRouter = (): Router => {
     const canReadLocalLyricCache = lyricUsername !== '_open' || canReadPublicLocalMusic(ctx, verifiedUsername)
 
     const localLyricResult = canReadLocalLyricCache
-      ? fileCache.checkLyricCache({
+      ? await fileCache.checkLyricCache({
         source,
         songmid,
         id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
@@ -712,7 +712,7 @@ export const createMusicRouter = (): Router => {
     } catch (err: any) {
       console.error('[Lyric] Fetch error:', source, songmid, err.message || err)
       const fallbackResult = canReadLocalLyricCache
-        ? fileCache.checkLyricCache({
+        ? await fileCache.checkLyricCache({
           source,
           songmid,
           id: ctx.query.get('songId') || ctx.query.get('id') || songmid,

@@ -38,7 +38,7 @@ describe('Local backup restore', () => {
   let dbPath = ''
   let previousLx: typeof global.lx
 
-  beforeEach(() => {
+  beforeEach(async () => {
     previousLx = global.lx
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-local-backup-test-'))
     dbPath = path.join(tempDir, 'yun-yin.db')
@@ -54,7 +54,7 @@ describe('Local backup restore', () => {
     } as typeof global.lx
     fs.mkdirSync(global.lx.userPath, { recursive: true })
     fs.writeFileSync(path.join(global.lx.userPath, 'old.txt'), 'old')
-    syncUsersToDatabase(global.lx.config.users)
+    await syncUsersToDatabase(global.lx.config.users)
   })
 
   afterEach(() => {
@@ -97,7 +97,7 @@ describe('Local backup restore', () => {
       { name: 'config.js', content: 'module.exports = {"serverName":"restored"}\n' },
     ])
     global.lx.config.users = [{ name: 'current-user', password: 'current-secret', maxSnapshotNum: 3, dataPath: path.join(global.lx.userPath, getUserDirname('current-user')) }]
-    syncUsersToDatabase(global.lx.config.users, { removeMissing: true })
+    await syncUsersToDatabase(global.lx.config.users, { removeMissing: true })
     const originalUsers = structuredClone(global.lx.config.users)
     let saveAttempts = 0
     global.lx.saveConfig = async () => {
