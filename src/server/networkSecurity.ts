@@ -52,8 +52,14 @@ const isPrivateIpv6 = (value: string): boolean => {
     const low = parseInt(mapped[2], 16)
     return isPrivateIpv4(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`)
   }
-  return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd')
-    || /^fe[89ab]/.test(normalized) || normalized.startsWith('ff')
+  return (
+    normalized === '::' ||
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    /^fe[89ab]/.test(normalized) ||
+    normalized.startsWith('ff')
+  )
 }
 
 // Some desktop proxy clients use RFC 2544 benchmarking IPv4 addresses and a
@@ -66,7 +72,10 @@ const isSyntheticDnsAddress = (value: string): boolean => {
   const number = ipv4ToNumber(value)
   if (number != null) return number >= 0xc6120000 && number <= 0xc613ffff
 
-  const normalized = value.toLowerCase().replace(/^\[|\]$/g, '').split('%')[0]
+  const normalized = value
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .split('%')[0]
   // RFC 5180's 2001:2::/48 benchmarking prefix is another synthetic DNS
   // answer used by some desktop proxy resolvers alongside 198.18.0.0/15.
   if (/^2001:2:(?::|0(?::|$))/.test(normalized)) return true
@@ -95,7 +104,10 @@ const isOutboundProxyConfigured = (): boolean => {
 }
 
 const isBlockedHostname = (hostname: string): boolean => {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '')
+  const normalized = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
   return normalized === 'localhost' || normalized.endsWith('.localhost') || normalized === 'local'
 }
 
@@ -123,8 +135,14 @@ const MAX_REMOTE_RESPONSE_BYTES = 50 * 1024 * 1024
 const REMOTE_DNS_TIMEOUT_MS = 5_000
 const MAX_REMOTE_ADDRESS_ATTEMPTS = 8
 const RETRYABLE_CONNECTION_ERRORS = new Set([
-  'ECONNRESET', 'ECONNREFUSED', 'ECONNABORTED', 'ETIMEDOUT',
-  'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE', 'ERR_SOCKET_CLOSED',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'EPIPE',
+  'ERR_SOCKET_CLOSED',
 ])
 
 const normalizeRemoteResponseLimit = (value: unknown): number => {
@@ -149,18 +167,18 @@ const normalizeRemoteTimeout = (value: unknown): number => {
 
 type ResolvedRemoteAddress = { address: string; family: number }
 
-const pinnedLookup = (hostname: string, addresses: readonly ResolvedRemoteAddress[]): LookupFunction => (
-  requestedHostname, options, callback,
-) => {
-  const family = Number(options.family) || 0
-  const candidates = addresses.filter(address => !family || address.family === family)
-  if (requestedHostname !== hostname || candidates.length === 0) {
-    callback(new Error('No validated address for requested host'), '', 0)
-    return
+const pinnedLookup =
+  (hostname: string, addresses: readonly ResolvedRemoteAddress[]): LookupFunction =>
+  (requestedHostname, options, callback) => {
+    const family = Number(options.family) || 0
+    const candidates = addresses.filter(address => !family || address.family === family)
+    if (requestedHostname !== hostname || candidates.length === 0) {
+      callback(new Error('No validated address for requested host'), '', 0)
+      return
+    }
+    if (options.all) callback(null, candidates)
+    else callback(null, candidates[0].address, candidates[0].family)
   }
-  if (options.all) callback(null, candidates)
-  else callback(null, candidates[0].address, candidates[0].family)
-}
 
 const lookupRemoteAddresses = async (hostname: string): Promise<ResolvedRemoteAddress[]> => {
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -215,7 +233,10 @@ const hasNoResponseBody = (method: string, status: number): boolean =>
   method.toUpperCase() === 'HEAD' || [204, 205, 304].includes(status)
 
 const responseDecoders = (encoding: string | undefined): Transform[] => {
-  const codings = (encoding || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean)
+  const codings = (encoding || '')
+    .split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean)
   return codings.reverse().flatMap(coding => {
     if (coding === 'identity') return []
     if (coding === 'gzip' || coding === 'x-gzip') return [createGunzip()]
@@ -254,10 +275,7 @@ const readResponseBody = async (response: Response, maxBytes: number): Promise<B
   return Buffer.concat(chunks)
 }
 
-const fetchViaBunProxy = async (
-  safeUrl: SafeRemoteHttpUrl,
-  options: SafeRemoteFetchOptions,
-): Promise<Response> => {
+const fetchViaBunProxy = async (safeUrl: SafeRemoteHttpUrl, options: SafeRemoteFetchOptions): Promise<Response> => {
   const { proxy, signal: inputSignal, discardResponseBody, ...requestInit } = options
   const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
   const timeoutMs = normalizeRemoteTimeout(options.timeoutMs)
@@ -322,7 +340,9 @@ const fetchSafeRemoteTransport = async (
       })
     })
     const unique = new Map(addresses.map(address => [`${address.family}:${address.address}`, address]))
-    lookups = [...unique.values()].slice(0, MAX_REMOTE_ADDRESS_ATTEMPTS).map(address => pinnedLookup(hostname, [address]))
+    lookups = [...unique.values()]
+      .slice(0, MAX_REMOTE_ADDRESS_ATTEMPTS)
+      .map(address => pinnedLookup(hostname, [address]))
     if (lookups.length === 0) throw new Error('No validated address for requested host')
   }
 
@@ -330,14 +350,22 @@ const fetchSafeRemoteTransport = async (
     options.signal?.throwIfAborted()
     let receivedHeaders = false
     try {
-      return await fetchPinnedRemote(safeUrl, options, lookups[attempt], () => { receivedHeaders = true })
+      return await fetchPinnedRemote(safeUrl, options, lookups[attempt], () => {
+        receivedHeaders = true
+      })
     } catch (error) {
       // A response, even an HTTP error, means the request reached the server.
       // Only replay safe reads that failed before headers, within the original
       // request's signal/deadline and buffered-response reservation.
       const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined
-      if (options.signal?.aborted || receivedHeaders || attempt + 1 >= lookups.length
-        || !code || !RETRYABLE_CONNECTION_ERRORS.has(code)) throw error
+      if (
+        options.signal?.aborted ||
+        receivedHeaders ||
+        attempt + 1 >= lookups.length ||
+        !code ||
+        !RETRYABLE_CONNECTION_ERRORS.has(code)
+      )
+        throw error
     }
   }
 }
@@ -348,21 +376,15 @@ const fetchPinnedRemote = async (
   lookup: LookupFunction,
   onHeaders: () => void,
 ): Promise<Response> => {
-  const {
-    method = 'GET',
-    headers: inputHeaders,
-    body: inputBody,
-    signal,
-    discardResponseBody,
-  } = options
+  const { method = 'GET', headers: inputHeaders, body: inputBody, signal, discardResponseBody } = options
   const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
   const timeoutMs = normalizeRemoteTimeout(options.timeoutMs)
   const normalizedMethod = String(method).toUpperCase()
   const requestHostname = safeUrl.hostname.replace(/^\[|\]$/g, '')
-  const formDataRequest = !['GET', 'HEAD'].includes(normalizedMethod)
-    && typeof FormData !== 'undefined' && inputBody instanceof FormData
-    ? new Request('http://remote.invalid/', { method: normalizedMethod, body: inputBody })
-    : null
+  const formDataRequest =
+    !['GET', 'HEAD'].includes(normalizedMethod) && typeof FormData !== 'undefined' && inputBody instanceof FormData
+      ? new Request('http://remote.invalid/', { method: normalizedMethod, body: inputBody })
+      : null
   const body = ['GET', 'HEAD'].includes(normalizedMethod)
     ? undefined
     : formDataRequest
@@ -401,78 +423,91 @@ const fetchPinnedRemote = async (
       fail(new Error('Remote request aborted'))
     }
 
-    const request = requestModule.request({
-      protocol: safeUrl.protocol,
-      hostname: requestHostname,
-      port: safeUrl.port || undefined,
-      path: `${safeUrl.pathname}${safeUrl.search}`,
-      method: normalizedMethod,
-      headers: Object.fromEntries(requestHeaders.entries()),
-      lookup,
-      agent: false,
-    }, (incomingResponse) => {
-      response = incomingResponse
-      onHeaders()
-      const status = incomingResponse.statusCode || 0
-      const headers = responseHeaderEntries(incomingResponse.headers)
-      if (discardResponseBody || hasNoResponseBody(normalizedMethod, status)) {
-        incomingResponse.destroy()
-        finish(() => resolve(new Response(null, {
-          status,
-          statusText: incomingResponse.statusMessage || '',
-          headers,
-        })))
-        return
-      }
-      const declaredLength = Number(incomingResponse.headers['content-length'] || 0)
-      if (declaredLength > maxBytes) {
-        fail(new Error('Remote response is too large'))
-        incomingResponse.destroy()
-        request.destroy()
-        return
-      }
+    const request = requestModule.request(
+      {
+        protocol: safeUrl.protocol,
+        hostname: requestHostname,
+        port: safeUrl.port || undefined,
+        path: `${safeUrl.pathname}${safeUrl.search}`,
+        method: normalizedMethod,
+        headers: Object.fromEntries(requestHeaders.entries()),
+        lookup,
+        agent: false,
+      },
+      incomingResponse => {
+        response = incomingResponse
+        onHeaders()
+        const status = incomingResponse.statusCode || 0
+        const headers = responseHeaderEntries(incomingResponse.headers)
+        if (discardResponseBody || hasNoResponseBody(normalizedMethod, status)) {
+          incomingResponse.destroy()
+          finish(() =>
+            resolve(
+              new Response(null, {
+                status,
+                statusText: incomingResponse.statusMessage || '',
+                headers,
+              }),
+            ),
+          )
+          return
+        }
+        const declaredLength = Number(incomingResponse.headers['content-length'] || 0)
+        if (declaredLength > maxBytes) {
+          fail(new Error('Remote response is too large'))
+          incomingResponse.destroy()
+          request.destroy()
+          return
+        }
 
-      let decoders: Transform[]
-      try {
-        decoders = responseDecoders(incomingResponse.headers['content-encoding'])
-      } catch (error) {
-        fail(error)
-        incomingResponse.destroy()
-        request.destroy()
-        return
-      }
-      const chunks: Buffer[] = []
-      let received = 0
-      let decodedBytes = 0
-      const wireLimit = new Transform({
-        transform(chunk: Buffer, _encoding, callback) {
-          received += chunk.byteLength
-          callback(received > maxBytes ? new Error('Remote response is too large') : null, chunk)
-        },
-      })
-      const collector = new Writable({
-        write(chunk: Buffer, _encoding, callback) {
-          decodedBytes += chunk.byteLength
-          if (decodedBytes > maxBytes) {
-            callback(new Error('Remote response is too large'))
-            return
-          }
-          chunks.push(chunk)
-          callback()
-        },
-      })
-      // Stream decompression enforces both wire and decoded limits without first
-      // materializing an unbounded expanded response in memory.
-      void pipeline([incomingResponse, wireLimit, ...decoders, collector]).then(() => {
-        headers.delete('content-length')
-        if (decoders.length) headers.delete('content-encoding')
-        finish(() => resolve(new Response(responseBody(Buffer.concat(chunks)), {
-          status,
-          statusText: incomingResponse.statusMessage || '',
-          headers,
-        })))
-      }).catch(fail)
-    })
+        let decoders: Transform[]
+        try {
+          decoders = responseDecoders(incomingResponse.headers['content-encoding'])
+        } catch (error) {
+          fail(error)
+          incomingResponse.destroy()
+          request.destroy()
+          return
+        }
+        const chunks: Buffer[] = []
+        let received = 0
+        let decodedBytes = 0
+        const wireLimit = new Transform({
+          transform(chunk: Buffer, _encoding, callback) {
+            received += chunk.byteLength
+            callback(received > maxBytes ? new Error('Remote response is too large') : null, chunk)
+          },
+        })
+        const collector = new Writable({
+          write(chunk: Buffer, _encoding, callback) {
+            decodedBytes += chunk.byteLength
+            if (decodedBytes > maxBytes) {
+              callback(new Error('Remote response is too large'))
+              return
+            }
+            chunks.push(chunk)
+            callback()
+          },
+        })
+        // Stream decompression enforces both wire and decoded limits without first
+        // materializing an unbounded expanded response in memory.
+        void pipeline([incomingResponse, wireLimit, ...decoders, collector])
+          .then(() => {
+            headers.delete('content-length')
+            if (decoders.length) headers.delete('content-encoding')
+            finish(() =>
+              resolve(
+                new Response(responseBody(Buffer.concat(chunks)), {
+                  status,
+                  statusText: incomingResponse.statusMessage || '',
+                  headers,
+                }),
+              ),
+            )
+          })
+          .catch(fail)
+      },
+    )
 
     request.on('error', fail)
     request.setTimeout(Math.max(1, timeoutMs), () => {
@@ -496,7 +531,9 @@ export const fetchSafeRemote = async (
     : AbortSignal.timeout(normalizeRemoteTimeout(options.timeoutMs))
   const { budgetLease: supplied, ...transportOptions } = options
   const noBody = options.discardResponseBody || String(options.method || 'GET').toUpperCase() === 'HEAD'
-  const lease = supplied || await acquireBufferedRequestBudget(noBody ? 1024 : normalizeRemoteResponseLimit(options.maxBytes), signal)
+  const lease =
+    supplied ||
+    (await acquireBufferedRequestBudget(noBody ? 1024 : normalizeRemoteResponseLimit(options.maxBytes), signal))
   try {
     signal.throwIfAborted()
     return await fetchSafeRemoteTransport(safeUrl, {
@@ -528,17 +565,18 @@ export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemot
   const hostname = url.hostname.replace(/^\[|\]$/g, '')
   const hostnameIsIpLiteral = isIP(hostname) !== 0
   const addresses = await lookupRemoteAddresses(hostname)
-  const hasPrivateAddress = addresses.some(address => (
-    isPrivateAddress(address.address) || isSyntheticDnsAddress(address.address)
-  ))
+  const hasPrivateAddress = addresses.some(
+    address => isPrivateAddress(address.address) || isSyntheticDnsAddress(address.address),
+  )
   // Fake-ip answers (198.18/15 & friends) only make sense when the connection
   // is handed to a configured proxy, which then resolves the real host. In
   // direct mode nothing routes those prefixes, so accepting them was pure
   // filter bypass.
-  const onlySyntheticAddresses = isOutboundProxyConfigured()
-    && !hostnameIsIpLiteral
-    && addresses.length > 0
-    && addresses.every(address => isSyntheticDnsAddress(address.address))
+  const onlySyntheticAddresses =
+    isOutboundProxyConfigured() &&
+    !hostnameIsIpLiteral &&
+    addresses.length > 0 &&
+    addresses.every(address => isSyntheticDnsAddress(address.address))
   if (addresses.length === 0 || (hasPrivateAddress && !onlySyntheticAddresses)) {
     throw new Error('Private network URL is not allowed')
   }

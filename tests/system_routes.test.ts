@@ -2,7 +2,14 @@ import { describe, test, expect, beforeEach, afterAll, spyOn } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { ADMIN_SESSION_COOKIE_NAME, checkAdminSession, checkPlayerAuthSession, createAdminSession, createPlayerSession, SESSION_COOKIE_NAME } from '@/server/auth'
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  checkAdminSession,
+  checkPlayerAuthSession,
+  createAdminSession,
+  createPlayerSession,
+  SESSION_COOKIE_NAME,
+} from '@/server/auth'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 import { closeDb } from '@/database'
 import * as localBackupService from '@/server/localBackupService'
@@ -24,14 +31,14 @@ const { createSystemRouter, reloadServerData } = await import('@/server/routes/s
 
 describe('System Routes (routes/system.ts)', () => {
   beforeEach(() => {
-    const lxGlobal = (global as any).lx;
-    lxGlobal.config['frontend.password'] = 'admin_secret';
-    delete lxGlobal.config['frontend.passwordHash'];
-    delete lxGlobal.config['player.passwordHash'];
-    delete lxGlobal.config['player.password'];
-    lxGlobal.config['player.enableAuth'] = false;
-    lxGlobal.config['admin.path'] = '';
-    lxGlobal.config['player.path'] = '/music';
+    const lxGlobal = (global as any).lx
+    lxGlobal.config['frontend.password'] = 'admin_secret'
+    delete lxGlobal.config['frontend.passwordHash']
+    delete lxGlobal.config['player.passwordHash']
+    delete lxGlobal.config['player.password']
+    lxGlobal.config['player.enableAuth'] = false
+    lxGlobal.config['admin.path'] = ''
+    lxGlobal.config['player.path'] = '/music'
   })
 
   test('GET /api/stats requires admin auth', async () => {
@@ -59,13 +66,16 @@ describe('System Routes (routes/system.ts)', () => {
   })
 
   test('GET /api/backup/download returns 413 when the generated ZIP exceeds the restore limit', async () => {
-    const createBackup = spyOn(localBackupService, 'createLocalBackup')
-      .mockRejectedValue(new localBackupService.LocalBackupTooLargeError())
+    const createBackup = spyOn(localBackupService, 'createLocalBackup').mockRejectedValue(
+      new localBackupService.LocalBackupTooLargeError(),
+    )
     try {
       const router = createSystemRouter()
-      const response = await router.handle(new Request('http://localhost:9527/api/backup/download', {
-        headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
-      }))
+      const response = await router.handle(
+        new Request('http://localhost:9527/api/backup/download', {
+          headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
+        }),
+      )
 
       expect(response.status).toBe(413)
       expect(await response.json()).toMatchObject({ success: false, code: 413 })
@@ -179,7 +189,9 @@ describe('System Routes (routes/system.ts)', () => {
     expect(isPasswordHash(config['player.passwordHash'])).toBe(true)
     expect(config['frontend.password']).toBeUndefined()
     expect(config['player.password']).toBeUndefined()
-    expect(checkAdminSession(new Request('http://localhost/api/status', { headers: { cookie: adminCookie } }))).toBe(false)
+    expect(checkAdminSession(new Request('http://localhost/api/status', { headers: { cookie: adminCookie } }))).toBe(
+      false,
+    )
     expect(checkPlayerAuthSession({ [SESSION_COOKIE_NAME]: playerCookie.split('=')[1] })).toBe(false)
   })
 
@@ -188,7 +200,10 @@ describe('System Routes (routes/system.ts)', () => {
     const previousConfigPath = process.env.CONFIG_PATH
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-music-system-route-test-'))
     const configPath = path.join(tempRoot, 'config.js')
-    fs.writeFileSync(configPath, `module.exports = ${JSON.stringify({ 'player.enableAuth': true, 'player.passwordHash': passwordHash })}\n`)
+    fs.writeFileSync(
+      configPath,
+      `module.exports = ${JSON.stringify({ 'player.enableAuth': true, 'player.passwordHash': passwordHash })}\n`,
+    )
     process.env.CONFIG_PATH = configPath
     try {
       await reloadServerData()
@@ -202,14 +217,18 @@ describe('System Routes (routes/system.ts)', () => {
 
   test('removed external protocol endpoints are unavailable', async () => {
     const router = createSystemRouter()
-    const res = await router.handle(new Request('http://localhost:9527/api/webdav/logs', {
-      headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
-    }))
+    const res = await router.handle(
+      new Request('http://localhost:9527/api/webdav/logs', {
+        headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
+      }),
+    )
     expect(res.status).toBe(404)
   })
 
   afterAll(() => {
     closeDb()
-    try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
+    try {
+      fs.rmSync(testDataDir, { recursive: true, force: true })
+    } catch {}
   })
 })

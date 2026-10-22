@@ -57,7 +57,9 @@ const readLimitedStream = async (
       total += chunk.byteLength
       if (total > maxBytes) {
         onLimitExceeded?.()
-        try { await reader.cancel() } catch { }
+        try {
+          await reader.cancel()
+        } catch {}
         throw new Error('备份工具输出超出限制')
       }
       chunks.push(chunk)
@@ -65,7 +67,9 @@ const readLimitedStream = async (
   } catch (error) {
     // Cancel the pipe before releasing its reader. Leaving a child pipe open
     // after stopping reads can block the archive process forever.
-    try { await reader.cancel(error) } catch { }
+    try {
+      await reader.cancel(error)
+    } catch {}
     throw error
   } finally {
     reader.releaseLock()
@@ -87,11 +91,7 @@ const runArchiveCommand = async (args: string[], maxOutputBytes = MAX_UNZIP_OUTP
   const stdoutPromise = readLimitedStream(child.stdout, maxOutputBytes, terminate)
   const stderrPromise = readLimitedStream(child.stderr, Math.min(maxOutputBytes, 512 * 1024), terminate)
   try {
-    const [stdoutBytes, stderrBytes, exitCode] = await Promise.all([
-      stdoutPromise,
-      stderrPromise,
-      child.exited,
-    ])
+    const [stdoutBytes, stderrBytes, exitCode] = await Promise.all([stdoutPromise, stderrPromise, child.exited])
     const stdout = new TextDecoder().decode(stdoutBytes)
     const stderr = new TextDecoder().decode(stderrBytes)
     if (exitCode !== 0) {
@@ -114,11 +114,13 @@ const isAllowedBackupEntry = (rawName: string): boolean => {
   if (!withoutTrailingSlash) return true
   const segments = withoutTrailingSlash.split('/')
   if (segments.some(segment => !segment || segment === '.' || segment === '..')) return false
-  return withoutTrailingSlash === 'config.js'
-    || withoutTrailingSlash === 'database'
-    || withoutTrailingSlash === 'database/yun-yin.db'
-    || withoutTrailingSlash === 'users'
-    || withoutTrailingSlash.startsWith('users/')
+  return (
+    withoutTrailingSlash === 'config.js' ||
+    withoutTrailingSlash === 'database' ||
+    withoutTrailingSlash === 'database/yun-yin.db' ||
+    withoutTrailingSlash === 'users' ||
+    withoutTrailingSlash.startsWith('users/')
+  )
 }
 
 const validateBackupEntries = (listing: string): string[] => {
@@ -131,7 +133,13 @@ const validateBackupEntries = (listing: string): string[] => {
   for (let index = 0; index < entries.length; index++) {
     const rawEntry = rawEntries[index]
     const entry = entries[index]
-    if (rawEntry !== entry || entry.includes('\\') || entry.includes('*') || entry.includes('?') || /[\[\]]/.test(entry)) {
+    if (
+      rawEntry !== entry ||
+      entry.includes('\\') ||
+      entry.includes('*') ||
+      entry.includes('?') ||
+      /[\[\]]/.test(entry)
+    ) {
       throw new Error('备份文件包含不允许的路径')
     }
     if (Buffer.byteLength(entry, 'utf8') > 1024) throw new Error('备份文件路径过长')
@@ -153,28 +161,42 @@ const validateBackupEntryTypes = (listing: string): void => {
   }
 }
 
-const waitForDrain = (output: fs.WriteStream): Promise<void> => new Promise((resolve, reject) => {
-  const cleanup = () => {
-    output.removeListener('drain', onDrain)
-    output.removeListener('error', onError)
-  }
-  const onDrain = () => { cleanup(); resolve() }
-  const onError = (error: Error) => { cleanup(); reject(error) }
-  output.once('drain', onDrain)
-  output.once('error', onError)
-})
+const waitForDrain = (output: fs.WriteStream): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const cleanup = () => {
+      output.removeListener('drain', onDrain)
+      output.removeListener('error', onError)
+    }
+    const onDrain = () => {
+      cleanup()
+      resolve()
+    }
+    const onError = (error: Error) => {
+      cleanup()
+      reject(error)
+    }
+    output.once('drain', onDrain)
+    output.once('error', onError)
+  })
 
-const finishWrite = (output: fs.WriteStream): Promise<void> => new Promise((resolve, reject) => {
-  const onFinish = () => { cleanup(); resolve() }
-  const onError = (error: Error) => { cleanup(); reject(error) }
-  const cleanup = () => {
-    output.removeListener('finish', onFinish)
-    output.removeListener('error', onError)
-  }
-  output.once('finish', onFinish)
-  output.once('error', onError)
-  output.end()
-})
+const finishWrite = (output: fs.WriteStream): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const onFinish = () => {
+      cleanup()
+      resolve()
+    }
+    const onError = (error: Error) => {
+      cleanup()
+      reject(error)
+    }
+    const cleanup = () => {
+      output.removeListener('finish', onFinish)
+      output.removeListener('error', onError)
+    }
+    output.once('finish', onFinish)
+    output.once('error', onError)
+    output.end()
+  })
 
 const extractBackupEntry = async (
   archiveTool: ArchiveTool,
@@ -183,9 +205,7 @@ const extractBackupEntry = async (
   destination: string,
   maxBytes: number,
 ): Promise<number> => {
-  const command = archiveTool === 'unzip'
-    ? ['unzip', '-p', archivePath, entry]
-    : ['tar', '-xOf', archivePath, entry]
+  const command = archiveTool === 'unzip' ? ['unzip', '-p', archivePath, entry] : ['tar', '-xOf', archivePath, entry]
   const child = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' })
   const stderrPromise = readLimitedStream(child.stderr, 512 * 1024, () => {
     if (!child.killed) child.kill('SIGKILL')
@@ -224,11 +244,17 @@ const extractBackupEntry = async (
     return total
   } catch (error) {
     if (!child.killed) child.kill('SIGKILL')
-    try { await reader?.cancel(error) } catch { }
-    try { reader?.releaseLock() } catch { }
+    try {
+      await reader?.cancel(error)
+    } catch {}
+    try {
+      reader?.releaseLock()
+    } catch {}
     await Promise.allSettled([stderrPromise, child.exited])
     output.destroy()
-    try { fs.unlinkSync(destination) } catch { }
+    try {
+      fs.unlinkSync(destination)
+    } catch {}
     throw error
   } finally {
     output.removeListener('error', onOutputError)
@@ -474,12 +500,14 @@ export const restoreLocalBackup = async (
       await Bun.write(archivePath, source)
     }
     const archiveTool = detectArchiveTool()
-    const entriesListing = archiveTool === 'unzip'
-      ? await runArchiveCommand(['unzip', '-Z1', archivePath])
-      : await runArchiveCommand(['tar', '-tf', archivePath])
-    const detailedListing = archiveTool === 'unzip'
-      ? await runArchiveCommand(['unzip', '-Z', '-l', archivePath])
-      : await runArchiveCommand(['tar', '-tvf', archivePath])
+    const entriesListing =
+      archiveTool === 'unzip'
+        ? await runArchiveCommand(['unzip', '-Z1', archivePath])
+        : await runArchiveCommand(['tar', '-tf', archivePath])
+    const detailedListing =
+      archiveTool === 'unzip'
+        ? await runArchiveCommand(['unzip', '-Z', '-l', archivePath])
+        : await runArchiveCommand(['tar', '-tvf', archivePath])
     const entries = validateBackupEntries(entriesListing)
     validateBackupEntryTypes(detailedListing)
     fs.mkdirSync(extractDir, { recursive: true, mode: 0o700 })
@@ -510,15 +538,21 @@ export const restoreLocalBackup = async (
     return restoredConfig
   } catch (error) {
     if (databaseRestored && fs.existsSync(previousDbPath)) {
-      try { restoreDatabaseSnapshot(previousDbPath) } catch (rollbackError) {
+      try {
+        restoreDatabaseSnapshot(previousDbPath)
+      } catch (rollbackError) {
         console.error('[Backup] 数据库恢复回滚失败:', rollbackError)
       }
     }
     if (restoredUsersInstalled && fs.existsSync(global.lx.userPath)) {
-      try { fs.rmSync(global.lx.userPath, { recursive: true, force: true }) } catch { }
+      try {
+        fs.rmSync(global.lx.userPath, { recursive: true, force: true })
+      } catch {}
     }
     if (previousUsersMoved && fs.existsSync(previousUsersPath)) {
-      try { fs.renameSync(previousUsersPath, global.lx.userPath) } catch (rollbackError) {
+      try {
+        fs.renameSync(previousUsersPath, global.lx.userPath)
+      } catch (rollbackError) {
         console.error('[Backup] 用户目录恢复回滚失败:', rollbackError)
       }
     }

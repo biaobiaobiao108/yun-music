@@ -16,7 +16,7 @@ const addQuality = (types: any, _types: any, type: any, size: any) => {
   _types[type] = qualityInfo
 }
 
-export const buildQualitys = (item: any= {}, privilege: any= {}) => {
+export const buildQualitys = (item: any = {}, privilege: any = {}) => {
   const types: any[] = []
   const _types: Record<string, any> = {}
 

@@ -9,25 +9,34 @@ export const temporaryFileStream = (filePath: string): ReadableStream<Uint8Array
     if (cleaned) return
     cleaned = true
     reader.releaseLock()
-    try { fs.unlinkSync(filePath) } catch { }
+    try {
+      fs.unlinkSync(filePath)
+    } catch {}
   }
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read()
-        if (cancelled) return
-        if (done) {
-          controller.close()
+  return new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read()
+          if (cancelled) return
+          if (done) {
+            controller.close()
+            cleanup()
+          } else controller.enqueue(value)
+        } catch (error) {
+          if (!cancelled) controller.error(error)
           cleanup()
-        } else controller.enqueue(value)
-      } catch (error) {
-        if (!cancelled) controller.error(error)
-        cleanup()
-      }
+        }
+      },
+      async cancel(reason) {
+        cancelled = true
+        try {
+          await reader.cancel(reason)
+        } finally {
+          cleanup()
+        }
+      },
     },
-    async cancel(reason) {
-      cancelled = true
-      try { await reader.cancel(reason) } finally { cleanup() }
-    },
-  }, { highWaterMark: 0 })
+    { highWaterMark: 0 },
+  )
 }

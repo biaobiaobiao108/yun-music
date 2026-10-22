@@ -59,7 +59,7 @@ export default {
       }
     })
   },
-  search(str: any, page: any= 1, limit: any, retryNum: any= 0): Promise<any> {
+  search(str: any, page: any = 1, limit: any, retryNum: any = 0): Promise<any> {
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))
     if (limit == null) limit = this.limit
     return this.musicSearch(str, page, limit).then((result: any) => {

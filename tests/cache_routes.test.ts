@@ -21,10 +21,11 @@ import { syncUsersToDatabase } from '@/user'
 import { issueDownloadToken } from '@/server/downloadToken'
 
 const persistUserSession = (sessionId: string, username: string, createdAt = Date.now()) => {
-  getDb().run(
-    'INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)',
-    [createHash('sha256').update(sessionId).digest('hex'), username, createdAt],
-  )
+  getDb().run('INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)', [
+    createHash('sha256').update(sessionId).digest('hex'),
+    username,
+    createdAt,
+  ])
 }
 
 // 所有落盘路径必须指向临时目录：否则 closeDb() 之后的 getDb() 会重新打开
@@ -37,7 +38,7 @@ const createMinimalLxFixture = (enablePublicLocalMusic: boolean): typeof global.
   userPath: testDataDir,
   staticPath: path.join(process.cwd(), 'public'),
   config: {
-    'serverName': 'Test',
+    serverName: 'Test',
     'proxy.enabled': false,
     'proxy.header': 'x-forwarded-for',
     'proxy.trustedAddresses': [],
@@ -85,9 +86,11 @@ describe('cache list user scope', () => {
   test('uses the authenticated user cache when no public alias is requested', async () => {
     const getCacheList = spyOn(fileCache, 'getCacheList').mockResolvedValue([])
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list', {
-        headers: { cookie: `lx_user_session=${sessionId}` },
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/list', {
+          headers: { cookie: `lx_user_session=${sessionId}` },
+        }),
+      )
 
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ success: true, data: [] })
@@ -100,9 +103,11 @@ describe('cache list user scope', () => {
   test('keeps an explicit public alias scoped to the public cache', async () => {
     const getCacheList = spyOn(fileCache, 'getCacheList').mockResolvedValue([])
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=_open', {
-        headers: { cookie: `lx_user_session=${sessionId}` },
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/list?user=_open', {
+          headers: { cookie: `lx_user_session=${sessionId}` },
+        }),
+      )
 
       expect(response.status).toBe(200)
       expect(getCacheList).toHaveBeenCalledWith('_open')
@@ -114,17 +119,21 @@ describe('cache list user scope', () => {
   test('keeps personal cache sync private and protects public cache sync', async () => {
     const syncCacheIndex = spyOn(fileCache, 'syncCacheIndex').mockResolvedValue(undefined)
     try {
-      const personalResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/sync', {
-        method: 'POST',
-        headers: { cookie: `lx_user_session=${sessionId}` },
-      }))
+      const personalResponse = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/sync', {
+          method: 'POST',
+          headers: { cookie: `lx_user_session=${sessionId}` },
+        }),
+      )
       expect(personalResponse.status).toBe(200)
       expect(syncCacheIndex).toHaveBeenLastCalledWith(username)
 
-      const publicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/sync?user=_open', {
-        method: 'POST',
-        headers: { cookie: `lx_user_session=${sessionId}` },
-      }))
+      const publicResponse = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/sync?user=_open', {
+          method: 'POST',
+          headers: { cookie: `lx_user_session=${sessionId}` },
+        }),
+      )
       expect(publicResponse.status).toBe(403)
       expect(syncCacheIndex).toHaveBeenCalledTimes(1)
     } finally {
@@ -134,19 +143,28 @@ describe('cache list user scope', () => {
 
   test('queues an existing private cache without validating an unused remote URL', async () => {
     const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
-      exists: true, isCollision: false, foundIn: username, folder: 'cache',
-      filename: 'cached-song.mp3', path: 'cached-song.mp3', quality: '128k',
+      exists: true,
+      isCollision: false,
+      foundIn: username,
+      folder: 'cache',
+      filename: 'cached-song.mp3',
+      path: 'cached-song.mp3',
+      quality: '128k',
     } as any)
     const enqueue = spyOn(serverDownloadQueue, 'enqueue').mockReturnValue([])
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/download', {
-        method: 'POST',
-        headers: { cookie: `lx_user_session=${sessionId}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          songInfo: { source: 'wy', songmid: 'cached-song', name: 'Cached Song' },
-          url: 'http://127.0.0.1/unreachable.mp3', quality: '128k', enableOnlyDownloadMode: true,
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/download', {
+          method: 'POST',
+          headers: { cookie: `lx_user_session=${sessionId}`, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            songInfo: { source: 'wy', songmid: 'cached-song', name: 'Cached Song' },
+            url: 'http://127.0.0.1/unreachable.mp3',
+            quality: '128k',
+            enableOnlyDownloadMode: true,
+          }),
         }),
-      }))
+      )
       expect(response.status).toBe(200)
       expect(enqueue).toHaveBeenCalledTimes(1)
       expect(enqueue.mock.calls[0]?.[1]?.[0]?.resolvedUrl).toBeUndefined()
@@ -157,9 +175,11 @@ describe('cache list user scope', () => {
   })
 
   test('opens an authenticated live cache event stream', async () => {
-    const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/events', {
-      headers: { cookie: `lx_user_session=${sessionId}` },
-    }))
+    const response = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/events', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/event-stream')
@@ -173,19 +193,28 @@ describe('cache list user scope', () => {
 
   test('persists global cache configuration changes', async () => {
     const setCacheLocation = spyOn(fileCache, 'setCacheLocation').mockImplementation(() => {})
-    const setNamingPattern = spyOn(fileCache, 'setNamingPattern').mockImplementation((pattern) => fileCache.normalizeNamingPattern(pattern))
+    const setNamingPattern = spyOn(fileCache, 'setNamingPattern').mockImplementation(pattern =>
+      fileCache.normalizeNamingPattern(pattern),
+    )
     const previousSaveConfig = global.lx.saveConfig
     let saveCalls = 0
-    global.lx.saveConfig = async () => { saveCalls += 1 }
+    global.lx.saveConfig = async () => {
+      saveCalls += 1
+    }
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/config', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
-        },
-        body: JSON.stringify({ location: fileCache.CACHE_ROOTS.DATA, namingPattern: fileCache.CACHE_NAMING_PATTERNS.STANDARD }),
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/config', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+          },
+          body: JSON.stringify({
+            location: fileCache.CACHE_ROOTS.DATA,
+            namingPattern: fileCache.CACHE_NAMING_PATTERNS.STANDARD,
+          }),
+        }),
+      )
 
       expect(response.status).toBe(200)
       expect(global.lx.config.serverCacheLocation).toBe(fileCache.CACHE_ROOTS.DATA)
@@ -204,21 +233,37 @@ describe('cache list user scope', () => {
   })
 
   test('rejects non-admin from querying cache list for user=all', async () => {
-    const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=all', {
-      headers: { cookie: `lx_user_session=${sessionId}` },
-    }))
+    const response = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/list?user=all', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
     expect(response.status).toBe(403)
   })
 
   test('allows admin to query cache list with user=all', async () => {
     const getAllCacheList = spyOn(fileCache, 'getAllCacheList').mockResolvedValue([
-      { id: '1', songmid: '1', name: 'Song 1', singer: 'Singer 1', path: '', size: 100, mtime: 1, quality: '128k', folder: 'cache', username: '用户: user1', rawUsername: 'user1' } as any,
+      {
+        id: '1',
+        songmid: '1',
+        name: 'Song 1',
+        singer: 'Singer 1',
+        path: '',
+        size: 100,
+        mtime: 1,
+        quality: '128k',
+        folder: 'cache',
+        username: '用户: user1',
+        rawUsername: 'user1',
+      } as any,
     ])
     try {
       const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/list?user=all', {
-        headers: { cookie: adminCookie },
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/list?user=all', {
+          headers: { cookie: adminCookie },
+        }),
+      )
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.success).toBe(true)
@@ -237,10 +282,12 @@ describe('cache list user scope', () => {
     }))
     try {
       const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/clear?user=all', {
-        method: 'POST',
-        headers: { cookie: adminCookie },
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/clear?user=all', {
+          method: 'POST',
+          headers: { cookie: adminCookie },
+        }),
+      )
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.success).toBe(true)
@@ -254,19 +301,21 @@ describe('cache list user scope', () => {
     const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'cache' })
     try {
       const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/remove', {
-        method: 'POST',
-        headers: {
-          cookie: adminCookie,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: [
-            { filename: 'song1.mp3', folder: 'cache', user: 'user1' },
-            { filename: 'song2.mp3', folder: 'music', user: '_open' },
-          ],
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/remove', {
+          method: 'POST',
+          headers: {
+            cookie: adminCookie,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            items: [
+              { filename: 'song1.mp3', folder: 'cache', user: 'user1' },
+              { filename: 'song2.mp3', folder: 'music', user: '_open' },
+            ],
+          }),
         }),
-      }))
+      )
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.success).toBe(true)
@@ -279,11 +328,13 @@ describe('cache list user scope', () => {
   })
 
   test('rejects anonymous public cache mutations', async () => {
-    const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/queue', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ tasks: [{ id: 'anonymous-task' }] }),
-    }))
+    const response = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/queue', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tasks: [{ id: 'anonymous-task' }] }),
+      }),
+    )
 
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({ success: false })
@@ -304,14 +355,16 @@ describe('cache list user scope', () => {
   test('uses the authenticated user for cache removal when user is omitted', async () => {
     const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'music' })
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/remove', {
-        method: 'POST',
-        headers: {
-          cookie: `lx_user_session=${sessionId}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ items: [{ filename: 'album/song.mp3', folder: 'music' }] }),
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/remove', {
+          method: 'POST',
+          headers: {
+            cookie: `lx_user_session=${sessionId}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ items: [{ filename: 'album/song.mp3', folder: 'music' }] }),
+        }),
+      )
 
       expect(response.status).toBe(200)
       expect(await response.json()).toMatchObject({ success: true, deletedCount: 1 })
@@ -324,14 +377,16 @@ describe('cache list user scope', () => {
   test('keeps an explicit public cache removal protected for personal sessions', async () => {
     const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'music' })
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/remove?user=_open', {
-        method: 'POST',
-        headers: {
-          cookie: `lx_user_session=${sessionId}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ items: [{ filename: 'public/song.mp3', folder: 'music' }] }),
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/remove?user=_open', {
+          method: 'POST',
+          headers: {
+            cookie: `lx_user_session=${sessionId}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ items: [{ filename: 'public/song.mp3', folder: 'music' }] }),
+        }),
+      )
 
       expect(response.status).toBe(403)
       expect(removeCacheFile).not.toHaveBeenCalled()
@@ -346,9 +401,11 @@ describe('cache list user scope', () => {
       mime: 'image/png',
     })
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3', {
-        headers: { cookie: `lx_user_session=${sessionId}` },
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3', {
+          headers: { cookie: `lx_user_session=${sessionId}` },
+        }),
+      )
 
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toBe('image/png')
@@ -363,14 +420,16 @@ describe('cache list user scope', () => {
   test('records playback time in the authenticated user cache scope', async () => {
     const markCachePlayback = spyOn(fileCache, 'markCachePlayback').mockReturnValue(true)
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/playback', {
-        method: 'POST',
-        headers: {
-          cookie: `lx_user_session=${sessionId}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ filename: 'album/song.mp3', folder: 'cache' }),
-      }))
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/playback', {
+          method: 'POST',
+          headers: {
+            cookie: `lx_user_session=${sessionId}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ filename: 'album/song.mp3', folder: 'cache' }),
+        }),
+      )
 
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ success: true, data: { marked: true } })
@@ -392,9 +451,14 @@ describe('cache list user scope', () => {
       updatedAt: Date.now(),
     })
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/check?name=Song&singer=Singer&source=wy&songmid=123&quality=flac', {
-        headers: { cookie: `lx_user_session=${sessionId}` },
-      }))
+      const response = await createCacheRouter().handle(
+        new Request(
+          'http://localhost/api/music/cache/check?name=Song&singer=Singer&source=wy&songmid=123&quality=flac',
+          {
+            headers: { cookie: `lx_user_session=${sessionId}` },
+          },
+        ),
+      )
 
       expect(response.status).toBe(200)
       expect(await response.json()).toMatchObject({
@@ -402,7 +466,11 @@ describe('cache list user scope', () => {
         processing: true,
         progress: { status: 'waiting' },
       })
-      expect(getActiveTaskProgress).toHaveBeenCalledWith(username, expect.objectContaining({ songmid: '123', source: 'wy' }), 'flac')
+      expect(getActiveTaskProgress).toHaveBeenCalledWith(
+        username,
+        expect.objectContaining({ songmid: '123', source: 'wy' }),
+        'flac',
+      )
       expect(getActiveCacheProgress).not.toHaveBeenCalled()
     } finally {
       getActiveTaskProgress.mockRestore()
@@ -419,21 +487,23 @@ describe('cache list user scope', () => {
     } as any)
     const enqueue = spyOn(serverDownloadQueue, 'enqueue').mockReturnValue([] as any)
     try {
-      const response = await createCacheRouter().handle(new Request('http://internal/api/music/cache/download?user=cache_owner', {
-        method: 'POST',
-        headers: {
-          cookie: `lx_user_session=${sessionId}`,
-          'content-type': 'application/json',
-          host: 'music.example',
-          origin: 'https://music.example',
-          'x-forwarded-proto': 'https',
-        },
-        body: JSON.stringify({
-          songInfo: { source: 'wy', songmid: '123', name: 'Song', singer: 'Singer' },
-          url: 'https://music.example/api/music/cache/file/cache_owner/saved.mp3?folder=cache',
-          quality: 'flac',
+      const response = await createCacheRouter().handle(
+        new Request('http://internal/api/music/cache/download?user=cache_owner', {
+          method: 'POST',
+          headers: {
+            cookie: `lx_user_session=${sessionId}`,
+            'content-type': 'application/json',
+            host: 'music.example',
+            origin: 'https://music.example',
+            'x-forwarded-proto': 'https',
+          },
+          body: JSON.stringify({
+            songInfo: { source: 'wy', songmid: '123', name: 'Song', singer: 'Singer' },
+            url: 'https://music.example/api/music/cache/file/cache_owner/saved.mp3?folder=cache',
+            quality: 'flac',
+          }),
         }),
-      }))
+      )
 
       expect(response.status).toBe(200)
       expect(switchFolder).toHaveBeenCalledWith(['saved.mp3'], 'cache_owner', 'music')
@@ -461,9 +531,14 @@ describe('cache list user scope', () => {
       updatedAt: Date.now(),
     })
     try {
-      const response = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/check?name=Song&singer=Singer&source=wy&songmid=123&quality=flac', {
-        headers: { cookie: `lx_user_session=${sessionId}` },
-      }))
+      const response = await createCacheRouter().handle(
+        new Request(
+          'http://localhost/api/music/cache/check?name=Song&singer=Singer&source=wy&songmid=123&quality=flac',
+          {
+            headers: { cookie: `lx_user_session=${sessionId}` },
+          },
+        ),
+      )
 
       expect(response.status).toBe(200)
       expect(await response.json()).toMatchObject({
@@ -497,66 +572,88 @@ test('cache file routes honor the requested folder and keep personal media priva
   fs.writeFileSync(path.join(musicDir, 'song.mp3'), 'music-file')
   closeDb()
   initDatabase(':memory:')
-  global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'file-route-admin' } } as typeof global.lx
+  global.lx = {
+    config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'file-route-admin' },
+  } as typeof global.lx
   await syncUsersToDatabase(global.lx.config.users)
   const createdAt = Date.now()
   userSessions.set(sessionId, { username, createdAt })
   persistUserSession(sessionId, username, createdAt)
   const getCacheLocation = spyOn(fileCache, 'getCacheLocation').mockReturnValue(fileCache.CACHE_ROOTS.ROOT)
-  const getCacheDir = spyOn(fileCache, 'getCacheDir').mockImplementation((_username, isOnlyDownload) => isOnlyDownload ? musicDir : cacheDir)
+  const getCacheDir = spyOn(fileCache, 'getCacheDir').mockImplementation((_username, isOnlyDownload) =>
+    isOnlyDownload ? musicDir : cacheDir,
+  )
 
   try {
-    const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
-      headers: { cookie: `lx_user_session=${sessionId}` },
-    }))
+    const response = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(await response.text()).toBe('music-file')
 
     const etag = response.headers.get('etag')
-    const clampedRange = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
-      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=0-999' },
-    }))
+    const clampedRange = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+        headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=0-999' },
+      }),
+    )
     expect(clampedRange.status).toBe(206)
     expect(clampedRange.headers.get('content-range')).toMatch(/^bytes 0-9\/10$/)
     expect(clampedRange.headers.get('content-length')).toBe('10')
     expect(await clampedRange.text()).toBe('music-file')
 
-    const suffixRange = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
-      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=-4' },
-    }))
+    const suffixRange = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+        headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=-4' },
+      }),
+    )
     expect(suffixRange.status).toBe(206)
     expect(suffixRange.headers.get('content-range')).toMatch(/^bytes 6-9\/10$/)
     expect(await suffixRange.text()).toBe('file')
 
-    const rangedWithValidator = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
-      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=0-3', 'if-none-match': etag || '' },
-    }))
+    const rangedWithValidator = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+        headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=0-3', 'if-none-match': etag || '' },
+      }),
+    )
     expect(rangedWithValidator.status).toBe(206)
     expect(await rangedWithValidator.text()).toBe('musi')
 
-    const unsatisfiableRange = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
-      headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=999-' },
-    }))
+    const unsatisfiableRange = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+        headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=999-' },
+      }),
+    )
     expect(unsatisfiableRange.status).toBe(416)
     expect(unsatisfiableRange.headers.get('content-range')).toBe('bytes */10')
 
     fs.writeFileSync(path.join(musicDir, 'empty.mp3'), '')
-    const emptyFile = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/empty.mp3?folder=music`, {
-      headers: { cookie: `lx_user_session=${sessionId}` },
-    }))
+    const emptyFile = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/file/${username}/empty.mp3?folder=music`, {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
     expect(emptyFile.status).toBe(404)
 
-    const invalidFolder = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=other`, {
-      headers: { cookie: `lx_user_session=${sessionId}` },
-    }))
+    const invalidFolder = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=other`, {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
     expect(invalidFolder.status).toBe(400)
 
-    const publicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music'))
+    const publicResponse = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music'),
+    )
     expect(publicResponse.status).toBe(403)
 
     global.lx.config['user.enablePublicNonAdminLocalMusic'] = true
-    const enabledPublicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music'))
+    const enabledPublicResponse = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music'),
+    )
     expect(enabledPublicResponse.status).toBe(200)
     expect(enabledPublicResponse.headers.get('cache-control')).toBe('public, max-age=86400')
     expect(await enabledPublicResponse.text()).toBe('music-file')
@@ -576,7 +673,9 @@ test('cover routes forward the requested folder and return public cache headers 
   const sessionId = 'cover-owner-session'
   closeDb()
   initDatabase(':memory:')
-  global.lx = { config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'cover-route-admin' } } as typeof global.lx
+  global.lx = {
+    config: { users: [{ name: username, password: 'password' }], 'frontend.password': 'cover-route-admin' },
+  } as typeof global.lx
   await syncUsersToDatabase(global.lx.config.users)
   const createdAt = Date.now()
   userSessions.set(sessionId, { username, createdAt })
@@ -587,19 +686,25 @@ test('cover routes forward the requested folder and return public cache headers 
   })
 
   try {
-    const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/cache/cover?filename=album/song.mp3&user=${username}&folder=music`, {
-      headers: { cookie: `lx_user_session=${sessionId}` },
-    }))
+    const response = await createCacheRouter().handle(
+      new Request(`http://localhost/api/music/cache/cover?filename=album/song.mp3&user=${username}&folder=music`, {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username, 'music')
 
-    const deniedPublicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'))
+    const deniedPublicResponse = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'),
+    )
     expect(deniedPublicResponse.status).toBe(403)
     expect(getCacheCover).toHaveBeenCalledTimes(1)
 
     global.lx.config['user.enablePublicNonAdminLocalMusic'] = true
-    const publicResponse = await createCacheRouter().handle(new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'))
+    const publicResponse = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/cover?filename=album/song.mp3&user=_open&folder=cache'),
+    )
     expect(publicResponse.status).toBe(200)
     expect(publicResponse.headers.get('cache-control')).toBe('public, max-age=86400')
     expect(getCacheCover).toHaveBeenLastCalledWith('album/song.mp3', '_open', 'cache')
@@ -623,7 +728,9 @@ test('tagged file response bounds unread data and cleans up after cancellation',
   })
   let releases = 0
   let finish!: () => void
-  const finished = new Promise<void>(resolve => { finish = resolve })
+  const finished = new Promise<void>(resolve => {
+    finish = resolve
+  })
   try {
     const stream = createTempFileResponseStream(tempPath, () => {
       releases++
@@ -655,7 +762,9 @@ test('tagged file response delivers bytes and releases resources on completion a
       if (!missing) fs.writeFileSync(tempPath, content)
       let releases = 0
       let finish!: () => void
-      const finished = new Promise<void>(resolve => { finish = resolve })
+      const finished = new Promise<void>(resolve => {
+        finish = resolve
+      })
       const stream = createTempFileResponseStream(tempPath, () => {
         releases++
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
@@ -676,7 +785,9 @@ test('tagged file response delivers bytes and releases resources on completion a
 test('small relay responses hold their slot until consumed or cancelled', async () => {
   for (const cancel of [false, true]) {
     let releases = 0
-    const stream = createProxyResponseStream(Readable.from([Buffer.alloc(1024)]), { destroy() {} } as any, 4096, () => { releases++ })
+    const stream = createProxyResponseStream(Readable.from([Buffer.alloc(1024)]), { destroy() {} } as any, 4096, () => {
+      releases++
+    })
     await Bun.sleep(10)
     expect(releases).toBe(0)
     if (cancel) await stream.cancel()
@@ -695,7 +806,15 @@ test('proxy stream bounds unread data and cancels the upstream transport', async
       this.push(Buffer.alloc(16 * 1024))
     },
   })
-  const stream = createProxyResponseStream(source, { destroy() { destroyed = true } } as any, 10 * 1024 * 1024)
+  const stream = createProxyResponseStream(
+    source,
+    {
+      destroy() {
+        destroyed = true
+      },
+    } as any,
+    10 * 1024 * 1024,
+  )
   await Bun.sleep(20)
   expect(produced).toBeLessThan(512 * 1024)
   await stream.cancel()
@@ -707,9 +826,25 @@ test('proxy stream bounds unread data and cancels the upstream transport', async
 test('proxy stream propagates size violations and truncated upstream responses', async () => {
   for (const oversized of [true, false]) {
     let destroyed = false
-    const source = oversized ? Readable.from([Buffer.alloc(128)]) : new Readable({ read() { this.destroy(new Error('truncated')) } })
-    const stream = createProxyResponseStream(source, { destroy() { destroyed = true } } as any, 64)
-    await expect(new Response(stream).arrayBuffer()).rejects.toThrow(oversized ? 'Remote file is too large' : 'truncated')
+    const source = oversized
+      ? Readable.from([Buffer.alloc(128)])
+      : new Readable({
+          read() {
+            this.destroy(new Error('truncated'))
+          },
+        })
+    const stream = createProxyResponseStream(
+      source,
+      {
+        destroy() {
+          destroyed = true
+        },
+      } as any,
+      64,
+    )
+    await expect(new Response(stream).arrayBuffer()).rejects.toThrow(
+      oversized ? 'Remote file is too large' : 'truncated',
+    )
     await Bun.sleep(10)
     expect(destroyed).toBe(true)
   }
@@ -754,7 +889,11 @@ test('download proxy isolates active content and preserves media responses', asy
     for (const type of ['text/html', 'image/svg+xml', 'application/xhtml+xml', 'audio/mpeg', 'image/png']) {
       mime = type
       const target = 'http://example.com/file'
-      const response = await createCacheRouter().handle(new Request(`http://localhost/api/music/download?inline=1&url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`))
+      const response = await createCacheRouter().handle(
+        new Request(
+          `http://localhost/api/music/download?inline=1&url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+        ),
+      )
       expect(response.status).toBe(200)
       expect(response.headers.get('x-content-type-options')).toBe('nosniff')
       expect(response.headers.get('content-security-policy')).toContain('sandbox')
@@ -778,12 +917,17 @@ test('download proxy closes an unfinished redirect body before following its loc
   const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
   const content = Buffer.from('audio bytes')
   let redirectBodyReads = 0
-  const redirect = Object.assign(new Readable({
-    read() { redirectBodyReads += 1 },
-  }), {
-    statusCode: 302,
-    headers: { location: '/audio' },
-  }) as http.IncomingMessage
+  const redirect = Object.assign(
+    new Readable({
+      read() {
+        redirectBodyReads += 1
+      },
+    }),
+    {
+      statusCode: 302,
+      headers: { location: '/audio' },
+    },
+  ) as http.IncomingMessage
   const visited: string[] = []
   let redirectClosedBeforeNextHop = false
   const mockRequest = (
@@ -800,10 +944,12 @@ test('download proxy closes an unfinished redirect body before following its loc
         if (visited.length === 1) responseCallback?.(redirect)
         else {
           redirectClosedBeforeNextHop = redirect.destroyed
-          responseCallback?.(Object.assign(Readable.from([content]), {
-            statusCode: 200,
-            headers: { 'content-type': 'audio/mpeg' },
-          }) as http.IncomingMessage)
+          responseCallback?.(
+            Object.assign(Readable.from([content]), {
+              statusCode: 200,
+              headers: { 'content-type': 'audio/mpeg' },
+            }) as http.IncomingMessage,
+          )
         }
       })
       return req
@@ -813,9 +959,11 @@ test('download proxy closes an unfinished redirect body before following its loc
   const request = spyOn(http, 'request').mockImplementation(mockRequest)
   try {
     const target = 'http://example.com/redirect'
-    const response = await createCacheRouter().handle(new Request(
-      `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
-    ))
+    const response = await createCacheRouter().handle(
+      new Request(
+        `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+      ),
+    )
     expect(response.status).toBe(200)
     expect(Buffer.from(await response.arrayBuffer())).toEqual(content)
     expect(visited).toEqual([target, 'http://example.com/audio'])
@@ -849,9 +997,11 @@ test('download proxy treats client aborts as normal request cancellation', async
   const errorLog = spyOn(console, 'error').mockImplementation(() => {})
   try {
     const target = 'http://example.com/audio'
-    const response = await createCacheRouter().handle(new Request(
-      `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
-    ))
+    const response = await createCacheRouter().handle(
+      new Request(
+        `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+      ),
+    )
     expect(response.status).toBe(499)
     expect(errorLog).not.toHaveBeenCalled()
   } finally {
@@ -864,34 +1014,47 @@ test('download proxy treats client aborts as normal request cancellation', async
 test('tagged download proxy waits for the shared native limit and cancels queued processing', async () => {
   let release!: () => void
   let entered!: () => void
-  const gate = new Promise<void>(resolve => { release = resolve })
-  const started = new Promise<void>(resolve => { entered = resolve })
+  const gate = new Promise<void>(resolve => {
+    release = resolve
+  })
+  const started = new Promise<void>(resolve => {
+    entered = resolve
+  })
   const held = fileCache.withCachePostProcess(undefined, 'test held native slot', async () => {
     entered()
     await gate
   })
   await started
   const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
-  const request = spyOn(http, 'request').mockImplementation((_url: any, optionsOrCallback?: any, callback?: any): any => {
-    const responseCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
-    const req = new EventEmitter() as any
-    req.destroy = () => req
-    req.end = () => {
-      responseCallback(Object.assign(Readable.from([Buffer.alloc(256)]), {
-        statusCode: 200, headers: { 'content-type': 'audio/mpeg', 'content-length': '256' },
-      }))
+  const request = spyOn(http, 'request').mockImplementation(
+    (_url: any, optionsOrCallback?: any, callback?: any): any => {
+      const responseCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+      const req = new EventEmitter() as any
+      req.destroy = () => req
+      req.end = () => {
+        responseCallback(
+          Object.assign(Readable.from([Buffer.alloc(256)]), {
+            statusCode: 200,
+            headers: { 'content-type': 'audio/mpeg', 'content-length': '256' },
+          }),
+        )
+        return req
+      }
       return req
-    }
-    return req
-  })
+    },
+  )
   const controller = new AbortController()
   try {
     const target = 'http://example.com/audio'
-    const response = createCacheRouter().handle(new Request(
-      `http://localhost/api/music/download?tag=1&url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
-      { signal: controller.signal },
-    ), { remoteAddress: '203.0.113.219' })
-    for (let attempt = 0; attempt < 100 && fileCache.getCachePostProcessStats().waiting === 0; attempt++) await Bun.sleep(5)
+    const response = createCacheRouter().handle(
+      new Request(
+        `http://localhost/api/music/download?tag=1&url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+        { signal: controller.signal },
+      ),
+      { remoteAddress: '203.0.113.219' },
+    )
+    for (let attempt = 0; attempt < 100 && fileCache.getCachePostProcessStats().waiting === 0; attempt++)
+      await Bun.sleep(5)
     expect(fileCache.getCachePostProcessStats()).toMatchObject({ active: 1, waiting: 1 })
     controller.abort()
     expect((await response).status).toBe(499)
@@ -917,11 +1080,15 @@ test('local identification resolves its module and forwards a bounded file path'
   const cacheDir = spyOn(fileCache, 'getCacheDir').mockReturnValue(dir)
   const identifySong = spyOn(identify, 'identifyLocalSong').mockResolvedValue([{ name: 'Identified song' }] as any)
   try {
-  const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
-  const request = (filename: string) => createCacheRouter().handle(new Request('http://localhost/api/music/identify', {
-      method: 'POST', headers: { cookie: adminCookie, 'content-type': 'application/json' },
-      body: JSON.stringify({ filename }),
-    }))
+    const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const request = (filename: string) =>
+      createCacheRouter().handle(
+        new Request('http://localhost/api/music/identify', {
+          method: 'POST',
+          headers: { cookie: adminCookie, 'content-type': 'application/json' },
+          body: JSON.stringify({ filename }),
+        }),
+      )
     const response = await request('song.mp3')
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true, results: [{ name: 'Identified song' }] })
@@ -955,7 +1122,10 @@ test('checkCache allows logged in users to fallback to _open shared cache', () =
   })
   const isUsable = spyOn(fs, 'statSync').mockReturnValue({ isFile: () => true, size: 1000 } as any)
   try {
-    const res = fileCache.checkCache({ source: 'wy', songmid: '12345', name: 'Test Song', singer: 'Test Singer', quality: '320k' }, 'user_alice')
+    const res = fileCache.checkCache(
+      { source: 'wy', songmid: '12345', name: 'Test Song', singer: 'Test Singer', quality: '320k' },
+      'user_alice',
+    )
     expect(res.exists).toBe(true)
     expect(res.foundIn).toBe('_open')
     expect(res.url).toContain('/api/music/cache/file/_open/test.mp3')
@@ -975,12 +1145,20 @@ test('song list IDs only accept numbers or official provider links', async () =>
 
   const previousFetch = globalThis.fetch
   let fetchCalls = 0
-  globalThis.fetch = Object.assign(async () => {
-    fetchCalls++
-    return new Response('', { status: 500 })
-  }, { preconnect: previousFetch.preconnect })
+  globalThis.fetch = Object.assign(
+    async () => {
+      fetchCalls++
+      return new Response('', { status: 500 })
+    },
+    { preconnect: previousFetch.preconnect },
+  )
   try {
-    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/songList/detail?source=wy&id=' + encodeURIComponent('http://127.0.0.1:9527/internal')))
+    const response = await createMusicRouter().handle(
+      new Request(
+        'http://localhost/api/music/songList/detail?source=wy&id=' +
+          encodeURIComponent('http://127.0.0.1:9527/internal'),
+      ),
+    )
     expect(response.status).toBe(400)
     expect(fetchCalls).toBe(0)
   } finally {
@@ -1014,12 +1192,9 @@ test('/api/music/url intercepts request when cache exists and avoids online reso
     expect(data.fromCache).toBe(true)
     expect(data.url).toBe('/api/music/cache/file/_open/cached.mp3')
     expect(data.sourceName).toBe('本地缓存')
-    expect(checkCacheSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ quality: '320k' }),
-      '_open',
-      false,
-      { preferredFolder: 'music' },
-    )
+    expect(checkCacheSpy).toHaveBeenCalledWith(expect.objectContaining({ quality: '320k' }), '_open', false, {
+      preferredFolder: 'music',
+    })
   } finally {
     checkCacheSpy.mockRestore()
     global.lx = previousLx
@@ -1048,14 +1223,16 @@ test('/api/music/quality/size follows redirects and validates each public target
     return new Response(null, { status: 200, headers: { 'content-length': '123456' } })
   })
   try {
-    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/quality/size', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        songInfo: { source: 'wy', songmid: '123', name: 'Song', singer: 'Singer' },
-        quality: 'flac',
+    const response = await createMusicRouter().handle(
+      new Request('http://localhost/api/music/quality/size', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          songInfo: { source: 'wy', songmid: '123', name: 'Song', singer: 'Singer' },
+          quality: 'flac',
+        }),
       }),
-    }))
+    )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ success: true, bytes: 123456 })
@@ -1092,11 +1269,13 @@ test('/api/music/quality/size does not treat a location-less redirect body as th
     })
   })
   try {
-    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/quality/size', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ songInfo: { source: 'wy', songmid: '123' }, quality: 'flac' }),
-    }))
+    const response = await createMusicRouter().handle(
+      new Request('http://localhost/api/music/quality/size', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ songInfo: { source: 'wy', songmid: '123' }, quality: 'flac' }),
+      }),
+    )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ success: true, bytes: 123456 })
@@ -1112,10 +1291,15 @@ test('/api/music/quality/size does not treat a location-less redirect body as th
 })
 
 test('/api/music/quality/size refuses a private redirect target', async () => {
-  const lookup = spyOn(dns, 'lookup').mockImplementation(async (hostname: string) => ([{
-    address: hostname === '127.0.0.1' ? '127.0.0.1' : '8.8.8.8',
-    family: 4,
-  }]) as any)
+  const lookup = spyOn(dns, 'lookup').mockImplementation(
+    async (hostname: string) =>
+      [
+        {
+          address: hostname === '127.0.0.1' ? '127.0.0.1' : '8.8.8.8',
+          family: 4,
+        },
+      ] as any,
+  )
   const resolveServerSong = spyOn(musicResolver, 'resolveServerSong').mockResolvedValue({
     url: 'https://origin.example/audio',
     quality: 'flac',
@@ -1123,17 +1307,19 @@ test('/api/music/quality/size refuses a private redirect target', async () => {
     downloadSource: 'wy',
   } as any)
   const probedUrls: string[] = []
-  const fetchSafeRemote = spyOn(networkSecurity, 'fetchSafeRemote').mockImplementation(async (url) => {
+  const fetchSafeRemote = spyOn(networkSecurity, 'fetchSafeRemote').mockImplementation(async url => {
     probedUrls.push(url.href)
     return new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/internal' } })
   })
   const errorLog = spyOn(console, 'error').mockImplementation(() => {})
   try {
-    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/quality/size', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ songInfo: { source: 'wy', songmid: '123' }, quality: 'flac' }),
-    }))
+    const response = await createMusicRouter().handle(
+      new Request('http://localhost/api/music/quality/size', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ songInfo: { source: 'wy', songmid: '123' }, quality: 'flac' }),
+      }),
+    )
 
     expect(response.status).toBe(500)
     expect(probedUrls).toEqual(['https://origin.example/audio', 'https://origin.example/audio'])
@@ -1182,7 +1368,9 @@ test('/api/music/lyric does not read public lyric cache when public local music 
     content: { lyric: 'private lyric' },
   } as any)
   try {
-    const response = await createMusicRouter().handle(new Request('http://localhost/api/music/lyric?source=unsupported&songmid=123'))
+    const response = await createMusicRouter().handle(
+      new Request('http://localhost/api/music/lyric?source=unsupported&songmid=123'),
+    )
     expect(response.status).toBe(500)
     expect(checkLyricCacheSpy).not.toHaveBeenCalled()
   } finally {

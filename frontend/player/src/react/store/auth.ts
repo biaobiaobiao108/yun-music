@@ -66,7 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         const config = await playerApi.config()
         const [playerSession, userSession] = await Promise.all([playerApi.verify(), playerApi.userVerify()])
-        const authenticatedUserName = userSession.valid ? (userSession.username || get().userName) : null
+        const authenticatedUserName = userSession.valid ? userSession.username || get().userName : null
         setSessionScope(authenticatedUserName)
         resetUserScopedStores()
         set({
@@ -85,8 +85,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     authHydrationPromise = promise
     void promise.then(
-      () => { if (authHydrationPromise === promise) authHydrationPromise = null },
-      () => { if (authHydrationPromise === promise) authHydrationPromise = null },
+      () => {
+        if (authHydrationPromise === promise) authHydrationPromise = null
+      },
+      () => {
+        if (authHydrationPromise === promise) authHydrationPromise = null
+      },
     )
     return promise
   },

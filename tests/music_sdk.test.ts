@@ -14,9 +14,8 @@ import {
 } from '../src/common/musicSources'
 
 const projectRoot = path.resolve(import.meta.dir, '..')
-const mockFetch = (
-  handler: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
-): typeof fetch => Object.assign(handler, { preconnect: () => Promise.resolve() })
+const mockFetch = (handler: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>): typeof fetch =>
+  Object.assign(handler, { preconnect: () => Promise.resolve() })
 
 describe('retained music SDK', () => {
   it('exposes only the wy and tx built-in sources', () => {
@@ -38,7 +37,17 @@ describe('retained music SDK', () => {
       expect(existsSync(path.join(projectRoot, 'src/modules/utils/musicSdk', source))).toBe(false)
     }
     expect(existsSync(path.join(projectRoot, 'src/modules/utils/musicSdk', 'x' + 'm.js'))).toBe(false)
-    expect(existsSync(path.join(projectRoot, 'src/modules/utils/musicSdk', RETIRED_ONLINE_SOURCES[0], 'vendors', ['inf', 'Sign.min.js'].join('')))).toBe(false)
+    expect(
+      existsSync(
+        path.join(
+          projectRoot,
+          'src/modules/utils/musicSdk',
+          RETIRED_ONLINE_SOURCES[0],
+          'vendors',
+          ['inf', 'Sign.min.js'].join(''),
+        ),
+      ),
+    ).toBe(false)
   })
 
   it('keeps the retained platform method surface available', () => {
@@ -57,8 +66,12 @@ describe('retained music SDK', () => {
       return new Response('', { status: 500 })
     })
     try {
-      await expect(musicSdk.wy.songList!.getListDetail!('http://127.0.0.1:9527/internal', 1)).rejects.toThrow('recognized playlist links')
-      await expect(musicSdk.tx.songList!.getListDetail!('http://127.0.0.1:9527/internal', 1)).rejects.toThrow('recognized playlist links')
+      await expect(musicSdk.wy.songList!.getListDetail!('http://127.0.0.1:9527/internal', 1)).rejects.toThrow(
+        'recognized playlist links',
+      )
+      await expect(musicSdk.tx.songList!.getListDetail!('http://127.0.0.1:9527/internal', 1)).rejects.toThrow(
+        'recognized playlist links',
+      )
       expect(fetchCalls).toBe(0)
     } finally {
       globalThis.fetch = previousFetch
@@ -68,6 +81,8 @@ describe('retained music SDK', () => {
   it('rejects retired IDs before consulting custom userApi sources', async () => {
     const retiredSource = RETIRED_ONLINE_SOURCES[0]
     expect(isSourceSupported(retiredSource, 'open')).toBe(false)
-    await expect(callUserApiGetMusicUrl(retiredSource, { source: retiredSource }, '128k')).rejects.toBeInstanceOf(UnsupportedSourceError)
+    await expect(callUserApiGetMusicUrl(retiredSource, { source: retiredSource }, '128k')).rejects.toBeInstanceOf(
+      UnsupportedSourceError,
+    )
   })
 })

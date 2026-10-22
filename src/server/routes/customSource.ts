@@ -8,7 +8,7 @@ export const createCustomSourceRouter = (): Router => {
   const router = new Router()
 
   // 1. 源脚本校验（自定义源现在统一由管理员管理）
-  router.post('/api/custom-source/validate', (ctx) => {
+  router.post('/api/custom-source/validate', ctx => {
     return customSourceHandlers.handleValidate(ctx)
   })
 
@@ -33,20 +33,20 @@ export const createCustomSourceRouter = (): Router => {
   })
 
   // 2. 导入与上传
-  router.post('/api/custom-source/import', (ctx) => {
+  router.post('/api/custom-source/import', ctx => {
     return customSourceHandlers.handleImport(ctx)
   })
 
-  router.post('/api/custom-source/update', (ctx) => {
+  router.post('/api/custom-source/update', ctx => {
     return customSourceHandlers.handleUpdate(ctx)
   })
 
-  router.post('/api/custom-source/upload', (ctx) => {
+  router.post('/api/custom-source/upload', ctx => {
     return customSourceHandlers.handleUpload(ctx)
   })
 
   // 3. 列表查询
-  router.get('/api/custom-source/list', (ctx) => {
+  router.get('/api/custom-source/list', ctx => {
     const requested = ctx.query.get('username') || ''
     const isAdmin = verifyAdminAuth(ctx.request)
     const currentUser = verifyUserAuth(ctx)
@@ -56,7 +56,8 @@ export const createCustomSourceRouter = (): Router => {
       // 携带了播放器用户会话，也不能把账户专属源混入当前作用域。
       username = 'default'
     } else if (requested && requested !== 'default') {
-      if (!isAdmin && currentUser !== requested) return ctx.json({ success: false, error: '无权查看其他用户的自定义源' }, 403)
+      if (!isAdmin && currentUser !== requested)
+        return ctx.json({ success: false, error: '无权查看其他用户的自定义源' }, 403)
       username = requested
     } else if (currentUser) {
       username = currentUser
@@ -65,22 +66,22 @@ export const createCustomSourceRouter = (): Router => {
   })
 
   // 4. 启用/禁用切换
-  router.post('/api/custom-source/toggle', (ctx) => {
+  router.post('/api/custom-source/toggle', ctx => {
     return customSourceHandlers.handleToggle(ctx)
   })
 
   // 5. 删除
-  router.post('/api/custom-source/delete', (ctx) => {
+  router.post('/api/custom-source/delete', ctx => {
     return customSourceHandlers.handleDelete(ctx)
   })
 
   // 6. 重排序
-  router.post('/api/custom-source/reorder', (ctx) => {
+  router.post('/api/custom-source/reorder', ctx => {
     return customSourceHandlers.handleReorder(ctx)
   })
 
   // 7. 管理员在公共源和账户专属源之间转移归属
-  router.post('/api/custom-source/assign', (ctx) => {
+  router.post('/api/custom-source/assign', ctx => {
     return customSourceHandlers.handleAssign(ctx)
   })
 

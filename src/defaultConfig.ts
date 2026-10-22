@@ -1,4 +1,3 @@
-
 const config: LX.Config = {
   serverName: 'yun-yin', // Web 服务名称
   'proxy.enabled': false, // 是否使用代理转发请求到本服务器

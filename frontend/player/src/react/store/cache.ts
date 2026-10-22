@@ -50,12 +50,22 @@ export const useCacheStore = create<CacheState>((set, get) => ({
     set({ loading: true, error: '' })
     try {
       const [queue, stats] = await Promise.all([
-        playerApi.cacheQueue(controller.signal, { cacheKey: 'cache:queue', cacheTtlMs: 5_000, force: options.force ?? hadController }),
-        playerApi.cacheStats(controller.signal, { cacheKey: 'cache:stats', cacheTtlMs: 5_000, force: options.force ?? hadController }),
+        playerApi.cacheQueue(controller.signal, {
+          cacheKey: 'cache:queue',
+          cacheTtlMs: 5_000,
+          force: options.force ?? hadController,
+        }),
+        playerApi.cacheStats(controller.signal, {
+          cacheKey: 'cache:stats',
+          cacheTtlMs: 5_000,
+          force: options.force ?? hadController,
+        }),
       ])
-      if (!controller.signal.aborted && requestId === cacheRequestId) set({ tasks: queue.data ?? [], stats: stats.data ?? null, loadedAt: Date.now() })
+      if (!controller.signal.aborted && requestId === cacheRequestId)
+        set({ tasks: queue.data ?? [], stats: stats.data ?? null, loadedAt: Date.now() })
     } catch (error) {
-      if (!controller.signal.aborted && requestId === cacheRequestId) set({ error: error instanceof Error ? error.message : '缓存加载失败' })
+      if (!controller.signal.aborted && requestId === cacheRequestId)
+        set({ error: error instanceof Error ? error.message : '缓存加载失败' })
     } finally {
       if (cacheLoadController === controller) {
         cacheLoadController = null
@@ -66,15 +76,17 @@ export const useCacheStore = create<CacheState>((set, get) => ({
   applyQueue: tasks => set({ tasks, loadedAt: Date.now(), error: '' }),
   enqueue: async (song, quality = 'flac', resolvedUrl, options = {}) => {
     const key = songKey(song)
-    await playerApi.queueTasks([{
-      id: key,
-      songInfo: song,
-      quality,
-      background: true,
-      cacheLyric: options.cacheLyric ?? true,
-      embedLyric: options.embedLyric ?? true,
-      ...(resolvedUrl ? { resolvedUrl } : {}),
-    }])
+    await playerApi.queueTasks([
+      {
+        id: key,
+        songInfo: song,
+        quality,
+        background: true,
+        cacheLyric: options.cacheLyric ?? true,
+        embedLyric: options.embedLyric ?? true,
+        ...(resolvedUrl ? { resolvedUrl } : {}),
+      },
+    ])
     await get().load({ force: true })
   },
   enqueueDownloads: async (songs, quality = 'flac') => {
@@ -109,12 +121,27 @@ export const useCacheStore = create<CacheState>((set, get) => ({
   pauseAll: () => runBatchAction(get, set, 'pause', () => playerApi.stopQueue(undefined, true), '暂停全部下载失败'),
   resumeAll: () => runBatchAction(get, set, 'resume', () => playerApi.resumeQueue(undefined, true), '继续全部下载失败'),
   remove: id => runTaskAction(get, set, id, 'remove', () => playerApi.removeQueue(id), '移除下载任务失败'),
-  removeCompleted: () => runBatchAction(get, set, 'removeCompleted', () => playerApi.removeQueue(undefined, false, true), '清理已完成任务失败'),
+  removeCompleted: () =>
+    runBatchAction(
+      get,
+      set,
+      'removeCompleted',
+      () => playerApi.removeQueue(undefined, false, true),
+      '清理已完成任务失败',
+    ),
   reset: () => {
     cacheRequestId += 1
     cacheLoadController?.abort()
     cacheLoadController = null
-    set({ tasks: [], stats: null, loading: false, error: '', loadedAt: 0, pendingTaskActions: {}, pendingBatchAction: null })
+    set({
+      tasks: [],
+      stats: null,
+      loading: false,
+      error: '',
+      loadedAt: 0,
+      pendingTaskActions: {},
+      pendingBatchAction: null,
+    })
   },
 }))
 
@@ -139,7 +166,8 @@ async function runTaskAction(
     await get().load({ force: true })
     return isCurrentSession()
   } catch (error) {
-    if (isCurrentSession()) usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
+    if (isCurrentSession())
+      usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
     return false
   } finally {
     if (isCurrentSession()) {
@@ -169,7 +197,8 @@ async function runBatchAction(
     await get().load({ force: true })
     return isCurrentSession()
   } catch (error) {
-    if (isCurrentSession()) usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
+    if (isCurrentSession())
+      usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
     return false
   } finally {
     if (isCurrentSession()) set({ pendingBatchAction: null })

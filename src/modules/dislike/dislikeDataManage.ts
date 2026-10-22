@@ -14,25 +14,28 @@ export class DislikeDataManage {
     this.snapshotDataManage = snapshotDataManage
 
     let dislikeRules: LX.Dislike.DislikeRules | null
-    void this.snapshotDataManage.getSnapshotInfo().then(async(snapshotInfo) => {
+    void this.snapshotDataManage.getSnapshotInfo().then(async snapshotInfo => {
       if (snapshotInfo.latest) dislikeRules = await this.snapshotDataManage.getSnapshot(snapshotInfo.latest)
       if (!dislikeRules) dislikeRules = ''
       this.dislikeRules = dislikeRules
     })
   }
 
-  getDislikeRules = async(): Promise<LX.Dislike.DislikeRules> => {
+  getDislikeRules = async (): Promise<LX.Dislike.DislikeRules> => {
     return this.dislikeRules
   }
 
-  addDislikeInfo = async(infos: LX.Dislike.DislikeMusicInfo[]) => {
-    this.dislikeRules = filterRulesToString(this.dislikeRules + '\n' + infos.map(info => `${info.name ?? ''}${SPLIT_CHAR.DISLIKE_NAME}${info.singer ?? ''}`).join('\n'))
+  addDislikeInfo = async (infos: LX.Dislike.DislikeMusicInfo[]) => {
+    this.dislikeRules = filterRulesToString(
+      this.dislikeRules +
+        '\n' +
+        infos.map(info => `${info.name ?? ''}${SPLIT_CHAR.DISLIKE_NAME}${info.singer ?? ''}`).join('\n'),
+    )
     return this.dislikeRules
   }
 
-  overwirteDislikeInfo = async(rules: string) => {
+  overwirteDislikeInfo = async (rules: string) => {
     this.dislikeRules = filterRulesToString(rules)
     return this.dislikeRules
   }
 }
-

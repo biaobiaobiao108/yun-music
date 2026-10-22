@@ -11,5 +11,11 @@ export * from './settings'
 export * from './shared'
 export * from './sleep'
 export * from './ui'
-export { connectPlayerNavigation, emitPlayerNavigation, parsePlayerHash, serializePlayerHash, VALID_PLAYER_TABS } from '../route_state'
+export {
+  connectPlayerNavigation,
+  emitPlayerNavigation,
+  parsePlayerHash,
+  serializePlayerHash,
+  VALID_PLAYER_TABS,
+} from '../route_state'
 export type { PlayerNavigation } from '../route_state'

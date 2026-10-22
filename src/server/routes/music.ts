@@ -34,9 +34,7 @@ const musicRateLimitMiddleware: Middleware = async (ctx, next) => {
   const now = Date.now()
   const key = ctx.remoteAddress || 'unknown'
   const current = musicRequestBuckets.get(key)
-  const bucket = !current || now - current.startedAt >= MUSIC_REQUEST_WINDOW
-    ? { startedAt: now, count: 0 }
-    : current
+  const bucket = !current || now - current.startedAt >= MUSIC_REQUEST_WINDOW ? { startedAt: now, count: 0 } : current
   bucket.count += 1
   musicRequestBuckets.set(key, bucket)
   while (musicRequestBuckets.size > MUSIC_REQUEST_BUCKET_LIMIT) {
@@ -127,10 +125,7 @@ const parseContentLength = (headers: Headers): number | null => {
 const AUDIO_SIZE_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_AUDIO_SIZE_REDIRECTS = 5
 
-const fetchAudioSizeProbe = async (
-  initialUrl: SafeRemoteHttpUrl,
-  method: 'HEAD' | 'GET',
-): Promise<Response> => {
+const fetchAudioSizeProbe = async (initialUrl: SafeRemoteHttpUrl, method: 'HEAD' | 'GET'): Promise<Response> => {
   let currentUrl = initialUrl
   for (let redirectCount = 0; redirectCount <= MAX_AUDIO_SIZE_REDIRECTS; redirectCount += 1) {
     const response = await fetchSafeRemote(currentUrl, {
@@ -141,8 +136,9 @@ const fetchAudioSizeProbe = async (
       maxBytes: 1024,
       discardResponseBody: true,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': currentUrl.origin,
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Referer: currentUrl.origin,
         ...(method === 'GET' ? { Range: 'bytes=0-0' } : {}),
       },
     })
@@ -203,7 +199,7 @@ export const createMusicRouter = (): Router => {
   }
 
   // 1. 音乐搜索 API
-  router.get('/api/music/search', async (ctx) => {
+  router.get('/api/music/search', async ctx => {
     const name = ctx.query.get('name') || ''
     const source = ctx.query.get('source') || 'wy'
     const type = ctx.query.get('type') || 'song'
@@ -269,7 +265,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 2. 搜索提示 (TipSearch) API
-  router.get('/api/music/tipSearch', async (ctx) => {
+  router.get('/api/music/tipSearch', async ctx => {
     const name = ctx.query.get('name') || ''
     const source = ctx.query.get('source') || 'wy'
     if (!name) return ctx.json([])
@@ -286,7 +282,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 3. 歌手详情 API
-  router.get('/api/music/artistDetail', async (ctx) => {
+  router.get('/api/music/artistDetail', async ctx => {
     const id = ctx.query.get('id')
     const source = ctx.query.get('source') || 'wy'
     if (!id) return ctx.fail(400, '缺少必要参数：id')
@@ -301,7 +297,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 4. 歌手专辑列表 API
-  router.get('/api/music/artistAlbums', async (ctx) => {
+  router.get('/api/music/artistAlbums', async ctx => {
     const id = ctx.query.get('id')
     const source = ctx.query.get('source') || 'wy'
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
@@ -318,7 +314,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 5. 歌手歌曲列表 API
-  router.get('/api/music/artistSongs', async (ctx) => {
+  router.get('/api/music/artistSongs', async ctx => {
     const id = ctx.query.get('id')
     const source = ctx.query.get('source') || 'wy'
     const order = ctx.query.get('order') || 'hot'
@@ -347,9 +343,10 @@ export const createMusicRouter = (): Router => {
 
       const PAGE_SIZE = 100
       const configuredMaxPages = Number((global.lx.config as any)?.['artist.maxFetchPages'])
-      const MAX_PAGES = Number.isFinite(configuredMaxPages) && configuredMaxPages > 0
-        ? Math.min(Math.floor(configuredMaxPages), 100)
-        : 20
+      const MAX_PAGES =
+        Number.isFinite(configuredMaxPages) && configuredMaxPages > 0
+          ? Math.min(Math.floor(configuredMaxPages), 100)
+          : 20
       let allSongs: any[] = []
       for (let p = 1; p <= MAX_PAGES; p++) {
         const data = await sourceApi.extendDetail.getArtistSongs(id, p, PAGE_SIZE, order)
@@ -365,7 +362,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 6. 专辑歌曲 API
-  router.get('/api/music/albumSongs', async (ctx) => {
+  router.get('/api/music/albumSongs', async ctx => {
     const id = ctx.query.get('id')
     const source = ctx.query.get('source') || 'wy'
     if (!id) return ctx.fail(400, '缺少必要参数：id')
@@ -380,7 +377,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 7. 音乐解析进度 SSE 端点 (无需登录, 用 reqId 区分)
-  router.get('/api/music/progress', (ctx) => {
+  router.get('/api/music/progress', ctx => {
     const rawReqId = ctx.query.get('reqId')?.trim() || ''
     if (!/^[A-Za-z0-9_-]{8,128}$/.test(rawReqId)) return ctx.fail(400, '进度请求标识格式无效')
     const reqId = rawReqId
@@ -388,7 +385,9 @@ export const createMusicRouter = (): Router => {
     const clientIp = ctx.remoteAddress || 'unknown'
     const previous = musicProgressControllers.get(reqId)
     if (previous) {
-      try { previous.close() } catch { }
+      try {
+        previous.close()
+      } catch {}
       cleanupMusicProgress(reqId, previous)
     }
     if ((musicProgressIpCounts.get(clientIp) || 0) >= MAX_MUSIC_PROGRESS_CHANNELS_PER_IP) {
@@ -405,24 +404,36 @@ export const createMusicRouter = (): Router => {
           const oldestReqId = musicProgressControllers.keys().next().value
           if (!oldestReqId) break
           const oldest = musicProgressControllers.get(oldestReqId)
-          try { oldest?.close() } catch { }
+          try {
+            oldest?.close()
+          } catch {}
           cleanupMusicProgress(oldestReqId, oldest)
         }
         musicProgressControllers.set(reqId, controller)
         musicProgressClientIps.set(reqId, clientIp)
         musicProgressIpCounts.set(clientIp, (musicProgressIpCounts.get(clientIp) || 0) + 1)
-        musicProgressHeartbeatTimers.set(reqId, setInterval(() => {
-          try {
-            controller.enqueue(encoder.encode(': heartbeat\n\n'))
-          } catch {
-            try { controller.close() } catch { }
+        musicProgressHeartbeatTimers.set(
+          reqId,
+          setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(': heartbeat\n\n'))
+            } catch {
+              try {
+                controller.close()
+              } catch {}
+              cleanupMusicProgress(reqId, controller)
+            }
+          }, MUSIC_PROGRESS_HEARTBEAT),
+        )
+        musicProgressTimers.set(
+          reqId,
+          setTimeout(() => {
+            try {
+              controller.close()
+            } catch {}
             cleanupMusicProgress(reqId, controller)
-          }
-        }, MUSIC_PROGRESS_HEARTBEAT))
-        musicProgressTimers.set(reqId, setTimeout(() => {
-          try { controller.close() } catch { }
-          cleanupMusicProgress(reqId, controller)
-        }, MUSIC_PROGRESS_TTL))
+          }, MUSIC_PROGRESS_TTL),
+        )
         ;(musicProgressHeartbeatTimers.get(reqId) as any)?.unref?.()
         ;(musicProgressTimers.get(reqId) as any)?.unref?.()
       },
@@ -435,14 +446,14 @@ export const createMusicRouter = (): Router => {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
       },
     })
   })
 
   // 8. 音乐播放 URL 解析 API
-  router.post('/api/music/url', async (ctx) => {
+  router.post('/api/music/url', async ctx => {
     const urlStartedAt = performance.now()
     const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
@@ -464,7 +475,7 @@ export const createMusicRouter = (): Router => {
         return
       }
       if (retries > 0) {
-        await new Promise((r) => setTimeout(r, 100))
+        await new Promise(r => setTimeout(r, 100))
         await pushProgress(attempt, retries - 1)
       } else {
         sseActive = false
@@ -498,14 +509,20 @@ export const createMusicRouter = (): Router => {
         )
         cacheDurationMs = performance.now() - cacheStartedAt
         if (cached.exists && !cached.isCollision && cached.url) {
-          return ctx.json({
-            url: cached.url,
-            type: cached.quality || quality || '128k',
-            quality: cached.quality || quality || '128k',
-            sourceName: '本地缓存',
-            fromCache: true,
-            downloadToken: issueDownloadToken(cached.url),
-          }, 200, { 'Server-Timing': `cache;dur=${cacheDurationMs.toFixed(1)}, total;dur=${(performance.now() - urlStartedAt).toFixed(1)}` })
+          return ctx.json(
+            {
+              url: cached.url,
+              type: cached.quality || quality || '128k',
+              quality: cached.quality || quality || '128k',
+              sourceName: '本地缓存',
+              fromCache: true,
+              downloadToken: issueDownloadToken(cached.url),
+            },
+            200,
+            {
+              'Server-Timing': `cache;dur=${cacheDurationMs.toFixed(1)}, total;dur=${(performance.now() - urlStartedAt).toFixed(1)}`,
+            },
+          )
         }
       }
 
@@ -524,14 +541,18 @@ export const createMusicRouter = (): Router => {
 
       if (isSourceSupported(source, verifiedUsername)) {
         try {
-          console.log(`[MusicUrl] Using custom source for: ${source} (ReqId: ${reqId || 'None'}, User: ${verifiedUsername})`)
+          console.log(
+            `[MusicUrl] Using custom source for: ${source} (ReqId: ${reqId || 'None'}, User: ${verifiedUsername})`,
+          )
           const userApiResult = await callUserApiGetMusicUrl(
             source,
             songInfo,
             quality || '128k',
             verifiedUsername,
-            (attempt) => { void pushProgress(attempt) },
-            enableAutoSwitchApiSource !== false
+            attempt => {
+              void pushProgress(attempt)
+            },
+            enableAutoSwitchApiSource !== false,
           )
           result = userApiResult
           attempts = userApiResult.attempts || []
@@ -541,7 +562,11 @@ export const createMusicRouter = (): Router => {
           attempts = userApiError.attempts || []
         }
       } else {
-          void pushProgress({ name: '系统', status: 'fail', message: `未找到支持 ${source} 平台的自定义源，请联系管理员配置或启用对应音源` })
+        void pushProgress({
+          name: '系统',
+          status: 'fail',
+          message: `未找到支持 ${source} 平台的自定义源，请联系管理员配置或启用对应音源`,
+        })
       }
 
       if (!result) {
@@ -595,7 +620,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 9. 音质真实文件大小 API
-  router.post('/api/music/quality/size', async (ctx) => {
+  router.post('/api/music/quality/size', async ctx => {
     const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
     try {
@@ -625,7 +650,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 10. 在线歌词查询 API (POST & GET)
-  router.post('/api/music/lyric', async (ctx) => {
+  router.post('/api/music/lyric', async ctx => {
     try {
       let { songInfo } = await ctx.bodyJson<{ songInfo?: any }>(MAX_MUSIC_JSON_BODY_BYTES)
       songInfo = normalizeSongInfo(songInfo)
@@ -649,7 +674,7 @@ export const createMusicRouter = (): Router => {
     }
   })
 
-  router.get('/api/music/lyric', async (ctx) => {
+  router.get('/api/music/lyric', async ctx => {
     const source = ctx.query.get('source')
     const rawSongmid = ctx.query.get('songmid') || ctx.query.get('songId') || ctx.query.get('id')
 
@@ -671,13 +696,16 @@ export const createMusicRouter = (): Router => {
     const canReadLocalLyricCache = lyricUsername !== '_open' || canReadPublicLocalMusic(ctx, verifiedUsername)
 
     const localLyricResult = canReadLocalLyricCache
-      ? await fileCache.checkLyricCache({
-        source,
-        songmid,
-        id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
-        name: ctx.query.get('name') || '',
-        singer: ctx.query.get('singer') || '',
-      }, lyricUsername)
+      ? await fileCache.checkLyricCache(
+          {
+            source,
+            songmid,
+            id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
+            name: ctx.query.get('name') || '',
+            singer: ctx.query.get('singer') || '',
+          },
+          lyricUsername,
+        )
       : { exists: false, content: null }
 
     if (localLyricResult.exists && localLyricResult.content) {
@@ -712,13 +740,16 @@ export const createMusicRouter = (): Router => {
     } catch (err: any) {
       console.error('[Lyric] Fetch error:', source, songmid, err.message || err)
       const fallbackResult = canReadLocalLyricCache
-        ? await fileCache.checkLyricCache({
-          source,
-          songmid,
-          id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
-          name: ctx.query.get('name') || '',
-          singer: ctx.query.get('singer') || '',
-        }, lyricUsername)
+        ? await fileCache.checkLyricCache(
+            {
+              source,
+              songmid,
+              id: ctx.query.get('songId') || ctx.query.get('id') || songmid,
+              name: ctx.query.get('name') || '',
+              singer: ctx.query.get('singer') || '',
+            },
+            lyricUsername,
+          )
         : { exists: false, content: null }
 
       if (fallbackResult.exists && fallbackResult.content) {
@@ -730,7 +761,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 11. 热搜 API
-  router.get('/api/music/hotSearch', async (ctx) => {
+  router.get('/api/music/hotSearch', async ctx => {
     const source = ctx.query.get('source') || 'wy'
     try {
       const sourceApi = getBuiltinSource(source)
@@ -746,7 +777,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 12. 歌单分类标签 API
-  router.get('/api/music/songList/tags', async (ctx) => {
+  router.get('/api/music/songList/tags', async ctx => {
     const source = ctx.query.get('source') || 'wy'
     try {
       const sourceApi = getBuiltinSource(source)
@@ -762,7 +793,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 13. 歌单列表 API
-  router.get('/api/music/songList/list', async (ctx) => {
+  router.get('/api/music/songList/list', async ctx => {
     const source = ctx.query.get('source') || 'wy'
     const tagId = ctx.query.get('tagId') || ''
     const sortId = ctx.query.get('sortId') || 'hot'
@@ -780,7 +811,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 14. 歌单详情 API
-  router.get('/api/music/songList/detail', async (ctx) => {
+  router.get('/api/music/songList/detail', async ctx => {
     const source = ctx.query.get('source') || 'wy'
     const rawId = ctx.query.get('id')
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
@@ -804,7 +835,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 15. 歌单搜索 API
-  router.get('/api/music/songList/search', async (ctx) => {
+  router.get('/api/music/songList/search', async ctx => {
     const source = ctx.query.get('source') || 'wy'
     const text = ctx.query.get('text')
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
@@ -823,7 +854,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 16. 用户歌单 API
-  router.get('/api/music/songList/userPlaylist', async (ctx) => {
+  router.get('/api/music/songList/userPlaylist', async ctx => {
     const source = ctx.query.get('source') || 'tx'
     const uid = ctx.query.get('uid')
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
@@ -841,7 +872,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 17. 排行榜列表 API
-  router.get('/api/music/leaderboard/boards', async (ctx) => {
+  router.get('/api/music/leaderboard/boards', async ctx => {
     const source = ctx.query.get('source') || 'wy'
     try {
       const sourceApi = getBuiltinSource(source)
@@ -856,7 +887,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 18. 排行榜内歌曲列表 API
-  router.get('/api/music/leaderboard/list', async (ctx) => {
+  router.get('/api/music/leaderboard/list', async ctx => {
     const source = ctx.query.get('source') || 'wy'
     const bangid = ctx.query.get('bangid')
     const page = boundedInt(ctx.query.get('page'), 1, 1, 1000)
@@ -873,9 +904,7 @@ export const createMusicRouter = (): Router => {
       // Built-in leaderboard adapters may return the complete board. Normalize
       // the response at the route boundary so the web player only receives one
       // small page and can append the next page on demand.
-      const list = allSongs.length > limit
-        ? allSongs.slice((page - 1) * limit, page * limit)
-        : allSongs
+      const list = allSongs.length > limit ? allSongs.slice((page - 1) * limit, page * limit) : allSongs
       return ctx.json({ ...result, list, total, page, limit })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '获取排行榜歌曲失败'))
@@ -883,7 +912,7 @@ export const createMusicRouter = (): Router => {
   })
 
   // 19. 歌曲评论 API
-  router.post('/api/music/comment', async (ctx) => {
+  router.post('/api/music/comment', async ctx => {
     try {
       let { songInfo, type, page, limit } = await ctx.bodyJson<{
         songInfo?: any

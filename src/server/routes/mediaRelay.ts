@@ -36,10 +36,14 @@ const upstreamHttpsAgent = new https.Agent({
   timeout: 30_000,
 })
 
-const getUpstreamAgent = (protocol: string): http.Agent | https.Agent => protocol === 'https:' ? upstreamHttpsAgent : upstreamHttpAgent
+const getUpstreamAgent = (protocol: string): http.Agent | https.Agent =>
+  protocol === 'https:' ? upstreamHttpsAgent : upstreamHttpAgent
 
 /** Own the slot through downstream consumption, including small prefetched responses. */
-const completeWhenConsumed = (stream: ReadableStream<Uint8Array>, onFinished: () => void): ReadableStream<Uint8Array> => {
+const completeWhenConsumed = (
+  stream: ReadableStream<Uint8Array>,
+  onFinished: () => void,
+): ReadableStream<Uint8Array> => {
   const reader = stream.getReader()
   let finished = false
   let cancelled = false
@@ -49,23 +53,32 @@ const completeWhenConsumed = (stream: ReadableStream<Uint8Array>, onFinished: ()
     reader.releaseLock()
     onFinished()
   }
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read()
-        if (cancelled) return
-        if (done) { controller.close(); finish() }
-        else controller.enqueue(value)
-      } catch (error) {
-        if (!cancelled) controller.error(error)
-        finish()
-      }
+  return new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read()
+          if (cancelled) return
+          if (done) {
+            controller.close()
+            finish()
+          } else controller.enqueue(value)
+        } catch (error) {
+          if (!cancelled) controller.error(error)
+          finish()
+        }
+      },
+      async cancel(reason) {
+        cancelled = true
+        try {
+          await reader.cancel(reason)
+        } finally {
+          finish()
+        }
+      },
     },
-    async cancel(reason) {
-      cancelled = true
-      try { await reader.cancel(reason) } finally { finish() }
-    },
-  }, { highWaterMark: 0 })
+    { highWaterMark: 0 },
+  )
 }
 
 /** Read tagged files on downstream demand and release resources only after the file handle closes. */
@@ -80,12 +93,20 @@ export const createTempFileResponseStream = (tempPath: string, onFinished: () =>
     onFinished()
     memoryMaintenance.schedule('tagged media response end')
   }
-  source.once('error', () => { consumed = true })
-  source.once('close', () => { closed = true; finish() })
+  source.once('error', () => {
+    consumed = true
+  })
+  source.once('close', () => {
+    closed = true
+    finish()
+  })
   const stream = Readable.toWeb(source, {
     strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
   }) as unknown as ReadableStream<Uint8Array>
-  return completeWhenConsumed(stream, () => { consumed = true; finish() })
+  return completeWhenConsumed(stream, () => {
+    consumed = true
+    finish()
+  })
 }
 
 /** Keep upstream buffers bounded by downstream demand; cancellation tears down the whole pipeline. */
@@ -109,7 +130,8 @@ export const createProxyResponseStream = (
     transform(chunk: Buffer, _encoding, callback) {
       received += chunk.byteLength
       if (received > maxBytes) callback(new Error('Remote file is too large'))
-      else if (consumeBytes && !consumeBytes(chunk.byteLength)) callback(new Error('Download relay bandwidth budget exceeded'))
+      else if (consumeBytes && !consumeBytes(chunk.byteLength))
+        callback(new Error('Download relay bandwidth budget exceeded'))
       else callback(null, chunk)
     },
   })
@@ -117,7 +139,10 @@ export const createProxyResponseStream = (
     strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
   }) as unknown as ReadableStream
   pipeline(source, limited, error => {
-    if (error) { request.destroy(); finish() }
+    if (error) {
+      request.destroy()
+      finish()
+    }
   })
   return completeWhenConsumed(stream, finish)
 }
@@ -131,9 +156,7 @@ const isExpectedDownloadAbort = (error: unknown, signal?: AbortSignal): boolean 
   return candidate.name === 'AbortError' || candidate.code === 'ABORT_ERR'
 }
 
-export const isOpaqueBrowserProgressId = (id: string): boolean => (
-  /^(?:dl|server)_[A-Za-z0-9_-]{20,128}$/.test(id)
-)
+export const isOpaqueBrowserProgressId = (id: string): boolean => /^(?:dl|server)_[A-Za-z0-9_-]{20,128}$/.test(id)
 
 const DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP = 4
 const DOWNLOAD_PROXY_MAX_TAGGING_PER_IP = 1
@@ -167,7 +190,7 @@ const refillDownloadProxyBucket = (
   if (!bucket) return { tokens: capacity, updatedAt: now }
   const elapsed = Math.max(0, now - bucket.updatedAt)
   return {
-    tokens: Math.min(capacity, bucket.tokens + elapsed * capacity / DOWNLOAD_PROXY_BUDGET_WINDOW_MS),
+    tokens: Math.min(capacity, bucket.tokens + (elapsed * capacity) / DOWNLOAD_PROXY_BUDGET_WINDOW_MS),
     updatedAt: now,
   }
 }
@@ -190,11 +213,11 @@ const storeDownloadProxyBudgetBucket = (
 const consumeDownloadProxyRequestBudget = (ip: string): boolean => {
   const now = Date.now()
   const client = refillDownloadProxyBucket(
-    downloadProxyRequestBudgetByIp.get(ip), DOWNLOAD_PROXY_MAX_REQUESTS_PER_IP, now,
+    downloadProxyRequestBudgetByIp.get(ip),
+    DOWNLOAD_PROXY_MAX_REQUESTS_PER_IP,
+    now,
   )
-  const global = refillDownloadProxyBucket(
-    downloadProxyGlobalRequestBudget, DOWNLOAD_PROXY_MAX_REQUESTS_GLOBAL, now,
-  )
+  const global = refillDownloadProxyBucket(downloadProxyGlobalRequestBudget, DOWNLOAD_PROXY_MAX_REQUESTS_GLOBAL, now)
   const allowed = client.tokens >= 1 && global.tokens >= 1
   if (allowed) {
     client.tokens -= 1
@@ -208,12 +231,8 @@ const consumeDownloadProxyRequestBudget = (ip: string): boolean => {
 const consumeDownloadProxyBytes = (ip: string, byteCount: number): boolean => {
   if (!Number.isSafeInteger(byteCount) || byteCount <= 0) return byteCount === 0
   const now = Date.now()
-  const client = refillDownloadProxyBucket(
-    downloadProxyByteBudgetByIp.get(ip), DOWNLOAD_PROXY_MAX_BYTES_PER_IP, now,
-  )
-  const global = refillDownloadProxyBucket(
-    downloadProxyGlobalByteBudget, DOWNLOAD_PROXY_MAX_BYTES_GLOBAL, now,
-  )
+  const client = refillDownloadProxyBucket(downloadProxyByteBudgetByIp.get(ip), DOWNLOAD_PROXY_MAX_BYTES_PER_IP, now)
+  const global = refillDownloadProxyBucket(downloadProxyGlobalByteBudget, DOWNLOAD_PROXY_MAX_BYTES_GLOBAL, now)
   const allowed = client.tokens >= byteCount && global.tokens >= byteCount
   if (allowed) {
     client.tokens -= byteCount
@@ -227,9 +246,11 @@ const consumeDownloadProxyBytes = (ip: string, byteCount: number): boolean => {
 const tryAcquireDownloadProxySlot = (ip: string, tagging: boolean): (() => void) | null => {
   const active = downloadProxyActiveByIp.get(ip) || 0
   const activeTagging = downloadProxyTaggingByIp.get(ip) || 0
-  if (downloadProxyGlobalActive >= DOWNLOAD_PROXY_MAX_ACTIVE_GLOBAL
-    || active >= DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP
-    || (tagging && activeTagging >= DOWNLOAD_PROXY_MAX_TAGGING_PER_IP)) {
+  if (
+    downloadProxyGlobalActive >= DOWNLOAD_PROXY_MAX_ACTIVE_GLOBAL ||
+    active >= DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP ||
+    (tagging && activeTagging >= DOWNLOAD_PROXY_MAX_TAGGING_PER_IP)
+  ) {
     return null
   }
   if (!consumeDownloadProxyRequestBudget(ip)) return null
@@ -260,7 +281,7 @@ export const createDownloadProxyRouter = (): Router => {
   const router = new Router()
 
   // 9. 音乐文件下载中继代理 (GET /api/music/download)
-  router.get('/api/music/download', (ctx) => {
+  router.get('/api/music/download', ctx => {
     const urlStr = ctx.query.get('url')
     const filename = (ctx.query.get('filename') || 'download.mp3').slice(0, 255)
     const isInline = ctx.query.get('inline') === '1'
@@ -283,7 +304,7 @@ export const createDownloadProxyRouter = (): Router => {
     const proxyClientIp = ctx.remoteAddress || 'unknown'
     const consumeProxyBytes = (byteCount: number) => consumeDownloadProxyBytes(proxyClientIp, byteCount)
 
-    return new Promise<Response>((resolve) => {
+    return new Promise<Response>(resolve => {
       let responseSettled = false
       let abortListener: (() => void) | null = null
       let activeProxyRequest: http.ClientRequest | null = null
@@ -294,7 +315,7 @@ export const createDownloadProxyRouter = (): Router => {
         const tempPath = activeTempPath
         if (!tempPath) return
         activeTempPath = null
-        const unlink = () => fs.unlink(tempPath, () => { })
+        const unlink = () => fs.unlink(tempPath, () => {})
         if (activeTempStream && !activeTempStream.closed) {
           activeTempStream.once('close', unlink)
           activeTempStream.destroy()
@@ -318,8 +339,12 @@ export const createDownloadProxyRouter = (): Router => {
         // 499 is intentionally used for an HTTP client-closed request. Bun's
         // server will not send it after the socket is gone, but resolving the
         // route prevents an orphaned async proxy chain from lingering.
-        try { activeProxyRequest?.destroy() } catch { }
-        try { activeProxyResponse?.destroy() } catch { }
+        try {
+          activeProxyRequest?.destroy()
+        } catch {}
+        try {
+          activeProxyResponse?.destroy()
+        } catch {}
         cleanupActiveTempFile()
         settleResponse(new Response(null, { status: 499 }))
       }
@@ -353,8 +378,9 @@ export const createDownloadProxyRouter = (): Router => {
               agent: getUpstreamAgent(parsedUrl.protocol),
               signal: ctx.request.signal,
               headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': parsedUrl.origin,
+                'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                Referer: parsedUrl.origin,
               },
             }
 
@@ -388,9 +414,13 @@ export const createDownloadProxyRouter = (): Router => {
                 settleResponse(ctx.fail(413, '远程文件过大，已超过允许的下载上限'))
                 return
               }
-              const remoteType = String(proxyRes.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
-              const safeInlineType = /^(audio|video)\/[a-z0-9.+-]+$/.test(remoteType)
-                || /^image\/(jpeg|png|gif|webp|avif|bmp)$/.test(remoteType)
+              const remoteType = String(proxyRes.headers['content-type'] || '')
+                .split(';')[0]
+                .trim()
+                .toLowerCase()
+              const safeInlineType =
+                /^(audio|video)\/[a-z0-9.+-]+$/.test(remoteType) ||
+                /^image\/(jpeg|png|gif|webp|avif|bmp)$/.test(remoteType)
               const contentType = safeInlineType ? remoteType : 'application/octet-stream'
 
               const headers: Record<string, string> = {
@@ -427,7 +457,10 @@ export const createDownloadProxyRouter = (): Router => {
                 const ext = ['.mp3', '.flac', '.m4a', '.ogg', '.wav', '.aac', '.opus'].includes(requestedExt)
                   ? requestedExt
                   : '.mp3'
-                const tempPath = path.join(os.tmpdir(), `lx_tag_${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`)
+                const tempPath = path.join(
+                  os.tmpdir(),
+                  `lx_tag_${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`,
+                )
                 const tempStream = fs.createWriteStream(tempPath, { flags: 'wx', mode: 0o600 })
                 activeTempStream = tempStream
                 activeTempPath = tempPath
@@ -440,24 +473,40 @@ export const createDownloadProxyRouter = (): Router => {
                 }
                 const markProgressError = (message: string) => {
                   if (!taskId) return
-                  fileCache.setCacheProgress(taskId, { progress: 0, status: 'error', errorMsg: message, updatedAt: Date.now() })
+                  fileCache.setCacheProgress(taskId, {
+                    progress: 0,
+                    status: 'error',
+                    errorMsg: message,
+                    updatedAt: Date.now(),
+                  })
                 }
                 const failTaggedStream = (message: string, status = 502) => {
                   if (responseSettled || taggedResponseSettled) return
                   markProgressError(message)
-                  try { tempStream.destroy() } catch { }
-                  try { proxyRes.destroy() } catch { }
-                  settleTaggedResponse(ctx.fail(status, status === 429
-                    ? '下载中继流量额度已用尽，请稍后重试'
-                    : '下载数据流中断，请重试'))
+                  try {
+                    tempStream.destroy()
+                  } catch {}
+                  try {
+                    proxyRes.destroy()
+                  } catch {}
+                  settleTaggedResponse(
+                    ctx.fail(status, status === 429 ? '下载中继流量额度已用尽，请稍后重试' : '下载数据流中断，请重试'),
+                  )
                 }
-                tempStream.on('error', (error) => {
+                tempStream.on('error', error => {
                   tempStreamError = error
                   failTaggedStream(error.message || 'Download stream failed')
                 })
 
                 if (taskId) {
-                  fileCache.setCacheProgress(taskId, { progress: 0, status: 'downloading', total, received: 0, speed: 0, updatedAt: Date.now() })
+                  fileCache.setCacheProgress(taskId, {
+                    progress: 0,
+                    status: 'downloading',
+                    total,
+                    received: 0,
+                    speed: 0,
+                    updatedAt: Date.now(),
+                  })
                 }
 
                 proxyRes.on('data', (c: any) => {
@@ -482,7 +531,14 @@ export const createDownloadProxyRouter = (): Router => {
                       lastSpeedBytes = received
                     }
                     const progress = total > 0 ? Math.round((received / total) * 100) : 0
-                    fileCache.setCacheProgress(taskId, { progress, status: 'downloading', total, received, speed: currentSpeed, updatedAt: now })
+                    fileCache.setCacheProgress(taskId, {
+                      progress,
+                      status: 'downloading',
+                      total,
+                      received,
+                      speed: currentSpeed,
+                      updatedAt: now,
+                    })
                   }
                 })
                 proxyRes.pipe(tempStream)
@@ -494,11 +550,25 @@ export const createDownloadProxyRouter = (): Router => {
                 proxyRes.on('end', async () => {
                   if (responseSettled || taggedResponseSettled) return
                   if (taskId) {
-                    fileCache.setCacheProgress(taskId, { progress: 100, status: 'tagging', total, received, speed: 0, updatedAt: Date.now() })
+                    fileCache.setCacheProgress(taskId, {
+                      progress: 100,
+                      status: 'tagging',
+                      total,
+                      received,
+                      speed: 0,
+                      updatedAt: Date.now(),
+                    })
                   }
                   const finishProgress = () => {
                     if (!taskId) return
-                    fileCache.setCacheProgress(taskId, { progress: 100, status: 'finished', total: total || received, received, speed: 0, updatedAt: Date.now() })
+                    fileCache.setCacheProgress(taskId, {
+                      progress: 100,
+                      status: 'finished',
+                      total: total || received,
+                      received,
+                      speed: 0,
+                      updatedAt: Date.now(),
+                    })
                   }
 
                   const createTempFileResponse = () => {
@@ -545,8 +615,10 @@ export const createDownloadProxyRouter = (): Router => {
                           if (ctx.request.signal.aborted) abortLyric()
                           const lyricResult = await lyricReqObj.promise
                           lyricText = lyricResult?.lyric || lyricResult?.lrc || ''
-                        } catch { }
-                        finally { ctx.request.signal.removeEventListener('abort', abortLyric) }
+                        } catch {
+                        } finally {
+                          ctx.request.signal.removeEventListener('abort', abortLyric)
+                        }
                       }
                       ctx.request.signal.throwIfAborted()
 
@@ -559,11 +631,16 @@ export const createDownloadProxyRouter = (): Router => {
                         if (songName) tagger.title = songName
                         if (artist) tagger.artist = artist
                         if (album) tagger.album = album
-                        if (cover) tagger.pictures = [new (getMusicTagNative().MetaPicture)(cover.mime, cover.data, 'Cover')]
+                        if (cover)
+                          tagger.pictures = [new (getMusicTagNative().MetaPicture)(cover.mime, cover.data, 'Cover')]
                         if (lyricText) tagger.lyrics = lyricText
                         tagger.save()
                       } finally {
-                        try { tagger?.dispose() } finally { cover = null }
+                        try {
+                          tagger?.dispose()
+                        } finally {
+                          cover = null
+                        }
                       }
                     })
 
@@ -591,12 +668,21 @@ export const createDownloadProxyRouter = (): Router => {
                 return
               }
 
-              const stream = createProxyResponseStream(proxyRes, proxyReq, maxAudioBytes, releaseProxySlot, consumeProxyBytes)
+              const stream = createProxyResponseStream(
+                proxyRes,
+                proxyReq,
+                maxAudioBytes,
+                releaseProxySlot,
+                consumeProxyBytes,
+              )
 
-              settleResponse(new Response(stream, {
-                status: proxyRes.statusCode || 200,
-                headers,
-              }), false)
+              settleResponse(
+                new Response(stream, {
+                  status: proxyRes.statusCode || 200,
+                  headers,
+                }),
+                false,
+              )
             })
 
             activeProxyRequest = proxyReq

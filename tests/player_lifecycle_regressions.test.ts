@@ -16,7 +16,14 @@ describe('playback sleep deadline', () => {
     }) as typeof setTimeout)
     const date = spyOn(Date, 'now').mockImplementation(() => now)
     const initialPlayback = usePlaybackStore.getState()
-    connectAudioCommands({ play: () => undefined, pause: () => { pauses += 1 }, seek: () => undefined, volume: () => undefined })
+    connectAudioCommands({
+      play: () => undefined,
+      pause: () => {
+        pauses += 1
+      },
+      seek: () => undefined,
+      volume: () => undefined,
+    })
     try {
       usePlaybackStore.setState({ isPlaying: true })
       useSleepTimerStore.getState().setTimer(1)
@@ -37,7 +44,12 @@ describe('playback sleep deadline', () => {
       timeout.mockRestore()
       date.mockRestore()
       usePlaybackStore.setState(initialPlayback)
-      connectAudioCommands({ play: () => undefined, pause: () => undefined, seek: () => undefined, volume: () => undefined })
+      connectAudioCommands({
+        play: () => undefined,
+        pause: () => undefined,
+        seek: () => undefined,
+        volume: () => undefined,
+      })
     }
   })
 })
@@ -49,25 +61,36 @@ describe('service worker cache ownership', () => {
   ]) {
     it(`${app} activation removes only its own stale caches`, async () => {
       const source = readFileSync(new URL(`../frontend/${app}/src/sw.js`, import.meta.url), 'utf8')
-      const currentCaches = [...source.matchAll(/const (?:CACHE_NAME|VERSIONED_ASSET_CACHE) = '([^']+)'/g)].map(match => match[1]!)
+      const currentCaches = [...source.matchAll(/const (?:CACHE_NAME|VERSIONED_ASSET_CACHE) = '([^']+)'/g)].map(
+        match => match[1]!,
+      )
       const otherCaches = [`${otherPrefix}old`, `${otherPrefix}assets-old`, 'another-app-cache']
       const staleCaches = [`${prefix}old`, `${prefix}assets-old`]
       const removed: string[] = []
       let activate: ((event: { waitUntil: (promise: Promise<unknown>) => void }) => void) | undefined
       runInNewContext(source, {
         self: {
-          addEventListener: (name: string, listener: typeof activate) => { if (name === 'activate') activate = listener },
+          addEventListener: (name: string, listener: typeof activate) => {
+            if (name === 'activate') activate = listener
+          },
           clients: { claim: () => undefined },
         },
         caches: {
           keys: async () => [...currentCaches, ...otherCaches, ...staleCaches],
-          delete: async (name: string) => { removed.push(name); return true },
+          delete: async (name: string) => {
+            removed.push(name)
+            return true
+          },
         },
         console: { log: () => undefined },
       })
       expect(activate).toBeDefined()
       let completion: Promise<unknown> | undefined
-      activate?.({ waitUntil: promise => { completion = promise } })
+      activate?.({
+        waitUntil: promise => {
+          completion = promise
+        },
+      })
       await completion
       expect(removed.sort()).toEqual(staleCaches.sort())
     })

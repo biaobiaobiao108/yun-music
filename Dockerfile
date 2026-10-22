@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.10
 # Multi-stage Dockerfile for 云鹿音乐 (Ultra-slim Bun Architecture)
 
-ARG BUN_VERSION=1.4.3
+ARG BUN_VERSION=1.4.4
 
 # Stage 1: Build Frontend, Server bundle and assets on host platform
 FROM --platform=$BUILDPLATFORM oven/bun:${BUN_VERSION}-alpine AS builder

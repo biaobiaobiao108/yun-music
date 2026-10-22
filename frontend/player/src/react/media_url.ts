@@ -42,9 +42,10 @@ export function parseCachePlaybackUrl(rawUrl: unknown): CachePlaybackReference |
 export function buildCachePlaybackUrl(reference: CachePlaybackReference): string {
   const username = String(reference.username ?? '').trim()
   const encodedFilename = encodeURIComponent(reference.filename)
-  const target = username && username !== '_open' && username !== 'open' && username !== 'default'
-    ? `${encodeURIComponent(username)}/${encodedFilename}`
-    : encodedFilename
+  const target =
+    username && username !== '_open' && username !== 'open' && username !== 'default'
+      ? `${encodeURIComponent(username)}/${encodedFilename}`
+      : encodedFilename
   return `${CACHE_FILE_PREFIX}${target}?folder=${encodeURIComponent(reference.folder)}`
 }
 

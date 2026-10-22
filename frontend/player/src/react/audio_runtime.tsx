@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { playerApi } from './api'
-import { connectAudioCommands, useAuthStore, useCacheStore, usePlaybackStore, usePlayerUiStore, useRecentStore, useSettingsStore } from './store'
+import {
+  connectAudioCommands,
+  useAuthStore,
+  useCacheStore,
+  usePlaybackStore,
+  usePlayerUiStore,
+  useRecentStore,
+  useSettingsStore,
+} from './store'
 import { songAlbum, songArtist, songImage, songKey, songTitle, type Song } from './types'
 import { safeImageUrl } from '../../../shared/src/runtime'
 import { emitPlaybackService } from './playback_service'
@@ -9,7 +17,14 @@ import { getSessionGeneration } from './session'
 import { clearPlayerPerformanceMark, markPlayerPerformance, measurePlayerPerformance } from './performance'
 
 const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
-type SongUrlResult = { url: string; quality?: string; type?: string; sourceName?: string; fromCache?: boolean; downloadToken?: string }
+type SongUrlResult = {
+  url: string
+  quality?: string
+  type?: string
+  sourceName?: string
+  fromCache?: boolean
+  downloadToken?: string
+}
 type PendingSongUrlRequest = {
   promise: Promise<SongUrlResult>
   controller: AbortController
@@ -43,7 +58,11 @@ function abortError(): DOMException {
 
 function setMediaSessionPlaybackState(state: MediaSessionPlaybackState): void {
   if (!('mediaSession' in navigator)) return
-  try { navigator.mediaSession.playbackState = state } catch { /* media session may be unavailable in this context */ }
+  try {
+    navigator.mediaSession.playbackState = state
+  } catch {
+    /* media session may be unavailable in this context */
+  }
 }
 
 function syncMediaSessionMetadata(song: Song | null): void {
@@ -72,8 +91,14 @@ function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
     }
     signal.addEventListener('abort', onAbort, { once: true })
     promise.then(
-      value => { signal.removeEventListener('abort', onAbort); resolve(value) },
-      error => { signal.removeEventListener('abort', onAbort); reject(error) },
+      value => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      error => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
     )
   })
 }
@@ -101,7 +126,14 @@ function songUrlCacheKey(song: Song, quality: string): string {
   return `${generation}:${songKey(song)}:${quality}`
 }
 
-function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boolean, signal?: AbortSignal, priority: 'high' | 'low' = 'high', refresh = false): Promise<SongUrlResult> {
+function requestSongUrl(
+  song: Song,
+  quality: string,
+  enableAutoSwitchSource: boolean,
+  signal?: AbortSignal,
+  priority: 'high' | 'low' = 'high',
+  refresh = false,
+): Promise<SongUrlResult> {
   const key = songUrlCacheKey(song, quality)
   if (signal?.aborted) return Promise.reject(abortError())
   if (refresh) prefetchedUrls.delete(key)
@@ -119,29 +151,41 @@ function requestSongUrl(song: Song, quality: string, enableAutoSwitchSource: boo
   markPlayerPerformance(`${performanceName}:start`)
   const controller = new AbortController()
   let entry: PendingSongUrlRequest
-  const request = playerApi.songUrl(song, quality, controller.signal, enableAutoSwitchSource, priority)
-    .then(result => {
-      markPlayerPerformance(`${performanceName}:end`)
-      measurePlayerPerformance(`yun-music:url:${encodeURIComponent(key).slice(0, 160)}`, `${performanceName}:start`, `${performanceName}:end`)
-      if (result.url) {
-        const now = Date.now()
-        for (const [cachedKey, cachedUrl] of prefetchedUrls) {
-          if (cachedUrl.expiresAt <= now) prefetchedUrls.delete(cachedKey)
+  const request = playerApi
+    .songUrl(song, quality, controller.signal, enableAutoSwitchSource, priority)
+    .then(
+      result => {
+        markPlayerPerformance(`${performanceName}:end`)
+        measurePlayerPerformance(
+          `yun-music:url:${encodeURIComponent(key).slice(0, 160)}`,
+          `${performanceName}:start`,
+          `${performanceName}:end`,
+        )
+        if (result.url) {
+          const now = Date.now()
+          for (const [cachedKey, cachedUrl] of prefetchedUrls) {
+            if (cachedUrl.expiresAt <= now) prefetchedUrls.delete(cachedKey)
+          }
+          prefetchedUrls.delete(key)
+          prefetchedUrls.set(key, { result, expiresAt: now + SONG_URL_CACHE_TTL_MS })
+          while (prefetchedUrls.size > MAX_CACHED_SONG_URLS) {
+            const oldestKey = prefetchedUrls.keys().next().value
+            if (oldestKey === undefined) break
+            prefetchedUrls.delete(oldestKey)
+          }
         }
-        prefetchedUrls.delete(key)
-        prefetchedUrls.set(key, { result, expiresAt: now + SONG_URL_CACHE_TTL_MS })
-        while (prefetchedUrls.size > MAX_CACHED_SONG_URLS) {
-          const oldestKey = prefetchedUrls.keys().next().value
-          if (oldestKey === undefined) break
-          prefetchedUrls.delete(oldestKey)
-        }
-      }
-      return result
-    }, error => {
-      markPlayerPerformance(`${performanceName}:end`)
-      measurePlayerPerformance(`yun-music:url:${encodeURIComponent(key).slice(0, 160)}`, `${performanceName}:start`, `${performanceName}:end`)
-      throw error
-    })
+        return result
+      },
+      error => {
+        markPlayerPerformance(`${performanceName}:end`)
+        measurePlayerPerformance(
+          `yun-music:url:${encodeURIComponent(key).slice(0, 160)}`,
+          `${performanceName}:start`,
+          `${performanceName}:end`,
+        )
+        throw error
+      },
+    )
     .finally(() => {
       entry.settled = true
       if (pendingSongUrlRequests.get(key) === entry) pendingSongUrlRequests.delete(key)
@@ -173,14 +217,22 @@ export function AudioRuntime() {
   const cacheQueued = useRef(new Set<string>())
   const historyRecordedKey = useRef('')
   const resolvedSongKey = useRef('')
-  const resolvedPlayback = useRef<{ songKey: string; quality: string; url: string; fromCache: boolean; sourceName?: string } | null>(null)
+  const resolvedPlayback = useRef<{
+    songKey: string
+    quality: string
+    url: string
+    fromCache: boolean
+    sourceName?: string
+  } | null>(null)
   const prefetchTriggeredKey = useRef('')
   const prefetchIdleHandle = useRef<number | null>(null)
   const prefetchController = useRef<AbortController | null>(null)
   const playbackStatusKey = useRef('')
   const lastProgressEmitAt = useRef(0)
   const lastMediaSessionAt = useRef(0)
-  const playbackTraceName = songId ? `yun-music:play:${encodeURIComponent(songId).slice(0, 120)}:${encodeURIComponent(quality)}` : ''
+  const playbackTraceName = songId
+    ? `yun-music:play:${encodeURIComponent(songId).slice(0, 120)}:${encodeURIComponent(quality)}`
+    : ''
   const volumeTarget = useRef(muted ? 0 : volume)
   const fadeFactor = useRef(1)
   const volumeAnimation = useRef<{ cancel: () => void; finish: () => void } | null>(null)
@@ -202,52 +254,53 @@ export function AudioRuntime() {
     animation.finish()
   }
 
-  const animateVolumeFactor = (target: number, duration: number) => new Promise<void>(resolve => {
-    const audio = audioRef.current
-    if (!audio || duration <= 0) {
-      fadeFactor.current = target
-      syncAudioVolume()
-      resolve()
-      return
-    }
-    cancelVolumeAnimation()
-    const startFactor = fadeFactor.current
-    const startTime = performance.now()
-    const stepInterval = 20
-    let timer: ReturnType<typeof setTimeout> | null = null
-    let settled = false
-    const finish = () => {
-      if (settled) return
-      settled = true
-      if (timer !== null) {
-        clearTimeout(timer)
-        timer = null
-      }
-      if (volumeAnimation.current?.finish === finish) volumeAnimation.current = null
-      resolve()
-    }
-    const cancel = () => {
-      if (timer !== null) {
-        clearTimeout(timer)
-        timer = null
-      }
-    }
-    const tick = () => {
-      const now = performance.now()
-      const progress = Math.min(1, Math.max(0, (now - startTime) / duration))
-      fadeFactor.current = startFactor + (target - startFactor) * progress
-      syncAudioVolume()
-      if (progress >= 1) {
+  const animateVolumeFactor = (target: number, duration: number) =>
+    new Promise<void>(resolve => {
+      const audio = audioRef.current
+      if (!audio || duration <= 0) {
         fadeFactor.current = target
         syncAudioVolume()
-        finish()
-      } else if (volumeAnimation.current?.finish === finish) {
-        timer = setTimeout(tick, stepInterval)
+        resolve()
+        return
       }
-    }
-    volumeAnimation.current = { cancel, finish }
-    timer = setTimeout(tick, stepInterval)
-  })
+      cancelVolumeAnimation()
+      const startFactor = fadeFactor.current
+      const startTime = performance.now()
+      const stepInterval = 20
+      let timer: ReturnType<typeof setTimeout> | null = null
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        if (timer !== null) {
+          clearTimeout(timer)
+          timer = null
+        }
+        if (volumeAnimation.current?.finish === finish) volumeAnimation.current = null
+        resolve()
+      }
+      const cancel = () => {
+        if (timer !== null) {
+          clearTimeout(timer)
+          timer = null
+        }
+      }
+      const tick = () => {
+        const now = performance.now()
+        const progress = Math.min(1, Math.max(0, (now - startTime) / duration))
+        fadeFactor.current = startFactor + (target - startFactor) * progress
+        syncAudioVolume()
+        if (progress >= 1) {
+          fadeFactor.current = target
+          syncAudioVolume()
+          finish()
+        } else if (volumeAnimation.current?.finish === finish) {
+          timer = setTimeout(tick, stepInterval)
+        }
+      }
+      volumeAnimation.current = { cancel, finish }
+      timer = setTimeout(tick, stepInterval)
+    })
 
   const cancelScheduledPrefetch = () => {
     prefetchController.current?.abort()
@@ -292,9 +345,13 @@ export function AudioRuntime() {
           return
         }
         sentinel = active
-        active.addEventListener('release', () => {
-          if (sentinel === active) sentinel = null
-        }, { once: true })
+        active.addEventListener(
+          'release',
+          () => {
+            if (sentinel === active) sentinel = null
+          },
+          { once: true },
+        )
       } catch {
         // The browser or operating system may deny a screen wake lock.
       } finally {
@@ -319,18 +376,34 @@ export function AudioRuntime() {
     const duration = state.duration
     const currentUrl = typeof state.currentSong?.url === 'string' ? state.currentSong.url : ''
     const hasServerCacheUrl = Boolean(currentUrl && parseCachePlaybackUrl(currentUrl))
-    if (!settings.enablePreloader || !state.currentSong || hasServerCacheUrl || !Number.isFinite(duration) || duration <= 0 || state.currentTime / duration < .8) return
+    if (
+      !settings.enablePreloader ||
+      !state.currentSong ||
+      hasServerCacheUrl ||
+      !Number.isFinite(duration) ||
+      duration <= 0 ||
+      state.currentTime / duration < 0.8
+    )
+      return
     if (state.queue.length <= 1) return
     const currentPlaybackKey = `${songKey(state.currentSong)}:${quality}`
     if (prefetchTriggeredKey.current === currentPlaybackKey) return
-    const priorityNextIndex = state.priorityNextSongKey ? state.queue.findIndex(song => songKey(song) === state.priorityNextSongKey) : -1
-    const randomNextIndex = state.mode === 'random' && state.randomNextSongKey ? state.queue.findIndex(song => songKey(song) === state.randomNextSongKey) : -1
+    const priorityNextIndex = state.priorityNextSongKey
+      ? state.queue.findIndex(song => songKey(song) === state.priorityNextSongKey)
+      : -1
+    const randomNextIndex =
+      state.mode === 'random' && state.randomNextSongKey
+        ? state.queue.findIndex(song => songKey(song) === state.randomNextSongKey)
+        : -1
     const queuedNextIndex = priorityNextIndex >= 0 ? priorityNextIndex : randomNextIndex
-    const nextIndex = queuedNextIndex >= 0
-      ? queuedNextIndex
-      : state.mode === 'random'
-        ? state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[Math.floor(Math.random() * (state.queue.length - 1))] ?? -1
-        : (state.currentIndex + 1) % state.queue.length
+    const nextIndex =
+      queuedNextIndex >= 0
+        ? queuedNextIndex
+        : state.mode === 'random'
+          ? (state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[
+              Math.floor(Math.random() * (state.queue.length - 1))
+            ] ?? -1)
+          : (state.currentIndex + 1) % state.queue.length
     const nextSong = state.queue[nextIndex]
     if (state.mode === 'random' && nextSong && queuedNextIndex < 0) {
       usePlaybackStore.getState().setRandomNextSongKey(songKey(nextSong))
@@ -402,8 +475,13 @@ export function AudioRuntime() {
         })
       },
       pause: () => audio.pause(),
-      seek: time => { if (Number.isFinite(time)) audio.currentTime = Math.max(0, time) },
-      volume: next => { volumeTarget.current = next; syncAudioVolume() },
+      seek: time => {
+        if (Number.isFinite(time)) audio.currentTime = Math.max(0, time)
+      },
+      volume: next => {
+        volumeTarget.current = next
+        syncAudioVolume()
+      },
     })
     syncAudioVolume()
     const onPlay = () => {
@@ -415,13 +493,18 @@ export function AudioRuntime() {
         const playback = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current : null
         const playbackUrl = playback?.url || currentSong.url || ''
         const cacheReference = parseCachePlaybackUrl(playbackUrl)
-        const status = cacheReference?.folder === 'music'
-          ? { message: '下载播放', kind: 'success' as const, key: 'download' }
-          : cacheReference?.folder === 'cache'
-            ? { message: '命中缓存', kind: 'success' as const, key: 'cache' }
-            : playback?.fromCache
-              ? { message: '本地播放', kind: 'success' as const, key: 'local' }
-              : { message: playback?.sourceName ? `在线播放 · ${playback.sourceName}` : '在线播放', kind: 'info' as const, key: 'online' }
+        const status =
+          cacheReference?.folder === 'music'
+            ? { message: '下载播放', kind: 'success' as const, key: 'download' }
+            : cacheReference?.folder === 'cache'
+              ? { message: '命中缓存', kind: 'success' as const, key: 'cache' }
+              : playback?.fromCache
+                ? { message: '本地播放', kind: 'success' as const, key: 'local' }
+                : {
+                    message: playback?.sourceName ? `在线播放 · ${playback.sourceName}` : '在线播放',
+                    kind: 'info' as const,
+                    key: 'online',
+                  }
         const statusKey = `${songId}:${quality}:${status.key}:${playback?.sourceName || ''}`
         if (playbackStatusKey.current !== statusKey) {
           playbackStatusKey.current = statusKey
@@ -436,9 +519,13 @@ export function AudioRuntime() {
       if (settings.enableServerCache && currentSong) {
         const cacheKey = `${songKey(currentSong)}:${quality}`
         const playback = resolvedPlayback.current
-        const cacheUrl = playback?.songKey === songKey(currentSong) && playback.quality === quality && playback.url && !playback.fromCache
-          ? playback.url
-          : undefined
+        const cacheUrl =
+          playback?.songKey === songKey(currentSong) &&
+          playback.quality === quality &&
+          playback.url &&
+          !playback.fromCache
+            ? playback.url
+            : undefined
         if (!cacheQueued.current.has(cacheKey) && cacheUrl) {
           cacheQueued.current.add(cacheKey)
           // Reuse the URL that started playback. Resolving the source again
@@ -476,15 +563,19 @@ export function AudioRuntime() {
         const priorityNextSong = state.priorityNextSongKey
           ? state.queue.find(song => songKey(song) === state.priorityNextSongKey)
           : undefined
-        const randomNextSong = state.mode === 'random' && state.randomNextSongKey
-          ? state.queue.find(song => songKey(song) === state.randomNextSongKey)
-          : undefined
+        const randomNextSong =
+          state.mode === 'random' && state.randomNextSongKey
+            ? state.queue.find(song => songKey(song) === state.randomNextSongKey)
+            : undefined
         if (priorityNextSong || randomNextSong) {
           nextSong = priorityNextSong ?? randomNextSong
         } else if (state.mode !== 'single' && state.queue.length > 1) {
-          const nextIndex = state.mode === 'random'
-            ? state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[Math.floor(Math.random() * (state.queue.length - 1))] ?? -1
-            : (state.currentIndex + 1) % state.queue.length
+          const nextIndex =
+            state.mode === 'random'
+              ? (state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[
+                  Math.floor(Math.random() * (state.queue.length - 1))
+                ] ?? -1)
+              : (state.currentIndex + 1) % state.queue.length
           nextSong = state.queue[nextIndex]
           if (state.mode === 'random' && nextSong) {
             usePlaybackStore.getState().setRandomNextSongKey(songKey(nextSong))
@@ -497,7 +588,10 @@ export function AudioRuntime() {
             naturalFadeKey.current = fadeKey
             void animateVolumeFactor(0, Math.min(CROSSFADE_DURATION_MS, remaining * 1000))
           }
-        } else if (naturalFadeKey.current && (!nextSong || songKey(nextSong) === songId || remaining > CROSSFADE_DURATION_MS / 1000)) {
+        } else if (
+          naturalFadeKey.current &&
+          (!nextSong || songKey(nextSong) === songId || remaining > CROSSFADE_DURATION_MS / 1000)
+        ) {
           naturalFadeKey.current = ''
           cancelVolumeAnimation()
           fadeFactor.current = 1
@@ -513,7 +607,13 @@ export function AudioRuntime() {
         emitPlaybackService({ type: 'progress', currentTime, duration })
         prefetchNext()
       }
-      if (currentSong && 'mediaSession' in navigator && navigator.mediaSession.setPositionState && duration > 0 && (now - lastMediaSessionAt.current >= 1000 || currentTime === 0)) {
+      if (
+        currentSong &&
+        'mediaSession' in navigator &&
+        navigator.mediaSession.setPositionState &&
+        duration > 0 &&
+        (now - lastMediaSessionAt.current >= 1000 || currentTime === 0)
+      ) {
         lastMediaSessionAt.current = now
         try {
           navigator.mediaSession.setPositionState({
@@ -521,7 +621,9 @@ export function AudioRuntime() {
             playbackRate: audio.playbackRate || 1,
             position: Math.min(currentTime, duration),
           })
-        } catch { /* browser may reject transient media metadata */ }
+        } catch {
+          /* browser may reject transient media metadata */
+        }
       }
     }
     const onLoaded = () => {
@@ -537,7 +639,13 @@ export function AudioRuntime() {
       }
       emitPlaybackService({ type: 'loaded', duration })
       emitPlaybackService({ type: 'progress', currentTime, duration })
-      if (settings.autoResume && duration > 0 && resumeTime > 0 && resumeTime < duration && recoveryAttempts.current.has(`resume:${songId}`) === false) {
+      if (
+        settings.autoResume &&
+        duration > 0 &&
+        resumeTime > 0 &&
+        resumeTime < duration &&
+        recoveryAttempts.current.has(`resume:${songId}`) === false
+      ) {
         audio.currentTime = resumeTime
         emitPlaybackService({ type: 'progress', currentTime: resumeTime, duration })
         recoveryAttempts.current.add(`resume:${songId}`)
@@ -572,19 +680,20 @@ export function AudioRuntime() {
       const message = '播放失败，请尝试切换音质或音源'
       if (playbackTraceName) clearPlayerPerformanceMark(`${playbackTraceName}:start`)
       emitPlaybackService({ type: 'error', message })
-      setResolvedError(message); notify(message)
+      setResolvedError(message)
+      notify(message)
     }
     const onError = () => {
       if (resolvedSongKey.current !== songId) return
       const activePlayback = resolvedPlayback.current
       const refreshKey = `url-refresh:${songId}:${quality}`
       if (
-        currentSong
-        && activePlayback?.songKey === songId
-        && activePlayback.quality === quality
-        && !activePlayback.fromCache
-        && !parseCachePlaybackUrl(activePlayback.url)
-        && !recoveryAttempts.current.has(refreshKey)
+        currentSong &&
+        activePlayback?.songKey === songId &&
+        activePlayback.quality === quality &&
+        !activePlayback.fromCache &&
+        !parseCachePlaybackUrl(activePlayback.url) &&
+        !recoveryAttempts.current.has(refreshKey)
       ) {
         recoveryAttempts.current.add(refreshKey)
         prefetchedUrls.delete(songUrlCacheKey(currentSong, quality))
@@ -598,13 +707,14 @@ export function AudioRuntime() {
           .then(async result => {
             const state = usePlaybackStore.getState()
             if (
-              retryCancelled
-              || signal.aborted
-              || audioRef.current !== audio
-              || !state.currentSong
-              || songKey(state.currentSong) !== songId
-              || state.quality !== quality
-            ) return
+              retryCancelled ||
+              signal.aborted ||
+              audioRef.current !== audio ||
+              !state.currentSong ||
+              songKey(state.currentSong) !== songId ||
+              state.quality !== quality
+            )
+              return
             resolvedPlayback.current = {
               songKey: songId,
               quality,
@@ -633,9 +743,41 @@ export function AudioRuntime() {
       }
       reportPlaybackError()
     }
-    audio.addEventListener('play', onPlay); audio.addEventListener('playing', onPlaying); audio.addEventListener('pause', onPause); audio.addEventListener('timeupdate', onTime); audio.addEventListener('loadedmetadata', onLoaded); audio.addEventListener('ended', onEnded); audio.addEventListener('error', onError)
-    return () => { retryCancelled = true; retryController?.abort(); audio.removeEventListener('play', onPlay); audio.removeEventListener('playing', onPlaying); audio.removeEventListener('pause', onPause); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('loadedmetadata', onLoaded); audio.removeEventListener('ended', onEnded); audio.removeEventListener('error', onError) }
-  }, [currentSong, enqueueCache, notify, notifyPlayback, playbackTraceName, quality, recordRecent, settings, setPlaying, setQuality, setResolvedUrl, songId, userName, volume, muted])
+    audio.addEventListener('play', onPlay)
+    audio.addEventListener('playing', onPlaying)
+    audio.addEventListener('pause', onPause)
+    audio.addEventListener('timeupdate', onTime)
+    audio.addEventListener('loadedmetadata', onLoaded)
+    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('error', onError)
+    return () => {
+      retryCancelled = true
+      retryController?.abort()
+      audio.removeEventListener('play', onPlay)
+      audio.removeEventListener('playing', onPlaying)
+      audio.removeEventListener('pause', onPause)
+      audio.removeEventListener('timeupdate', onTime)
+      audio.removeEventListener('loadedmetadata', onLoaded)
+      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('error', onError)
+    }
+  }, [
+    currentSong,
+    enqueueCache,
+    notify,
+    notifyPlayback,
+    playbackTraceName,
+    quality,
+    recordRecent,
+    settings,
+    setPlaying,
+    setQuality,
+    setResolvedUrl,
+    songId,
+    userName,
+    volume,
+    muted,
+  ])
 
   useEffect(() => {
     if (!volumeAnimation.current) syncAudioVolume()
@@ -687,9 +829,8 @@ export function AudioRuntime() {
     const controller = new AbortController()
     setResolvedError('')
     if (playbackTraceName) markPlayerPerformance(`${playbackTraceName}:start`)
-    const storedCacheUrl = typeof currentSong.url === 'string' && currentSong.url
-      ? normalizeCachePlaybackUrl(currentSong.url, userName)
-      : ''
+    const storedCacheUrl =
+      typeof currentSong.url === 'string' && currentSong.url ? normalizeCachePlaybackUrl(currentSong.url, userName) : ''
     const hasStoredCacheUrl = Boolean(storedCacheUrl && parseCachePlaybackUrl(storedCacheUrl))
     if (!hasStoredCacheUrl) notifyPlayback('检查缓存')
     void (async () => {
@@ -708,7 +849,11 @@ export function AudioRuntime() {
             else await animateVolumeFactor(0, CROSSFADE_DURATION_MS)
             if (cancelled || controller.signal.aborted) return
             const latestState = usePlaybackStore.getState()
-            if (crossfadeTransition.current?.to === songId && useSettingsStore.getState().settings.enableCrossfade && latestState.isPlaying) {
+            if (
+              crossfadeTransition.current?.to === songId &&
+              useSettingsStore.getState().settings.enableCrossfade &&
+              latestState.isPlaying
+            ) {
               audio.pause()
               crossfadeTransition.current = null
               crossfadeIncoming.current = true
@@ -787,17 +932,14 @@ export function AudioRuntime() {
       const transition = crossfadeTransition.current
       const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
       const preserveTransition = Boolean(
-        crossfadeEnabled
-        && state.isPlaying
-        && selectedSongKey === songId
-        && transition?.to === songId,
+        crossfadeEnabled && state.isPlaying && selectedSongKey === songId && transition?.to === songId,
       )
       const startTransition = Boolean(
-        crossfadeEnabled
-        && state.isPlaying
-        && selectedSongKey
-        && selectedSongKey !== songId
-        && (resolvedSongKey.current === songId || transition),
+        crossfadeEnabled &&
+        state.isPlaying &&
+        selectedSongKey &&
+        selectedSongKey !== songId &&
+        (resolvedSongKey.current === songId || transition),
       )
       if (startTransition) {
         crossfadeTransition.current = { from: transition?.from || songId, to: selectedSongKey }
@@ -813,10 +955,25 @@ export function AudioRuntime() {
         crossfadeIncoming.current = false
         fadeFactor.current = 1
         syncAudioVolume()
-        audio.pause(); audio.removeAttribute('src'); audio.load()
+        audio.pause()
+        audio.removeAttribute('src')
+        audio.load()
       }
     }
-  }, [currentSong, notify, notifyPlayback, playbackTraceName, quality, setPlaying, setResolvedUrl, settings.enableAutoSwitchSource, settings.enableCustomProxy, settings.customProxyUrl, songId, userName])
+  }, [
+    currentSong,
+    notify,
+    notifyPlayback,
+    playbackTraceName,
+    quality,
+    setPlaying,
+    setResolvedUrl,
+    settings.enableAutoSwitchSource,
+    settings.enableCustomProxy,
+    settings.customProxyUrl,
+    songId,
+    userName,
+  ])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -845,14 +1002,19 @@ export function AudioRuntime() {
     void audio.play().catch(error => {
       if ((audio.currentSrc || audio.src) !== requestedSource) return
       setPlaying(false)
-      if (error instanceof DOMException && error.name === 'NotAllowedError') notify('浏览器阻止了自动播放，请点击播放按钮')
+      if (error instanceof DOMException && error.name === 'NotAllowedError')
+        notify('浏览器阻止了自动播放，请点击播放按钮')
     })
   }, [isPlaying, notify, setPlaying])
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
     const mediaSession = navigator.mediaSession
     const setActionHandler = (action: MediaSessionAction, handler: (() => void) | null) => {
-      try { mediaSession.setActionHandler?.(action, handler) } catch { /* action is not supported by this browser */ }
+      try {
+        mediaSession.setActionHandler?.(action, handler)
+      } catch {
+        /* action is not supported by this browser */
+      }
     }
     const actions: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack']
     setActionHandler('play', () => {
@@ -889,5 +1051,14 @@ export function AudioRuntime() {
       window.removeEventListener('pageshow', refresh)
     }
   }, [])
-  return <><audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />{resolvedError && <span className="sr-only" role="alert">{resolvedError}</span>}</>
+  return (
+    <>
+      <audio ref={audioRef} preload="metadata" aria-label="音乐播放器" />
+      {resolvedError && (
+        <span className="sr-only" role="alert">
+          {resolvedError}
+        </span>
+      )}
+    </>
+  )
 }

@@ -35,7 +35,7 @@ const assertTestDatabasePath = (dbPath: string): void => {
   if (insideTemp) return
   throw new Error(
     `测试环境拒绝打开非内存/非临时目录的数据库：${dbPath}。` +
-    `请改用 initDatabase(':memory:')，或使用 os.tmpdir() 下的临时目录。`,
+      `请改用 initDatabase(':memory:')，或使用 os.tmpdir() 下的临时目录。`,
   )
 }
 
@@ -46,9 +46,10 @@ export const initDatabase = (customDbPath?: string): Database => {
   assertTestDatabasePath(dbPath)
   const db = new Database(dbPath, { create: true })
 
-  const existingTables = db.query<{ name: string }, []>(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-  ).all().map(row => row.name)
+  const existingTables = db
+    .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+    .all()
+    .map(row => row.name)
   const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
   if (currentVersion !== 0 && currentVersion !== 3 && currentVersion !== 4 && currentVersion !== DATABASE_VERSION) {
     db.close()
@@ -181,9 +182,14 @@ export const initDatabase = (customDbPath?: string): Database => {
   // v3 -> v4: keep frequently aggregated file sizes outside the JSON blob.
   // The JSON remains the compatibility source for the complete CacheItem.
   if (currentVersion === 3) {
-    const columns = db.query<{ name: string }, []>('PRAGMA table_info(cache_index)').all().map(column => column.name)
-    if (!columns.includes('audio_size')) db.run('ALTER TABLE cache_index ADD COLUMN audio_size INTEGER NOT NULL DEFAULT 0')
-    if (!columns.includes('lyric_size')) db.run('ALTER TABLE cache_index ADD COLUMN lyric_size INTEGER NOT NULL DEFAULT 0')
+    const columns = db
+      .query<{ name: string }, []>('PRAGMA table_info(cache_index)')
+      .all()
+      .map(column => column.name)
+    if (!columns.includes('audio_size'))
+      db.run('ALTER TABLE cache_index ADD COLUMN audio_size INTEGER NOT NULL DEFAULT 0')
+    if (!columns.includes('lyric_size'))
+      db.run('ALTER TABLE cache_index ADD COLUMN lyric_size INTEGER NOT NULL DEFAULT 0')
 
     const rows = db.query<{ rowid: number; data: string }, []>('SELECT rowid, data FROM cache_index').all()
     const update = db.prepare('UPDATE cache_index SET audio_size = ?, lyric_size = ? WHERE rowid = ?')
@@ -210,13 +216,18 @@ export const initDatabase = (customDbPath?: string): Database => {
     }
   }
 
-  db.run('CREATE INDEX IF NOT EXISTS idx_cache_stats ON cache_index(user_name, folder, location, audio_size, lyric_size);')
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_cache_stats ON cache_index(user_name, folder, location, audio_size, lyric_size);',
+  )
 
   // v4 -> v5: separate "when it was stored" from "the timestamp it displays".
   // Legacy rows fall back to created_at; the whole step is idempotent so a
   // crash between ALTER and PRAGMA user_version is safe to retry.
   if (currentVersion !== 0 && currentVersion < DATABASE_VERSION) {
-    const snapshotColumns = db.query<{ name: string }, []>('PRAGMA table_info(snapshots)').all().map(column => column.name)
+    const snapshotColumns = db
+      .query<{ name: string }, []>('PRAGMA table_info(snapshots)')
+      .all()
+      .map(column => column.name)
     db.transaction(() => {
       if (!snapshotColumns.includes('stored_at')) {
         db.run('ALTER TABLE snapshots ADD COLUMN stored_at INTEGER NOT NULL DEFAULT 0')
@@ -296,11 +307,19 @@ export const getDatabaseStorageStats = (): DatabaseStorageStats => {
 }
 
 /** Compact the live database during an explicit administrator maintenance action. */
-export const vacuumDatabase = (): { before: DatabaseStorageStats; after: DatabaseStorageStats; reclaimedBytes: number } => {
-  try { getDb().run('PRAGMA wal_checkpoint(TRUNCATE)') } catch { }
+export const vacuumDatabase = (): {
+  before: DatabaseStorageStats
+  after: DatabaseStorageStats
+  reclaimedBytes: number
+} => {
+  try {
+    getDb().run('PRAGMA wal_checkpoint(TRUNCATE)')
+  } catch {}
   const before = getDatabaseStorageStats()
   getDb().run('VACUUM')
-  try { getDb().run('PRAGMA wal_checkpoint(TRUNCATE)') } catch { }
+  try {
+    getDb().run('PRAGMA wal_checkpoint(TRUNCATE)')
+  } catch {}
   const after = getDatabaseStorageStats()
   return { before, after, reclaimedBytes: Math.max(0, before.totalBytes - after.totalBytes) }
 }
@@ -314,7 +333,18 @@ export const createDatabaseSnapshot = (destination: string): void => {
 export const restoreDatabaseSnapshot = (sourcePath: string): void => {
   const source = new Database(sourcePath, { readonly: true })
   const target = getDb()
-  const tables = ['system_info', 'users', 'snapshots', 'snapshot_meta', 'user_settings', 'player_sessions', 'user_sessions', 'admin_sessions', 'login_failures', 'cache_index']
+  const tables = [
+    'system_info',
+    'users',
+    'snapshots',
+    'snapshot_meta',
+    'user_settings',
+    'player_sessions',
+    'user_sessions',
+    'admin_sessions',
+    'login_failures',
+    'cache_index',
+  ]
   const optionalTables = new Set(['admin_sessions', 'login_failures'])
   // Columns introduced after a backup may have been produced. They are filled
   // with defaults during the copy, so older snapshots stay restorable.
@@ -326,35 +356,52 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
     source.run('PRAGMA trusted_schema = OFF')
     const check = source.query<{ quick_check: string }, []>('PRAGMA quick_check').get()
     if (check?.quick_check !== 'ok') throw new Error('备份数据库损坏')
-    const schemas = tables.map(table => {
-      const definition = source.query<{ type: string; sql: string }, [string]>(
-        'SELECT type, sql FROM sqlite_master WHERE name = ?'
-      ).get(table)
-      const targetColumns = target.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all().map(column => column.name)
-      if (!definition) {
-        if (optionalTables.has(table)) return null
-        throw new Error('备份数据库结构不兼容')
-      }
-      if (definition.type !== 'table' || !/^CREATE TABLE\s/i.test(definition.sql)) throw new Error('备份数据库结构不兼容')
-      const backupColumns = source.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all().map(column => column.name)
-      const missingColumns = targetColumns.filter(column => !backupColumns.includes(column))
-      const allowedMissingColumns = missingAllowedByTable.get(table) ?? new Set<string>()
-      if (backupColumns.some(column => !targetColumns.includes(column)) || missingColumns.some(column => !allowedMissingColumns.has(column))) {
-        throw new Error('备份数据库版本不兼容')
-      }
-      return { table, columns: backupColumns }
-    }).filter((schema): schema is { table: string; columns: string[] } => schema !== null)
+    const schemas = tables
+      .map(table => {
+        const definition = source
+          .query<{ type: string; sql: string }, [string]>('SELECT type, sql FROM sqlite_master WHERE name = ?')
+          .get(table)
+        const targetColumns = target
+          .query<{ name: string }, []>(`PRAGMA table_info("${table}")`)
+          .all()
+          .map(column => column.name)
+        if (!definition) {
+          if (optionalTables.has(table)) return null
+          throw new Error('备份数据库结构不兼容')
+        }
+        if (definition.type !== 'table' || !/^CREATE TABLE\s/i.test(definition.sql))
+          throw new Error('备份数据库结构不兼容')
+        const backupColumns = source
+          .query<{ name: string }, []>(`PRAGMA table_info("${table}")`)
+          .all()
+          .map(column => column.name)
+        const missingColumns = targetColumns.filter(column => !backupColumns.includes(column))
+        const allowedMissingColumns = missingAllowedByTable.get(table) ?? new Set<string>()
+        if (
+          backupColumns.some(column => !targetColumns.includes(column)) ||
+          missingColumns.some(column => !allowedMissingColumns.has(column))
+        ) {
+          throw new Error('备份数据库版本不兼容')
+        }
+        return { table, columns: backupColumns }
+      })
+      .filter((schema): schema is { table: string; columns: string[] } => schema !== null)
 
     // The database is copied into runtime state, so validate values that later
     // become filesystem names or authentication material before mutating the
     // target database. A structurally valid SQLite file can still contain
     // hostile application data.
-    for (const row of source.query<{
-      name: string
-      password_hash: string
-      max_snapshot_num: number
-      add_music_location_type: string
-    }, []>('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users').iterate()) {
+    for (const row of source
+      .query<
+        {
+          name: string
+          password_hash: string
+          max_snapshot_num: number
+          add_music_location_type: string
+        },
+        []
+      >('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users')
+      .iterate()) {
       if (row.name === '_open') throw new Error('备份数据库包含保留用户')
       try {
         assertSafePathSegment(row.name, 'user name')

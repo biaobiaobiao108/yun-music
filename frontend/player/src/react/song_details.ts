@@ -12,7 +12,7 @@ let entitySearchController: AbortController | null = null
 let entitySearchRequestId = 0
 
 function recordOf(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 }
 
 function firstText(...values: unknown[]): string {
@@ -56,10 +56,31 @@ export function songEntityName(song: Song, kind: SongEntityKind, options: SongEn
   const record = recordOf(song)
   const meta = recordOf(record.meta)
   if (kind === 'artist') {
-    return firstText(song.singer, record.artist, record.artistName, record.singerName, meta.artistName, meta.singerName, options.allowGenericName ? record.name : '', options.allowGenericName ? record.title : '') || songArtist(song)
+    return (
+      firstText(
+        song.singer,
+        record.artist,
+        record.artistName,
+        record.singerName,
+        meta.artistName,
+        meta.singerName,
+        options.allowGenericName ? record.name : '',
+        options.allowGenericName ? record.title : '',
+      ) || songArtist(song)
+    )
   }
   const album = recordOf(record.album)
-  return firstText(record.albumName, record.albumname, typeof record.album === 'string' ? record.album : '', album.name, album.title, options.allowGenericName ? record.name : '', options.allowGenericName ? record.title : '') || '未知专辑'
+  return (
+    firstText(
+      record.albumName,
+      record.albumname,
+      typeof record.album === 'string' ? record.album : '',
+      album.name,
+      album.title,
+      options.allowGenericName ? record.name : '',
+      options.allowGenericName ? record.title : '',
+    ) || '未知专辑'
+  )
 }
 
 export function songEntityId(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): string {
@@ -120,7 +141,11 @@ export function songEntityId(song: Song, kind: SongEntityKind, options: SongEnti
   )
 }
 
-export function songEntityDetail(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): PlayerDetail | null {
+export function songEntityDetail(
+  song: Song,
+  kind: SongEntityKind,
+  options: SongEntityOptions = {},
+): PlayerDetail | null {
   const id = songEntityId(song, kind, options)
   if (!id) return null
   return {
@@ -133,7 +158,11 @@ export function songEntityDetail(song: Song, kind: SongEntityKind, options: Song
   }
 }
 
-export async function navigateToSongEntity(song: Song, kind: SongEntityKind, options: SongEntityOptions = {}): Promise<void> {
+export async function navigateToSongEntity(
+  song: Song,
+  kind: SongEntityKind,
+  options: SongEntityOptions = {},
+): Promise<void> {
   const ui = getPlayerUiActions()
   const detail = songEntityDetail(song, kind, options)
   if (detail) {
@@ -164,8 +193,10 @@ export async function navigateToSongEntity(song: Song, kind: SongEntityKind, opt
     })
     if (controller.signal.aborted || requestId !== entitySearchRequestId) return
     const expectedName = query.toLocaleLowerCase()
-    const result = (Array.isArray(results) ? results : []).find(item => songEntityName(item, kind, { allowGenericName: true }).toLocaleLowerCase() === expectedName)
-      ?? (Array.isArray(results) ? results[0] : undefined)
+    const result =
+      (Array.isArray(results) ? results : []).find(
+        item => songEntityName(item, kind, { allowGenericName: true }).toLocaleLowerCase() === expectedName,
+      ) ?? (Array.isArray(results) ? results[0] : undefined)
     const resolved = result && songEntityDetail(result, kind, { allowGenericId: true, allowGenericName: true })
     if (resolved) {
       ui.setImmersiveLyrics(false)

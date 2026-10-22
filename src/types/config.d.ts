@@ -34,7 +34,7 @@ declare namespace LX {
     /**
      * Web 服务名称
      */
-    'serverName': string
+    serverName: string
 
     /**
      * 是否使用代理转发请求到本服务器

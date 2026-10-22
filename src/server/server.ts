@@ -21,7 +21,7 @@ const startHttp = async (port = 9527, bindIp = '127.0.0.1'): Promise<void> => {
   if (exposed && trustedProxies.length === 0) {
     startupLog.warn(
       'BIND_IP 暴露在所有网卡上，但没有配置 proxy.trustedAddresses：' +
-      '反向代理的 X-Forwarded-Proto/X-Forwarded-For 会被忽略，HTTPS 部署下 Cookie 将不带 Secure、限流也按代理 IP 统计。',
+        '反向代理的 X-Forwarded-Proto/X-Forwarded-For 会被忽略，HTTPS 部署下 Cookie 将不带 Secure、限流也按代理 IP 统计。',
     )
   }
   bunServerInstance = Bun.serve({

@@ -35,7 +35,9 @@ export type MediaLibraryState = {
 }
 
 export function mediaLibraryItemKey(item: Song, kind: 'artist' | 'album'): string {
-  const id = songEntityId(item, kind, { allowGenericId: true, allowGenericName: true }) || songEntityName(item, kind, { allowGenericName: true })
+  const id =
+    songEntityId(item, kind, { allowGenericId: true, allowGenericName: true }) ||
+    songEntityName(item, kind, { allowGenericName: true })
   return `${songSource(item)}:${kind}:${id}`
 }
 
@@ -69,9 +71,11 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
         playerApi.libraryAlbums(controller.signal, { cacheKey: 'media-library:albums', cacheTtlMs: 60_000, force }),
         playerApi.libraryArtists(controller.signal, { cacheKey: 'media-library:artists', cacheTtlMs: 60_000, force }),
       ])
-      if (!controller.signal.aborted && requestId === mediaRequestId) set({ albums: normalizeLibraryItems(albums), artists: normalizeLibraryItems(artists), loadedAt: Date.now() })
+      if (!controller.signal.aborted && requestId === mediaRequestId)
+        set({ albums: normalizeLibraryItems(albums), artists: normalizeLibraryItems(artists), loadedAt: Date.now() })
     } catch (error) {
-      if (!controller.signal.aborted && requestId === mediaRequestId && get().loadedAt === 0 && !isAbortError(error)) set({ error: error instanceof Error ? error.message : '媒体库加载失败' })
+      if (!controller.signal.aborted && requestId === mediaRequestId && get().loadedAt === 0 && !isAbortError(error))
+        set({ error: error instanceof Error ? error.message : '媒体库加载失败' })
     } finally {
       if (mediaController === controller) {
         mediaController = null
@@ -84,9 +88,10 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
     const sessionScope = getSessionScope()
     const sessionGeneration = getSessionGeneration()
     const mutationGeneration = mediaMutationGeneration
-    const isCurrent = () => sessionScope === getSessionScope()
-      && sessionGeneration === getSessionGeneration()
-      && mutationGeneration === mediaMutationGeneration
+    const isCurrent = () =>
+      sessionScope === getSessionScope() &&
+      sessionGeneration === getSessionGeneration() &&
+      mutationGeneration === mediaMutationGeneration
     // Serialize the read/modify/write operation, including optimistic state,
     // so a failed save is rolled back before the next snapshot is constructed.
     const run = async () => {
@@ -101,7 +106,10 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
       const next = exists
         ? current.filter(candidate => mediaLibraryItemKey(candidate, kind) !== itemKey)
         : [...current, normalizeMediaItem(item, kind)]
-      set({ [key]: next, loading: false, refreshing: false } as Pick<MediaLibraryState, typeof key | 'loading' | 'refreshing'>)
+      set({ [key]: next, loading: false, refreshing: false } as Pick<
+        MediaLibraryState,
+        typeof key | 'loading' | 'refreshing'
+      >)
       try {
         invalidateRequestCache('media-library:')
         if (kind === 'artist') await playerApi.saveLibraryArtists(next)
@@ -110,13 +118,19 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
         return !exists
       } catch (error) {
         if (isCurrent() && requestId === mediaToggleRequestIds[key] && get()[key] === next) {
-          set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<MediaLibraryState, typeof key | 'error'>)
+          set({ [key]: current, error: error instanceof Error ? error.message : '媒体库操作失败' } as Pick<
+            MediaLibraryState,
+            typeof key | 'error'
+          >)
         }
         throw error
       }
     }
     const operation = (mediaMutationQueues.get(key) ?? Promise.resolve()).then(run)
-    const settled = operation.then(() => undefined, () => undefined)
+    const settled = operation.then(
+      () => undefined,
+      () => undefined,
+    )
     mediaMutationQueues.set(key, settled)
     void settled.then(() => {
       if (mediaMutationQueues.get(key) === settled) mediaMutationQueues.delete(key)

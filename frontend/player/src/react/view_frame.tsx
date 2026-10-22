@@ -1,4 +1,37 @@
-export function ViewFrame({ title, actions, hideHeader = false, hideActionsOnMobile = false, titleIconSrc, viewId, children }: { title: string; actions?: React.ReactNode; hideHeader?: boolean; hideActionsOnMobile?: boolean; titleIconSrc?: string; viewId?: string; children: React.ReactNode }) {
+export function ViewFrame({
+  title,
+  actions,
+  hideHeader = false,
+  hideActionsOnMobile = false,
+  titleIconSrc,
+  viewId,
+  children,
+}: {
+  title: string
+  actions?: React.ReactNode
+  hideHeader?: boolean
+  hideActionsOnMobile?: boolean
+  titleIconSrc?: string
+  viewId?: string
+  children: React.ReactNode
+}) {
   const hasTitleIcon = Boolean(titleIconSrc)
-  return <section id={viewId ?? `view-${title}`} className={`player-main-view react-view ${hideHeader ? 'react-view-no-header' : ''} ${hideActionsOnMobile ? 'react-view-hide-actions-mobile' : ''}`} aria-label={hideHeader ? title : undefined}>{!hideHeader && <header className={`react-view-header ${hasTitleIcon ? 'react-view-header-brand' : ''}`}><div className={hasTitleIcon ? 'react-view-title-brand' : undefined}>{titleIconSrc && <img src={titleIconSrc} width="128" height="128" alt="" aria-hidden="true" />}<h1>{title}</h1></div>{actions}</header>}{children}</section>
+  return (
+    <section
+      id={viewId ?? `view-${title}`}
+      className={`player-main-view react-view ${hideHeader ? 'react-view-no-header' : ''} ${hideActionsOnMobile ? 'react-view-hide-actions-mobile' : ''}`}
+      aria-label={hideHeader ? title : undefined}
+    >
+      {!hideHeader && (
+        <header className={`react-view-header ${hasTitleIcon ? 'react-view-header-brand' : ''}`}>
+          <div className={hasTitleIcon ? 'react-view-title-brand' : undefined}>
+            {titleIconSrc && <img src={titleIconSrc} width="128" height="128" alt="" aria-hidden="true" />}
+            <h1>{title}</h1>
+          </div>
+          {actions}
+        </header>
+      )}
+      {children}
+    </section>
+  )
 }

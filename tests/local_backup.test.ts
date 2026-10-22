@@ -5,12 +5,19 @@ import os from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 import { closeDb, createDatabaseSnapshot, getDb, initDatabase } from '@/database'
-import { createLocalBackup, LocalBackupTooLargeError, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '@/server/localBackupService'
+import {
+  createLocalBackup,
+  LocalBackupTooLargeError,
+  MAX_LOCAL_BACKUP_BYTES,
+  restoreLocalBackup,
+} from '@/server/localBackupService'
 import { getUserDirname, syncUsersToDatabase } from '@/user'
 import { createSystemRouter } from '@/server/routes/system'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
-const createZip = async (entries: Array<{ name: string; content?: string; sourcePath?: string }>): Promise<Uint8Array> => {
+const createZip = async (
+  entries: Array<{ name: string; content?: string; sourcePath?: string }>,
+): Promise<Uint8Array> => {
   const output = new PassThrough()
   const chunks: Buffer[] = []
   output.on('data', chunk => chunks.push(Buffer.from(chunk)))
@@ -66,8 +73,10 @@ describe('Local backup restore', () => {
   test('restores database and user files while dropping media cache index', async () => {
     const backupDbPath = path.join(tempDir, 'backup-source.db')
     createDatabaseSnapshot(backupDbPath)
-    getDb().run('INSERT INTO cache_index (location, user_name, folder, song_id, quality, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      ['root', 'backup-user', 'cache', 'cached-song', '320k', '{}', Date.now()])
+    getDb().run(
+      'INSERT INTO cache_index (location, user_name, folder, song_id, quality, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ['root', 'backup-user', 'cache', 'cached-song', '320k', '{}', Date.now()],
+    )
     const archive = await createZip([
       { name: 'database/yun-yin.db', sourcePath: backupDbPath },
       { name: 'config.js', content: 'module.exports = {"serverName":"restored"}\n' },
@@ -77,7 +86,9 @@ describe('Local backup restore', () => {
     const restoredConfig = await restoreLocalBackup(archive)
 
     expect(restoredConfig).toEqual({ serverName: 'restored' })
-    expect(fs.readFileSync(path.join(global.lx.userPath, getUserDirname('backup-user'), 'marker.txt'), 'utf8')).toBe('restored')
+    expect(fs.readFileSync(path.join(global.lx.userPath, getUserDirname('backup-user'), 'marker.txt'), 'utf8')).toBe(
+      'restored',
+    )
     expect(fs.existsSync(path.join(global.lx.userPath, 'old.txt'))).toBe(false)
     expect(getDb().query('SELECT * FROM cache_index').all()).toEqual([])
   })
@@ -96,7 +107,14 @@ describe('Local backup restore', () => {
       { name: 'database/yun-yin.db', sourcePath: backupDbPath },
       { name: 'config.js', content: 'module.exports = {"serverName":"restored"}\n' },
     ])
-    global.lx.config.users = [{ name: 'current-user', password: 'current-secret', maxSnapshotNum: 3, dataPath: path.join(global.lx.userPath, getUserDirname('current-user')) }]
+    global.lx.config.users = [
+      {
+        name: 'current-user',
+        password: 'current-secret',
+        maxSnapshotNum: 3,
+        dataPath: path.join(global.lx.userPath, getUserDirname('current-user')),
+      },
+    ]
     await syncUsersToDatabase(global.lx.config.users, { removeMissing: true })
     const originalUsers = structuredClone(global.lx.config.users)
     let saveAttempts = 0
@@ -112,11 +130,13 @@ describe('Local backup restore', () => {
     const upload = new FormData()
     upload.append('backup', new Blob([Buffer.from(archive)], { type: 'application/zip' }), 'backup.zip')
 
-    const response = await createSystemRouter().handle(new Request('http://localhost/api/backup/upload', {
-      method: 'POST',
-      headers: { cookie },
-      body: upload,
-    }))
+    const response = await createSystemRouter().handle(
+      new Request('http://localhost/api/backup/upload', {
+        method: 'POST',
+        headers: { cookie },
+        body: upload,
+      }),
+    )
 
     expect(response.status).toBe(400)
     expect(saveAttempts).toBe(2)

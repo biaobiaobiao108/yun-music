@@ -21,15 +21,17 @@ export const filterMusicInfoItem = (item: any) => {
     songId: item.id,
     songmid: item.mid,
     strMediaMid: item.file.media_mid,
-    img: (albumId === '' || albumId === '空')
-      ? item.singer?.length ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg` : ''
-      : `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumMid}.jpg`,
+    img:
+      albumId === '' || albumId === '空'
+        ? item.singer?.length
+          ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg`
+          : ''
+        : `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumMid}.jpg`,
     types,
     _types,
     typeUrl: {},
   }
 }
-
 
 /**
  * 创建一个适用于TX的Http请求
@@ -37,7 +39,7 @@ export const filterMusicInfoItem = (item: any) => {
  * @param {*} options
  * @param {*} retryNum
  */
-const createMusicuFetch = async (data: any, options: any = {}, retryNum: any= 0) => {
+const createMusicuFetch = async (data: any, options: any = {}, retryNum: any = 0) => {
   if (retryNum > 2) throw new Error('try max num')
 
   let result
@@ -109,14 +111,19 @@ export default {
    * @param {string} id 歌手 MID
    */
   getDesc(id: any) {
-    return httpFetch(`https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_singer_desc.fcg?singermid=${id}&format=xml&utf8=1&outCharset=utf-8`, {
-      headers: {
-        'Referer': 'https://y.qq.com/portal/singer_detail.html',
+    return httpFetch(
+      `https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_singer_desc.fcg?singermid=${id}&format=xml&utf8=1&outCharset=utf-8`,
+      {
+        headers: {
+          Referer: 'https://y.qq.com/portal/singer_detail.html',
+        },
       },
-    }).promise.then(({ body }: any) => {
-      const match = body.match(/<desc><!\[CDATA\[([\s\S]*?)\]\]><\/desc>/)
-      return match ? match[1].replace(/\n/g, '\n') : ''
-    }).catch(() => '')
+    )
+      .promise.then(({ body }: any) => {
+        const match = body.match(/<desc><!\[CDATA\[([\s\S]*?)\]\]><\/desc>/)
+        return match ? match[1].replace(/\n/g, '\n') : ''
+      })
+      .catch(() => '')
   },
   /**
    * 获取歌手专辑列表
@@ -124,7 +131,7 @@ export default {
    * @param {*} page
    * @param {*} limit
    */
-  getAlbumList(id: any, page: any= 1, limit: any= 10, order: any= 'hot') {
+  getAlbumList(id: any, page: any = 1, limit: any = 10, order: any = 'hot') {
     return createMusicuFetch({
       singerAlbum: {
         method: 'get_singer_album',
@@ -155,7 +162,7 @@ export default {
    * @param {*} page
    * @param {*} limit
    */
-  async getSongList(id: any, page: any= 1, limit: any= 100, order: any= 'hot') {
+  async getSongList(id: any, page: any = 1, limit: any = 100, order: any = 'hot') {
     return createMusicuFetch({
       req: {
         module: 'musichall.song_list_server',

@@ -1,7 +1,13 @@
 import { create } from 'zustand'
 import { pausePlaybackCommand, usePlaybackStore } from './playback'
 
-export type SleepTimerState = { deadline: number | null; remaining: number; setTimer: (minutes: number) => void; cancelTimer: () => void; tick: () => void }
+export type SleepTimerState = {
+  deadline: number | null
+  remaining: number
+  setTimer: (minutes: number) => void
+  cancelTimer: () => void
+  tick: () => void
+}
 
 let stopTimer: ReturnType<typeof setTimeout> | null = null
 /** setTimeout clamps anything larger than this to 1ms in the browser. */
@@ -27,7 +33,10 @@ export const useSleepTimerStore = create<SleepTimerState>((set, get) => ({
     // The deadline belongs to playback, independently of the timer dialog.
     armStopTimer(() => get().tick(), safeMinutes * 60_000)
   },
-  cancelTimer: () => { clearStopTimer(); set({ deadline: null, remaining: 0 }) },
+  cancelTimer: () => {
+    clearStopTimer()
+    set({ deadline: null, remaining: 0 })
+  },
   tick: () => {
     const deadline = get().deadline
     if (!deadline) return

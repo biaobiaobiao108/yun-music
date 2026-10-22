@@ -36,9 +36,12 @@ export function applyThemePreferences(preferences: ThemePreferences): void {
   // The manifest color is only a fallback. Keep the installed app's title bar
   // aligned with the selected appearance, including a later return to system.
   for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
-    const color = appearance === 'system'
-      ? meta.media.includes('dark') ? TITLE_BAR_COLORS.dark : TITLE_BAR_COLORS.light
-      : TITLE_BAR_COLORS[appearance]
+    const color =
+      appearance === 'system'
+        ? meta.media.includes('dark')
+          ? TITLE_BAR_COLORS.dark
+          : TITLE_BAR_COLORS.light
+        : TITLE_BAR_COLORS[appearance]
     meta.content = color
   }
 }
@@ -54,4 +57,3 @@ export function updateThemePreferences(next: Partial<ThemePreferences>): ThemePr
 export function toggleAppearance(current: Appearance): Appearance {
   return current === 'dark' ? 'light' : 'dark'
 }
-

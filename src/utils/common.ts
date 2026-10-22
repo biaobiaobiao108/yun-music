@@ -7,7 +7,6 @@
  */
 export const getRandom = (min: number, max: number): number => Math.floor(Math.random() * (max - min)) + min
 
-
 export const sizeFormate = (size: number): string => {
   // https://gist.github.com/thomseddon/3511330
   if (!size) return '0 B'
@@ -33,12 +32,13 @@ export const toDateObj = (date: any): Date | '' => {
     // eslint-disable-next-line no-fallthrough
     case 'object':
       break
-    default: return ''
+    default:
+      return ''
   }
   return date
 }
 
-const numFix = (n: number): string => n < 10 ? (`0${n}`) : n.toString()
+const numFix = (n: number): string => (n < 10 ? `0${n}` : n.toString())
 /**
  * 时间格式化
  * @param _date 时间
@@ -57,7 +57,6 @@ export const dateFormat = (_date: any, format = 'Y-M-D h:m:s') => {
     .replace('s', numFix(date.getSeconds()))
 }
 
-
 export const formatPlayTime = (time: number) => {
   let m = Math.trunc(time / 60)
   let s = Math.trunc(time % 60)
@@ -70,7 +69,6 @@ export const formatPlayTime2 = (time: number) => {
   return numFix(m) + ':' + numFix(s)
 }
 
-
 const encodeNames = {
   '&nbsp;': ' ',
   '&amp;': '&',
@@ -81,7 +79,12 @@ const encodeNames = {
   '&#039;': "'",
 } as const
 export const decodeName = (str: string | null = '') => {
-  return str?.replace(/(?:&amp;|&lt;|&gt;|&quot;|&apos;|&#039;|&nbsp;)/gm, (s: string) => encodeNames[s as keyof typeof encodeNames]) ?? ''
+  return (
+    str?.replace(
+      /(?:&amp;|&lt;|&gt;|&quot;|&apos;|&#039;|&nbsp;)/gm,
+      (s: string) => encodeNames[s as keyof typeof encodeNames],
+    ) ?? ''
+  )
 }
 
 export const isUrl = (path: string) => /https?:\/\//.test(path)
@@ -139,7 +142,6 @@ export function debounce<Args extends any[]>(fn: (...args: Args) => void | Promi
 const fileNameRxp = /[\\/:*?#"<>|]/g
 export const filterFileName = (name: string): string => name.replace(fileNameRxp, '')
 
-
 // https://blog.csdn.net/xcxy2015/article/details/77164126#comments
 /**
  *
@@ -148,7 +150,8 @@ export const filterFileName = (name: string): string => name.replace(fileNameRxp
  */
 export const similar = (a: string, b: string) => {
   if (!a || !b) return 0
-  if (a.length > b.length) { // 保证 a <= b
+  if (a.length > b.length) {
+    // 保证 a <= b
     let t = b
     b = a
     a = t
@@ -168,7 +171,7 @@ export const similar = (a: string, b: string) => {
       mp[j] = tmp
     }
   }
-  return 1 - (mp[bl] / bl)
+  return 1 - mp[bl] / bl
 }
 
 /**
@@ -176,7 +179,7 @@ export const similar = (a: string, b: string) => {
  * @param arr
  * @param data
  */
-export const sortInsert = <T>(arr: Array<{ num: number, data: T }>, data: { num: number, data: T }) => {
+export const sortInsert = <T>(arr: Array<{ num: number; data: T }>, data: { num: number; data: T }) => {
   let key = data.num
   let left = 0
   let right = arr.length - 1
@@ -203,7 +206,6 @@ export const sortInsert = <T>(arr: Array<{ num: number, data: T }>, data: { num:
 export const encodePath = (path: string) => {
   return encodeURI(path.replaceAll('\\', '/'))
 }
-
 
 export const arrPush = <T>(list: T[], newList: T[]) => {
   for (let i = 0; i * 1000 < newList.length; i++) {

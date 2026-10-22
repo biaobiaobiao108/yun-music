@@ -7,12 +7,12 @@ declare global {
     config: LX.Config
     staticPath: string
     saveConfig: () => void
-    lastCpuSample?: { idle: number, total: number }
-    lastProcessSample?: { cpu: NodeJS.CpuUsage, time: number }
+    lastCpuSample?: { idle: number; total: number }
+    lastProcessSample?: { cpu: NodeJS.CpuUsage; time: number }
   }
 
   // var envParams: LX.EnvParams
   var lx: Lx
 }
 
-export { }
+export {}

@@ -1,4 +1,9 @@
-export function reorderCustomSourceIds(sourceIds: string[], sourceId: string, targetId: string, afterTarget: boolean): string[] | null {
+export function reorderCustomSourceIds(
+  sourceIds: string[],
+  sourceId: string,
+  targetId: string,
+  afterTarget: boolean,
+): string[] | null {
   if (!sourceId || sourceId === targetId) return null
   const orderedIds = [...sourceIds]
   const sourceIndex = orderedIds.indexOf(sourceId)

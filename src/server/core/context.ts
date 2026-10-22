@@ -52,9 +52,8 @@ const MAX_BUFFERED_REQUEST_BODY_BYTES = 128 * 1024 * 1024
 let bufferedRequestBodyBudgetBytes = 0
 
 /** Validate configuration values that are later passed to Headers.get(). */
-export const isValidHttpHeaderName = (value: unknown): value is string => (
+export const isValidHttpHeaderName = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 256 && HTTP_TOKEN_PATTERN.test(value)
-)
 
 /** Normalize a trusted-proxy allowlist and reject non-IP entries early. */
 export const normalizeTrustedProxyAddresses = (value: unknown): string[] => {
@@ -67,10 +66,14 @@ export const normalizeTrustedProxyAddresses = (value: unknown): string[] => {
         : null
   if (!values) throw new Error('可信代理地址格式无效')
 
-  const normalized = [...new Set(values
-    .map(item => String(item).trim())
-    .filter(Boolean)
-    .map(normalizeAddress))]
+  const normalized = [
+    ...new Set(
+      values
+        .map(item => String(item).trim())
+        .filter(Boolean)
+        .map(normalizeAddress),
+    ),
+  ]
   if (normalized.some(address => isIP(address) === 0)) throw new Error('可信代理地址必须是 IP 地址')
   return normalized
 }
@@ -91,11 +94,13 @@ export const resolveRequestOrigin = (
 ): string => {
   if (!trustForwardedHeaders) return internalUrl.origin
 
-  const forwardedProtocol = firstHeaderValue(request.headers.get('x-forwarded-proto'))
-    || (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'proto') : null)
-  const forwardedHost = (trustForwardedHost ? firstHeaderValue(request.headers.get('x-forwarded-host')) : null)
-    || (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'host') : null)
-    || firstHeaderValue(request.headers.get('host'))
+  const forwardedProtocol =
+    firstHeaderValue(request.headers.get('x-forwarded-proto')) ||
+    (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'proto') : null)
+  const forwardedHost =
+    (trustForwardedHost ? firstHeaderValue(request.headers.get('x-forwarded-host')) : null) ||
+    (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'host') : null) ||
+    firstHeaderValue(request.headers.get('host'))
 
   const externalUrl = new URL(internalUrl.href)
   if (forwardedProtocol === 'http' || forwardedProtocol === 'https') {
@@ -126,11 +131,7 @@ export const resolveRequestOrigin = (
  * origin，随后由 CORS 中间件拒绝。未在受信任名单时不采信客户端伪造的
  * X-Forwarded-Host。
  */
-const resolveContextRequestOrigin = (
-  request: Request,
-  internalUrl: URL,
-  trustedProxy: boolean,
-): string => {
+const resolveContextRequestOrigin = (request: Request, internalUrl: URL, trustedProxy: boolean): string => {
   if (trustedProxy) return resolveRequestOrigin(request, internalUrl, true, true)
 
   const browserOrigin = request.headers.get('origin')
@@ -145,7 +146,7 @@ const resolveContextRequestOrigin = (
  * 英文/技术性异常（如 SDK、fs、fetch 抛出的原文）统一替换为中文兜底文案。
  */
 export const toUserMessage = (err: unknown, fallback: string): string => {
-  const raw = err instanceof Error ? err.message : (typeof err === 'string' ? err : '')
+  const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
   return /[\u4e00-\u9fa5]/.test(raw) ? raw : fallback
 }
 
@@ -182,9 +183,7 @@ export class HttpContext {
     this.requestOrigin = resolveContextRequestOrigin(request, this.url, trustedProxy)
     this.isSecure = this.requestOrigin.startsWith('https://')
     const incomingRequestId = request.headers.get('x-request-id')?.trim() || ''
-    this.requestId = /^[A-Za-z0-9._-]{1,64}$/.test(incomingRequestId)
-      ? incomingRequestId
-      : crypto.randomUUID()
+    this.requestId = /^[A-Za-z0-9._-]{1,64}$/.test(incomingRequestId) ? incomingRequestId : crypto.randomUUID()
   }
 
   /**
@@ -202,9 +201,8 @@ export class HttpContext {
         // incoming X-Forwarded-For chain. The rightmost value is therefore the
         // address supplied by that proxy, while the leftmost may be client-
         // controlled. Do not fall back to an earlier value if it is malformed.
-        const value = headerName === 'x-forwarded-for'
-          ? forwardedValues[forwardedValues.length - 1]
-          : forwardedValues[0]
+        const value =
+          headerName === 'x-forwarded-for' ? forwardedValues[forwardedValues.length - 1] : forwardedValues[0]
         const normalized = normalizeForwardedAddress(value?.trim())
         if (normalized) return normalized
       }
@@ -249,9 +247,7 @@ export class HttpContext {
 
   /** 解析纯文本请求体 */
   async bodyText(maxBytes = 20 * 1024 * 1024): Promise<string> {
-    return this.withBodyBufferBudget(maxBytes, async () => (
-      new TextDecoder().decode(await this.readBodyBytes(maxBytes))
-    ))
+    return this.withBodyBufferBudget(maxBytes, async () => new TextDecoder().decode(await this.readBodyBytes(maxBytes)))
   }
 
   private async withBodyBufferBudget<T>(maxBytes: number, read: () => Promise<T>): Promise<T> {
@@ -308,7 +304,9 @@ export class HttpContext {
         try {
           this.reserveBodyBufferBudget(total)
         } catch (error) {
-          try { await reader.cancel(error) } catch { }
+          try {
+            await reader.cancel(error)
+          } catch {}
           throw error
         }
         chunks.push(chunk)

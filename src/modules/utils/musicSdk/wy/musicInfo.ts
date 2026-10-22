@@ -6,7 +6,8 @@ export default (songmid: any) => {
   const requestObj = httpFetch('https://music.163.com/weapi/v3/song/detail', {
     method: 'post',
     headers: {
-      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+      'User-Agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
       Referer: 'https://music.163.com/song?id=' + songmid,
       origin: 'https://music.163.com',
     },
@@ -22,4 +23,3 @@ export default (songmid: any) => {
   })
   return requestObj
 }
-

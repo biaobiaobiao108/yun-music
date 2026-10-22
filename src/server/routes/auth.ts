@@ -35,9 +35,11 @@ let lastUserConfigReference: unknown = Symbol('uninitialized')
 
 const hashUserSession = (sessionId: string): string => crypto.createHash('sha256').update(sessionId).digest('hex')
 
-const escapeLogControls = (value: string): string => value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, character => (
-  `\\u${character.codePointAt(0)!.toString(16).padStart(4, '0')}`
-))
+const escapeLogControls = (value: string): string =>
+  value.replace(
+    /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g,
+    character => `\\u${character.codePointAt(0)!.toString(16).padStart(4, '0')}`,
+  )
 
 const deletePersistedUserSession = (sessionId: string): void => {
   getDb().run('DELETE FROM user_sessions WHERE session_hash = ?', [hashUserSession(sessionId)])
@@ -68,14 +70,16 @@ const issueUserSession = (username: string): string => {
   const sessionId = crypto.randomBytes(32).toString('hex')
   const createdAt = Date.now()
   userSessions.set(sessionId, { username, createdAt })
-  getDb().run(
-    'INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)',
-    [hashUserSession(sessionId), username, createdAt]
-  )
+  getDb().run('INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)', [
+    hashUserSession(sessionId),
+    username,
+    createdAt,
+  ])
   return sessionId
 }
 
-const isActiveUser = (username: string): boolean => (global.lx?.config?.users ?? []).some(user => user.name === username)
+const isActiveUser = (username: string): boolean =>
+  (global.lx?.config?.users ?? []).some(user => user.name === username)
 
 /** 撤销某个用户的全部浏览器会话。 */
 export const revokeUserAuth = (username: string): void => {
@@ -107,13 +111,17 @@ export const verifyUserAuth = (ctx: HttpContext | HeaderSource): string | null =
     const now = Date.now()
     // SQLite is authoritative across workers. Never accept a warm local cache
     // entry without checking that the session still exists in the shared DB.
-    const persisted = getDb().query<{ user_name: string; created_at: number }, [string]>(
-      'SELECT user_name, created_at FROM user_sessions WHERE session_hash = ?'
-    ).get(hashUserSession(sessionId))
+    const persisted = getDb()
+      .query<{ user_name: string; created_at: number }, [string]>(
+        'SELECT user_name, created_at FROM user_sessions WHERE session_hash = ?',
+      )
+      .get(hashUserSession(sessionId))
     if (!persisted || now - persisted.created_at > USER_SESSION_TTL || !isActiveUser(persisted.user_name)) {
       userSessions.delete(sessionId)
       if (persisted) {
-        try { deletePersistedUserSession(sessionId) } catch { }
+        try {
+          deletePersistedUserSession(sessionId)
+        } catch {}
       }
       return null
     }
@@ -126,13 +134,13 @@ export const verifyUserAuth = (ctx: HttpContext | HeaderSource): string | null =
   }
 }
 
-const cookie = (name: string, value: string, maxAge: number, secure: boolean): string => (
+const cookie = (name: string, value: string, maxAge: number, secure: boolean): string =>
   `${name}=${encodeURIComponent(value)}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
-)
 
-const loginRateLimitedResponse = (ctx: HttpContext): Response => ctx.fail(429, '登录失败次数过多，已暂时限制登录，请 15 分钟后再试', {
-  retryAfter: 15 * 60,
-})
+const loginRateLimitedResponse = (ctx: HttpContext): Response =>
+  ctx.fail(429, '登录失败次数过多，已暂时限制登录，请 15 分钟后再试', {
+    retryAfter: 15 * 60,
+  })
 const passwordCapacityResponse = (ctx: HttpContext): Response => ctx.fail(503, '登录服务繁忙，请稍后重试')
 
 const configuredUsers = (): LX.Config['users'] => global.lx.config.users ?? []
@@ -145,7 +153,13 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
     if (typeof password !== 'string' || password.length > 1024) {
       return ctx.fail(400, '密码格式错误')
     }
-    if (!await verifyConfiguredPassword(password, global.lx.config['frontend.passwordHash'], global.lx.config['frontend.password'])) {
+    if (
+      !(await verifyConfiguredPassword(
+        password,
+        global.lx.config['frontend.passwordHash'],
+        global.lx.config['frontend.password'],
+      ))
+    ) {
       recordLoginFailure(ip)
       loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
       return ctx.fail(401, '管理员密码错误')
@@ -153,7 +167,9 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
     clearLoginFailures(ip)
     const sessionId = createAdminSession()
     loginLog.info(`Admin login success from ${ctx.remoteAddress}`)
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, ADMIN_SESSION_TTL / 1000, ctx.isSecure) })
+    return ctx.json({ success: true }, 200, {
+      'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, sessionId, ADMIN_SESSION_TTL / 1000, ctx.isSecure),
+    })
   } catch (error) {
     if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
     return ctx.fail(400, '请求格式错误，请刷新页面后重试')
@@ -164,39 +180,48 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
 export const createAuthRouter = (): Router => {
   const router = new Router()
 
-  router.get('/api/music/config', (ctx) => {
+  router.get('/api/music/config', ctx => {
     const config = global.lx.config
-    return ctx.json({
-      'player.enableAuth': config['player.enableAuth'] || false,
-      'user.enablePublicRestriction': config['user.enablePublicRestriction'] || false,
-      'user.enablePublicFavorites': config['user.enablePublicFavorites'] || false,
-      'user.enablePublicNonAdminAccess': config['user.enablePublicNonAdminAccess'] || false,
-      'user.enablePublicNonAdminLocalMusic': config['user.enablePublicNonAdminLocalMusic'] || false,
-    }, 200, { 'Cache-Control': 'no-cache' })
+    return ctx.json(
+      {
+        'player.enableAuth': config['player.enableAuth'] || false,
+        'user.enablePublicRestriction': config['user.enablePublicRestriction'] || false,
+        'user.enablePublicFavorites': config['user.enablePublicFavorites'] || false,
+        'user.enablePublicNonAdminAccess': config['user.enablePublicNonAdminAccess'] || false,
+        'user.enablePublicNonAdminLocalMusic': config['user.enablePublicNonAdminLocalMusic'] || false,
+      },
+      200,
+      { 'Cache-Control': 'no-cache' },
+    )
   })
 
   router.post('/api/admin/verify', handleAdminLogin)
   router.post('/api/login', handleAdminLogin)
 
-  router.post('/api/logout', (ctx) => {
+  router.post('/api/logout', ctx => {
     const sessionId = ctx.cookies[ADMIN_SESSION_COOKIE_NAME]
     if (sessionId) removeAdminSession(sessionId)
     return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
   })
 
-  router.post('/api/user/login', async (ctx) => {
+  router.post('/api/user/login', async ctx => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
       if (isLoginRateLimited(ip, 'user')) return loginRateLimitedResponse(ctx)
       const { username, password } = await ctx.bodyJson<{ username?: string; password?: string }>(64 * 1024)
-      if (typeof username !== 'string' || username.length > 128 || typeof password !== 'string' || password.length > 1024) {
+      if (
+        typeof username !== 'string' ||
+        username.length > 128 ||
+        typeof password !== 'string' ||
+        password.length > 1024
+      ) {
         return ctx.fail(400, '用户名或密码格式错误')
       }
       // Hash first, look up second: an unknown username must cost the same as a
       // wrong password, otherwise the response time enumerates accounts.
-      const storedRow = getDb().query<{ password_hash: string }, [string]>(
-        'SELECT password_hash FROM users WHERE name = ?'
-      ).get(username)
+      const storedRow = getDb()
+        .query<{ password_hash: string }, [string]>('SELECT password_hash FROM users WHERE name = ?')
+        .get(username)
       const matchedUser = configuredUsers().find(item => item.name === username)
       const passwordOk = await verifyUserPassword(
         storedRow?.password_hash || matchedUser?.passwordHash || DUMMY_PASSWORD_HASH,
@@ -211,14 +236,16 @@ export const createAuthRouter = (): Router => {
       clearLoginFailures(ip, 'user')
       const sessionId = issueUserSession(user.name)
       loginLog.info(`User login success: ${escapeLogControls(user.name)} from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true, username: user.name }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, sessionId, USER_SESSION_TTL / 1000, ctx.isSecure) })
+      return ctx.json({ success: true, username: user.name }, 200, {
+        'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, sessionId, USER_SESSION_TTL / 1000, ctx.isSecure),
+      })
     } catch (error) {
       if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
   })
 
-  router.post('/api/user/logout', (ctx) => {
+  router.post('/api/user/logout', ctx => {
     const sessionId = ctx.cookies[USER_SESSION_COOKIE_NAME]
     if (sessionId) {
       userSessions.delete(sessionId)
@@ -227,9 +254,9 @@ export const createAuthRouter = (): Router => {
     return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
   })
 
-  router.get('/api/music/auth/verify', (ctx) => ctx.json({ valid: checkPlayerAuthSession(ctx.cookies) }))
+  router.get('/api/music/auth/verify', ctx => ctx.json({ valid: checkPlayerAuthSession(ctx.cookies) }))
 
-  router.post('/api/music/auth', async (ctx) => {
+  router.post('/api/music/auth', async ctx => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
       if (isLoginRateLimited(ip, 'player')) return loginRateLimitedResponse(ctx)
@@ -237,7 +264,13 @@ export const createAuthRouter = (): Router => {
       if (typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '密码格式错误')
       }
-      if (!await verifyConfiguredPassword(password, global.lx.config['player.passwordHash'], global.lx.config['player.password'])) {
+      if (
+        !(await verifyConfiguredPassword(
+          password,
+          global.lx.config['player.passwordHash'],
+          global.lx.config['player.password'],
+        ))
+      ) {
         recordLoginFailure(ip, 'player')
         loginLog.warn(`Player login failed from ${ctx.remoteAddress}`)
         return ctx.fail(401, '播放器密码错误，请重新输入')
@@ -245,20 +278,22 @@ export const createAuthRouter = (): Router => {
       clearLoginFailures(ip, 'player')
       const sessionId = createPlayerSession()
       loginLog.info(`Player login success from ${ctx.remoteAddress}`)
-      return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, sessionId, PLAYER_SESSION_TTL / 1000, ctx.isSecure) })
+      return ctx.json({ success: true }, 200, {
+        'Set-Cookie': cookie(SESSION_COOKIE_NAME, sessionId, PLAYER_SESSION_TTL / 1000, ctx.isSecure),
+      })
     } catch (error) {
       if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
       return ctx.fail(400, '请求格式错误，请刷新页面后重试')
     }
   })
 
-  router.post('/api/music/auth/logout', (ctx) => {
+  router.post('/api/music/auth/logout', ctx => {
     const sessionId = ctx.cookies[SESSION_COOKIE_NAME]
     if (sessionId) removePlayerSession(sessionId)
     return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
   })
 
-  router.get('/api/user/auth/verify', (ctx) => {
+  router.get('/api/user/auth/verify', ctx => {
     const username = verifyUserAuth(ctx)
     return ctx.json({ valid: Boolean(username), username })
   })

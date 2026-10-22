@@ -28,7 +28,9 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
   afterEach(() => {
     closeDb()
     if (testDataDir) {
-      try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
+      try {
+        fs.rmSync(testDataDir, { recursive: true, force: true })
+      } catch {}
       testDataDir = ''
     }
   })
@@ -87,12 +89,14 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     const lastModified = html.headers.get('Last-Modified')
     expect(htmlEtag).toBeTruthy()
     expect(lastModified).toBeTruthy()
-    const staleValidator = await router.handle(new Request('http://localhost:9527/', {
-      headers: {
-        'if-none-match': 'W/"stale"',
-        'if-modified-since': lastModified!,
-      },
-    }))
+    const staleValidator = await router.handle(
+      new Request('http://localhost:9527/', {
+        headers: {
+          'if-none-match': 'W/"stale"',
+          'if-modified-since': lastModified!,
+        },
+      }),
+    )
     expect(staleValidator.status).toBe(200)
     const head = await router.handle(new Request(`http://localhost:9527/${adminEntry}`, { method: 'HEAD' }))
     expect(head.status).toBe(200)
@@ -100,7 +104,7 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
   })
 
   test('Player auth redirects to login when enabled and unauthenticated', async () => {
-    (global as any).lx.config['player.enableAuth'] = true
+    ;(global as any).lx.config['player.enableAuth'] = true
 
     const router = new Router()
     router.mount('/', createStaticRouter())
@@ -113,7 +117,7 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
   })
 
   test('Public player assets bypass player auth', async () => {
-    (global as any).lx.config['player.enableAuth'] = true
+    ;(global as any).lx.config['player.enableAuth'] = true
 
     const router = new Router()
     router.mount('/', createStaticRouter())
@@ -124,7 +128,7 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     expect(res.status).not.toBe(302)
   })
 
-  test.each(['/music', '/listen'])('Built login entry loads without a session at %s', async (playerPath) => {
+  test.each(['/music', '/listen'])('Built login entry loads without a session at %s', async playerPath => {
     global.lx.config['player.enableAuth'] = true
     global.lx.config['player.path'] = playerPath
     const router = createStaticRouter()

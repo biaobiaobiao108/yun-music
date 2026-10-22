@@ -20,4 +20,3 @@ export const getAddress = (): string[] => {
 export const generateCode = (): string => {
   return Math.random().toString().substring(2, 8)
 }
-

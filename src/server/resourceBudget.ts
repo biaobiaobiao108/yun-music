@@ -33,8 +33,14 @@ export class ResourceBudget {
   constructor(private readonly limits: { maxActive: number; maxBytes: number; maxWaiting: number; waitMs?: number }) {}
 
   getStats() {
-    return { active: this.active, reservedBytes: this.bytes, waiting: this.waiting.length,
-      maxActive: this.limits.maxActive, maxBytes: this.limits.maxBytes, maxWaiting: this.limits.maxWaiting }
+    return {
+      active: this.active,
+      reservedBytes: this.bytes,
+      waiting: this.waiting.length,
+      maxActive: this.limits.maxActive,
+      maxBytes: this.limits.maxBytes,
+      maxWaiting: this.limits.maxWaiting,
+    }
   }
 
   private fits(bytes: number) {
@@ -79,7 +85,8 @@ export class ResourceBudget {
     }
     const available = this.tryAcquire(bytes)
     if (available) return Promise.resolve(available)
-    if (this.waiting.length >= this.limits.maxWaiting) return Promise.reject(new Error('服务器请求队列已满，请稍后重试'))
+    if (this.waiting.length >= this.limits.maxWaiting)
+      return Promise.reject(new Error('服务器请求队列已满，请稍后重试'))
     return new Promise((resolve, reject) => {
       const waiter: Waiter = { bytes, resolve, reject, signal }
       const fail = (message: string) => {
@@ -101,10 +108,23 @@ export class ResourceBudget {
 
 const limits = getWorkloadLimits()
 const cacheUnit = Math.floor(limits.cacheBytes / 8)
-export const memoryCacheBudgets = { sourceMatch: cacheUnit * 2, singers: cacheUnit, general: cacheUnit,
-  index: cacheUnit * 2, compressed: cacheUnit * 2 }
-const bufferedRequests = new ResourceBudget({ maxActive: limits.bufferedRequests, maxBytes: limits.bufferedBytes, maxWaiting: limits.pendingRequests })
-const mediaStreams = new ResourceBudget({ maxActive: limits.mediaStreams, maxBytes: limits.mediaStreams, maxWaiting: 0 })
+export const memoryCacheBudgets = {
+  sourceMatch: cacheUnit * 2,
+  singers: cacheUnit,
+  general: cacheUnit,
+  index: cacheUnit * 2,
+  compressed: cacheUnit * 2,
+}
+const bufferedRequests = new ResourceBudget({
+  maxActive: limits.bufferedRequests,
+  maxBytes: limits.bufferedBytes,
+  maxWaiting: limits.pendingRequests,
+})
+const mediaStreams = new ResourceBudget({
+  maxActive: limits.mediaStreams,
+  maxBytes: limits.mediaStreams,
+  maxWaiting: 0,
+})
 let activeDownloads = 0
 const mediaAvailabilityListeners = new Set<() => void>()
 
@@ -114,16 +134,27 @@ export interface BufferedRequestLease {
   release: Release
 }
 
-export const acquireBufferedRequestBudget = async (maxBytes: number, signal?: AbortSignal): Promise<BufferedRequestLease> => {
+export const acquireBufferedRequestBudget = async (
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<BufferedRequestLease> => {
   // Reserve room for chunks, concatenated bytes and parsed/string data.
   const allowed = Math.max(1, Math.min(Math.floor(maxBytes), Math.floor(limits.bufferedBytes / 3)))
   const release = await bufferedRequests.acquire(allowed * 3, signal)
-  return { maxBytes: allowed, release: () => { release(); memoryMaintenance.schedule('buffered request end') } }
+  return {
+    maxBytes: allowed,
+    release: () => {
+      release()
+      memoryMaintenance.schedule('buffered request end')
+    },
+  }
 }
 
 export const onMediaBudgetAvailable = (listener: () => void) => {
   mediaAvailabilityListeners.add(listener)
-  return () => { mediaAvailabilityListeners.delete(listener) }
+  return () => {
+    mediaAvailabilityListeners.delete(listener)
+  }
 }
 
 export const tryAcquireMediaStream = (): Release | null => {
@@ -135,7 +166,11 @@ export const tryAcquireMediaStream = (): Release | null => {
     released = true
     release()
     for (const listener of mediaAvailabilityListeners) {
-      try { listener() } catch (err) { console.error('[ResourceBudget] listener error:', err) }
+      try {
+        listener()
+      } catch (err) {
+        console.error('[ResourceBudget] listener error:', err)
+      }
     }
   }
 }
@@ -154,7 +189,11 @@ export const tryAcquireDownloadSlot = (): Release | null => {
   }
 }
 
-export const getResourceBudgetStats = () => ({ buffered: bufferedRequests.getStats(), media: mediaStreams.getStats(),
-  downloads: { active: activeDownloads, maxActive: limits.downloads }, cacheLimits: memoryCacheBudgets })
+export const getResourceBudgetStats = () => ({
+  buffered: bufferedRequests.getStats(),
+  media: mediaStreams.getStats(),
+  downloads: { active: activeDownloads, maxActive: limits.downloads },
+  cacheLimits: memoryCacheBudgets,
+})
 
 export const isResourceBudgetBusy = () => bufferedRequests.getStats().active > 0 || mediaStreams.getStats().active > 0

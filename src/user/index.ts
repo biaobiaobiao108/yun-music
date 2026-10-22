@@ -1,8 +1,5 @@
 import { UserDataManage } from './data'
-import {
-  ListManage,
-  DislikeManage,
-} from '@/modules'
+import { ListManage, DislikeManage } from '@/modules'
 
 export interface UserSpace {
   dataManage: UserDataManage
@@ -42,11 +39,14 @@ export const getUserSpace = (userName: string) => {
     const dataManage = new UserDataManage(userName)
     const listManage = new ListManage(dataManage)
     const dislikeManage = new DislikeManage(dataManage)
-    users.set(userName, user = {
-      dataManage,
-      listManage,
-      dislikeManage,
-    })
+    users.set(
+      userName,
+      (user = {
+        dataManage,
+        listManage,
+        dislikeManage,
+      }),
+    )
   }
   return user
 }
@@ -79,6 +79,5 @@ export const renameUserSpace = (oldName: string) => {
 export const finishRenameUserSpace = (oldName: string) => {
   renamingUsers.delete(oldName)
 }
-
 
 export * from './data'

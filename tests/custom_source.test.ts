@@ -12,10 +12,11 @@ import { closeDb, getDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user'
 
 const persistUserSession = (sessionId: string, username: string, createdAt = Date.now()) => {
-  getDb().run(
-    'INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)',
-    [createHash('sha256').update(sessionId).digest('hex'), username, createdAt],
-  )
+  getDb().run('INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)', [
+    createHash('sha256').update(sessionId).digest('hex'),
+    username,
+    createdAt,
+  ])
 }
 
 describe('Custom Source Security and Isolation', () => {
@@ -43,7 +44,7 @@ describe('Custom Source Security and Isolation', () => {
     ;(global as any).lx = prevGlobalLx
     try {
       fs.rmSync(tempRoot, { recursive: true, force: true })
-    } catch { }
+    } catch {}
   })
 
   test('custom source mutations require admin and admin reorder does not tamper with public metadata', async () => {
@@ -133,7 +134,9 @@ describe('Custom Source Security and Isolation', () => {
     const router = createCustomSourceRouter()
     const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
-    const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote').mockRejectedValue(new Error('Remote response is too large'))
+    const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote').mockRejectedValue(
+      new Error('Remote response is too large'),
+    )
 
     try {
       const req = new Request('http://localhost:9527/api/custom-source/import', {
@@ -179,17 +182,25 @@ describe('Custom Source Security and Isolation', () => {
     const userDir = path.join(tempRoot, 'data', 'users', 'source', 'normal_user')
     fs.mkdirSync(openDir, { recursive: true })
     fs.mkdirSync(userDir, { recursive: true })
-    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: 'public.js', name: 'Public', enabled: true }]))
+    fs.writeFileSync(
+      path.join(openDir, 'sources.json'),
+      JSON.stringify([{ id: 'public.js', name: 'Public', enabled: true }]),
+    )
     fs.writeFileSync(path.join(openDir, 'states.json'), JSON.stringify({ 'public.js': { enabled: false } }))
-    fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]))
+    fs.writeFileSync(
+      path.join(userDir, 'sources.json'),
+      JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]),
+    )
 
     const sessionId = 'source-list-user-session'
     const createdAt = Date.now()
     userSessions.set(sessionId, { username: 'normal_user', createdAt })
     persistUserSession(sessionId, 'normal_user', createdAt)
-    const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list?username=normal_user', {
-      headers: { cookie: `${USER_SESSION_COOKIE_NAME}=${sessionId}` },
-    }))
+    const response = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/list?username=normal_user', {
+        headers: { cookie: `${USER_SESSION_COOKIE_NAME}=${sessionId}` },
+      }),
+    )
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([
       { id: 'public.js', name: 'Public', enabled: true, owner: 'open', isPublic: true },
@@ -201,16 +212,21 @@ describe('Custom Source Security and Isolation', () => {
     const router = createCustomSourceRouter()
     const openDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
     fs.mkdirSync(openDir, { recursive: true })
-    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{
-      id: 'imported.js',
-      name: 'Imported',
-      enabled: false,
-      sourceUrl: 'https://example.com/source.js?token=do-not-leak',
-    }]))
+    fs.writeFileSync(
+      path.join(openDir, 'sources.json'),
+      JSON.stringify([
+        {
+          id: 'imported.js',
+          name: 'Imported',
+          enabled: false,
+          sourceUrl: 'https://example.com/source.js?token=do-not-leak',
+        },
+      ]),
+    )
 
     const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list'))
     expect(response.status).toBe(200)
-    const body = await response.json() as Array<Record<string, unknown>>
+    const body = (await response.json()) as Array<Record<string, unknown>>
     expect(body[0]).not.toHaveProperty('sourceUrl')
     expect(JSON.stringify(body)).not.toContain('do-not-leak')
   })
@@ -220,37 +236,53 @@ describe('Custom Source Security and Isolation', () => {
     const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
     const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote')
-      .mockResolvedValueOnce(new Response('/*!\n@name Remote Source\n@version 1.0.0\n*/\nlx.send("inited", { status: true, sources: { wy: "wy" } })'))
-      .mockResolvedValueOnce(new Response('/*!\n@name Remote Source\n@version 2.0.0\n*/\nlx.send("inited", { status: true, sources: { wy: "wy" } })'))
+      .mockResolvedValueOnce(
+        new Response(
+          '/*!\n@name Remote Source\n@version 1.0.0\n*/\nlx.send("inited", { status: true, sources: { wy: "wy" } })',
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          '/*!\n@name Remote Source\n@version 2.0.0\n*/\nlx.send("inited", { status: true, sources: { wy: "wy" } })',
+        ),
+      )
     const sourceUrl = 'https://example.com/source.js?token=keep-private'
 
     try {
-      const importResponse = await router.handle(new Request('http://localhost:9527/api/custom-source/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-        body: JSON.stringify({ url: sourceUrl, username: 'open' }),
-      }))
-      const imported = await importResponse.json() as { success: boolean; id: string }
+      const importResponse = await router.handle(
+        new Request('http://localhost:9527/api/custom-source/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+          body: JSON.stringify({ url: sourceUrl, username: 'open' }),
+        }),
+      )
+      const imported = (await importResponse.json()) as { success: boolean; id: string }
       expect(imported.success).toBe(true)
       expect(imported.id).toBe('Remote Source.js')
 
-      const updateResponse = await router.handle(new Request('http://localhost:9527/api/custom-source/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-        body: JSON.stringify({ id: imported.id, sourceOwner: 'open' }),
-      }))
+      const updateResponse = await router.handle(
+        new Request('http://localhost:9527/api/custom-source/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+          body: JSON.stringify({ id: imported.id, sourceOwner: 'open' }),
+        }),
+      )
       expect(updateResponse.status).toBe(200)
       expect(await updateResponse.json()).toMatchObject({ success: true, id: imported.id, owner: 'open' })
 
       const sourceDir = path.join(tempRoot, 'data', 'users', 'source', '_open')
-      const metadata = JSON.parse(fs.readFileSync(path.join(sourceDir, 'sources.json'), 'utf-8')) as Array<Record<string, unknown>>
+      const metadata = JSON.parse(fs.readFileSync(path.join(sourceDir, 'sources.json'), 'utf-8')) as Array<
+        Record<string, unknown>
+      >
       expect(metadata[0]).toMatchObject({ id: imported.id, version: '2.0.0', enabled: false, sourceUrl })
       expect(fs.readFileSync(path.join(sourceDir, imported.id), 'utf-8')).toContain('@version 2.0.0')
 
-      const listResponse = await router.handle(new Request('http://localhost:9527/api/custom-source/list', {
-        headers: { cookie: adminCookie },
-      }))
-      const listed = await listResponse.json() as Array<Record<string, unknown>>
+      const listResponse = await router.handle(
+        new Request('http://localhost:9527/api/custom-source/list', {
+          headers: { cookie: adminCookie },
+        }),
+      )
+      const listed = (await listResponse.json()) as Array<Record<string, unknown>>
       expect(listed[0]).toMatchObject({ id: imported.id, canUpdate: true })
       expect(listed[0]).not.toHaveProperty('sourceUrl')
       expect(JSON.stringify(listed)).not.toContain('keep-private')
@@ -267,17 +299,25 @@ describe('Custom Source Security and Isolation', () => {
     const userDir = path.join(tempRoot, 'data', 'users', 'source', 'normal_user')
     fs.mkdirSync(openDir, { recursive: true })
     fs.mkdirSync(userDir, { recursive: true })
-    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: 'public.js', name: 'Public', enabled: true }]))
-    fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]))
+    fs.writeFileSync(
+      path.join(openDir, 'sources.json'),
+      JSON.stringify([{ id: 'public.js', name: 'Public', enabled: true }]),
+    )
+    fs.writeFileSync(
+      path.join(userDir, 'sources.json'),
+      JSON.stringify([{ id: 'private.js', name: 'Private', enabled: true }]),
+    )
 
     const userSession = 'admin-scope-user-session'
     const createdAt = Date.now()
     userSessions.set(userSession, { username: 'normal_user', createdAt })
     persistUserSession(userSession, 'normal_user', createdAt)
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}; ${USER_SESSION_COOKIE_NAME}=${userSession}`
-    const response = await router.handle(new Request('http://localhost:9527/api/custom-source/list?username=open', {
-      headers: { cookie },
-    }))
+    const response = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/list?username=open', {
+        headers: { cookie },
+      }),
+    )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([
@@ -305,18 +345,20 @@ describe('Custom Source Security and Isolation', () => {
     fs.writeFileSync(path.join(userDir, 'order.json'), JSON.stringify([sourceId]))
     fs.writeFileSync(path.join(userDir, 'states.json'), JSON.stringify({ [sourceId]: { enabled: true } }))
 
-    const privateDelete = await router.handle(new Request('http://localhost:9527/api/custom-source/delete', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
-      },
-      body: JSON.stringify({
-        username: 'normal_user',
-        sourceId,
-        owner: 'normal_user',
+    const privateDelete = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+        },
+        body: JSON.stringify({
+          username: 'normal_user',
+          sourceId,
+          owner: 'normal_user',
+        }),
       }),
-    }))
+    )
 
     expect(privateDelete.status).toBe(200)
     expect(await privateDelete.json()).toEqual({ success: true, id: sourceId, owner: 'normal_user' })
@@ -326,36 +368,40 @@ describe('Custom Source Security and Isolation', () => {
     expect(JSON.parse(fs.readFileSync(path.join(userDir, 'order.json'), 'utf-8'))).toEqual([])
     expect(JSON.parse(fs.readFileSync(path.join(userDir, 'states.json'), 'utf-8'))).toEqual({})
 
-    const stalePrivateDelete = await router.handle(new Request('http://localhost:9527/api/custom-source/delete', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
-      },
-      body: JSON.stringify({
-        username: 'normal_user',
-        sourceId,
-        owner: 'normal_user',
+    const stalePrivateDelete = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
+        },
+        body: JSON.stringify({
+          username: 'normal_user',
+          sourceId,
+          owner: 'normal_user',
+        }),
       }),
-    }))
+    )
 
     expect(stalePrivateDelete.status).toBe(500)
     expect(await stalePrivateDelete.text()).toContain('源不存在')
     expect(fs.existsSync(path.join(openDir, sourceId))).toBe(true)
 
     const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
-    const publicDelete = await router.handle(new Request('http://localhost:9527/api/custom-source/delete', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        cookie: adminCookie,
-      },
-      body: JSON.stringify({
-        username: 'normal_user',
-        sourceId,
-        owner: 'open',
+    const publicDelete = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: adminCookie,
+        },
+        body: JSON.stringify({
+          username: 'normal_user',
+          sourceId,
+          owner: 'open',
+        }),
       }),
-    }))
+    )
 
     expect(publicDelete.status).toBe(200)
     expect(await publicDelete.json()).toEqual({ success: true, id: sourceId, owner: 'open' })
@@ -376,15 +422,20 @@ describe('Custom Source Security and Isolation', () => {
     fs.mkdirSync(openDir, { recursive: true })
     fs.mkdirSync(userDir, { recursive: true })
     fs.writeFileSync(path.join(openDir, sourceId), script)
-    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: sourceId, name: 'Movable', enabled: false }]))
+    fs.writeFileSync(
+      path.join(openDir, 'sources.json'),
+      JSON.stringify([{ id: sourceId, name: 'Movable', enabled: false }]),
+    )
     fs.writeFileSync(path.join(openDir, 'order.json'), JSON.stringify([sourceId]))
     fs.writeFileSync(path.join(openDir, 'states.json'), JSON.stringify({ [sourceId]: { enabled: true } }))
 
-    const moved = await router.handle(new Request('http://localhost:9527/api/custom-source/assign', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-      body: JSON.stringify({ id: sourceId, fromOwner: 'open', toOwner: 'normal_user' }),
-    }))
+    const moved = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ id: sourceId, fromOwner: 'open', toOwner: 'normal_user' }),
+      }),
+    )
     expect(moved.status).toBe(200)
     expect(await moved.json()).toMatchObject({ success: true, id: sourceId, fromOwner: 'open', toOwner: 'normal_user' })
     expect(fs.existsSync(path.join(openDir, sourceId))).toBe(false)
@@ -395,18 +446,26 @@ describe('Custom Source Security and Isolation', () => {
 
     const collisionId = 'collision-source.js'
     fs.writeFileSync(path.join(userDir, collisionId), script)
-    fs.writeFileSync(path.join(userDir, 'sources.json'), JSON.stringify([
-      ...JSON.parse(fs.readFileSync(path.join(userDir, 'sources.json'), 'utf-8')),
-      { id: collisionId, name: 'Collision', enabled: false },
-    ]))
+    fs.writeFileSync(
+      path.join(userDir, 'sources.json'),
+      JSON.stringify([
+        ...JSON.parse(fs.readFileSync(path.join(userDir, 'sources.json'), 'utf-8')),
+        { id: collisionId, name: 'Collision', enabled: false },
+      ]),
+    )
     fs.writeFileSync(path.join(openDir, collisionId), script)
-    fs.writeFileSync(path.join(openDir, 'sources.json'), JSON.stringify([{ id: collisionId, name: 'Collision source', enabled: false }]))
+    fs.writeFileSync(
+      path.join(openDir, 'sources.json'),
+      JSON.stringify([{ id: collisionId, name: 'Collision source', enabled: false }]),
+    )
 
-    const collision = await router.handle(new Request('http://localhost:9527/api/custom-source/assign', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-      body: JSON.stringify({ id: collisionId, fromOwner: 'open', toOwner: 'normal_user' }),
-    }))
+    const collision = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ id: collisionId, fromOwner: 'open', toOwner: 'normal_user' }),
+      }),
+    )
     expect(collision.status).toBe(500)
     expect(await collision.text()).toContain('目标作用域已存在同名音源')
     expect(fs.existsSync(path.join(openDir, collisionId))).toBe(true)
@@ -429,11 +488,13 @@ describe('Custom Source Security and Isolation', () => {
     ] as const
 
     for (const [pathname, body] of requests) {
-      const response = await router.handle(new Request(`http://localhost:9527${pathname}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', cookie },
-        body: JSON.stringify(body),
-      }))
+      const response = await router.handle(
+        new Request(`http://localhost:9527${pathname}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', cookie },
+          body: JSON.stringify(body),
+        }),
+      )
       expect(response.status).toBe(403)
       expect((await response.json()).error).toContain('管理员权限不足')
     }
@@ -442,14 +503,16 @@ describe('Custom Source Security and Isolation', () => {
   test('sandbox lx.request dispatches request via native fetch and delivers parsed JSON', async () => {
     const { loadUserApi } = await import('@/server/userApi')
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as any)
-    const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote').mockResolvedValue(new Response(JSON.stringify({ code: 0, message: 'hello from test' }), {
-      status: 200,
-      statusText: 'OK',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Custom-Header': 'lx-music',
-      },
-    }))
+    const remoteFetch = spyOn(networkSecurity, 'fetchSafeRemote').mockResolvedValue(
+      new Response(JSON.stringify({ code: 0, message: 'hello from test' }), {
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Custom-Header': 'lx-music',
+        },
+      }),
+    )
     try {
       let capturedResp: any = null
       let capturedBody: any = null

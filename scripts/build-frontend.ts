@@ -40,7 +40,11 @@ function cleanupStaleChunks(directory: string, keepPaths: Set<string>): void {
       if (fs.readdirSync(entryPath).length === 0) fs.rmSync(entryPath, { recursive: true, force: true })
       continue
     }
-    if (/\.(?:js|map)$/i.test(entry.name) && !keepPaths.has(path.resolve(entryPath)) && isPastAssetRetention(entryPath)) {
+    if (
+      /\.(?:js|map)$/i.test(entry.name) &&
+      !keepPaths.has(path.resolve(entryPath)) &&
+      isPastAssetRetention(entryPath)
+    ) {
       fs.rmSync(entryPath, { force: true })
     }
   }
@@ -133,7 +137,9 @@ async function build() {
     return
   }
 
-  const adminOutput = adminResult.outputs.find(output => output.path.endsWith('.js') && !output.path.includes(`${path.sep}chunks${path.sep}`))
+  const adminOutput = adminResult.outputs.find(
+    output => output.path.endsWith('.js') && !output.path.includes(`${path.sep}chunks${path.sep}`),
+  )
   if (!adminOutput) throw new Error('Admin entry output was not generated')
 
   // 2. Build Music Player
@@ -165,7 +171,9 @@ async function build() {
     return
   }
 
-  const playerOutput = playerResult.outputs.find(output => output.path.endsWith('.js') && !output.path.includes(`${path.sep}chunks${path.sep}`))
+  const playerOutput = playerResult.outputs.find(
+    output => output.path.endsWith('.js') && !output.path.includes(`${path.sep}chunks${path.sep}`),
+  )
   if (!playerOutput) throw new Error('Player entry output was not generated')
 
   // 3. Build the dedicated React authentication entry. It intentionally has
@@ -212,7 +220,9 @@ async function build() {
   const adminSize = (fs.statSync(adminOutput.path).size / 1024).toFixed(1)
   const playerSize = (fs.statSync(playerOutput.path).size / 1024).toFixed(1)
   const loginSize = (fs.statSync(loginOutput.path).size / 1024).toFixed(1)
-  console.log(`[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminFileName} ${adminSize}KB, player: ${playerFileName} ${playerSize}KB, login: ${loginFileName} ${loginSize}KB, minified: ${shouldMinify})`)
+  console.log(
+    `[Bun Bundler] Frontend build completed in ${duration}ms (admin: ${adminFileName} ${adminSize}KB, player: ${playerFileName} ${playerSize}KB, login: ${loginFileName} ${loginSize}KB, minified: ${shouldMinify})`,
+  )
 
   const updateHashProcess = Bun.spawn(['bun', path.join(import.meta.dir, 'update-build-hash.js')], {
     stdout: 'inherit',
@@ -252,13 +262,15 @@ async function main() {
         }
         buildInProgress = true
         console.log(`[Bun Bundler] File changed: ${filename || 'unknown'}, rebuilding...`)
-        void build().catch(error => console.error('[Bun Bundler] Watch build failed:', error)).finally(() => {
-          buildInProgress = false
-          if (rebuildQueued) {
-            rebuildQueued = false
-            scheduleBuild('queued changes')
-          }
-        })
+        void build()
+          .catch(error => console.error('[Bun Bundler] Watch build failed:', error))
+          .finally(() => {
+            buildInProgress = false
+            if (rebuildQueued) {
+              rebuildQueued = false
+              scheduleBuild('queued changes')
+            }
+          })
       }, 100)
     }
 

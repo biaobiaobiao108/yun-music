@@ -16,7 +16,7 @@ export const corsMiddleware: Middleware = async (ctx, next) => {
     const headers: HeadersInit = {
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, X-Request-ID',
-      'Vary': 'Origin',
+      Vary: 'Origin',
     }
     if (origin) headers['Access-Control-Allow-Origin'] = origin
     return new Response(null, {
@@ -57,20 +57,27 @@ export const securityHeadersMiddleware: Middleware = async (ctx, next) => {
   // Only meaningful over TLS; behind a plain-HTTP reverse proxy the browser
   // must not be told to force HTTPS on this host.
   if (ctx.isSecure) {
-    headers.set('Strict-Transport-Security', headers.get('Strict-Transport-Security') || 'max-age=31536000; includeSubDomains')
+    headers.set(
+      'Strict-Transport-Security',
+      headers.get('Strict-Transport-Security') || 'max-age=31536000; includeSubDomains',
+    )
   }
-  headers.set('Content-Security-Policy', headers.get('Content-Security-Policy') || [
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "frame-ancestors 'none'",
-    "form-action 'self'",
-    "img-src 'self' data: blob: https:",
-    "media-src 'self' blob: https:",
-    "connect-src 'self' https: wss:",
-    "style-src 'self' 'unsafe-inline'",
-    "script-src 'self'",
-  ].join('; '))
+  headers.set(
+    'Content-Security-Policy',
+    headers.get('Content-Security-Policy') ||
+      [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "form-action 'self'",
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' blob: https:",
+        "connect-src 'self' https: wss:",
+        "style-src 'self' 'unsafe-inline'",
+        "script-src 'self'",
+      ].join('; '),
+  )
 
   return new Response(response.body, {
     status: response.status,
@@ -99,8 +106,12 @@ const COMPRESS_CACHE_MAX_ENTRIES = 32
 const COMPRESS_CACHE_MAX_BYTES = memoryCacheBudgets.compressed
 const compressedCache = new Map<string, Uint8Array>()
 let compressedCacheBytes = 0
-export const getCompressedCacheStats = () => ({ entries: compressedCache.size, bytes: compressedCacheBytes,
-  maxEntries: COMPRESS_CACHE_MAX_ENTRIES, maxBytes: COMPRESS_CACHE_MAX_BYTES })
+export const getCompressedCacheStats = () => ({
+  entries: compressedCache.size,
+  bytes: compressedCacheBytes,
+  maxEntries: COMPRESS_CACHE_MAX_ENTRIES,
+  maxBytes: COMPRESS_CACHE_MAX_BYTES,
+})
 
 /** Uint8Array 在运行时可作为 BodyInit，但 TS 的类型定义要求显式转换 */
 const asBody = (data: Uint8Array): BodyInit => data as unknown as BodyInit
@@ -140,7 +151,12 @@ const writeCompressedCache = (key: string, value: Uint8Array): void => {
 const withVary = (headers: Headers, value: string): void => {
   const current = headers.get('vary')
   if (!current) headers.set('vary', value)
-  else if (!current.split(',').map(item => item.trim().toLowerCase()).includes(value.toLowerCase())) {
+  else if (
+    !current
+      .split(',')
+      .map(item => item.trim().toLowerCase())
+      .includes(value.toLowerCase())
+  ) {
     headers.set('vary', `${current}, ${value}`)
   }
 }
@@ -152,10 +168,17 @@ const withVary = (headers: Headers, value: string): void => {
 export const compressionMiddleware: Middleware = async (ctx, next) => {
   const response = await next()
   if (!(response instanceof Response)) return response
-  if (ctx.method === 'HEAD' || response.status === 204 || response.status === 206 || response.status === 304) return response
+  if (ctx.method === 'HEAD' || response.status === 204 || response.status === 206 || response.status === 304)
+    return response
   const contentType = response.headers.get('content-type') || ''
   if (contentType.split(';', 1)[0].trim().toLowerCase() === 'text/event-stream') return response
-  if (response.headers.get('cache-control')?.split(',').some(value => value.trim().toLowerCase() === 'no-transform')) return response
+  if (
+    response.headers
+      .get('cache-control')
+      ?.split(',')
+      .some(value => value.trim().toLowerCase() === 'no-transform')
+  )
+    return response
   if (!ctx.headers.get('accept-encoding')?.toLowerCase().includes('gzip')) return response
   if (response.headers.get('content-encoding') || ctx.headers.get('range')) return response
 
@@ -180,10 +203,11 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
 
   const declaredLengthText = response.headers.get('content-length')
   const declaredLength = declaredLengthText === null ? null : Number(declaredLengthText)
-  const canBuffer = declaredLength !== null
-    && Number.isInteger(declaredLength)
-    && declaredLength >= 0
-    && declaredLength <= COMPRESS_MAX_BUFFER_BYTES
+  const canBuffer =
+    declaredLength !== null &&
+    Number.isInteger(declaredLength) &&
+    declaredLength >= 0 &&
+    declaredLength <= COMPRESS_MAX_BUFFER_BYTES
 
   // Responses without a trustworthy bounded length (for example large JSON
   // exports) must remain streaming. Buffering an attacker-controlled body
@@ -204,16 +228,28 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
   const headerForRebuild = new Headers(response.headers)
   withVary(headerForRebuild, 'Accept-Encoding')
   if (body.byteLength < COMPRESS_MIN_BYTES) {
-    return new Response(asBody(body), { status: response.status, statusText: response.statusText, headers: headerForRebuild })
+    return new Response(asBody(body), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: headerForRebuild,
+    })
   }
 
   const compressed = await gzipBytes(body)
   if (compressed.byteLength >= body.byteLength) {
-    return new Response(asBody(body), { status: response.status, statusText: response.statusText, headers: headerForRebuild })
+    return new Response(asBody(body), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: headerForRebuild,
+    })
   }
   if (cacheKey) writeCompressedCache(cacheKey, compressed)
 
   headerForRebuild.set('content-encoding', 'gzip')
   headerForRebuild.set('content-length', String(compressed.byteLength))
-  return new Response(asBody(compressed), { status: response.status, statusText: response.statusText, headers: headerForRebuild })
+  return new Response(asBody(compressed), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: headerForRebuild,
+  })
 }

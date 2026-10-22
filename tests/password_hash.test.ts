@@ -25,7 +25,7 @@ test('password hashes asynchronously and verify without blocking the event loop'
 test('scrypt work has a process-wide concurrency and queue bound', async () => {
   const jobCount = PASSWORD_HASH_MAX_CONCURRENT + PASSWORD_HASH_MAX_QUEUED + 1
   const results = await Promise.allSettled(
-    Array.from({ length: jobCount }, (_, index) => hashPassword(`bounded-password-${index}`))
+    Array.from({ length: jobCount }, (_, index) => hashPassword(`bounded-password-${index}`)),
   )
   const rejected = results.filter(result => result.status === 'rejected')
 

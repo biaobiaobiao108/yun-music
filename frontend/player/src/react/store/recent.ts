@@ -35,7 +35,12 @@ export function appendPlayHistory(song: Song, quality?: string): RecentSong[] {
   return history
 }
 
-export type RecentState = { items: RecentSong[]; hydrate: () => void; record: (song: Song, quality?: string) => void; reset: () => void }
+export type RecentState = {
+  items: RecentSong[]
+  hydrate: () => void
+  record: (song: Song, quality?: string) => void
+  reset: () => void
+}
 
 export const useRecentStore = create<RecentState>(set => ({
   items: [],

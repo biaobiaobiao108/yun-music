@@ -4,7 +4,7 @@ import { Router, corsMiddleware, securityHeadersMiddleware, HttpContext } from '
 describe('Core Router & HttpContext', () => {
   test('Exact route match and JSON response', async () => {
     const router = new Router()
-    router.get('/api/ping', (ctx) => ctx.json({ msg: 'pong' }))
+    router.get('/api/ping', ctx => ctx.json({ msg: 'pong' }))
 
     const req = new Request('http://localhost:9527/api/ping', { method: 'GET' })
     const res = await router.handle(req)
@@ -16,7 +16,7 @@ describe('Core Router & HttpContext', () => {
 
   test('Prefix route matching with wildcards', async () => {
     const router = new Router()
-    router.get('/music/*', (ctx) => ctx.text(`Path: ${ctx.pathname}`))
+    router.get('/music/*', ctx => ctx.text(`Path: ${ctx.pathname}`))
 
     const req = new Request('http://localhost:9527/music/assets/style.css')
     const res = await router.handle(req)
@@ -27,8 +27,8 @@ describe('Core Router & HttpContext', () => {
 
   test('Subrouter mounting with prefix', async () => {
     const apiRouter = new Router()
-    apiRouter.get('/user/info', (ctx) => ctx.json({ name: 'test_user' }))
-    apiRouter.post('/user/update', (ctx) => ctx.json({ success: true }))
+    apiRouter.get('/user/info', ctx => ctx.json({ name: 'test_user' }))
+    apiRouter.post('/user/update', ctx => ctx.json({ success: true }))
 
     const rootRouter = new Router()
     rootRouter.mount('/api/v1', apiRouter)
@@ -46,8 +46,8 @@ describe('Core Router & HttpContext', () => {
 
   test('Subrouter mounting at root path handles root and nested routes', async () => {
     const subRouter = new Router()
-    subRouter.get('/', (ctx) => ctx.text('sub-root'))
-    subRouter.get('/hello', (ctx) => ctx.text('sub-hello'))
+    subRouter.get('/', ctx => ctx.text('sub-root'))
+    subRouter.get('/hello', ctx => ctx.text('sub-hello'))
 
     const rootRouter = new Router()
     rootRouter.mount('/', subRouter)
@@ -79,7 +79,7 @@ describe('Core Router & HttpContext', () => {
       return res
     })
 
-    router.get('/test', (ctx) => {
+    router.get('/test', ctx => {
       trail.push('handler')
       return ctx.text('ok')
     })
@@ -93,7 +93,7 @@ describe('Core Router & HttpContext', () => {
   test('same-origin CORS policy and OPTIONS preflight', async () => {
     const router = new Router()
     router.use(corsMiddleware)
-    router.get('/api/data', (ctx) => ctx.json({ ok: true }))
+    router.get('/api/data', ctx => ctx.json({ ok: true }))
 
     // Preflight OPTIONS
     const optReq = new Request('http://localhost:9527/api/data', { method: 'OPTIONS' })
@@ -107,16 +107,18 @@ describe('Core Router & HttpContext', () => {
     expect(getRes.status).toBe(200)
     expect(getRes.headers.get('Access-Control-Allow-Origin')).toBeNull()
 
-    const crossOrigin = await router.handle(new Request('http://localhost:9527/api/data', {
-      headers: { Origin: 'https://attacker.example' },
-    }))
+    const crossOrigin = await router.handle(
+      new Request('http://localhost:9527/api/data', {
+        headers: { Origin: 'https://attacker.example' },
+      }),
+    )
     expect(crossOrigin.status).toBe(403)
   })
 
   test('same-origin CORS policy respects HTTPS reverse proxy headers', async () => {
     const router = new Router()
     router.use(corsMiddleware)
-    router.get('/api/data', (ctx) => ctx.json({ ok: true }))
+    router.get('/api/data', ctx => ctx.json({ ok: true }))
 
     const previousLx = (global as any).lx
     ;(global as any).lx = {
@@ -130,32 +132,41 @@ describe('Core Router & HttpContext', () => {
     }
 
     try {
-      const sameSiteThroughProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-        headers: {
-          Host: 'music.example.com',
-          Origin: 'https://music.example.com',
-          'X-Forwarded-Proto': 'https',
-        },
-      }), { remoteAddress: '127.0.0.1' })
+      const sameSiteThroughProxy = await router.handle(
+        new Request('http://127.0.0.1:9527/api/data', {
+          headers: {
+            Host: 'music.example.com',
+            Origin: 'https://music.example.com',
+            'X-Forwarded-Proto': 'https',
+          },
+        }),
+        { remoteAddress: '127.0.0.1' },
+      )
       expect(sameSiteThroughProxy.status).toBe(200)
       expect(sameSiteThroughProxy.headers.get('Access-Control-Allow-Origin')).toBe('https://music.example.com')
 
-      const differentSiteThroughProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-        headers: {
-          Host: 'music.example.com',
-          Origin: 'https://attacker.example',
-          'X-Forwarded-Proto': 'https',
-        },
-      }), { remoteAddress: '127.0.0.1' })
+      const differentSiteThroughProxy = await router.handle(
+        new Request('http://127.0.0.1:9527/api/data', {
+          headers: {
+            Host: 'music.example.com',
+            Origin: 'https://attacker.example',
+            'X-Forwarded-Proto': 'https',
+          },
+        }),
+        { remoteAddress: '127.0.0.1' },
+      )
       expect(differentSiteThroughProxy.status).toBe(403)
 
-      const forwardedHeader = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-        headers: {
-          Host: 'music.example.com',
-          Origin: 'https://music.example.com',
-          Forwarded: 'for=192.0.2.10;proto=https;host=music.example.com',
-        },
-      }), { remoteAddress: '127.0.0.1' })
+      const forwardedHeader = await router.handle(
+        new Request('http://127.0.0.1:9527/api/data', {
+          headers: {
+            Host: 'music.example.com',
+            Origin: 'https://music.example.com',
+            Forwarded: 'for=192.0.2.10;proto=https;host=music.example.com',
+          },
+        }),
+        { remoteAddress: '127.0.0.1' },
+      )
       expect(forwardedHeader.status).toBe(200)
     } finally {
       ;(global as any).lx = previousLx
@@ -165,7 +176,7 @@ describe('Core Router & HttpContext', () => {
   test('same-origin CORS policy auto-detects a Docker reverse proxy origin', async () => {
     const router = new Router()
     router.use(corsMiddleware)
-    router.get('/api/data', (ctx) => ctx.json({ ok: true }))
+    router.get('/api/data', ctx => ctx.json({ ok: true }))
 
     const previousLx = (global as any).lx
     ;(global as any).lx = {
@@ -178,33 +189,42 @@ describe('Core Router & HttpContext', () => {
     }
 
     try {
-      const sameSiteThroughUnlistedProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-        headers: {
-          Host: 'music.example.com',
-          Origin: 'https://music.example.com',
-          'X-Forwarded-Proto': 'https',
-        },
-      }), { remoteAddress: '172.18.0.2' })
+      const sameSiteThroughUnlistedProxy = await router.handle(
+        new Request('http://127.0.0.1:9527/api/data', {
+          headers: {
+            Host: 'music.example.com',
+            Origin: 'https://music.example.com',
+            'X-Forwarded-Proto': 'https',
+          },
+        }),
+        { remoteAddress: '172.18.0.2' },
+      )
       expect(sameSiteThroughUnlistedProxy.status).toBe(200)
       expect(sameSiteThroughUnlistedProxy.headers.get('Access-Control-Allow-Origin')).toBe('https://music.example.com')
 
-      const crossSiteThroughUnlistedProxy = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-        headers: {
-          Host: 'music.example.com',
-          Origin: 'https://attacker.example',
-          'X-Forwarded-Proto': 'https',
-        },
-      }), { remoteAddress: '172.18.0.2' })
+      const crossSiteThroughUnlistedProxy = await router.handle(
+        new Request('http://127.0.0.1:9527/api/data', {
+          headers: {
+            Host: 'music.example.com',
+            Origin: 'https://attacker.example',
+            'X-Forwarded-Proto': 'https',
+          },
+        }),
+        { remoteAddress: '172.18.0.2' },
+      )
       expect(crossSiteThroughUnlistedProxy.status).toBe(403)
 
-      const spoofedForwardedHost = await router.handle(new Request('http://127.0.0.1:9527/api/data', {
-        headers: {
-          Host: '127.0.0.1:9527',
-          Origin: 'https://attacker.example',
-          'X-Forwarded-Host': 'attacker.example',
-          'X-Forwarded-Proto': 'https',
-        },
-      }), { remoteAddress: '172.18.0.2' })
+      const spoofedForwardedHost = await router.handle(
+        new Request('http://127.0.0.1:9527/api/data', {
+          headers: {
+            Host: '127.0.0.1:9527',
+            Origin: 'https://attacker.example',
+            'X-Forwarded-Host': 'attacker.example',
+            'X-Forwarded-Proto': 'https',
+          },
+        }),
+        { remoteAddress: '172.18.0.2' },
+      )
       expect(spoofedForwardedHost.status).toBe(403)
     } finally {
       ;(global as any).lx = previousLx
@@ -214,7 +234,7 @@ describe('Core Router & HttpContext', () => {
   test('security middleware adds request tracing and browser policy headers', async () => {
     const router = new Router()
     router.use(securityHeadersMiddleware)
-    router.get('/healthz', (ctx) => ctx.json({ ok: true }))
+    router.get('/healthz', ctx => ctx.json({ ok: true }))
 
     const res = await router.handle(new Request('http://localhost:9527/healthz'))
     expect(res.status).toBe(200)
@@ -226,7 +246,7 @@ describe('Core Router & HttpContext', () => {
 
   test('Context cookie and query parsing', async () => {
     const router = new Router()
-    router.get('/query-test', (ctx) => {
+    router.get('/query-test', ctx => {
       return ctx.json({
         q: ctx.query.get('q'),
         session: ctx.cookies['session_id'],
@@ -271,11 +291,13 @@ describe('Core Router & HttpContext', () => {
       intercepted = true
       return ctx.fail(403, '访问受限')
     })
-    router.post('/api/custom-source/import', (ctx) => ctx.json({ ok: true }))
-    router.get('/api/other/endpoint', (ctx) => ctx.json({ ok: true }))
+    router.post('/api/custom-source/import', ctx => ctx.json({ ok: true }))
+    router.get('/api/other/endpoint', ctx => ctx.json({ ok: true }))
 
     // 匹配 /api/custom-source/* 的请求应被中间件拦截
-    const resBlocked = await router.handle(new Request('http://localhost:9527/api/custom-source/import', { method: 'POST' }))
+    const resBlocked = await router.handle(
+      new Request('http://localhost:9527/api/custom-source/import', { method: 'POST' }),
+    )
     expect(resBlocked.status).toBe(403)
     expect(intercepted).toBe(true)
 
@@ -294,7 +316,7 @@ describe('Core Router & HttpContext', () => {
       trail.push('wildcard')
       return null
     })
-    router.get('/ordered/exact', (ctx) => {
+    router.get('/ordered/exact', ctx => {
       trail.push('exact')
       return ctx.text('ok')
     })
@@ -310,7 +332,7 @@ describe('Core Router & HttpContext', () => {
     const first = await router.handle(new Request('http://localhost:9527/late'))
     expect(first.status).toBe(404)
 
-    router.get('/late', (ctx) => ctx.text('found'))
+    router.get('/late', ctx => ctx.text('found'))
     const second = await router.handle(new Request('http://localhost:9527/late'))
     expect(second.status).toBe(200)
     expect(await second.text()).toBe('found')

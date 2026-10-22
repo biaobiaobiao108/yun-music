@@ -8,15 +8,24 @@ import { issueDownloadToken } from '@/server/downloadToken'
 
 describe('Outbound URL network boundaries', () => {
   test.each([
-    '127.0.0.1', '10.0.0.1', '169.254.169.254',
-    '[::1]', '[0:0:0:0:0:0:0:1]', '[fc00::1]', '[fe80::1]',
-    '[::ffff:127.0.0.1]', '[::ffff:7f00:1]', '[0:0:0:0:0:FFFF:7F00:1]',
-    '[::ffff:10.0.0.1]', '[::ffff:192.168.1.1]', '[::ffff:169.254.169.254]',
-  ])('rejects private address %s', async (host) => {
+    '127.0.0.1',
+    '10.0.0.1',
+    '169.254.169.254',
+    '[::1]',
+    '[0:0:0:0:0:0:0:1]',
+    '[fc00::1]',
+    '[fe80::1]',
+    '[::ffff:127.0.0.1]',
+    '[::ffff:7f00:1]',
+    '[0:0:0:0:0:FFFF:7F00:1]',
+    '[::ffff:10.0.0.1]',
+    '[::ffff:192.168.1.1]',
+    '[::ffff:169.254.169.254]',
+  ])('rejects private address %s', async host => {
     await expect(assertSafeRemoteHttpUrl(`http://${host}/audio`)).rejects.toThrow('Private network URL is not allowed')
   })
 
-  test.each(['8.8.8.8', '[2001:4860:4860::8888]', '[::ffff:8.8.8.8]'])('allows public literal %s', async (host) => {
+  test.each(['8.8.8.8', '[2001:4860:4860::8888]', '[::ffff:8.8.8.8]'])('allows public literal %s', async host => {
     expect((await assertSafeRemoteHttpUrl(`https://${host}/audio`)).protocol).toBe('https:')
   })
 
@@ -24,8 +33,13 @@ describe('Outbound URL network boundaries', () => {
     const lookup = spyOn(dns, 'lookup')
     try {
       for (const address of ['::ffff:127.0.0.1', '::ffff:7f00:1', '0:0:0:0:0:ffff:c0a8:101']) {
-        lookup.mockResolvedValue([{ address: '8.8.8.8', family: 4 }, { address, family: 6 }] as any)
-        await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow('Private network URL is not allowed')
+        lookup.mockResolvedValue([
+          { address: '8.8.8.8', family: 4 },
+          { address, family: 6 },
+        ] as any)
+        await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow(
+          'Private network URL is not allowed',
+        )
       }
     } finally {
       lookup.mockRestore()
@@ -42,7 +56,9 @@ describe('Outbound URL network boundaries', () => {
     try {
       lookup.mockResolvedValue([{ address: '198.18.0.1', family: 4 }] as any)
       expect((await assertSafeRemoteHttpUrl('https://example.com/audio')).hostname).toBe('example.com')
-      await expect(assertSafeRemoteHttpUrl('http://198.18.0.1/audio')).rejects.toThrow('Private network URL is not allowed')
+      await expect(assertSafeRemoteHttpUrl('http://198.18.0.1/audio')).rejects.toThrow(
+        'Private network URL is not allowed',
+      )
       lookup.mockResolvedValue([{ address: 'fdfe:dcba:9876::1', family: 6 }] as any)
       expect((await assertSafeRemoteHttpUrl('https://example.com/audio')).hostname).toBe('example.com')
       lookup.mockResolvedValue([
@@ -51,18 +67,21 @@ describe('Outbound URL network boundaries', () => {
       ] as any)
       expect((await assertSafeRemoteHttpUrl('https://example.com/audio')).hostname).toBe('example.com')
 
-      lookup.mockResolvedValue([{ address: '198.18.0.1', family: 4 }, { address: '192.168.1.1', family: 4 }] as any)
-      await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow('Private network URL is not allowed')
+      lookup.mockResolvedValue([
+        { address: '198.18.0.1', family: 4 },
+        { address: '192.168.1.1', family: 4 },
+      ] as any)
+      await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow(
+        'Private network URL is not allowed',
+      )
 
       lookup.mockResolvedValue([
         { address: '::ffff:0:c612:56', family: 6 },
         { address: '198.18.0.86', family: 4 },
       ] as any)
       const syntheticUrl = await assertSafeRemoteHttpUrl('https://example.com/audio')
-      const connectedAddress = await new Promise<string>((resolve, reject) => syntheticUrl.lookup(
-        'example.com',
-        {},
-        (error, address) => {
+      const connectedAddress = await new Promise<string>((resolve, reject) =>
+        syntheticUrl.lookup('example.com', {}, (error, address) => {
           if (error) {
             reject(error)
           } else if (typeof address === 'string') {
@@ -70,8 +89,8 @@ describe('Outbound URL network boundaries', () => {
           } else {
             reject(new Error('Expected a single DNS address'))
           }
-        },
-      ))
+        }),
+      )
       expect(connectedAddress).toBe('198.18.0.86')
     } finally {
       lookup.mockRestore()
@@ -85,7 +104,9 @@ describe('Outbound URL network boundaries', () => {
     global.lx = { config: { 'proxy.all.enabled': false } } as typeof global.lx
     try {
       lookup.mockResolvedValue([{ address: '198.18.0.1', family: 4 }] as any)
-      await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow('Private network URL is not allowed')
+      await expect(assertSafeRemoteHttpUrl('https://example.com/audio')).rejects.toThrow(
+        'Private network URL is not allowed',
+      )
     } finally {
       lookup.mockRestore()
       global.lx = previousLx
@@ -93,13 +114,17 @@ describe('Outbound URL network boundaries', () => {
   })
 
   test('anonymous download proxy blocks mapped loopback before opening an outbound request', async () => {
-    const request = spyOn(http, 'request').mockImplementation(() => { throw new Error('Unexpected outbound request') })
+    const request = spyOn(http, 'request').mockImplementation(() => {
+      throw new Error('Unexpected outbound request')
+    })
     try {
       const router = createCacheRouter()
       const target = 'http://[::ffff:127.0.0.1]:9527/'
-      const response = await router.handle(new Request(
-        `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
-      ))
+      const response = await router.handle(
+        new Request(
+          `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+        ),
+      )
       expect(response.status).toBeGreaterThanOrEqual(400)
       expect(request).not.toHaveBeenCalled()
     } finally {
@@ -108,13 +133,15 @@ describe('Outbound URL network boundaries', () => {
   })
 
   test('anonymous download proxy requires a signed URL', async () => {
-    const request = spyOn(http, 'request').mockImplementation(() => { throw new Error('Unexpected outbound request') })
+    const request = spyOn(http, 'request').mockImplementation(() => {
+      throw new Error('Unexpected outbound request')
+    })
     try {
       const router = createCacheRouter()
       const target = 'http://example.com/audio'
-      const response = await router.handle(new Request(
-        `http://localhost/api/music/download?url=${encodeURIComponent(target)}`,
-      ))
+      const response = await router.handle(
+        new Request(`http://localhost/api/music/download?url=${encodeURIComponent(target)}`),
+      )
       expect(response.status).toBe(403)
       expect(request).not.toHaveBeenCalled()
     } finally {
@@ -148,10 +175,16 @@ describe('Outbound URL network boundaries', () => {
     try {
       const url = await assertSafeRemoteHttpUrl('https://example.com/audio')
       lookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }] as any)
-      const resolveConnection = (hostname: string, options: any) => new Promise((resolve, reject) => {
-        url.lookup(hostname, options, (error, address, family) => error ? reject(error) : resolve({ address, family }))
+      const resolveConnection = (hostname: string, options: any) =>
+        new Promise((resolve, reject) => {
+          url.lookup(hostname, options, (error, address, family) =>
+            error ? reject(error) : resolve({ address, family }),
+          )
+        })
+      expect(await resolveConnection('example.com', { all: true })).toEqual({
+        address: [{ address: '8.8.8.8', family: 4 }],
+        family: undefined,
       })
-      expect(await resolveConnection('example.com', { all: true })).toEqual({ address: [{ address: '8.8.8.8', family: 4 }], family: undefined })
       expect(await resolveConnection('example.com', { family: 4 })).toEqual({ address: '8.8.8.8', family: 4 })
       await expect(resolveConnection('another.example', {})).rejects.toThrow('No validated address')
       await expect(resolveConnection('example.com', { family: 6 })).rejects.toThrow('No validated address')
@@ -171,11 +204,15 @@ describe('Outbound URL network boundaries', () => {
     })
     try {
       const target = 'http://example.com/audio'
-      await createCacheRouter().handle(new Request(
-        `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
-      ))
+      await createCacheRouter().handle(
+        new Request(
+          `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+        ),
+      )
       expect(options.agent).toMatchObject({ keepAlive: true, maxSockets: 8 })
-      const connectedAddress = await new Promise(resolve => options.lookup('example.com', {}, (_error: any, address: string) => resolve(address)))
+      const connectedAddress = await new Promise(resolve =>
+        options.lookup('example.com', {}, (_error: any, address: string) => resolve(address)),
+      )
       expect(connectedAddress).toBe('8.8.8.8')
     } finally {
       request.mockRestore()
@@ -184,12 +221,8 @@ describe('Outbound URL network boundaries', () => {
   })
 })
 
-
 describe('Bounded remote response transport', () => {
-  const withServer = async (
-    handler: http.RequestListener,
-    run: (url: SafeRemoteHttpUrl) => Promise<void>,
-  ) => {
+  const withServer = async (handler: http.RequestListener, run: (url: SafeRemoteHttpUrl) => Promise<void>) => {
     const server = http.createServer(handler)
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address() as import('node:net').AddressInfo
@@ -205,89 +238,109 @@ describe('Bounded remote response transport', () => {
       await run(url)
     } finally {
       await new Promise<void>((resolve, reject) => {
-        server.close(error => error ? reject(error) : resolve())
+        server.close(error => (error ? reject(error) : resolve()))
         server.closeAllConnections()
       })
     }
   }
 
   test.each([
-    ['gzip', gzipSync], ['deflate', deflateSync], ['br', brotliCompressSync],
+    ['gzip', gzipSync],
+    ['deflate', deflateSync],
+    ['br', brotliCompressSync],
   ] as const)('decodes %s JSON and removes compressed metadata', async (encoding, compress) => {
     const payload = JSON.stringify({ songs: [{ name: '中文歌曲' }] })
     const compressed = compress(Buffer.from(payload))
-    await withServer((_request, response) => {
-      response.writeHead(200, {
-        'content-encoding': encoding,
-        'content-length': compressed.byteLength,
-        'content-type': 'application/json',
-      })
-      response.end(compressed)
-    }, async url => {
-      const response = await fetchSafeRemote(url)
-      expect(await response.json()).toEqual(JSON.parse(payload))
-      expect(response.headers.has('content-encoding')).toBe(false)
-      expect(response.headers.has('content-length')).toBe(false)
-    })
+    await withServer(
+      (_request, response) => {
+        response.writeHead(200, {
+          'content-encoding': encoding,
+          'content-length': compressed.byteLength,
+          'content-type': 'application/json',
+        })
+        response.end(compressed)
+      },
+      async url => {
+        const response = await fetchSafeRemote(url)
+        expect(await response.json()).toEqual(JSON.parse(payload))
+        expect(response.headers.has('content-encoding')).toBe(false)
+        expect(response.headers.has('content-length')).toBe(false)
+      },
+    )
   })
 
   test('rejects decompression expansion beyond the limit', async () => {
     const compressed = gzipSync(Buffer.alloc(1024 * 1024, 'a'))
     expect(compressed.byteLength).toBeLessThan(2048)
-    await withServer((_request, response) => {
-      response.writeHead(200, { 'content-encoding': 'gzip', 'content-length': compressed.byteLength })
-      response.end(compressed)
-    }, async url => {
-      await expect(fetchSafeRemote(url, { maxBytes: 2048 })).rejects.toThrow('Remote response is too large')
-    })
+    await withServer(
+      (_request, response) => {
+        response.writeHead(200, { 'content-encoding': 'gzip', 'content-length': compressed.byteLength })
+        response.end(compressed)
+      },
+      async url => {
+        await expect(fetchSafeRemote(url, { maxBytes: 2048 })).rejects.toThrow('Remote response is too large')
+      },
+    )
   })
 
   test('rejects malformed compressed data', async () => {
-    await withServer((_request, response) => {
-      response.writeHead(200, { 'content-encoding': 'gzip' })
-      response.end('invalid gzip')
-    }, async url => {
-      await expect(fetchSafeRemote(url)).rejects.toThrow()
-    })
+    await withServer(
+      (_request, response) => {
+        response.writeHead(200, { 'content-encoding': 'gzip' })
+        response.end('invalid gzip')
+      },
+      async url => {
+        await expect(fetchSafeRemote(url)).rejects.toThrow()
+      },
+    )
   })
 
   test('HEAD preserves resource length even when it exceeds the body limit', async () => {
-    await withServer((_request, response) => {
-      response.writeHead(200, { 'content-length': 100 * 1024 * 1024, 'content-encoding': 'gzip' })
-      response.end()
-    }, async url => {
-      const response = await fetchSafeRemote(url, { method: 'HEAD', maxBytes: 1024 })
-      expect(response.body).toBeNull()
-      expect(response.headers.get('content-length')).toBe(String(100 * 1024 * 1024))
-      expect(response.headers.get('content-encoding')).toBe('gzip')
-    })
+    await withServer(
+      (_request, response) => {
+        response.writeHead(200, { 'content-length': 100 * 1024 * 1024, 'content-encoding': 'gzip' })
+        response.end()
+      },
+      async url => {
+        const response = await fetchSafeRemote(url, { method: 'HEAD', maxBytes: 1024 })
+        expect(response.body).toBeNull()
+        expect(response.headers.get('content-length')).toBe(String(100 * 1024 * 1024))
+        expect(response.headers.get('content-encoding')).toBe('gzip')
+      },
+    )
   })
 
   test('discardResponseBody returns redirect headers without reading the upstream body', async () => {
-    await withServer((_request, response) => {
-      response.writeHead(302, {
-        location: '/cdn/audio',
-        'content-length': '1048576',
-      })
-      response.flushHeaders()
-    }, async url => {
-      const response = await fetchSafeRemote(url, { method: 'GET', maxBytes: 16, discardResponseBody: true })
-      expect(response.status).toBe(302)
-      expect(response.headers.get('location')).toBe('/cdn/audio')
-      expect(response.headers.get('content-length')).toBe('1048576')
-      expect(response.body).toBeNull()
-    })
+    await withServer(
+      (_request, response) => {
+        response.writeHead(302, {
+          location: '/cdn/audio',
+          'content-length': '1048576',
+        })
+        response.flushHeaders()
+      },
+      async url => {
+        const response = await fetchSafeRemote(url, { method: 'GET', maxBytes: 16, discardResponseBody: true })
+        expect(response.status).toBe(302)
+        expect(response.headers.get('location')).toBe('/cdn/audio')
+        expect(response.headers.get('content-length')).toBe('1048576')
+        expect(response.body).toBeNull()
+      },
+    )
   })
 
   test.each([204, 205, 304])('returns status %s without constructing a forbidden body', async status => {
-    await withServer((_request, response) => {
-      response.writeHead(status)
-      response.end()
-    }, async url => {
-      const response = await fetchSafeRemote(url)
-      expect(response.status).toBe(status)
-      expect(response.body).toBeNull()
-    })
+    await withServer(
+      (_request, response) => {
+        response.writeHead(status)
+        response.end()
+      },
+      async url => {
+        const response = await fetchSafeRemote(url)
+        expect(response.status).toBe(status)
+        expect(response.body).toBeNull()
+      },
+    )
   })
 
   test('proxy HEAD and no-content statuses preserve null bodies', async () => {

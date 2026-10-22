@@ -9,7 +9,7 @@ export default {
   page: 0,
   allPage: 1,
   successCode: 0,
-  musicSearch(str: any, page: any, limit: any, retryNum: any= 0): Promise<any> {
+  musicSearch(str: any, page: any, limit: any, retryNum: any = 0): Promise<any> {
     if (retryNum > 5) return Promise.reject(new Error('搜索失败'))
     // searchRequest = httpFetch(`https://c.y.qq.com/soso/fcgi-bin/client_search_cp?ct=24&qqmusic_ver=1298&new_json=1&remoteplace=sizer.yqq.song_next&searchid=49252838123499591&t=0&aggr=1&cr=1&catZhida=1&lossless=0&flag_qc=0&p=${page}&n=${limit}&w=${encodeURIComponent(str)}&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq&needNewCode=0`)
     // const searchRequest = httpFetch(`https://shc.y.qq.com/soso/fcgi-bin/client_search_cp?ct=24&qqmusic_ver=1298&remoteplace=txt.yqq.top&aggr=1&cr=1&catZhida=1&lossless=0&flag_qc=0&p=${page}&n=${limit}&w=${encodeURIComponent(str)}&cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&uin=0&hostUin=0&loginUin=0`)
@@ -70,7 +70,8 @@ export default {
     // searchRequest = httpFetch(`http://ioscdn.kugou.com/api/v3/search/song?keyword=${encodeURIComponent(str)}&page=${page}&pagesize=${this.limit}&showtype=10&plat=2&version=7910&tag=1&correct=1&privilege=1&sver=5`)
     return searchRequest.promise.then(({ body }: any) => {
       // console.log(body)
-      if (body.code != this.successCode || body.req.code != this.successCode) return this.musicSearch(str, page, limit, ++retryNum)
+      if (body.code != this.successCode || body.req.code != this.successCode)
+        return this.musicSearch(str, page, limit, ++retryNum)
       return body.req.data
     })
   },
@@ -100,9 +101,12 @@ export default {
         albumMid: item.album?.mid ?? '',
         strMediaMid: item.file.media_mid,
         songmid: item.mid,
-        img: (albumId === '' || albumId === '空')
-          ? item.singer?.length ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg` : ''
-          : `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumId}.jpg`,
+        img:
+          albumId === '' || albumId === '空'
+            ? item.singer?.length
+              ? `https://y.gtimg.cn/music/photo_new/T001R500x500M000${item.singer[0].mid}.jpg`
+              : ''
+            : `https://y.gtimg.cn/music/photo_new/T002R500x500M000${albumId}.jpg`,
         types,
         _types,
         typeUrl: {},
@@ -111,7 +115,7 @@ export default {
     // console.log(list)
     return list
   },
-  search(str: any, page: any= 1, limit: any): Promise<any> {
+  search(str: any, page: any = 1, limit: any): Promise<any> {
     if (limit == null) limit = this.limit
     // http://newlyric.kuwo.cn/newlyric.lrc?62355680
     return this.musicSearch(str, page, limit).then(({ body, meta }: any) => {

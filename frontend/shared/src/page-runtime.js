@@ -1,4 +1,4 @@
-(() => {
+;(() => {
   const pathname = window.location.pathname
   const baseHref = pathname.endsWith('/') ? pathname : `${pathname}/`
   if (!document.querySelector('base')) {
@@ -8,8 +8,12 @@
   }
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register(new URL('sw.js', document.baseURI)).catch(() => undefined)
-    }, { once: true })
+    window.addEventListener(
+      'load',
+      () => {
+        navigator.serviceWorker.register(new URL('sw.js', document.baseURI)).catch(() => undefined)
+      },
+      { once: true },
+    )
   }
 })()

@@ -1,17 +1,25 @@
 import { expect, spyOn, test } from 'bun:test'
 import * as sdk from '@/modules/utils/musicSdk'
 import * as userApi from '@/server/userApi'
-import { clearServerSourceMatchCache, findServerSourceMatches, getSourceMatchCacheStats } from '@/server/services/musicResolver'
+import {
+  clearServerSourceMatchCache,
+  findServerSourceMatches,
+  getSourceMatchCacheStats,
+} from '@/server/services/musicResolver'
 
 test('source matching charges settled arrays and bypasses caching oversized results', async () => {
   let calls = 0
   const song = { source: 'wy', name: 'Match Song', singer: 'Singer' }
   const oversizedStringLength = Math.floor(getSourceMatchCacheStats().results.maxBytes / 2) + 1
   const supported = spyOn(userApi, 'isSourceSupported').mockReturnValue(true)
-  const source = spyOn(sdk, 'getBuiltinSource').mockReturnValue({ musicSearch: { search: async () => {
-    calls++
-    return { list: [{ ...song, payload: 'x'.repeat(oversizedStringLength) }] }
-  } } } as any)
+  const source = spyOn(sdk, 'getBuiltinSource').mockReturnValue({
+    musicSearch: {
+      search: async () => {
+        calls++
+        return { list: [{ ...song, payload: 'x'.repeat(oversizedStringLength) }] }
+      },
+    },
+  } as any)
   clearServerSourceMatchCache()
   try {
     expect((await findServerSourceMatches(song, 'cache-user')).length).toBe(1)
@@ -31,10 +39,16 @@ test('pending matches deduplicate and invalidated completions cannot refill resu
   let calls = 0
   const song = { source: 'wy', name: 'Pending Song', singer: 'Singer' }
   const supported = spyOn(userApi, 'isSourceSupported').mockReturnValue(true)
-  const source = spyOn(sdk, 'getBuiltinSource').mockReturnValue({ musicSearch: { search: () => {
-    calls++
-    return new Promise(resolve => { finish = resolve })
-  } } } as any)
+  const source = spyOn(sdk, 'getBuiltinSource').mockReturnValue({
+    musicSearch: {
+      search: () => {
+        calls++
+        return new Promise(resolve => {
+          finish = resolve
+        })
+      },
+    },
+  } as any)
   clearServerSourceMatchCache()
   try {
     const first = findServerSourceMatches(song, 'pending-user')

@@ -18,13 +18,25 @@ export const estimateCacheBytes = (value: unknown, limit = Number.POSITIVE_INFIN
   let bytes = 0
   while (pending.length && bytes <= limit) {
     const item = pending.pop()
-    if (typeof item === 'string') { bytes += 24 + item.length * 2; continue }
-    if (item === null || typeof item !== 'object') { bytes += 8; continue }
+    if (typeof item === 'string') {
+      bytes += 24 + item.length * 2
+      continue
+    }
+    if (item === null || typeof item !== 'object') {
+      bytes += 8
+      continue
+    }
     if (seen.has(item)) continue
     seen.add(item)
     if (item instanceof Promise) return Number.POSITIVE_INFINITY
-    if (ArrayBuffer.isView(item)) { bytes += 64 + item.buffer.byteLength; continue }
-    if (item instanceof ArrayBuffer) { bytes += 64 + item.byteLength; continue }
+    if (ArrayBuffer.isView(item)) {
+      bytes += 64 + item.buffer.byteLength
+      continue
+    }
+    if (item instanceof ArrayBuffer) {
+      bytes += 64 + item.byteLength
+      continue
+    }
     bytes += 64
     if (Array.isArray(item)) {
       bytes += item.length * 8
@@ -69,8 +81,12 @@ export class NativeLruCache<K, V> {
   constructor(options: NativeLruCacheOptions<K, V>) {
     this.max = Number.isFinite(options.max) ? Math.max(1, Math.floor(options.max)) : 1
     this.ttl = Number.isFinite(options.ttl) ? Math.max(0, options.ttl ?? 0) : 0
-    this.maxBytes = options.maxBytes === undefined || options.maxBytes === Number.POSITIVE_INFINITY
-      ? Number.POSITIVE_INFINITY : Number.isFinite(options.maxBytes) ? Math.max(0, Math.floor(options.maxBytes)) : 0
+    this.maxBytes =
+      options.maxBytes === undefined || options.maxBytes === Number.POSITIVE_INFINITY
+        ? Number.POSITIVE_INFINITY
+        : Number.isFinite(options.maxBytes)
+          ? Math.max(0, Math.floor(options.maxBytes))
+          : 0
     this.sizeCalculation = options.sizeCalculation || (value => estimateCacheBytes(value, this.maxBytes))
   }
 
@@ -93,12 +109,15 @@ export class NativeLruCache<K, V> {
     this.nextExpiryAt = 0
     if (!Number.isFinite(earliest)) return
     this.nextExpiryAt = earliest
-    this.expiryTimer = setTimeout(() => {
-      this.expiryTimer = undefined
-      this.nextExpiryAt = 0
-      this.removeExpired()
-      this.scheduleExpiry()
-    }, Math.min(2_147_483_647, Math.max(1, earliest - Date.now())))
+    this.expiryTimer = setTimeout(
+      () => {
+        this.expiryTimer = undefined
+        this.nextExpiryAt = 0
+        this.removeExpired()
+        this.scheduleExpiry()
+      },
+      Math.min(2_147_483_647, Math.max(1, earliest - Date.now())),
+    )
     this.expiryTimer.unref?.()
   }
 
@@ -130,8 +149,8 @@ export class NativeLruCache<K, V> {
   set(key: K, value: V): this {
     this.remove(key)
     const valueBytes = this.maxBytes === Number.POSITIVE_INFINITY ? 0 : this.sizeCalculation(value, key)
-    const bytes = this.maxBytes === Number.POSITIVE_INFINITY ? 0
-      : 64 + estimateCacheBytes(key, this.maxBytes) + valueBytes
+    const bytes =
+      this.maxBytes === Number.POSITIVE_INFINITY ? 0 : 64 + estimateCacheBytes(key, this.maxBytes) + valueBytes
     if (!Number.isFinite(bytes) || valueBytes < 0 || bytes > this.maxBytes) {
       this.scheduleExpiry()
       return this

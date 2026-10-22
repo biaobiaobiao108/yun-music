@@ -29,7 +29,11 @@ const getCacheRequestUsername = (ctx: HttpContext): string | null => {
     return canReadPublicLocalMusic(ctx, verified, isAdmin) ? '_open' : null
   }
   if (isAdmin) {
-    try { return assertSafePathSegment(requested, 'user name') } catch { return null }
+    try {
+      return assertSafePathSegment(requested, 'user name')
+    } catch {
+      return null
+    }
   }
   return verified === requested ? verified : null
 }
@@ -41,10 +45,7 @@ type CacheTargetResult = { ok: true; username: string } | { ok: false; error: Re
  * 公共空间 (_open) 的破坏性写操作必须由管理员发起，
  * 否则任何匿名访客都能改写或清空多人共用的曲库。
  */
-const resolveCacheTarget = (
-  ctx: HttpContext,
-  options: { publicWrite?: boolean } = {},
-): CacheTargetResult => {
+const resolveCacheTarget = (ctx: HttpContext, options: { publicWrite?: boolean } = {}): CacheTargetResult => {
   const requested = ctx.query.get('user')?.trim() || ''
   const isPublicAlias = requested === 'default' || requested === 'open' || requested === '_open'
   const verified = verifyUserAuth(ctx)
@@ -63,7 +64,11 @@ const resolveCacheTarget = (
   }
 
   if (isAdmin) {
-    try { return { ok: true, username: assertSafePathSegment(requested, 'user name') } } catch { return { ok: false, error: ctx.fail(400, '用户名不合法') } }
+    try {
+      return { ok: true, username: assertSafePathSegment(requested, 'user name') }
+    } catch {
+      return { ok: false, error: ctx.fail(400, '用户名不合法') }
+    }
   }
   if (!verified) return { ok: false, error: ctx.fail(401, '登录状态已失效，请重新登录') }
   if (verified !== requested) return { ok: false, error: ctx.fail(403, '无权访问其他用户的本地音乐') }
@@ -89,7 +94,11 @@ const createCacheEventsStream = (username: string, request: Request): ReadableSt
     unsubscribeQueue()
     unsubscribeCache()
     request.signal.removeEventListener('abort', close)
-    try { streamController?.close() } catch { /* the browser may have cancelled first */ }
+    try {
+      streamController?.close()
+    } catch {
+      /* the browser may have cancelled first */
+    }
   }
 
   const send = (event: string, payload: unknown) => {
@@ -131,7 +140,7 @@ export const createCacheRouter = (): Router => {
   const MAX_PROGRESS_IDS = 60
 
   // 1. 缓存基础配置与索引同步
-  router.post('/api/music/cache/config', async (ctx) => {
+  router.post('/api/music/cache/config', async ctx => {
     // 缓存位置与命名规则是全局设置，不能由普通用户改变整个实例的
     // 存储路径或后续文件命名策略。
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(403, '权限不足：修改全局缓存配置需要管理员身份')
@@ -157,7 +166,10 @@ export const createCacheRouter = (): Router => {
       }
 
       if (namingPattern !== undefined) {
-        if (namingPattern !== fileCache.CACHE_NAMING_PATTERNS.SIMPLE && namingPattern !== fileCache.CACHE_NAMING_PATTERNS.STANDARD) {
+        if (
+          namingPattern !== fileCache.CACHE_NAMING_PATTERNS.SIMPLE &&
+          namingPattern !== fileCache.CACHE_NAMING_PATTERNS.STANDARD
+        ) {
           return ctx.fail(422, '缓存命名规则无效')
         }
         const normalizedNamingPattern = fileCache.setNamingPattern(namingPattern)
@@ -189,7 +201,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/sync', async (ctx) => {
+  router.post('/api/music/cache/sync', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -201,7 +213,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.get('/api/music/cache/subdirs', (ctx) => {
+  router.get('/api/music/cache/subdirs', ctx => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     const requestedFolder = ctx.query.get('folder')
@@ -213,7 +225,7 @@ export const createCacheRouter = (): Router => {
     return ctx.json({ success: true, data: subdirs })
   })
 
-  router.post('/api/music/cache/mkdir', async (ctx) => {
+  router.post('/api/music/cache/mkdir', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -229,14 +241,15 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/categorize', async (ctx) => {
+  router.post('/api/music/cache/categorize', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
 
     try {
       const { filenames, subPath } = await ctx.bodyJson<{ filenames?: string[]; subPath?: string }>()
-      if (!Array.isArray(filenames) || typeof subPath !== 'string') return ctx.fail(400, '缺少必要参数：filenames、subPath')
+      if (!Array.isArray(filenames) || typeof subPath !== 'string')
+        return ctx.fail(400, '缺少必要参数：filenames、subPath')
       const result = await fileCache.categorizeFiles(filenames, subPath, username)
       return ctx.json({ success: true, ...result })
     } catch (err) {
@@ -244,7 +257,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/rename', async (ctx) => {
+  router.post('/api/music/cache/rename', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -258,7 +271,7 @@ export const createCacheRouter = (): Router => {
   })
 
   // 3. 缓存命中检查
-  router.get('/api/music/cache/check', (ctx) => {
+  router.get('/api/music/cache/check', ctx => {
     const name = ctx.query.get('name')
     const singer = ctx.query.get('singer')
     const source = ctx.query.get('source')
@@ -295,7 +308,7 @@ export const createCacheRouter = (): Router => {
   // 4. 播放触达记录：仅由播放器在 audio.play() 成功后调用，供缓存上限
   // 按最近播放时间做 LRU 清理。请求目标由 user 查询参数限定在当前用户
   // 或公共空间，不能跨用户写入播放记录。
-  router.post('/api/music/cache/playback', async (ctx) => {
+  router.post('/api/music/cache/playback', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -303,7 +316,8 @@ export const createCacheRouter = (): Router => {
       const body = await ctx.bodyJson<{ filename?: string; folder?: fileCache.CacheFolder; location?: string }>()
       if (!body.filename || typeof body.filename !== 'string') return ctx.fail(400, '缺少必要参数：filename')
       if (body.folder !== 'cache' && body.folder !== 'music') return ctx.fail(400, '目录类型不合法')
-      if (body.location && body.location !== fileCache.CACHE_ROOTS.DATA && body.location !== fileCache.CACHE_ROOTS.ROOT) return ctx.fail(400, '缓存位置不合法')
+      if (body.location && body.location !== fileCache.CACHE_ROOTS.DATA && body.location !== fileCache.CACHE_ROOTS.ROOT)
+        return ctx.fail(400, '缓存位置不合法')
 
       const marked = body.location
         ? fileCache.markCachePlayback(body.filename, target.username, body.folder, body.location)
@@ -315,7 +329,7 @@ export const createCacheRouter = (): Router => {
   })
 
   // 5. 服务端持久化下载队列与实时事件流
-  router.get('/api/music/cache/events', (ctx) => {
+  router.get('/api/music/cache/events', ctx => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     return new Response(createCacheEventsStream(username, ctx.request), {
@@ -323,19 +337,19 @@ export const createCacheRouter = (): Router => {
       headers: {
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
       },
     })
   })
 
-  router.get('/api/music/cache/queue', (ctx) => {
+  router.get('/api/music/cache/queue', ctx => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     return ctx.json({ success: true, data: serverDownloadQueue.list(username) })
   })
 
-  router.post('/api/music/cache/queue', async (ctx) => {
+  router.post('/api/music/cache/queue', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -359,7 +373,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/queue/concurrency', async (ctx) => {
+  router.post('/api/music/cache/queue/concurrency', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -372,7 +386,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/queue/resume', async (ctx) => {
+  router.post('/api/music/cache/queue/resume', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -386,7 +400,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/queue/remove', async (ctx) => {
+  router.post('/api/music/cache/queue/remove', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -403,7 +417,7 @@ export const createCacheRouter = (): Router => {
   })
 
   // 5. 触发下载
-  router.post('/api/music/cache/download', async (ctx) => {
+  router.post('/api/music/cache/download', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -433,12 +447,20 @@ export const createCacheRouter = (): Router => {
           const rawPath = parsed.pathname.slice('/api/music/cache/file/'.length).split('/').filter(Boolean)
           if (!rawPath.length) return ctx.fail(400, '缓存文件路径不合法')
           const requestedCacheUsername = rawPath.length > 1 ? decodeURIComponent(rawPath.shift() || '') : '_open'
-          const cacheUsername = ['open', 'default', '_open'].includes(requestedCacheUsername) ? '_open' : requestedCacheUsername
+          const cacheUsername = ['open', 'default', '_open'].includes(requestedCacheUsername)
+            ? '_open'
+            : requestedCacheUsername
           const cacheFilename = rawPath.map(part => decodeURIComponent(part)).join('/')
           const cacheFolder = parsed.searchParams.get('folder') === 'music' ? 'music' : 'cache'
           if (!cacheFilename) return ctx.fail(400, '缓存文件名不合法')
           if (cacheFolder === 'music') {
-            return ctx.json({ success: true, successCount: 1, failCount: 0, moved: [], message: '歌曲已经在下载目录中' })
+            return ctx.json({
+              success: true,
+              successCount: 1,
+              failCount: 0,
+              moved: [],
+              message: '歌曲已经在下载目录中',
+            })
           }
           if (cacheUsername === '_open' && target.username !== '_open') {
             if (!canReadPublicLocalMusic(ctx, verifyUserAuth(ctx), verifyAdminAuth(ctx.request))) {
@@ -459,10 +481,9 @@ export const createCacheRouter = (): Router => {
         return ctx.fail(400, '下载地址不合法')
       }
       const username = target.username
-      const cached = fileCache.checkCache(
-        { ...songInfo, quality, exactQuality: true }, username, false,
-        { preferredFolder: enableOnlyDownloadMode ? 'music' : 'cache' },
-      )
+      const cached = fileCache.checkCache({ ...songInfo, quality, exactQuality: true }, username, false, {
+        preferredFolder: enableOnlyDownloadMode ? 'music' : 'cache',
+      })
       const hasPrivateCache = cached.exists && !cached.isCollision && cached.foundIn === username
       const safeDownloadUrl = hasPrivateCache ? null : await assertSafeRemoteHttpUrl(requestedUrl)
 
@@ -472,19 +493,21 @@ export const createCacheRouter = (): Router => {
       }
 
       const songKey = fileCache.normalizeSongId(songInfo) + '_' + (quality || 'unknown')
-      const queued = serverDownloadQueue.enqueue(username, [{
-        id: songKey,
-        songInfo,
-        quality,
-        resolvedUrl: safeDownloadUrl?.toString(),
-        background: background === true,
-        enableOnlyDownloadMode: !!enableOnlyDownloadMode,
-        cacheLyric: cacheLyric !== false,
-        embedLyric: embedLyric !== false,
-        requestedSource: requestedSource || songInfo.source,
-        downloadSource,
-        sourceName,
-      }])
+      const queued = serverDownloadQueue.enqueue(username, [
+        {
+          id: songKey,
+          songInfo,
+          quality,
+          resolvedUrl: safeDownloadUrl?.toString(),
+          background: background === true,
+          enableOnlyDownloadMode: !!enableOnlyDownloadMode,
+          cacheLyric: cacheLyric !== false,
+          embedLyric: embedLyric !== false,
+          requestedSource: requestedSource || songInfo.source,
+          downloadSource,
+          sourceName,
+        },
+      ])
 
       return ctx.json({
         success: true,
@@ -498,7 +521,7 @@ export const createCacheRouter = (): Router => {
   })
 
   // 6. 停止下载任务
-  router.post('/api/music/cache/stop', async (ctx) => {
+  router.post('/api/music/cache/stop', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -522,7 +545,7 @@ export const createCacheRouter = (): Router => {
   })
 
   // 8. 分发缓存文件（基于 Bun.file 零拷贝高性能分发）
-  router.get('/api/music/cache/file/*', async (ctx) => {
+  router.get('/api/music/cache/file/*', async ctx => {
     const parts = ctx.pathname.replace('/api/music/cache/file/', '').split('/')
     let reqUsername = '_open'
     let filename = parts[0]
@@ -564,14 +587,16 @@ export const createCacheRouter = (): Router => {
     } catch {
       return ctx.fail(400, '文件路径不合法')
     }
-    const normalizedUsername = (username && username !== '_open' && username !== 'default') ? username : '_open'
+    const normalizedUsername = username && username !== '_open' && username !== 'default' ? username : '_open'
     const requestedFolder = ctx.query.get('folder')
     if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') {
       return ctx.fail(400, '目录类型不合法')
     }
     const locations = [
       fileCache.getCacheLocation(),
-      fileCache.getCacheLocation() === fileCache.CACHE_ROOTS.DATA ? fileCache.CACHE_ROOTS.ROOT : fileCache.CACHE_ROOTS.DATA,
+      fileCache.getCacheLocation() === fileCache.CACHE_ROOTS.DATA
+        ? fileCache.CACHE_ROOTS.ROOT
+        : fileCache.CACHE_ROOTS.DATA,
     ]
     const roots: Array<fileCache.CacheFolder> = requestedFolder
       ? [requestedFolder as fileCache.CacheFolder]
@@ -614,17 +639,18 @@ export const createCacheRouter = (): Router => {
     const ifNoneMatch = ctx.headers.get('if-none-match')
     const ifModifiedSince = ctx.headers.get('if-modified-since')
     const cacheControl = normalizedUsername === '_open' ? 'public, max-age=86400' : 'private, no-store'
-    const unsatisfiableRangeResponse = () => new Response(null, {
-      status: 416,
-      headers: {
-        'Content-Range': `bytes */${size}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': '0',
-        'ETag': etag,
-        'Last-Modified': lastModified,
-        'Cache-Control': cacheControl,
-      },
-    })
+    const unsatisfiableRangeResponse = () =>
+      new Response(null, {
+        status: 416,
+        headers: {
+          'Content-Range': `bytes */${size}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': '0',
+          ETag: etag,
+          'Last-Modified': lastModified,
+          'Cache-Control': cacheControl,
+        },
+      })
     // A media client may combine validators with a Range request. Return the
     // requested partial content in that case instead of a 304 response that
     // cannot satisfy the media element's byte-range demand.
@@ -671,7 +697,7 @@ export const createCacheRouter = (): Router => {
             'Accept-Ranges': 'bytes',
             'Content-Length': String(end - start + 1),
             'Content-Type': contentType,
-            'ETag': etag,
+            ETag: etag,
             'Last-Modified': lastModified,
             'Cache-Control': cacheControl,
           },
@@ -685,7 +711,7 @@ export const createCacheRouter = (): Router => {
         'Content-Length': String(size),
         'Accept-Ranges': 'bytes',
         'Content-Type': contentType,
-        'ETag': etag,
+        ETag: etag,
         'Last-Modified': lastModified,
         'Cache-Control': cacheControl,
       },
@@ -693,7 +719,7 @@ export const createCacheRouter = (): Router => {
   })
 
   // 9. 缓存统计与清理
-  router.get('/api/music/cache/stats', (ctx) => {
+  router.get('/api/music/cache/stats', ctx => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
@@ -704,7 +730,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/clear', (ctx) => {
+  router.post('/api/music/cache/clear', ctx => {
     const isAdmin = verifyAdminAuth(ctx.request)
     const reqUser = ctx.query.get('user')
     if (reqUser === 'all' || reqUser === '_all') {
@@ -730,7 +756,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/lyric/clear', (ctx) => {
+  router.post('/api/music/cache/lyric/clear', ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -742,7 +768,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.get('/api/music/cache/progress', (ctx) => {
+  router.get('/api/music/cache/progress', ctx => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     const ids = (ctx.query.get('ids')?.split(',') || [])
@@ -761,7 +787,7 @@ export const createCacheRouter = (): Router => {
     return ctx.json({ success: true, data: progress })
   })
 
-  router.get('/api/music/cache/list', async (ctx) => {
+  router.get('/api/music/cache/list', async ctx => {
     const targetUserParam = ctx.query.get('user')
     const reqUsername = targetUserParam || ''
     const isAdmin = verifyAdminAuth(ctx.request)
@@ -819,7 +845,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.get('/api/music/cache/cover', async (ctx) => {
+  router.get('/api/music/cache/cover', async ctx => {
     const reqUsername = ctx.query.get('user') || ''
     const isPublicAlias = reqUsername === '_open' || reqUsername === 'default' || reqUsername === 'open'
     const verified = verifyUserAuth(ctx)
@@ -862,7 +888,7 @@ export const createCacheRouter = (): Router => {
     return ctx.fail(404, '资源不存在')
   })
 
-  router.post('/api/music/cache/remove', async (ctx) => {
+  router.post('/api/music/cache/remove', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -873,70 +899,93 @@ export const createCacheRouter = (): Router => {
       const legacyFilenames = payload.filenames
       const rawItems = Array.isArray(payload.items)
         ? payload.items
-        : (legacyFilenames ? (Array.isArray(legacyFilenames) ? legacyFilenames : [legacyFilenames]) : [])
+        : legacyFilenames
+          ? Array.isArray(legacyFilenames)
+            ? legacyFilenames
+            : [legacyFilenames]
+          : []
       if (rawItems.length === 0) throw new Error('Missing items')
 
-      const deleteItems: Array<{ filename: string; folder?: fileCache.CacheFolder; user?: string }> = rawItems.map((item: any) => {
-        if (typeof item === 'string') return { filename: item }
-        if (!item || typeof item.filename !== 'string') throw new Error('Invalid delete item')
-        if (item.folder !== undefined && item.folder !== 'cache' && item.folder !== 'music') {
-          throw new Error('Invalid folder')
-        }
-        return {
-          filename: item.filename,
-          folder: item.folder,
-          user: typeof item.user === 'string' && item.user ? item.user : (typeof item.rawUsername === 'string' && item.rawUsername ? item.rawUsername : undefined),
-        }
-      })
+      const deleteItems: Array<{ filename: string; folder?: fileCache.CacheFolder; user?: string }> = rawItems.map(
+        (item: any) => {
+          if (typeof item === 'string') return { filename: item }
+          if (!item || typeof item.filename !== 'string') throw new Error('Invalid delete item')
+          if (item.folder !== undefined && item.folder !== 'cache' && item.folder !== 'music') {
+            throw new Error('Invalid folder')
+          }
+          return {
+            filename: item.filename,
+            folder: item.folder,
+            user:
+              typeof item.user === 'string' && item.user
+                ? item.user
+                : typeof item.rawUsername === 'string' && item.rawUsername
+                  ? item.rawUsername
+                  : undefined,
+          }
+        },
+      )
 
       let deletedCount = 0
       const failures: Array<{ filename: string; folder?: fileCache.CacheFolder; message: string }> = []
       for (const item of deleteItems) {
         try {
-          const itemUser = (isAdmin && item.user)
-            ? assertSafePathSegment(item.user, 'user name')
-            : username
+          const itemUser = isAdmin && item.user ? assertSafePathSegment(item.user, 'user name') : username
           const result = fileCache.removeCacheFile(item.filename, itemUser, item.folder)
           if (result.deleted) {
             deletedCount++
-            accessLog.info(`music file deleted user=${itemUser} folder=${result.folder} filename=${JSON.stringify(item.filename)}`)
+            accessLog.info(
+              `music file deleted user=${itemUser} folder=${result.folder} filename=${JSON.stringify(item.filename)}`,
+            )
           } else {
             failures.push({ ...item, message: 'File not found' })
           }
         } catch (error: any) {
           failures.push({ ...item, message: error?.message || 'Delete failed' })
-          accessLog.warn(`music file delete rejected user=${item.user || username} folder=${item.folder || 'unspecified'} filename=${JSON.stringify(item.filename)} reason=${JSON.stringify(error?.message || 'Delete failed')}`)
+          accessLog.warn(
+            `music file delete rejected user=${item.user || username} folder=${item.folder || 'unspecified'} filename=${JSON.stringify(item.filename)} reason=${JSON.stringify(error?.message || 'Delete failed')}`,
+          )
         }
       }
 
       const success = failures.length === 0
-      const statusCode = success ? 200 : (deletedCount > 0 ? 207 : 409)
-      return ctx.json({
-        success,
-        deletedCount,
-        failedCount: failures.length,
-        failures,
-        message: success ? undefined : failures[0]?.message,
-      }, statusCode)
+      const statusCode = success ? 200 : deletedCount > 0 ? 207 : 409
+      return ctx.json(
+        {
+          success,
+          deletedCount,
+          failedCount: failures.length,
+          failures,
+          message: success ? undefined : failures[0]?.message,
+        },
+        statusCode,
+      )
     } catch (e: any) {
       return ctx.fail(400, toUserMessage(e, '请求参数不合法'))
     }
   })
 
-  router.post('/api/music/cache/move', async (ctx) => {
+  router.post('/api/music/cache/move', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const isAdmin = verifyAdminAuth(ctx.request)
 
     try {
       const payload = await ctx.bodyJson<any>()
-      const requestedTargetFolder = payload.targetFolder === undefined || payload.targetFolder === null || payload.targetFolder === ''
-        ? undefined
-        : (payload.targetFolder === 'cache' || payload.targetFolder === 'music' ? payload.targetFolder as fileCache.CacheFolder : null)
+      const requestedTargetFolder =
+        payload.targetFolder === undefined || payload.targetFolder === null || payload.targetFolder === ''
+          ? undefined
+          : payload.targetFolder === 'cache' || payload.targetFolder === 'music'
+            ? (payload.targetFolder as fileCache.CacheFolder)
+            : null
       if (payload.targetFolder !== undefined && requestedTargetFolder === null) return ctx.fail(400, '目标目录不合法')
       const rawItems = Array.isArray(payload.items)
         ? payload.items
-        : (payload.filenames ? (Array.isArray(payload.filenames) ? payload.filenames.map((f: string) => ({ filename: f, user: payload.user })) : [{ filename: payload.filenames, user: payload.user }]) : [])
+        : payload.filenames
+          ? Array.isArray(payload.filenames)
+            ? payload.filenames.map((f: string) => ({ filename: f, user: payload.user }))
+            : [{ filename: payload.filenames, user: payload.user }]
+          : []
       if (rawItems.length === 0) return ctx.fail(400, '缺少必要参数：filenames')
       if (rawItems.length > 500) return ctx.fail(400, '单次最多移动 500 个文件')
 
@@ -949,9 +998,7 @@ export const createCacheRouter = (): Router => {
           publicPromotions.push({ filename: item.filename, sourceUser })
           continue
         }
-        const itemUser = (isAdmin && sourceUser)
-          ? assertSafePathSegment(sourceUser, 'user name')
-          : target.username
+        const itemUser = isAdmin && sourceUser ? assertSafePathSegment(sourceUser, 'user name') : target.username
         const list = userGroup.get(itemUser) || []
         list.push(item.filename)
         userGroup.set(itemUser, list)
@@ -959,7 +1006,8 @@ export const createCacheRouter = (): Router => {
 
       let totalSuccess = 0
       let totalFail = 0
-      const moved: Array<{ filename: string; from: fileCache.CacheFolder; to: fileCache.CacheFolder; user: string }> = []
+      const moved: Array<{ filename: string; from: fileCache.CacheFolder; to: fileCache.CacheFolder; user: string }> =
+        []
       for (const item of publicPromotions) {
         const result = await fileCache.promoteCacheFile(item.filename, item.sourceUser, target.username)
         totalSuccess += result.successCount
@@ -978,7 +1026,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/switch-base', async (ctx) => {
+  router.post('/api/music/cache/switch-base', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -994,7 +1042,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/updateMetadata', async (ctx) => {
+  router.post('/api/music/cache/updateMetadata', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -1010,7 +1058,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/embedLyric', async (ctx) => {
+  router.post('/api/music/cache/embedLyric', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
     const username = target.username
@@ -1052,7 +1100,10 @@ export const createCacheRouter = (): Router => {
             details.push({
               filename,
               status: 'fail',
-              reason: indexItem.embedLyricError || indexItem.metadataError || '当前音频容器不支持嵌入歌词，外置歌词文件仍可正常使用',
+              reason:
+                indexItem.embedLyricError ||
+                indexItem.metadataError ||
+                '当前音频容器不支持嵌入歌词，外置歌词文件仍可正常使用',
             })
             failCount++
             continue
@@ -1067,7 +1118,9 @@ export const createCacheRouter = (): Router => {
                 checkTagger.loadPath(filePath)
                 return checkTagger.lyrics || ''
               } finally {
-                try { if (checkTagger) checkTagger.dispose() } catch { }
+                try {
+                  if (checkTagger) checkTagger.dispose()
+                } catch {}
               }
             })
           } catch (checkError: any) {
@@ -1155,7 +1208,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/cache/link', async (ctx) => {
+  router.post('/api/music/cache/link', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -1169,7 +1222,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/identify', async (ctx) => {
+  router.post('/api/music/identify', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 
@@ -1187,7 +1240,7 @@ export const createCacheRouter = (): Router => {
     }
   })
 
-  router.get('/api/music/cache/lyric', async (ctx) => {
+  router.get('/api/music/cache/lyric', async ctx => {
     const source = ctx.query.get('source')
     const songmid = ctx.query.get('songmid') || ctx.query.get('songId') || ctx.query.get('id')
     const songId = ctx.query.get('songId') || ctx.query.get('id')
@@ -1206,7 +1259,7 @@ export const createCacheRouter = (): Router => {
     return ctx.fail(404, '缓存中未找到该内容')
   })
 
-  router.post('/api/music/cache/lyric', async (ctx) => {
+  router.post('/api/music/cache/lyric', async ctx => {
     const target = resolveCacheTarget(ctx, { publicWrite: true })
     if (!target.ok) return target.error
 

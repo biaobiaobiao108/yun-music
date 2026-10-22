@@ -23,8 +23,16 @@ test('SDK singleton releases its completed response without changing the public 
 test('settling an older request does not clear a newer cancellation handle, and failures release it', async () => {
   let resolveOld!: () => void
   let rejectNew!: (reason: Error) => void
-  const older = { promise: new Promise<void>(resolve => { resolveOld = resolve }) }
-  const newer = { promise: new Promise<void>((_resolve, reject) => { rejectNew = reject }) }
+  const older = {
+    promise: new Promise<void>(resolve => {
+      resolveOld = resolve
+    }),
+  }
+  const newer = {
+    promise: new Promise<void>((_resolve, reject) => {
+      rejectNew = reject
+    }),
+  }
   const owner: { request: typeof older | null } = { request: older }
   releaseRequestWhenSettled(owner, 'request')
   owner.request = newer

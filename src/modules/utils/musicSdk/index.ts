@@ -16,23 +16,23 @@ const sources: Pick<MusicSdk, 'sources' | 'tx' | 'wy'> = {
   wy,
 }
 
-const trimString = (value: unknown): string => typeof value === 'string' ? value.trim() : String(value ?? '')
+const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : String(value ?? ''))
 
 const getIntervalSeconds = (interval: string | null | undefined): number => {
   if (!interval) return 0
   return interval.split(':').reduce((total, part) => total * 60 + (Number.parseInt(part, 10) || 0), 0)
 }
 
-const filterText = (value: unknown): string => String(value ?? '')
-  .toLowerCase()
-  .replace(/[\s'.,，&"、()（）`~\-<>|/\][!！]/g, '')
+const filterText = (value: unknown): string =>
+  String(value ?? '')
+    .toLowerCase()
+    .replace(/[\s'.,，&"、()（）`~\-<>|/\][!！]/g, '')
 
 const sourceSdk = (source: BuiltinOnlineSource) => sources[source]
 
 /** 获取内置音源；自定义 userApi 音源不会进入这个注册表。 */
-export const getBuiltinSource = (source: string): MusicPlatform | undefined => (
+export const getBuiltinSource = (source: string): MusicPlatform | undefined =>
   isBuiltinOnlineSource(source) ? sourceSdk(source) : undefined
-)
 
 const musicSdk: MusicSdk = {
   ...sources,
@@ -61,12 +61,22 @@ const musicSdk: MusicSdk = {
     return (await Promise.all(tasks)).filter((result): result is MusicSearchResult => result !== null)
   },
 
-  async findMusic({ name, singer = '', albumName = '', interval = null, source: excludedSource }): Promise<MusicSong[]> {
+  async findMusic({
+    name,
+    singer = '',
+    albumName = '',
+    interval = null,
+    source: excludedSource,
+  }): Promise<MusicSong[]> {
     const lists = await musicSdk.searchMusic({ name, singer, source: excludedSource, limit: 25 })
     const singersRxp = /、|&|;|；|\/|,|，|\|/
-    const sortSingle = (value: string) => singersRxp.test(value)
-      ? value.split(singersRxp).sort((a, b) => a.localeCompare(b)).join('、')
-      : value
+    const sortSingle = (value: string) =>
+      singersRxp.test(value)
+        ? value
+            .split(singersRxp)
+            .sort((a, b) => a.localeCompare(b))
+            .join('、')
+        : value
     const sortMusic = (items: MusicSong[], callback: (item: MusicSong) => boolean): MusicSong[] => {
       const tempResult: MusicSong[] = []
       for (let index = items.length - 1; index > -1; index--) {
@@ -94,34 +104,51 @@ const musicSdk: MusicSdk = {
     const isIncludesSinger = (value: string) => !fSinger || fSinger.includes(value) || value.includes(fSinger)
     const isEqualsAlbum = (value: string) => !fAlbumName || fAlbumName === value
 
-    const result = lists.map(source => {
-      for (const item of source.list) {
-        item.name = trimString(item.name)
-        item.singer = trimString(item.singer)
-        item.fSinger = filterText(sortSingle(item.singer))
-        item.fMusicName = filterText(item.name)
-        item.fAlbumName = filterText(item.albumName)
-        item.fInterval = getIntv(item.interval)
-        if (!isEqualsInterval(item.fInterval)) {
-          item.name = null
-          continue
+    const result = lists
+      .map(source => {
+        for (const item of source.list) {
+          item.name = trimString(item.name)
+          item.singer = trimString(item.singer)
+          item.fSinger = filterText(sortSingle(item.singer))
+          item.fMusicName = filterText(item.name)
+          item.fAlbumName = filterText(item.albumName)
+          item.fInterval = getIntv(item.interval)
+          if (!isEqualsInterval(item.fInterval)) {
+            item.name = null
+            continue
+          }
+          if (item.fMusicName === fMusicName && isIncludesSinger(item.fSinger)) return item
         }
-        if (item.fMusicName === fMusicName && isIncludesSinger(item.fSinger)) return item
-      }
-      for (const item of source.list) {
-        if (item.name == null) continue
-        if (item.fSinger === fSinger && isIncludesName(item.fMusicName ?? '')) return item
-      }
-      for (const item of source.list) {
-        if (item.name == null) continue
-        if (isEqualsAlbum(item.fAlbumName ?? '') && isIncludesSinger(item.fSinger ?? '') && isIncludesName(item.fMusicName ?? '')) return item
-      }
-      return null
-    }).filter((item): item is MusicSong => item !== null)
+        for (const item of source.list) {
+          if (item.name == null) continue
+          if (item.fSinger === fSinger && isIncludesName(item.fMusicName ?? '')) return item
+        }
+        for (const item of source.list) {
+          if (item.name == null) continue
+          if (
+            isEqualsAlbum(item.fAlbumName ?? '') &&
+            isIncludesSinger(item.fSinger ?? '') &&
+            isIncludesName(item.fMusicName ?? '')
+          )
+            return item
+        }
+        return null
+      })
+      .filter((item): item is MusicSong => item !== null)
 
     const newResult: MusicSong[] = []
-    newResult.push(...sortMusic(result, item => item.fSinger === fSinger && item.fMusicName === fMusicName && item.interval === interval))
-    newResult.push(...sortMusic(result, item => item.fMusicName === fMusicName && item.fSinger === fSinger && item.fAlbumName === fAlbumName))
+    newResult.push(
+      ...sortMusic(
+        result,
+        item => item.fSinger === fSinger && item.fMusicName === fMusicName && item.interval === interval,
+      ),
+    )
+    newResult.push(
+      ...sortMusic(
+        result,
+        item => item.fMusicName === fMusicName && item.fSinger === fSinger && item.fAlbumName === fAlbumName,
+      ),
+    )
     newResult.push(...sortMusic(result, item => item.fSinger === fSinger && item.fMusicName === fMusicName))
     newResult.push(...sortMusic(result, item => item.fMusicName === fMusicName && item.interval === interval))
     newResult.push(...sortMusic(result, item => item.fSinger === fSinger && item.interval === interval))

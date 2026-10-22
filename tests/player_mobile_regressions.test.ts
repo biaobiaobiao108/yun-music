@@ -7,7 +7,16 @@ import type { Song } from '../frontend/player/src/react/types'
 const initialUi = usePlayerUiStore.getState()
 const initialRecent = useRecentStore.getState()
 const songs: Song[] = [
-  { id: 'a', songmid: 'a', name: '歌曲甲', singer: '歌手', albumName: '同一张专辑', source: 'wy', artistId: 'artist-a', albumId: 'album-a' },
+  {
+    id: 'a',
+    songmid: 'a',
+    name: '歌曲甲',
+    singer: '歌手',
+    albumName: '同一张专辑',
+    source: 'wy',
+    artistId: 'artist-a',
+    albumId: 'album-a',
+  },
   { id: 'b', songmid: 'b', name: '歌曲乙', singer: '歌手', albumName: '同一张专辑', source: 'wy' },
 ]
 
@@ -30,7 +39,10 @@ describe('Mobile player regressions', () => {
     try {
       usePlayerUiStore.setState({ immersiveLyrics: true })
       await navigateToSongEntity(songs[1]!, 'artist')
-      expect(usePlayerUiStore.getState()).toMatchObject({ immersiveLyrics: false, detail: { id: 'resolved-artist', kind: 'artist' } })
+      expect(usePlayerUiStore.getState()).toMatchObject({
+        immersiveLyrics: false,
+        detail: { id: 'resolved-artist', kind: 'artist' },
+      })
     } finally {
       search.mockRestore()
     }

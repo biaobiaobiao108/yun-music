@@ -9,7 +9,12 @@ import { serverStatus } from '../state'
 import { startupLog } from '@/utils/log4js'
 import { resolveInside } from '@/utils/pathSecurity'
 import { parseConfigFile } from '@/utils/configLoader'
-import { createLocalBackup, LocalBackupTooLargeError, MAX_LOCAL_BACKUP_BYTES, restoreLocalBackup } from '../localBackupService'
+import {
+  createLocalBackup,
+  LocalBackupTooLargeError,
+  MAX_LOCAL_BACKUP_BYTES,
+  restoreLocalBackup,
+} from '../localBackupService'
 import { refreshUsersFromDatabase } from '@/user/data'
 import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
@@ -136,8 +141,10 @@ const writeMultipartBackupToFile = async (
           if (buffer.length < suffixOffset + 2) {
             await writePart(buffer.slice(0, index))
             buffer = buffer.slice(index)
-          } else if ((buffer[suffixOffset] === 45 && buffer[suffixOffset + 1] === 45)
-            || (buffer[suffixOffset] === 13 && buffer[suffixOffset + 1] === 10)) {
+          } else if (
+            (buffer[suffixOffset] === 45 && buffer[suffixOffset + 1] === 45) ||
+            (buffer[suffixOffset] === 13 && buffer[suffixOffset + 1] === 10)
+          ) {
             await writePart(buffer.slice(0, index))
             buffer = buffer.slice(suffixOffset)
             inBackupFile = false
@@ -171,7 +178,9 @@ const writeMultipartBackupToFile = async (
     return backupBytes
   } catch (error) {
     failed = true
-    try { await reader.cancel(error) } catch { }
+    try {
+      await reader.cancel(error)
+    } catch {}
     throw error
   } finally {
     reader.releaseLock()
@@ -183,7 +192,10 @@ const writeMultipartBackupToFile = async (
 }
 
 const readMultipartBoundary = (contentType: string): string | null => {
-  const value = contentType.match(/(?:^|;)\s*boundary=(?:"([^"]+)"|([^;\s]+))/i)?.slice(1).find(Boolean)
+  const value = contentType
+    .match(/(?:^|;)\s*boundary=(?:"([^"]+)"|([^;\s]+))/i)
+    ?.slice(1)
+    .find(Boolean)
   if (!value || value.length > 200 || /[\r\n]/.test(value)) return null
   return value
 }
@@ -248,9 +260,11 @@ const pathsOverlap = (left: string, right: string): boolean => {
   // Root is intentionally a catch-all fallback path in this application;
   // only two concrete prefixes can shadow each other.
   if (normalizedLeft === '/' || normalizedRight === '/') return normalizedLeft === normalizedRight
-  return normalizedLeft === normalizedRight ||
+  return (
+    normalizedLeft === normalizedRight ||
     normalizedLeft.startsWith(`${normalizedRight}/`) ||
     normalizedRight.startsWith(`${normalizedLeft}/`)
+  )
 }
 
 const applyConfiguredPassword = async (
@@ -269,7 +283,12 @@ const applyConfiguredPassword = async (
   }
   if (restored[plainKey] === undefined) return
   const password = restored[plainKey]
-  if (typeof password !== 'string' || password.length > 1024 || (required && !password.trim()) || password === '123456') {
+  if (
+    typeof password !== 'string' ||
+    password.length > 1024 ||
+    (required && !password.trim()) ||
+    password === '123456'
+  ) {
     throw new Error(`${label}配置无效`)
   }
   if (password.trim()) config[hashKey] = await hashPassword(password)
@@ -317,7 +336,10 @@ const normalizeProxyAddress = (value: unknown): string => {
 }
 
 /** 只应用当前版本已知且经过基本校验的运行时配置。 */
-const applyValidatedConfig = async (restored: Record<string, unknown>, options: { includeSecrets?: boolean } = {}): Promise<void> => {
+const applyValidatedConfig = async (
+  restored: Record<string, unknown>,
+  options: { includeSecrets?: boolean } = {},
+): Promise<void> => {
   const config = global.lx.config as Record<string, any>
   const scalarKeys = [
     'proxy.enabled',
@@ -340,7 +362,11 @@ const applyValidatedConfig = async (restored: Record<string, unknown>, options: 
   if (typeof restored.serverName === 'string' && restored.serverName.trim() && restored.serverName.length <= 256) {
     config.serverName = restored.serverName
   }
-  if (typeof restored.bindIP === 'string' && restored.bindIP.length <= 256 && !/[\u0000-\u001f\u007f]/.test(restored.bindIP)) {
+  if (
+    typeof restored.bindIP === 'string' &&
+    restored.bindIP.length <= 256 &&
+    !/[\u0000-\u001f\u007f]/.test(restored.bindIP)
+  ) {
     config.bindIP = restored.bindIP
   }
   if (Number.isInteger(restored.port) && Number(restored.port) >= 1 && Number(restored.port) <= 65535) {
@@ -369,19 +395,21 @@ const applyValidatedConfig = async (restored: Record<string, unknown>, options: 
     if (restored['proxy.trustedAddresses'] !== undefined) {
       config['proxy.trustedAddresses'] = normalizeTrustedProxyAddresses(restored['proxy.trustedAddresses'])
     }
-  } catch { }
+  } catch {}
   try {
     if (restored['proxy.all.address'] !== undefined && !process.env.PROXY_ALL_ADDRESS) {
       config['proxy.all.address'] = normalizeProxyAddress(restored['proxy.all.address'])
     }
-  } catch { }
+  } catch {}
   if (typeof restored['admin.path'] === 'string' || typeof restored['player.path'] === 'string') {
-    const normalizedAdmin = typeof restored['admin.path'] === 'string'
-      ? normalizeConfiguredPath(restored['admin.path'], '', true)
-      : (config['admin.path'] ?? '')
-    const normalizedPlayer = typeof restored['player.path'] === 'string'
-      ? normalizeConfiguredPath(restored['player.path'], '/music')
-      : (config['player.path'] ?? '/music')
+    const normalizedAdmin =
+      typeof restored['admin.path'] === 'string'
+        ? normalizeConfiguredPath(restored['admin.path'], '', true)
+        : (config['admin.path'] ?? '')
+    const normalizedPlayer =
+      typeof restored['player.path'] === 'string'
+        ? normalizeConfiguredPath(restored['player.path'], '/music')
+        : (config['player.path'] ?? '/music')
     if (pathsOverlap(normalizedAdmin, normalizedPlayer)) {
       throw new Error('后台管理路径与播放器路径不能相同或互相包含')
     }
@@ -394,18 +422,35 @@ const applyValidatedConfig = async (restored: Record<string, unknown>, options: 
   }
 
   if (options.includeSecrets) {
-    if ((restored['frontend.password'] !== undefined || restored['frontend.passwordHash'] !== undefined) && !process.env.FRONTEND_PASSWORD) {
+    if (
+      (restored['frontend.password'] !== undefined || restored['frontend.passwordHash'] !== undefined) &&
+      !process.env.FRONTEND_PASSWORD
+    ) {
       await applyConfiguredPassword(config, restored, 'frontend.password', 'frontend.passwordHash', '管理员密码', true)
     }
-    if ((restored['player.password'] !== undefined || restored['player.passwordHash'] !== undefined) && !process.env.WEBPLAYER_PASSWORD) {
-      await applyConfiguredPassword(config, restored, 'player.password', 'player.passwordHash', '播放器密码', Boolean(config['player.enableAuth']))
+    if (
+      (restored['player.password'] !== undefined || restored['player.passwordHash'] !== undefined) &&
+      !process.env.WEBPLAYER_PASSWORD
+    ) {
+      await applyConfiguredPassword(
+        config,
+        restored,
+        'player.password',
+        'player.passwordHash',
+        '播放器密码',
+        Boolean(config['player.enableAuth']),
+      )
     }
   }
 
   if (config['proxy.all.enabled'] && !String(config['proxy.all.address'] || '').trim()) {
     throw new Error('启用全局代理时必须配置代理地址')
   }
-  if (config['player.enableAuth'] && !isPasswordHash(config['player.passwordHash']) && !String(config['player.password'] || '').trim()) {
+  if (
+    config['player.enableAuth'] &&
+    !isPasswordHash(config['player.passwordHash']) &&
+    !String(config['player.password'] || '').trim()
+  ) {
     throw new Error('播放器启用认证时必须配置密码')
   }
 }
@@ -421,7 +466,8 @@ export const reloadServerData = async (): Promise<void> => {
       // directory as JS in this process, and it also registers the file with
       // bun --watch (a config save would restart the server mid-response).
       const rootConfig = parseConfigFile(configPath)
-      if (!rootConfig || typeof rootConfig !== 'object' || Array.isArray(rootConfig)) throw new Error('配置文件格式无效')
+      if (!rootConfig || typeof rootConfig !== 'object' || Array.isArray(rootConfig))
+        throw new Error('配置文件格式无效')
       await applyValidatedConfig(rootConfig, { includeSecrets: true })
       startupLog.info('Config.js re-loaded and merged.')
     } catch (err: any) {
@@ -432,7 +478,6 @@ export const reloadServerData = async (): Promise<void> => {
       startupLog.error('Failed to reload config.js:', err.message)
     }
   }
-
 }
 
 /** 注册系统运维与管理相关路由 */
@@ -440,7 +485,7 @@ export const createSystemRouter = (): Router => {
   const router = new Router()
 
   // 1. 服务运行统计 (CPU/内存/状态)
-  router.get('/api/stats', (ctx) => {
+  router.get('/api/stats', ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -458,14 +503,14 @@ export const createSystemRouter = (): Router => {
 
   // 1.1 SQLite 存储状态与显式压缩。VACUUM 可能短暂占用额外磁盘空间，
   // 因此只允许管理员按需执行，不在普通请求或启动时自动触发。
-  router.get('/api/admin/database/stats', (ctx) => {
+  router.get('/api/admin/database/stats', ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
     return ctx.json({ success: true, data: getDatabaseStorageStats() })
   })
 
-  router.post('/api/admin/database/vacuum', (ctx) => {
+  router.post('/api/admin/database/vacuum', ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -477,7 +522,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 1.2 详细系统状态 /api/status
-  router.get('/api/status', (ctx) => {
+  router.get('/api/status', ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -490,7 +535,9 @@ export const createSystemRouter = (): Router => {
       let idle = 0
       let total = 0
       cpus.forEach(cpu => {
-        for (const type in cpu.times) { total += (cpu.times as any)[type] }
+        for (const type in cpu.times) {
+          total += (cpu.times as any)[type]
+        }
         idle += cpu.times.idle
       })
       const last = (global.lx as any).lastCpuSample || { idle: 0, total: 0 }
@@ -512,7 +559,7 @@ export const createSystemRouter = (): Router => {
       const deltaTime = (currentTime - last.time) * 1000
       ;(global.lx as any).lastProcessSample = { cpu: currentUsage, time: currentTime }
       if (deltaTime === 0) return '0.00'
-      return ((deltaUsage.user + deltaUsage.system) / deltaTime / os.cpus().length * 100).toFixed(2)
+      return (((deltaUsage.user + deltaUsage.system) / deltaTime / os.cpus().length) * 100).toFixed(2)
     }
 
     const processMemory = getProcessMemorySnapshot()
@@ -537,8 +584,8 @@ export const createSystemRouter = (): Router => {
       },
       totalMemory: totalMem,
       freeMemory: freeMem,
-      systemMemoryUsage: ((totalMem - freeMem) / totalMem * 100).toFixed(2),
-      processMemoryUsage: (processMemory.rss / totalMem * 100).toFixed(2),
+      systemMemoryUsage: (((totalMem - freeMem) / totalMem) * 100).toFixed(2),
+      processMemoryUsage: ((processMemory.rss / totalMem) * 100).toFixed(2),
       cpuUsage: getSystemCpuUsage(),
       processCpuUsage: getProcessCpuUsage(),
       osUptime: os.uptime(),
@@ -553,7 +600,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 2. 日志读取
-  router.get('/api/logs', async (ctx) => {
+  router.get('/api/logs', async ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -584,7 +631,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 3. 配置读取与更新 (GET & POST)
-  router.get('/api/config', (ctx) => {
+  router.get('/api/config', ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -618,7 +665,7 @@ export const createSystemRouter = (): Router => {
     return ctx.json(config)
   })
 
-  router.post('/api/config', async (ctx) => {
+  router.post('/api/config', async ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -633,13 +680,18 @@ export const createSystemRouter = (): Router => {
     try {
       const newConfig = await ctx.bodyJson<Record<string, any>>()
       if (newConfig.serverName !== undefined) {
-        if (typeof newConfig.serverName !== 'string' || newConfig.serverName.length > 256 || /[\u0000-\u001f\u007f]/.test(newConfig.serverName)) {
+        if (
+          typeof newConfig.serverName !== 'string' ||
+          newConfig.serverName.length > 256 ||
+          /[\u0000-\u001f\u007f]/.test(newConfig.serverName)
+        ) {
           rollbackConfig()
           return ctx.json({ success: false, error: '服务名称格式无效' }, 422)
         }
         c.serverName = newConfig.serverName
       }
-      if (newConfig.maxSnapshotNum !== undefined) c.maxSnapshotNum = parseBoundedInteger(newConfig.maxSnapshotNum, 1, 10000, c.maxSnapshotNum)
+      if (newConfig.maxSnapshotNum !== undefined)
+        c.maxSnapshotNum = parseBoundedInteger(newConfig.maxSnapshotNum, 1, 10000, c.maxSnapshotNum)
       if (newConfig['list.addMusicLocationType'] !== undefined) {
         if (newConfig['list.addMusicLocationType'] !== 'top' && newConfig['list.addMusicLocationType'] !== 'bottom') {
           rollbackConfig()
@@ -647,7 +699,8 @@ export const createSystemRouter = (): Router => {
         }
         c['list.addMusicLocationType'] = newConfig['list.addMusicLocationType']
       }
-      if (newConfig['proxy.enabled'] !== undefined) c['proxy.enabled'] = parseBoolean(newConfig['proxy.enabled'], c['proxy.enabled'])
+      if (newConfig['proxy.enabled'] !== undefined)
+        c['proxy.enabled'] = parseBoolean(newConfig['proxy.enabled'], c['proxy.enabled'])
       if (newConfig['proxy.header'] !== undefined) {
         if (!isValidHttpHeaderName(newConfig['proxy.header'])) {
           rollbackConfig()
@@ -663,15 +716,42 @@ export const createSystemRouter = (): Router => {
           return ctx.json({ success: false, error: toUserMessage(error, '可信代理地址格式无效') }, 422)
         }
       }
-      if (newConfig['user.enablePath'] !== undefined) c['user.enablePath'] = parseBoolean(newConfig['user.enablePath'], c['user.enablePath'] ?? false)
-      if (newConfig['user.enableRoot'] !== undefined) c['user.enableRoot'] = parseBoolean(newConfig['user.enableRoot'], c['user.enableRoot'] ?? false)
-      if (newConfig['user.enablePublicRestriction'] !== undefined) c['user.enablePublicRestriction'] = parseBoolean(newConfig['user.enablePublicRestriction'], c['user.enablePublicRestriction'] ?? false)
-      if (newConfig['user.enablePublicNonAdminLocalMusic'] !== undefined) c['user.enablePublicNonAdminLocalMusic'] = parseBoolean(newConfig['user.enablePublicNonAdminLocalMusic'], c['user.enablePublicNonAdminLocalMusic'] ?? false)
-      if (newConfig['user.enablePublicFavorites'] !== undefined) c['user.enablePublicFavorites'] = parseBoolean(newConfig['user.enablePublicFavorites'], c['user.enablePublicFavorites'] ?? false)
-      if (newConfig['user.enablePublicNonAdminAccess'] !== undefined) c['user.enablePublicNonAdminAccess'] = parseBoolean(newConfig['user.enablePublicNonAdminAccess'], c['user.enablePublicNonAdminAccess'] ?? false)
-      if (newConfig['user.enableLoginCacheRestriction'] !== undefined) c['user.enableLoginCacheRestriction'] = parseBoolean(newConfig['user.enableLoginCacheRestriction'], c['user.enableLoginCacheRestriction'] ?? false)
-      if (newConfig['user.enableCacheSizeLimit'] !== undefined) c['user.enableCacheSizeLimit'] = parseBoolean(newConfig['user.enableCacheSizeLimit'], c['user.enableCacheSizeLimit'] ?? false)
-      if (newConfig['user.cacheSizeLimit'] !== undefined) c['user.cacheSizeLimit'] = parseBoundedInteger(newConfig['user.cacheSizeLimit'], 1, 1024 * 1024, 2000)
+      if (newConfig['user.enablePath'] !== undefined)
+        c['user.enablePath'] = parseBoolean(newConfig['user.enablePath'], c['user.enablePath'] ?? false)
+      if (newConfig['user.enableRoot'] !== undefined)
+        c['user.enableRoot'] = parseBoolean(newConfig['user.enableRoot'], c['user.enableRoot'] ?? false)
+      if (newConfig['user.enablePublicRestriction'] !== undefined)
+        c['user.enablePublicRestriction'] = parseBoolean(
+          newConfig['user.enablePublicRestriction'],
+          c['user.enablePublicRestriction'] ?? false,
+        )
+      if (newConfig['user.enablePublicNonAdminLocalMusic'] !== undefined)
+        c['user.enablePublicNonAdminLocalMusic'] = parseBoolean(
+          newConfig['user.enablePublicNonAdminLocalMusic'],
+          c['user.enablePublicNonAdminLocalMusic'] ?? false,
+        )
+      if (newConfig['user.enablePublicFavorites'] !== undefined)
+        c['user.enablePublicFavorites'] = parseBoolean(
+          newConfig['user.enablePublicFavorites'],
+          c['user.enablePublicFavorites'] ?? false,
+        )
+      if (newConfig['user.enablePublicNonAdminAccess'] !== undefined)
+        c['user.enablePublicNonAdminAccess'] = parseBoolean(
+          newConfig['user.enablePublicNonAdminAccess'],
+          c['user.enablePublicNonAdminAccess'] ?? false,
+        )
+      if (newConfig['user.enableLoginCacheRestriction'] !== undefined)
+        c['user.enableLoginCacheRestriction'] = parseBoolean(
+          newConfig['user.enableLoginCacheRestriction'],
+          c['user.enableLoginCacheRestriction'] ?? false,
+        )
+      if (newConfig['user.enableCacheSizeLimit'] !== undefined)
+        c['user.enableCacheSizeLimit'] = parseBoolean(
+          newConfig['user.enableCacheSizeLimit'],
+          c['user.enableCacheSizeLimit'] ?? false,
+        )
+      if (newConfig['user.cacheSizeLimit'] !== undefined)
+        c['user.cacheSizeLimit'] = parseBoundedInteger(newConfig['user.cacheSizeLimit'], 1, 1024 * 1024, 2000)
       if (newConfig['frontend.password'] !== undefined) {
         if (typeof newConfig['frontend.password'] !== 'string') {
           rollbackConfig()
@@ -690,9 +770,10 @@ export const createSystemRouter = (): Router => {
           delete c['frontend.password']
         }
       }
-      const nextPlayerEnableAuth = newConfig['player.enableAuth'] !== undefined
-        ? parseBoolean(newConfig['player.enableAuth'], false)
-        : Boolean(c['player.enableAuth'])
+      const nextPlayerEnableAuth =
+        newConfig['player.enableAuth'] !== undefined
+          ? parseBoolean(newConfig['player.enableAuth'], false)
+          : Boolean(c['player.enableAuth'])
       let nextPlayerPasswordHash = await getConfiguredPasswordHash(c, 'player.password', 'player.passwordHash')
       if (newConfig['player.password'] !== undefined) {
         if (typeof newConfig['player.password'] !== 'string') {
@@ -720,13 +801,13 @@ export const createSystemRouter = (): Router => {
       else delete c['player.passwordHash']
       delete c['player.password']
 
-      if (newConfig['proxy.all.enabled'] !== undefined) c['proxy.all.enabled'] = parseBoolean(newConfig['proxy.all.enabled'], false)
+      if (newConfig['proxy.all.enabled'] !== undefined)
+        c['proxy.all.enabled'] = parseBoolean(newConfig['proxy.all.enabled'], false)
       if (newConfig['proxy.all.address'] !== undefined) {
         const normalizedAddress = normalizeProxyAddress(newConfig['proxy.all.address'])
         const currentAddress = redactUrlCredentials(c['proxy.all.address'])
-        c['proxy.all.address'] = normalizedAddress && normalizedAddress === currentAddress
-          ? c['proxy.all.address']
-          : normalizedAddress
+        c['proxy.all.address'] =
+          normalizedAddress && normalizedAddress === currentAddress ? c['proxy.all.address'] : normalizedAddress
       }
       if (c['proxy.all.enabled'] && !String(c['proxy.all.address'] || '').trim()) {
         rollbackConfig()
@@ -734,8 +815,15 @@ export const createSystemRouter = (): Router => {
       }
 
       if (newConfig['admin.path'] !== undefined || newConfig['player.path'] !== undefined) {
-        const normalizedAdmin = normalizeConfiguredPath(newConfig['admin.path'] !== undefined ? newConfig['admin.path'] : (c['admin.path'] ?? ''), '', true)
-        const normalizedPlayer = normalizeConfiguredPath(newConfig['player.path'] !== undefined ? newConfig['player.path'] : (c['player.path'] ?? '/music'), '/music')
+        const normalizedAdmin = normalizeConfiguredPath(
+          newConfig['admin.path'] !== undefined ? newConfig['admin.path'] : (c['admin.path'] ?? ''),
+          '',
+          true,
+        )
+        const normalizedPlayer = normalizeConfiguredPath(
+          newConfig['player.path'] !== undefined ? newConfig['player.path'] : (c['player.path'] ?? '/music'),
+          '/music',
+        )
 
         if (pathsOverlap(normalizedAdmin, normalizedPlayer)) {
           rollbackConfig()
@@ -746,7 +834,9 @@ export const createSystemRouter = (): Router => {
       }
 
       if (newConfig['singer.sourcePriority'] !== undefined) {
-        const priority = String(newConfig['singer.sourcePriority']).split(',').filter(s => s === 'tx' || s === 'wy') as Array<'tx' | 'wy'>
+        const priority = String(newConfig['singer.sourcePriority'])
+          .split(',')
+          .filter(s => s === 'tx' || s === 'wy') as Array<'tx' | 'wy'>
         if (priority.length > 0) c['singer.sourcePriority'] = priority
       }
       if (newConfig['artist.maxFetchPages'] !== undefined) {
@@ -754,18 +844,19 @@ export const createSystemRouter = (): Router => {
         c['artist.maxFetchPages'] = Number.isFinite(maxPages) && maxPages > 0 ? Math.min(Math.floor(maxPages), 100) : 20
       }
 
-
       let warning = ''
       if (!c['user.enablePath'] && !c['user.enableRoot']) {
         c['user.enableRoot'] = true
         warning = '必须至少开启一种连接方式，已自动开启“根路径”模式。'
       }
 
-      const adminPasswordChanged = c['frontend.passwordHash'] !== originalConfig['frontend.passwordHash']
-        || c['frontend.password'] !== originalConfig['frontend.password']
-      const playerAuthChanged = c['player.passwordHash'] !== originalConfig['player.passwordHash']
-        || c['player.password'] !== originalConfig['player.password']
-        || Boolean(c['player.enableAuth']) !== Boolean(originalConfig['player.enableAuth'])
+      const adminPasswordChanged =
+        c['frontend.passwordHash'] !== originalConfig['frontend.passwordHash'] ||
+        c['frontend.password'] !== originalConfig['frontend.password']
+      const playerAuthChanged =
+        c['player.passwordHash'] !== originalConfig['player.passwordHash'] ||
+        c['player.password'] !== originalConfig['player.password'] ||
+        Boolean(c['player.enableAuth']) !== Boolean(originalConfig['player.enableAuth'])
       if (adminPasswordChanged) revokeAllAdminSessions()
       if (playerAuthChanged) revokeAllPlayerSessions()
       if (global.lx.saveConfig) await global.lx.saveConfig()
@@ -779,7 +870,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 3.1 测试代理
-  router.post('/api/config/test-proxy', async (ctx) => {
+  router.post('/api/config/test-proxy', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const { address } = await ctx.bodyJson<{ address?: string }>()
@@ -792,7 +883,8 @@ export const createSystemRouter = (): Router => {
         proxy: normalizedAddress,
         signal: AbortSignal.timeout(10000),
         headers: {
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+          'user-agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
         },
       })
       await resp.body?.cancel()
@@ -804,7 +896,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 4. 重启与热重载
-  router.post('/api/admin/reload', async (ctx) => {
+  router.post('/api/admin/reload', async ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -812,7 +904,7 @@ export const createSystemRouter = (): Router => {
     return ctx.json({ success: true, message: '服务器数据已重新加载' })
   })
 
-  router.post('/api/restart', (ctx) => {
+  router.post('/api/restart', ctx => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -823,7 +915,7 @@ export const createSystemRouter = (): Router => {
   })
 
   // 5. 本地备份下载
-  router.get('/api/backup/download', async (ctx) => {
+  router.get('/api/backup/download', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const zipName = await createLocalBackup()
@@ -845,7 +937,7 @@ export const createSystemRouter = (): Router => {
 
   // 6. 本地备份还原。上传内容只进入临时目录，完成路径/类型校验后才替换
   // 用户数据和 SQLite；恢复后撤销所有会话，避免备份中的旧凭证重新生效。
-  router.post('/api/backup/upload', async (ctx) => {
+  router.post('/api/backup/upload', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     const rawContentType = ctx.headers.get('content-type') || ''
     const contentType = rawContentType.toLowerCase()
@@ -881,7 +973,9 @@ export const createSystemRouter = (): Router => {
         // the in-memory configuration there as well. The backup service
         // rolls the database and user directory back around this callback.
         if (global.lx.saveConfig) {
-          try { await global.lx.saveConfig() } catch (rollbackError) {
+          try {
+            await global.lx.saveConfig()
+          } catch (rollbackError) {
             console.error('[Backup] 配置回滚写盘失败:', rollbackError)
           }
         }

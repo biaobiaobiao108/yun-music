@@ -24,18 +24,22 @@ export class SnapshotDataManage {
   saveSnapshotInfo = (info: SnapshotInfo): void => {
     if (!info.latest) return
     assertSnapshotId(info.latest)
-    getDb().run(
-      'INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)',
-      [this.userDataManage.userName, this.module, info.latest, info.time || Date.now()]
-    )
+    getDb().run('INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)', [
+      this.userDataManage.userName,
+      this.module,
+      info.latest,
+      info.time || Date.now(),
+    ])
     pruneSnapshots(this.userDataManage.userName, this.module)
   }
 
   getSnapshot = async (name: string): Promise<LX.Dislike.DislikeRules | null> => {
     assertSnapshotId(name)
-    const row = getDb().query<{ data: string }, [string, string, string]>(
-      'SELECT data FROM snapshots WHERE user_name = ? AND module = ? AND id = ?'
-    ).get(this.userDataManage.userName, this.module, name)
+    const row = getDb()
+      .query<{ data: string }, [string, string, string]>(
+        'SELECT data FROM snapshots WHERE user_name = ? AND module = ? AND id = ?',
+      )
+      .get(this.userDataManage.userName, this.module, name)
     return row?.data ?? null
   }
 
@@ -54,18 +58,22 @@ export class SnapshotDataManage {
 
   getSnapshotListWithMeta = async (): Promise<Array<{ id: string; time: number; size: number }>> => {
     pruneSnapshots(this.userDataManage.userName, this.module)
-    const rows = getDb().query<{ id: string; created_at: number; size: number }, [string, string]>(
-      'SELECT id, created_at, size FROM snapshots WHERE user_name = ? AND module = ? ORDER BY created_at DESC'
-    ).all(this.userDataManage.userName, this.module)
+    const rows = getDb()
+      .query<{ id: string; created_at: number; size: number }, [string, string]>(
+        'SELECT id, created_at, size FROM snapshots WHERE user_name = ? AND module = ? ORDER BY created_at DESC',
+      )
+      .all(this.userDataManage.userName, this.module)
     return rows.map(row => ({ id: row.id, time: row.created_at, size: row.size }))
   }
 
   setLatest = (name: string): void => {
     assertSnapshotId(name)
-    getDb().run(
-      'INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)',
-      [this.userDataManage.userName, this.module, name, Date.now()]
-    )
+    getDb().run('INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)', [
+      this.userDataManage.userName,
+      this.module,
+      name,
+      Date.now(),
+    ])
   }
 
   constructor(userDataManage: UserDataManage) {

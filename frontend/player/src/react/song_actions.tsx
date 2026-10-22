@@ -15,7 +15,16 @@ type SongActionsPopoverProps = {
   onSleep: () => void
 }
 
-export function SongActionsPopover({ song, open, anchorRef, onClose, onAddToList, onComment, onDownload, onSleep }: SongActionsPopoverProps) {
+export function SongActionsPopover({
+  song,
+  open,
+  anchorRef,
+  onClose,
+  onAddToList,
+  onComment,
+  onDownload,
+  onSleep,
+}: SongActionsPopoverProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const firstActionRef = useRef<HTMLButtonElement>(null)
   const [position, setPosition] = useState<CSSProperties | null>(null)
@@ -33,7 +42,12 @@ export function SongActionsPopover({ song, open, anchorRef, onClose, onAddToList
     if (top + height > window.innerHeight - edge) top = anchorRect.top - gap - height
     top = Math.max(edge, Math.min(top, window.innerHeight - height - edge))
     const left = Math.max(edge, Math.min(anchorRect.right - width, window.innerWidth - width - edge))
-    setPosition({ top: Math.round(top), left: Math.round(left), width: Math.min(width, window.innerWidth - edge * 2), visibility: 'visible' })
+    setPosition({
+      top: Math.round(top),
+      left: Math.round(left),
+      width: Math.min(width, window.innerWidth - edge * 2),
+      visibility: 'visible',
+    })
   }, [anchorRef])
 
   useLayoutEffect(() => {
@@ -88,15 +102,43 @@ export function SongActionsPopover({ song, open, anchorRef, onClose, onAddToList
   // so keep the popover in the active dialog when the footer is immersive.
   const portalTarget = anchorRef.current?.closest('dialog') ?? document.body
 
-  return createPortal(<div ref={panelRef} id="song-actions-popover" className="react-song-actions-popover" role="dialog" aria-label="歌曲更多操作" style={position ?? { visibility: 'hidden', top: 0, left: 0 }}>
-    <div className="react-song-actions-popover-heading">歌曲操作</div>
-    <div className="react-song-actions-popover-list">
-      <button ref={firstActionRef} type="button" onClick={() => run(() => navigateToSongEntity(song, 'artist'))}><Icon name="user" /><span>歌手详情</span></button>
-      <button type="button" onClick={() => run(() => navigateToSongEntity(song, 'album'))}><Icon name="compact-disc" /><span>专辑</span></button>
-      <button type="button" onClick={() => run(onAddToList)}><Icon name="list-ul" /><span>添加到歌单</span></button>
-      <button type="button" onClick={() => run(onComment)}><Icon name="comments" /><span>评论</span></button>
-      <button type="button" onClick={() => run(onDownload)}><Icon name="download" /><span>下载歌曲</span></button>
-      <button type="button" onClick={() => run(onSleep)}><Icon name="moon" /><span>睡眠定时器</span></button>
-    </div>
-  </div>, portalTarget)
+  return createPortal(
+    <div
+      ref={panelRef}
+      id="song-actions-popover"
+      className="react-song-actions-popover"
+      role="dialog"
+      aria-label="歌曲更多操作"
+      style={position ?? { visibility: 'hidden', top: 0, left: 0 }}
+    >
+      <div className="react-song-actions-popover-heading">歌曲操作</div>
+      <div className="react-song-actions-popover-list">
+        <button ref={firstActionRef} type="button" onClick={() => run(() => navigateToSongEntity(song, 'artist'))}>
+          <Icon name="user" />
+          <span>歌手详情</span>
+        </button>
+        <button type="button" onClick={() => run(() => navigateToSongEntity(song, 'album'))}>
+          <Icon name="compact-disc" />
+          <span>专辑</span>
+        </button>
+        <button type="button" onClick={() => run(onAddToList)}>
+          <Icon name="list-ul" />
+          <span>添加到歌单</span>
+        </button>
+        <button type="button" onClick={() => run(onComment)}>
+          <Icon name="comments" />
+          <span>评论</span>
+        </button>
+        <button type="button" onClick={() => run(onDownload)}>
+          <Icon name="download" />
+          <span>下载歌曲</span>
+        </button>
+        <button type="button" onClick={() => run(onSleep)}>
+          <Icon name="moon" />
+          <span>睡眠定时器</span>
+        </button>
+      </div>
+    </div>,
+    portalTarget,
+  )
 }

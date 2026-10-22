@@ -109,7 +109,10 @@ button,
 input,
 .active-tab,
 i {
-    transition: color var(--app-motion) ease, background-color var(--app-motion) ease, border-color var(--app-motion) ease;
+    transition:
+        color var(--app-motion) ease,
+        background-color var(--app-motion) ease,
+        border-color var(--app-motion) ease;
 }
 
 /* Dynamic Logo Filtering - Applies to placeholder SVG or when transitioning to real image */
@@ -188,16 +191,16 @@ i {
 }
 
 /* Global overrides for dark mode compatibility */
-[data-appearance='dark'] ::-webkit-scrollbar-track {
+[data-appearance="dark"] ::-webkit-scrollbar-track {
     background: transparent;
 }
 
-[data-appearance='dark'] ::-webkit-scrollbar-thumb {
+[data-appearance="dark"] ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 9999px;
 }
 
-[data-appearance='dark'] ::-webkit-scrollbar-thumb:hover {
+[data-appearance="dark"] ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.4);
 }
 
@@ -211,7 +214,6 @@ i {
 }
 
 @media (prefers-color-scheme: dark) {
-
     :root:not([data-appearance="light"]) input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]),
     :root:not([data-appearance="light"]) select,
     :root:not([data-appearance="light"]) textarea {
@@ -220,8 +222,6 @@ i {
         border-color: var(--border-main) !important;
     }
 }
-
-
 
 /* Tracking utility for switches/sliders if needed as a helper */
 .t-bg-track {

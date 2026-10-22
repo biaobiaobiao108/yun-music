@@ -15,7 +15,10 @@ beforeEach(async () => {
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-playlist-mutations-'))
   closeDb()
   initDatabase(':memory:')
-  global.lx = { userPath: directory, config: { users: [{ name: 'playlist_owner', password: 'password' }], 'frontend.password': 'admin' } } as typeof global.lx
+  global.lx = {
+    userPath: directory,
+    config: { users: [{ name: 'playlist_owner', password: 'password' }], 'frontend.password': 'admin' },
+  } as typeof global.lx
   await syncUsersToDatabase(global.lx.config.users)
   cookie = `lx_admin_session=${createAdminSession()}`
 })
@@ -28,12 +31,25 @@ afterEach(() => {
 
 test('concurrent playlist intents preserve all lists and unrelated favorites', async () => {
   const router = createUserRouter()
-  const post = (body: object, headers = { cookie }) => router.handle(new Request('http://localhost/api/user/playlists?user=playlist_owner', {
-    method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  }))
+  const post = (body: object, headers = { cookie }) =>
+    router.handle(
+      new Request('http://localhost/api/user/playlists?user=playlist_owner', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    )
   const manager = getUserSpace('playlist_owner').listManage
-  await manager.listDataManage.restore({ defaultList: [], loveList: [{ id: 'favorite' }], userList: [] } as unknown as LX.List.ListData)
-  const responses = await Promise.all(['first', 'second'].map(id => post({ action: 'create', playlist: { id, name: id, list: [], img: 'https://example.com/cover.jpg' } })))
+  await manager.listDataManage.restore({
+    defaultList: [],
+    loveList: [{ id: 'favorite' }],
+    userList: [],
+  } as unknown as LX.List.ListData)
+  const responses = await Promise.all(
+    ['first', 'second'].map(id =>
+      post({ action: 'create', playlist: { id, name: id, list: [], img: 'https://example.com/cover.jpg' } }),
+    ),
+  )
   expect(responses.map(response => response.status)).toEqual([200, 200])
   expect((await post({ action: 'rename', id: 'first', name: 'renamed' })).status).toBe(200)
   let data = await manager.getListData()
@@ -51,9 +67,14 @@ test('concurrent playlist intents preserve all lists and unrelated favorites', a
 test('remote playlist toggle acts atomically on its source identity', async () => {
   const router = createUserRouter()
   const playlist = { id: 'remote', name: 'Remote', source: 'wy', sourceListId: '123', list: [] }
-  const toggle = (id: string) => router.handle(new Request('http://localhost/api/user/playlists?user=playlist_owner', {
-    method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle', playlist: { ...playlist, id } }),
-  }))
+  const toggle = (id: string) =>
+    router.handle(
+      new Request('http://localhost/api/user/playlists?user=playlist_owner', {
+        method: 'POST',
+        headers: { cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle', playlist: { ...playlist, id } }),
+      }),
+    )
   const [first, second] = await Promise.all([toggle('a'), toggle('b')])
   expect(await first.json()).toMatchObject({ added: true })
   expect(await second.json()).toMatchObject({ added: false })
@@ -64,29 +85,52 @@ test('invalid list replacements and imported snapshots preserve current favorite
   const router = createUserRouter()
   const manager = getUserSpace('playlist_owner').listManage
   const initial: LX.List.ListData = {
-    defaultList: [], userList: [],
-    loveList: [{ id: 'favorite', name: 'Favorite', singer: 'Singer', source: 'wy', interval: null,
-      meta: { songId: 'favorite', albumName: '', qualitys: [], _qualitys: {} } }],
+    defaultList: [],
+    userList: [],
+    loveList: [
+      {
+        id: 'favorite',
+        name: 'Favorite',
+        singer: 'Singer',
+        source: 'wy',
+        interval: null,
+        meta: { songId: 'favorite', albumName: '', qualitys: [], _qualitys: {} },
+      },
+    ],
   }
   await manager.listDataManage.restore(initial)
   await manager.createSnapshot()
   const originalSnapshots = await manager.getSnapshotList()
   const invalidBodies = [{}, { ...initial, userList: [{ id: 'broken', name: 'Broken', list: null }] }]
   for (const body of invalidBodies) {
-    const response = await router.handle(new Request('http://localhost/api/user/list?user=playlist_owner', {
-      method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body),
-    }))
+    const response = await router.handle(
+      new Request('http://localhost/api/user/list?user=playlist_owner', {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    )
     expect(response.ok).toBe(false)
     expect(await manager.getListData()).toEqual(initial)
-    const upload = await router.handle(new Request('http://localhost/api/data/upload-snapshot?user=playlist_owner&filename=invalid', {
-      method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body),
-    }))
+    const upload = await router.handle(
+      new Request('http://localhost/api/data/upload-snapshot?user=playlist_owner&filename=invalid', {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    )
     expect(upload.ok).toBe(false)
   }
   expect(await manager.getSnapshotList()).toEqual(originalSnapshots)
   // Invalid historical/database data must also be rejected when restoring.
-  getDb().run('INSERT INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    ['invalid', 'playlist_owner', 'list', '{}', 2, Date.now()])
+  getDb().run('INSERT INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
+    'invalid',
+    'playlist_owner',
+    'list',
+    '{}',
+    2,
+    Date.now(),
+  ])
   await expect(manager.restoreSnapshot('invalid')).rejects.toThrow('Snapshot not found')
   expect(await manager.getListData()).toEqual(initial)
 })

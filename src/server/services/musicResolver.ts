@@ -72,7 +72,6 @@ export const normalizeSongInfo = (songInfo: any) => {
         songInfo.songId = metaSongId
       }
       break
-
   }
 
   return songInfo
@@ -92,7 +91,10 @@ const sourceMatchPending = new NativeLruCache<string, Promise<any[]>>({
   sizeCalculation: () => 128,
 })
 
-export const getSourceMatchCacheStats = () => ({ results: sourceMatchCache.getStats(), pending: sourceMatchPending.getStats() })
+export const getSourceMatchCacheStats = () => ({
+  results: sourceMatchCache.getStats(),
+  pending: sourceMatchPending.getStats(),
+})
 
 export const clearServerSourceMatchCache = (username?: string) => {
   if (!username) {
@@ -108,20 +110,23 @@ export const clearServerSourceMatchCache = (username?: string) => {
   }
 }
 
-export const normalizeSongMatchText = (value: unknown) => String(value || '')
-  .toLowerCase()
-  .replace(/[（(\[].*?[）)\]]/g, '')
-  .replace(/[\s\p{P}\p{S}]/gu, '')
+export const normalizeSongMatchText = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[（(\[].*?[）)\]]/g, '')
+    .replace(/[\s\p{P}\p{S}]/gu, '')
 
-export const normalizeSongNameText = (value: unknown) => String(value || '')
-  .toLowerCase()
-  .replace(/[\s\p{P}\p{S}]/gu, '')
+export const normalizeSongNameText = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[\s\p{P}\p{S}]/gu, '')
 
-export const splitSingerNames = (value: unknown) => String(value || '')
-  .toLowerCase()
-  .split(/[、，,&；;|/+]/)
-  .map(normalizeSongMatchText)
-  .filter(Boolean)
+export const splitSingerNames = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .split(/[、，,&；;|/+]/)
+    .map(normalizeSongMatchText)
+    .filter(Boolean)
 
 export const isSingerMatch = (candidateSinger: unknown, targetSinger: unknown) => {
   const candidateText = normalizeSongMatchText(candidateSinger)
@@ -132,9 +137,9 @@ export const isSingerMatch = (candidateSinger: unknown, targetSinger: unknown) =
 
   const candidateParts = splitSingerNames(candidateSinger)
   const targetParts = splitSingerNames(targetSinger)
-  return candidateParts.some(candidatePart => targetParts.some(targetPart => (
-    candidatePart.includes(targetPart) || targetPart.includes(candidatePart)
-  )))
+  return candidateParts.some(candidatePart =>
+    targetParts.some(targetPart => candidatePart.includes(targetPart) || targetPart.includes(candidatePart)),
+  )
 }
 
 export const getSongDurationSeconds = (value: unknown) => {
@@ -197,33 +202,43 @@ export const findServerSourceMatches = async (songInfo: any, username: string) =
   const pending = sourceMatchPending.get(cacheKey)
   if (pending) return pending
 
-  const searchSources = AUTO_SOURCE_ORDER.filter(source => (
-    source !== songInfo.source && isSourceSupported(source, username) && getBuiltinSource(source)?.musicSearch?.search
-  ))
+  const searchSources = AUTO_SOURCE_ORDER.filter(
+    source =>
+      source !== songInfo.source &&
+      isSourceSupported(source, username) &&
+      getBuiltinSource(source)?.musicSearch?.search,
+  )
   const query = `${songInfo.name} ${songInfo.singer}`
-  const promise = Promise.all(searchSources.map(async source => {
-    try {
-      const sourceApi = getBuiltinSource(source)
-      if (!sourceApi?.musicSearch?.search) return []
-      const searchData = await sourceApi.musicSearch.search(query, 1, 20)
-      const list = Array.isArray(searchData?.list) ? searchData.list : []
-      return list.map((item: any) => ({ ...item, source }))
-    } catch (err: any) {
-      console.warn(`[ServerAutoSource] Search failed for ${source}: ${err?.message || err}`)
-      return []
-    }
-  })).then(resultGroups => resultGroups.flat()
-    .map(candidate => ({ candidate, score: getSongMatchScore(candidate, songInfo) }))
-    .filter(item => item.score >= 0)
-    .sort((a, b) => b.score - a.score)
-    .map(item => item.candidate))
-  const trackedPromise = promise.then(result => {
-    // Invalidated or evicted searches may finish, but cannot refill the cache.
-    if (sourceMatchPending.get(cacheKey) === trackedPromise) sourceMatchCache.set(cacheKey, result)
-    return result
-  }).finally(() => {
-    if (sourceMatchPending.get(cacheKey) === trackedPromise) sourceMatchPending.delete(cacheKey)
-  })
+  const promise = Promise.all(
+    searchSources.map(async source => {
+      try {
+        const sourceApi = getBuiltinSource(source)
+        if (!sourceApi?.musicSearch?.search) return []
+        const searchData = await sourceApi.musicSearch.search(query, 1, 20)
+        const list = Array.isArray(searchData?.list) ? searchData.list : []
+        return list.map((item: any) => ({ ...item, source }))
+      } catch (err: any) {
+        console.warn(`[ServerAutoSource] Search failed for ${source}: ${err?.message || err}`)
+        return []
+      }
+    }),
+  ).then(resultGroups =>
+    resultGroups
+      .flat()
+      .map(candidate => ({ candidate, score: getSongMatchScore(candidate, songInfo) }))
+      .filter(item => item.score >= 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.candidate),
+  )
+  const trackedPromise = promise
+    .then(result => {
+      // Invalidated or evicted searches may finish, but cannot refill the cache.
+      if (sourceMatchPending.get(cacheKey) === trackedPromise) sourceMatchCache.set(cacheKey, result)
+      return result
+    })
+    .finally(() => {
+      if (sourceMatchPending.get(cacheKey) === trackedPromise) sourceMatchPending.delete(cacheKey)
+    })
 
   sourceMatchPending.set(cacheKey, trackedPromise)
   return trackedPromise
@@ -244,9 +259,7 @@ export const resolveServerSong = async (
     throw new UnsupportedSourceError(originalSong.source)
   }
 
-  const qualities = allowQualityFallback
-    ? getDownloadQualityCandidates(requestedQuality)
-    : [requestedQuality]
+  const qualities = allowQualityFallback ? getDownloadQualityCandidates(requestedQuality) : [requestedQuality]
   const errors: string[] = []
 
   const tryCandidates = async (quality: string, rawCandidates: any[]) => {

@@ -56,7 +56,4 @@ export const File = {
   dislikeSnapshotInfoJSON: 'snapshotInfo.json',
 } as const
 
-export const FeaturesList = [
-  'list',
-  'dislike',
-] as const
+export const FeaturesList = ['list', 'dislike'] as const

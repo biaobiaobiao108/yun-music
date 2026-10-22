@@ -18,7 +18,7 @@ export class PlaylistIdConflictError extends Error {
 
 function musicInfoId(musicInfo: LX.Music.MusicInfo): string {
   const record = musicInfo as unknown as Record<string, unknown>
-  const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
+  const meta = record.meta && typeof record.meta === 'object' ? (record.meta as Record<string, unknown>) : {}
   return String(record.id ?? record.songmid ?? record.hash ?? meta.songId ?? meta.songmid ?? '').trim()
 }
 
@@ -32,15 +32,17 @@ export class ListDataManage {
     this.snapshotDataManage = snapshotDataManage
 
     let listData: LX.List.ListData | null
-    this.initPromise = this.snapshotDataManage.getSnapshotInfo().then(async (snapshotInfo) => {
+    this.initPromise = this.snapshotDataManage.getSnapshotInfo().then(async snapshotInfo => {
       if (snapshotInfo.latest) listData = await this.snapshotDataManage.getSnapshot(snapshotInfo.latest)
       if (!listData) listData = { defaultList: [], loveList: [], userList: [] }
       this.allMusicList.set(LIST_IDS.DEFAULT, listData.defaultList)
       this.allMusicList.set(LIST_IDS.LOVE, listData.loveList)
-      this.userLists.push(...listData.userList.map(({ list, ...l }) => {
-        this.allMusicList.set(l.id, list)
-        return l
-      }))
+      this.userLists.push(
+        ...listData.userList.map(({ list, ...l }) => {
+          this.allMusicList.set(l.id, list)
+          return l
+        }),
+      )
     })
   }
   restore = async (listData: LX.List.ListData) => {
@@ -49,7 +51,8 @@ export class ListDataManage {
     // finish after this mutation and overwrite it with the old snapshot.
     await this.initPromise
     const nextMusicList = new Map<string, LX.Music.MusicInfo[]>([
-      [LIST_IDS.DEFAULT, listData.defaultList], [LIST_IDS.LOVE, listData.loveList],
+      [LIST_IDS.DEFAULT, listData.defaultList],
+      [LIST_IDS.LOVE, listData.loveList],
     ])
     const nextUserLists = listData.userList.map(({ list, ...l }) => {
       nextMusicList.set(l.id, list)
@@ -73,9 +76,11 @@ export class ListDataManage {
     await this.initPromise
     if (mutation.action === 'create' || mutation.action === 'toggle') {
       const { list, ...info } = mutation.playlist
-      const existing = this.userLists.find(item => mutation.action === 'toggle'
-        ? item.source === info.source && String(item.sourceListId) === String(info.sourceListId)
-        : item.id === info.id)
+      const existing = this.userLists.find(item =>
+        mutation.action === 'toggle'
+          ? item.source === info.source && String(item.sourceListId) === String(info.sourceListId)
+          : item.id === info.id,
+      )
       if (existing) {
         if (mutation.action === 'create') return { added: false }
         this.removeUserList(existing.id)
@@ -99,7 +104,6 @@ export class ListDataManage {
     return { added: false }
   }
 
-
   private readonly setUserLists = (lists: LX.List.UserListInfo[]) => {
     this.userLists.splice(0, this.userLists.length, ...lists)
     return this.userLists
@@ -114,14 +118,10 @@ export class ListDataManage {
     this.allMusicList.delete(id)
   }
 
-  private readonly createUserList = ({
-    name,
-    id,
-    source,
-    sourceListId,
-    icon,
-    locationUpdateTime,
-  }: LX.List.UserListInfo, position: number) => {
+  private readonly createUserList = (
+    { name, id, source, sourceListId, icon, locationUpdateTime }: LX.List.UserListInfo,
+    position: number,
+  ) => {
     if (position < 0 || position >= this.userLists.length) {
       this.userLists.push({
         name,
@@ -183,13 +183,16 @@ export class ListDataManage {
     this.userLists.splice(0, this.userLists.length, ...lists)
   }
 
-
   // const sendMyListUpdateEvent = (ids: string[]) => {
   //   window.app_event.myListUpdate(ids)
   // }
 
-
-  listDataOverwrite = async ({ defaultList, loveList, userList, tempList }: MakeOptional<LX.List.ListDataFull, 'tempList'>): Promise<string[]> => {
+  listDataOverwrite = async ({
+    defaultList,
+    loveList,
+    userList,
+    tempList,
+  }: MakeOptional<LX.List.ListDataFull, 'tempList'>): Promise<string[]> => {
     await this.initPromise
     const updatedListIds: string[] = []
     const newUserIds: string[] = []
@@ -222,7 +225,15 @@ export class ListDataManage {
     return updatedListIds
   }
 
-  userListCreate = async ({ name, id, source, sourceListId, icon, position, locationUpdateTime }: {
+  userListCreate = async ({
+    name,
+    id,
+    source,
+    sourceListId,
+    icon,
+    position,
+    locationUpdateTime,
+  }: {
     name: string
     id: string
     source?: LX.OnlineSource
@@ -289,7 +300,6 @@ export class ListDataManage {
     this.setUserLists(newUserLists)
   }
 
-
   /**
    * 获取列表内的歌曲
    * @param listId
@@ -306,7 +316,11 @@ export class ListDataManage {
     return [listId]
   }
 
-  listMusicAdd = async (id: string, musicInfos: LX.Music.MusicInfo[], addMusicLocationType: LX.AddMusicLocationType): Promise<string[]> => {
+  listMusicAdd = async (
+    id: string,
+    musicInfos: LX.Music.MusicInfo[],
+    addMusicLocationType: LX.AddMusicLocationType,
+  ): Promise<string[]> => {
     const targetList = await this.getListMusics(id)
 
     const listSet = new Set<string>()
@@ -347,10 +361,18 @@ export class ListDataManage {
     return [listId]
   }
 
-  listMusicMove = async (fromId: string, toId: string, musicInfos: LX.Music.MusicInfo[], addMusicLocationType: LX.AddMusicLocationType): Promise<string[]> => {
+  listMusicMove = async (
+    fromId: string,
+    toId: string,
+    musicInfos: LX.Music.MusicInfo[],
+    addMusicLocationType: LX.AddMusicLocationType,
+  ): Promise<string[]> => {
     return [
-      ...await this.listMusicRemove(fromId, musicInfos.map(musicInfo => musicInfo.id)),
-      ...await this.listMusicAdd(toId, musicInfos, addMusicLocationType),
+      ...(await this.listMusicRemove(
+        fromId,
+        musicInfos.map(musicInfo => musicInfo.id),
+      )),
+      ...(await this.listMusicAdd(toId, musicInfos, addMusicLocationType)),
     ]
   }
 
@@ -376,7 +398,6 @@ export class ListDataManage {
     }
     return Array.from(updateListIds)
   }
-
 
   listMusicUpdatePosition = async (listId: string, position: number, ids: string[]): Promise<string[]> => {
     await this.initPromise
@@ -410,7 +431,6 @@ export class ListDataManage {
     // console.timeEnd('ts')
     return [listId]
   }
-
 
   listMusicClear = async (ids: string[]): Promise<string[]> => {
     await this.initPromise

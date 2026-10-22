@@ -19,11 +19,12 @@ import { isResourceBudgetBusy } from '../resourceBudget'
  */
 export const initMusicServices = async (): Promise<void> => {
   // 综合评估系统繁忙状态（包含原生后处理、媒体缓冲流与活跃下载任务），避免在重型 I/O 高峰误触发 GC
-  memoryMaintenance.setBusyCheck(() => (
-    fileCache.getCachePostProcessStats().active > 0 ||
-    isResourceBudgetBusy() ||
-    serverDownloadQueue.getActiveTaskCount() > 0
-  ))
+  memoryMaintenance.setBusyCheck(
+    () =>
+      fileCache.getCachePostProcessStats().active > 0 ||
+      isResourceBudgetBusy() ||
+      serverDownloadQueue.getActiveTaskCount() > 0,
+  )
   // 1. 初始化文件缓存设置
   if (global.lx?.config) {
     if (global.lx.config.serverCacheLocation) {
@@ -36,19 +37,21 @@ export const initMusicServices = async (): Promise<void> => {
     // scan runs against the configured cache root.
     try {
       const db = getDb()
-      let row = db.query<{ value: string }, [string, string]>(
-        'SELECT value FROM user_settings WHERE user_name = ? AND key = ?',
-      ).get('_open', 'settings')
+      let row = db
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get('_open', 'settings')
       if (!row) {
         // One-time compatibility migration for installations that still have
         // the pre-SQLite settings file but no structured settings row yet.
         const legacyPath = path.join(getUserSpace('_open').dataManage.userDir, File.userSettingsJSON)
         if (fs.existsSync(legacyPath)) {
           const legacySettings = JSON.parse(fs.readFileSync(legacyPath, 'utf8'))
-          db.run(
-            'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
-            ['_open', 'settings', JSON.stringify(legacySettings), Date.now()],
-          )
+          db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+            '_open',
+            'settings',
+            JSON.stringify(legacySettings),
+            Date.now(),
+          ])
           row = { value: JSON.stringify(legacySettings) }
           startupLog.info('Migrated legacy _open settings.json to SQLite')
         }
@@ -134,7 +137,7 @@ export const initMusicServices = async (): Promise<void> => {
   }
 
   // 5. 绑定服务端后台下载队列解析器
-  serverDownloadQueue.initialize(async (task) => {
+  serverDownloadQueue.initialize(async task => {
     const songInfo = normalizeSongInfo(task.songInfo)
     const apiUsername = task.username === '_open' ? 'open' : task.username
     const resolved = await resolveServerSong(songInfo, task.requestedQuality, apiUsername, true)
@@ -147,5 +150,4 @@ export const initMusicServices = async (): Promise<void> => {
       sourceName: resolved.sourceName,
     }
   })
-
 }

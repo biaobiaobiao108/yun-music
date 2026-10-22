@@ -12,7 +12,11 @@ test('build metadata recovers an empty config and preserves existing version fie
     fs.mkdirSync(path.dirname(config), { recursive: true })
     fs.mkdirSync(path.join(directory, 'src'))
     fs.copyFileSync(path.join(import.meta.dir, '../scripts/update-build-hash.js'), script)
-    for (const content of ['', '   \n', "window.CONFIG = { version: 'custom-version', buildHash: 'old', extra: true };\n"]) {
+    for (const content of [
+      '',
+      '   \n',
+      "window.CONFIG = { version: 'custom-version', buildHash: 'old', extra: true };\n",
+    ]) {
       fs.writeFileSync(config, content)
       const child = Bun.spawn(['bun', script], { cwd: directory, stdout: 'ignore', stderr: 'pipe' })
       const error = await new Response(child.stderr).text()

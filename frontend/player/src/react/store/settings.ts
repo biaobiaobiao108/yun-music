@@ -14,7 +14,12 @@ export type SettingsState = {
   reset: () => void
 }
 
-const REMOVED_SETTING_KEYS = ['showFooterVisualizer', 'enableSoundEffects', 'soundEffectsPreset', 'soundEffectsGain'] as const
+const REMOVED_SETTING_KEYS = [
+  'showFooterVisualizer',
+  'enableSoundEffects',
+  'soundEffectsPreset',
+  'soundEffectsGain',
+] as const
 
 function sanitizeSettings(value: Record<string, unknown>): PlayerSettings {
   const next = { ...value } as Record<string, unknown>
@@ -25,7 +30,7 @@ function sanitizeSettings(value: Record<string, unknown>): PlayerSettings {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS)),
   setSetting: (key, value) => {
-    if (REMOVED_SETTING_KEYS.includes(key as typeof REMOVED_SETTING_KEYS[number])) return
+    if (REMOVED_SETTING_KEYS.includes(key as (typeof REMOVED_SETTING_KEYS)[number])) return
     settingsRevision += 1
     const settings = sanitizeSettings({ ...get().settings, [key]: value })
     set({ settings })

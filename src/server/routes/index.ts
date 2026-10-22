@@ -1,4 +1,11 @@
-import { Router, corsMiddleware, securityHeadersMiddleware, accessLogMiddleware, compressionMiddleware, type Middleware } from '../core'
+import {
+  Router,
+  corsMiddleware,
+  securityHeadersMiddleware,
+  accessLogMiddleware,
+  compressionMiddleware,
+  type Middleware,
+} from '../core'
 import { verifyAdminAuth, checkPlayerAuthSession } from '../auth'
 import { createAuthRouter } from './auth'
 import { createSystemRouter } from './system'
@@ -37,8 +44,8 @@ const playerApiAuthMiddleware: Middleware = async (ctx, next) => {
 export const createRootRouter = (): Router => {
   const root = new Router()
 
-  root.get('/healthz', (ctx) => ctx.json({ status: 'ok', requestId: ctx.requestId }))
-  root.get('/readyz', (ctx) => {
+  root.get('/healthz', ctx => ctx.json({ status: 'ok', requestId: ctx.requestId }))
+  root.get('/readyz', ctx => {
     try {
       getDb().query('SELECT 1').get()
       return ctx.json({ status: 'ready', requestId: ctx.requestId })
@@ -49,7 +56,7 @@ export const createRootRouter = (): Router => {
 
   // 已移除协议明确返回 410，避免旧客户端将 SPA fallback 误判为服务仍可用。
   for (const path of ['/hello/*', '/id/*', '/ah/*', '/rest/*', '/api/webdav/*']) {
-    root.all(path, (ctx) => ctx.fail(410, '该外部协议已移除'))
+    root.all(path, ctx => ctx.fail(410, '该外部协议已移除'))
   }
 
   // 全局中间件

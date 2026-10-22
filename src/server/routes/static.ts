@@ -25,7 +25,11 @@ const isSensitiveStaticPath = (staticRoot: string, filePath: string): boolean =>
 export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promise<Response | null> => {
   const staticRoot = global.lx?.staticPath ?? path.join(process.cwd(), 'public')
   let safeFilePath: string
-  try { safeFilePath = await resolveInsideAsync(staticRoot, filePath) } catch { return ctx.fail(403, '没有权限执行该操作') }
+  try {
+    safeFilePath = await resolveInsideAsync(staticRoot, filePath)
+  } catch {
+    return ctx.fail(403, '没有权限执行该操作')
+  }
   if (isSensitiveStaticPath(staticRoot, safeFilePath)) return ctx.fail(404, '资源不存在')
 
   let stats: fs.Stats
@@ -45,13 +49,11 @@ export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promi
   const lastModified = new Date(mtime).toUTCString()
   const normalizedPath = safeFilePath.replaceAll('\\', '/')
   const isImmutableAsset = /(?:^|\/)(?:chunks\/)?[^/]*-[a-z0-9]{8,}\.[a-z0-9]+$/i.test(normalizedPath)
-  const cacheControl = isImmutableAsset
-    ? 'public, max-age=31536000, immutable'
-    : 'no-cache, no-store, must-revalidate'
+  const cacheControl = isImmutableAsset ? 'public, max-age=31536000, immutable' : 'no-cache, no-store, must-revalidate'
   const responseHeaders = {
     'Content-Type': bunFile.type || 'application/octet-stream',
     'Content-Length': String(size),
-    'ETag': etag,
+    ETag: etag,
     'Last-Modified': lastModified,
     'Cache-Control': cacheControl,
     ...(isImmutableAsset ? {} : { Pragma: 'no-cache', Expires: '0' }),
@@ -60,9 +62,13 @@ export const serveStaticFile = async (ctx: HttpContext, filePath: string): Promi
   // 304 缓存协商
   const ifNoneMatch = ctx.headers.get('if-none-match')
   const ifModifiedSince = ctx.headers.get('if-modified-since')
-  const notModified = ifNoneMatch !== null
-    ? ifNoneMatch.split(',').map(value => value.trim()).some(value => value === '*' || value === etag || value === etag.replace(/^W\//, ''))
-    : Boolean(ifModifiedSince && ifModifiedSince === lastModified)
+  const notModified =
+    ifNoneMatch !== null
+      ? ifNoneMatch
+          .split(',')
+          .map(value => value.trim())
+          .some(value => value === '*' || value === etag || value === etag.replace(/^W\//, ''))
+      : Boolean(ifModifiedSince && ifModifiedSince === lastModified)
   if (notModified) {
     return new Response(null, { status: 304, headers: responseHeaders })
   }
@@ -80,7 +86,7 @@ export const createStaticRouter = (): Router => {
   const router = new Router()
 
   // 1. 动态前端运行时配置注入 (/js/config.js)
-  router.get('/js/config.js', async (ctx) => {
+  router.get('/js/config.js', async ctx => {
     const staticRoot = global.lx?.staticPath ?? path.join(process.cwd(), 'public')
     const staticConfigPath = path.join(staticRoot, 'js', 'config.js')
     let version = 'v2.0.0'
@@ -94,7 +100,7 @@ export const createStaticRouter = (): Router => {
         const matchHash = content.match(/buildHash:\s*['"]([^'"]+)['"]/)
         if (matchHash) buildHash = matchHash[1]
       }
-    } catch { }
+    } catch {}
 
     const config = (global.lx?.config ?? {}) as any
     const frontendConfig = {
@@ -127,7 +133,7 @@ export const createStaticRouter = (): Router => {
   })
 
   // 2. 通用静态资源分发与管理后台 / 播放器路径路由处理器
-  router.all('/*', async (ctx) => {
+  router.all('/*', async ctx => {
     // 忽略 API 请求，交由后续 API 路由处理
     if (ctx.pathname.startsWith('/api/') || ctx.pathname.startsWith('/rest/')) {
       return null
@@ -140,47 +146,57 @@ export const createStaticRouter = (): Router => {
 
     // (A) 管理后台路径映射
     const effectiveAdminPath = adminPath || '/'
-    const isAdminRequest = (ctx.pathname === effectiveAdminPath ||
+    const isAdminRequest =
+      ctx.pathname === effectiveAdminPath ||
       ctx.pathname === `${effectiveAdminPath}/` ||
       ctx.pathname === `${effectiveAdminPath}/index.html` ||
-      (effectiveAdminPath !== '/' && (ctx.pathname.startsWith(`${effectiveAdminPath}/`) || ctx.pathname === effectiveAdminPath)))
+      (effectiveAdminPath !== '/' &&
+        (ctx.pathname.startsWith(`${effectiveAdminPath}/`) || ctx.pathname === effectiveAdminPath))
 
     if (isAdminRequest) {
       if (effectiveAdminPath !== '/' && ctx.pathname === effectiveAdminPath) {
         return ctx.redirect(`${ctx.pathname}/`, 301)
       }
       const subPath = effectiveAdminPath === '/' ? ctx.pathname : ctx.pathname.slice(effectiveAdminPath.length)
-      const targetRel = (subPath === '/' || subPath === '' || subPath === '/index.html' || subPath === 'index.html')
-        ? 'index.html'
-        : (subPath.startsWith('/') ? subPath.slice(1) : subPath)
+      const targetRel =
+        subPath === '/' || subPath === '' || subPath === '/index.html' || subPath === 'index.html'
+          ? 'index.html'
+          : subPath.startsWith('/')
+            ? subPath.slice(1)
+            : subPath
       const filePath = path.join(staticRoot, targetRel)
       const res = await serveStaticFile(ctx, filePath)
       if (res) return res
     }
 
     // (B) Web 网页播放器映射
-    const isPlayerRequest = (playerPath === '/' || playerPath === '')
-      ? (ctx.pathname === '/' || (adminPath === '' || (ctx.pathname !== adminPath && !ctx.pathname.startsWith(`${adminPath}/`))))
-      : (ctx.pathname.startsWith(`${playerPath}/`) || ctx.pathname === playerPath)
+    const isPlayerRequest =
+      playerPath === '/' || playerPath === ''
+        ? ctx.pathname === '/' ||
+          adminPath === '' ||
+          (ctx.pathname !== adminPath && !ctx.pathname.startsWith(`${adminPath}/`))
+        : ctx.pathname.startsWith(`${playerPath}/`) || ctx.pathname === playerPath
 
-    const isLegacyPlayerAsset = playerPath !== '/music' && (
-      ctx.pathname.startsWith('/music/assets/') ||
-      ctx.pathname.startsWith('/music/css/') ||
-      ctx.pathname.startsWith('/music/js/') ||
-      ctx.pathname.startsWith('/music/fonts/') ||
-      ctx.pathname.startsWith('/music/img/') ||
-      ctx.pathname === '/music/manifest.json' ||
-      ctx.pathname === '/music/sw.js'
-    )
+    const isLegacyPlayerAsset =
+      playerPath !== '/music' &&
+      (ctx.pathname.startsWith('/music/assets/') ||
+        ctx.pathname.startsWith('/music/css/') ||
+        ctx.pathname.startsWith('/music/js/') ||
+        ctx.pathname.startsWith('/music/fonts/') ||
+        ctx.pathname.startsWith('/music/img/') ||
+        ctx.pathname === '/music/manifest.json' ||
+        ctx.pathname === '/music/sw.js')
 
     if (isPlayerRequest || isLegacyPlayerAsset) {
       const activePrefix = isPlayerRequest ? playerPath : '/music'
-      const normalizedPrefix = (activePrefix === '/' || activePrefix === '') ? '' : activePrefix.replace(/\/+$/, '')
+      const normalizedPrefix = activePrefix === '/' || activePrefix === '' ? '' : activePrefix.replace(/\/+$/, '')
 
-      const isLoginPage = ctx.pathname === `${normalizedPrefix}/login` || ctx.pathname === `${normalizedPrefix}/login.html`
+      const isLoginPage =
+        ctx.pathname === `${normalizedPrefix}/login` || ctx.pathname === `${normalizedPrefix}/login.html`
       // 登录入口位于播放器根目录，未登录时也必须能加载其构建脚本。
       const isLoginScript = /^\/login-[a-z0-9]{8,}\.js$/i.test(ctx.pathname.slice(normalizedPrefix.length))
-      const isPublicAsset = ctx.pathname.startsWith(`${normalizedPrefix}/assets/`) ||
+      const isPublicAsset =
+        ctx.pathname.startsWith(`${normalizedPrefix}/assets/`) ||
         ctx.pathname.startsWith(`${normalizedPrefix}/css/`) ||
         ctx.pathname.startsWith(`${normalizedPrefix}/js/`) ||
         ctx.pathname.startsWith(`${normalizedPrefix}/fonts/`) ||

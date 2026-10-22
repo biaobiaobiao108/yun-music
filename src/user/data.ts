@@ -59,14 +59,18 @@ type PreparedUser = {
 }
 type StoredUserPassword = { name: string; password_hash: string }
 
-const prepareUsersForDatabase = async (users: LX.Config['users']): Promise<{
+const prepareUsersForDatabase = async (
+  users: LX.Config['users'],
+): Promise<{
   db: ReturnType<typeof getDb>
   existingRows: StoredUserPassword[]
   preparedUsers: PreparedUser[]
 }> => {
   if (!Array.isArray(users)) throw new Error('用户配置格式无效')
   const db = getDb()
-  const existingRows = db.query<{ name: string; password_hash: string }, []>('SELECT name, password_hash FROM users').all()
+  const existingRows = db
+    .query<{ name: string; password_hash: string }, []>('SELECT name, password_hash FROM users')
+    .all()
   for (const row of existingRows) {
     if (isReservedUserAlias(row.name)) throw new Error('SQLite 用户表包含系统保留用户名 default/open/_open')
   }
@@ -85,7 +89,8 @@ const prepareUsersForDatabase = async (users: LX.Config['users']): Promise<{
     if (addMusicLocationType !== 'top' && addMusicLocationType !== 'bottom') {
       throw new Error(`用户 ${user.name} 的歌单配置无效`)
     }
-    const passwordHash = user.passwordHash || (user.password ? await hashUserPassword(user.password) : existingHashes.get(user.name))
+    const passwordHash =
+      user.passwordHash || (user.password ? await hashUserPassword(user.password) : existingHashes.get(user.name))
     if (typeof passwordHash !== 'string' || !PASSWORD_HASH_PATTERN.test(passwordHash)) {
       throw new Error(`用户 ${user.name} 缺少有效密码`)
     }
@@ -134,14 +139,7 @@ const writePreparedUsersToDatabase = (
   `)
   try {
     for (const { user, passwordHash, maxSnapshotNum, addMusicLocationType } of preparedUsers) {
-      stmt.run(
-        user.name,
-        passwordHash,
-        maxSnapshotNum,
-        addMusicLocationType,
-        now,
-        now,
-      )
+      stmt.run(user.name, passwordHash, maxSnapshotNum, addMusicLocationType, now, now)
     }
   } finally {
     stmt.finalize()
@@ -163,26 +161,30 @@ export const syncUsersToDatabase = async (
 ): Promise<void> => {
   const prepared = await prepareUsersForDatabase(users)
   if (prepared.db !== getDb()) throw new Error('数据库在用户同步期间发生变更，请重试')
-  prepared.db.transaction(() => writePreparedUsersToDatabase(
-    prepared.db,
-    prepared.existingRows,
-    prepared.preparedUsers,
-    options,
-  ))()
+  prepared.db.transaction(() =>
+    writePreparedUsersToDatabase(prepared.db, prepared.existingRows, prepared.preparedUsers, options),
+  )()
   publishPreparedUsers(prepared.preparedUsers)
 }
 
 /** 启动时以 SQLite 为唯一用户来源；只有全新数据库才使用配置中的初始用户播种。 */
 export const initializeUsersFromDatabase = async (bootstrapUsers: LX.Config['users']): Promise<void> => {
   const db = getDb()
-  const rows = db.query<{
-    name: string
-    password_hash: string
-    max_snapshot_num: number
-    add_music_location_type: string
-  }, []>('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users ORDER BY name').all()
+  const rows = db
+    .query<
+      {
+        name: string
+        password_hash: string
+        max_snapshot_num: number
+        add_music_location_type: string
+      },
+      []
+    >('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users ORDER BY name')
+    .all()
 
-  const initialized = db.query<{ value: string }, []>("SELECT value FROM system_info WHERE key = 'users_initialized'").get()
+  const initialized = db
+    .query<{ value: string }, []>("SELECT value FROM system_info WHERE key = 'users_initialized'")
+    .get()
   if (rows.length === 0 && !initialized) {
     const prepared = await prepareUsersForDatabase(bootstrapUsers)
     if (prepared.db !== db || prepared.db !== getDb()) throw new Error('数据库在用户初始化期间发生变更，请重试')
@@ -197,12 +199,15 @@ export const initializeUsersFromDatabase = async (bootstrapUsers: LX.Config['use
   applyUsersFromDatabase(rows, bootstrapUsers)
 }
 
-const applyUsersFromDatabase = (rows: Array<{
-  name: string
-  password_hash: string
-  max_snapshot_num: number
-  add_music_location_type: string
-}>, configuredUsers: LX.Config['users']): void => {
+const applyUsersFromDatabase = (
+  rows: Array<{
+    name: string
+    password_hash: string
+    max_snapshot_num: number
+    add_music_location_type: string
+  }>,
+  configuredUsers: LX.Config['users'],
+): void => {
   for (const row of rows) validateStoredUserRow(row)
   const configuredByName = new Map(configuredUsers.map(user => [user.name, user]))
   global.lx.config.users = rows.map(row => {
@@ -229,12 +234,17 @@ const applyUsersFromDatabase = (rows: Array<{
 
 /** 从 SQLite 刷新运行时用户列表；与启动初始化不同，不会把旧引导用户重新写回空数据库。 */
 export const refreshUsersFromDatabase = (): void => {
-  const rows = getDb().query<{
-    name: string
-    password_hash: string
-    max_snapshot_num: number
-    add_music_location_type: string
-  }, []>('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users ORDER BY name').all()
+  const rows = getDb()
+    .query<
+      {
+        name: string
+        password_hash: string
+        max_snapshot_num: number
+        add_music_location_type: string
+      },
+      []
+    >('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users ORDER BY name')
+    .all()
   if (rows.length === 0) {
     global.lx.config.users = []
     return
@@ -260,22 +270,18 @@ const purgeUserRows = (db: ReturnType<typeof getDb>, userName: string): void => 
  */
 export const resolveMaxSnapshotNum = (userName: string, storedValue?: number): number => {
   const user = global.lx.config.users?.find(item => item.name === userName)
-  const candidates: Array<number | undefined> = [
-    user?.maxSnapshotNum,
-    global.lx.config.maxSnapshotNum,
-    storedValue,
-    10,
-  ]
+  const candidates: Array<number | undefined> = [user?.maxSnapshotNum, global.lx.config.maxSnapshotNum, storedValue, 10]
   for (const candidate of candidates) {
-    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 1 && candidate <= 10000) return candidate
+    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 1 && candidate <= 10000)
+      return candidate
   }
   return 10
 }
 
 export const getMaxSnapshotNum = (userName: string): number => {
-  const row = getDb().query<{ max_snapshot_num: number }, [string]>(
-    'SELECT max_snapshot_num FROM users WHERE name = ?'
-  ).get(userName)
+  const row = getDb()
+    .query<{ max_snapshot_num: number }, [string]>('SELECT max_snapshot_num FROM users WHERE name = ?')
+    .get(userName)
   return resolveMaxSnapshotNum(userName, row?.max_snapshot_num)
 }
 
@@ -312,12 +318,16 @@ export const migrateUserData = (oldName: string, newName: string): string => {
     })()
   } catch (error) {
     if (movedCache) {
-      try { moveUserCacheData(newName, oldName) } catch (rollbackError) {
+      try {
+        moveUserCacheData(newName, oldName)
+      } catch (rollbackError) {
         console.error('[User] 用户缓存迁移回滚失败:', rollbackError)
       }
     }
     if (moved && fs.existsSync(newDirPath) && !fs.existsSync(oldDirPath)) {
-      try { fs.renameSync(newDirPath, oldDirPath) } catch (rollbackError) {
+      try {
+        fs.renameSync(newDirPath, oldDirPath)
+      } catch (rollbackError) {
         console.error('[User] 用户目录迁移回滚失败:', rollbackError)
       }
     }

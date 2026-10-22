@@ -30,9 +30,7 @@ const children = services.map(service => ({
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',
-    env: service.name === 'frontend'
-      ? { ...process.env, FRONTEND_SKIP_INITIAL_BUILD: '1' }
-      : undefined,
+    env: service.name === 'frontend' ? { ...process.env, FRONTEND_SKIP_INITIAL_BUILD: '1' } : undefined,
   }),
 }))
 
@@ -48,8 +46,12 @@ const stopChildren = (requestedByUser = false): void => {
   if (shuttingDown) return
   shuttingDown = true
   for (const child of children) {
-    try { child.process.kill('SIGINT') } catch {
-      try { child.process.kill('SIGTERM') } catch { }
+    try {
+      child.process.kill('SIGINT')
+    } catch {
+      try {
+        child.process.kill('SIGTERM')
+      } catch {}
     }
   }
   // Bun's watch process can outlive the parent on Windows when it is attached
@@ -57,7 +59,9 @@ const stopChildren = (requestedByUser = false): void => {
   // watchers if a child ignores the signal.
   forceKillTimer = setTimeout(() => {
     for (const child of children) {
-      try { child.process.kill('SIGKILL') } catch { }
+      try {
+        child.process.kill('SIGKILL')
+      } catch {}
     }
     forceKillTimer = null
   }, 1500)
@@ -66,13 +70,17 @@ const stopChildren = (requestedByUser = false): void => {
 process.on('SIGINT', () => stopChildren(true))
 process.on('SIGTERM', () => stopChildren(true))
 
-const firstExit = await Promise.race(children.map(async child => ({
-  name: child.name,
-  code: await child.process.exited,
-})))
+const firstExit = await Promise.race(
+  children.map(async child => ({
+    name: child.name,
+    code: await child.process.exited,
+  })),
+)
 
 if (!shuttingDown) {
-  console.error(`[dev] ${firstExit.name} process exited with code ${firstExit.code}; stopping the other development process.`)
+  console.error(
+    `[dev] ${firstExit.name} process exited with code ${firstExit.code}; stopping the other development process.`,
+  )
   stopChildren()
 }
 

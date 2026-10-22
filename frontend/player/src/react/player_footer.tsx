@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Mous
 import { playerApi } from './api'
 import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
-import { isSongInLoveList, useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore, useSettingsStore } from './store'
+import {
+  isSongInLoveList,
+  useAuthStore,
+  useLibraryStore,
+  usePlaybackStore,
+  usePlayerUiStore,
+  useSettingsStore,
+} from './store'
 import { sameSong, songArtist, songImage, songTitle } from './types'
 import { buildCachePlaybackUrl, extractRemotePlaybackUrl, parseCachePlaybackUrl } from './media_url'
 import { getSessionGeneration } from './session'
@@ -19,7 +26,13 @@ export function consumeImmersiveLyricsTrigger(): HTMLButtonElement | null {
   return trigger
 }
 
-function VolumeControl({ volume, muted, onVolumeChange, active = true, popoverId = 'player-volume-popover' }: {
+function VolumeControl({
+  volume,
+  muted,
+  onVolumeChange,
+  active = true,
+  popoverId = 'player-volume-popover',
+}: {
   volume: number
   muted: boolean
   onVolumeChange: (value: number) => void
@@ -53,14 +66,38 @@ function VolumeControl({ volume, muted, onVolumeChange, active = true, popoverId
   }, [open])
 
   const displayedVolume = muted ? 0 : volume
-  const icon = muted || displayedVolume === 0 ? 'volume-xmark' : displayedVolume < .5 ? 'volume-low' : 'volume-high'
+  const icon = muted || displayedVolume === 0 ? 'volume-xmark' : displayedVolume < 0.5 ? 'volume-low' : 'volume-high'
   const volumeStyle = { '--volume': `${Math.round(displayedVolume * 100)}%` } as CSSProperties
-  return <div ref={rootRef} className={`react-volume-control ${open ? 'is-open' : ''}`}>
-    {open && <div id={popoverId} className="react-volume-popover" role="dialog" aria-label="音量控制">
-      <input className="react-volume-range" style={volumeStyle} type="range" min="0" max="1" step="0.01" value={displayedVolume} onChange={event => onVolumeChange(Number(event.target.value))} aria-label="音量大小" />
-    </div>}
-    <button ref={triggerRef} type="button" className="player-secondary-action react-volume-trigger" aria-label={open ? '收起音量控制' : '展开音量控制'} aria-expanded={open} aria-controls={popoverId} onClick={() => setOpen(value => !value)}>{open ? <span className="react-volume-value">{Math.round(displayedVolume * 100)}%</span> : <Icon name={icon} />}</button>
-  </div>
+  return (
+    <div ref={rootRef} className={`react-volume-control ${open ? 'is-open' : ''}`}>
+      {open && (
+        <div id={popoverId} className="react-volume-popover" role="dialog" aria-label="音量控制">
+          <input
+            className="react-volume-range"
+            style={volumeStyle}
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={displayedVolume}
+            onChange={event => onVolumeChange(Number(event.target.value))}
+            aria-label="音量大小"
+          />
+        </div>
+      )}
+      <button
+        ref={triggerRef}
+        type="button"
+        className="player-secondary-action react-volume-trigger"
+        aria-label={open ? '收起音量控制' : '展开音量控制'}
+        aria-expanded={open}
+        aria-controls={popoverId}
+        onClick={() => setOpen(value => !value)}
+      >
+        {open ? <span className="react-volume-value">{Math.round(displayedVolume * 100)}%</span> : <Icon name={icon} />}
+      </button>
+    </div>
+  )
 }
 
 function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
@@ -73,7 +110,9 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
 
   return (
     <div className="react-progress-row">
-      <span className="react-progress-time"><Time value={safeCurrentTime} /></span>
+      <span className="react-progress-time">
+        <Time value={safeCurrentTime} />
+      </span>
       <input
         style={progressStyle}
         type="range"
@@ -84,14 +123,22 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
         onChange={event => seek(Number(event.target.value))}
         aria-label="播放进度"
       />
-      <span className="react-progress-time"><Time value={safeDuration} /></span>
+      <span className="react-progress-time">
+        <Time value={safeDuration} />
+      </span>
     </div>
   )
 }
 
 export type PlayerFooterVariant = 'normal' | 'immersive'
 
-export function PlayerFooterBar({ variant = 'normal', isActive = true }: { variant?: PlayerFooterVariant; isActive?: boolean }) {
+export function PlayerFooterBar({
+  variant = 'normal',
+  isActive = true,
+}: {
+  variant?: PlayerFooterVariant
+  isActive?: boolean
+}) {
   const immersive = variant === 'immersive'
   const currentSong = usePlaybackStore(state => state.currentSong)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
@@ -124,7 +171,11 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   const [mobileViewport, setMobileViewport] = useState(() => window.matchMedia('(max-width: 720px)').matches)
   const songMenuButtonRef = useRef<HTMLButtonElement>(null)
   const modeLabel = mode === 'random' ? '随机' : mode === 'single' ? '单曲循环' : '列表循环'
-  const footerId = isActive ? 'player-footer' : immersive ? 'player-footer-immersive-hidden' : 'player-footer-normal-hidden'
+  const footerId = isActive
+    ? 'player-footer'
+    : immersive
+      ? 'player-footer-immersive-hidden'
+      : 'player-footer-normal-hidden'
   const volumePopoverId = isActive ? 'player-volume-popover' : `${footerId}-volume-popover`
 
   const closeSongMenu = useCallback(() => {
@@ -133,7 +184,10 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
   }, [])
 
   const toggleSongMenu = () => {
-    if (!currentSong) { notify('请选择歌曲后再查看歌曲操作'); return }
+    if (!currentSong) {
+      notify('请选择歌曲后再查看歌曲操作')
+      return
+    }
     setSongMenuOpen(value => !value)
   }
 
@@ -154,11 +208,13 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
     const isCurrentSession = () => sessionGeneration === getSessionGeneration()
     try {
       const currentReference = parseCachePlaybackUrl(currentSong.url) ?? parseCachePlaybackUrl(resolvedUrl)
-      let cachedItem = currentReference ? {
-        filename: currentReference.filename,
-        folder: currentReference.folder,
-        username: currentReference.username || '_open',
-      } : null
+      let cachedItem = currentReference
+        ? {
+            filename: currentReference.filename,
+            folder: currentReference.folder,
+            username: currentReference.username || '_open',
+          }
+        : null
 
       // A normally-playing online song has no URL on its Song object. Look up
       // the cache index before asking the server to download anything so a
@@ -171,12 +227,23 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
           const items = listed.data ?? []
           const matches = items.filter(item => {
             if (item.songInfo && sameSong(item.songInfo, currentSong)) return true
-            return String(item.songmid ?? '') !== '' && String(item.songmid ?? '') === String(currentSong.songmid ?? currentSong.id ?? '') && String(item.source || '') === String(currentSong.source || '')
+            return (
+              String(item.songmid ?? '') !== '' &&
+              String(item.songmid ?? '') === String(currentSong.songmid ?? currentSong.id ?? '') &&
+              String(item.source || '') === String(currentSong.source || '')
+            )
           })
           // Prefer a private cache entry when both folders contain the same
           // song so the server can finish the move and clean old duplicates.
-          const match = matches.find(item => String(item.folder) === 'cache') ?? matches.find(item => String(item.folder) === 'music')
-          if (match) cachedItem = { filename: String(match.filename), folder: String(match.folder || 'cache') as 'cache' | 'music', username: String(match.rawUsername || match.username || userName || '_open').trim() || '_open' }
+          const match =
+            matches.find(item => String(item.folder) === 'cache') ??
+            matches.find(item => String(item.folder) === 'music')
+          if (match)
+            cachedItem = {
+              filename: String(match.filename),
+              folder: String(match.folder || 'cache') as 'cache' | 'music',
+              username: String(match.rawUsername || match.username || userName || '_open').trim() || '_open',
+            }
         } catch {
           // A cache index read is an optimization. The already-resolved source
           // below is still safe to submit to the server download queue.
@@ -185,16 +252,35 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
 
       if (cachedItem) {
         if (cachedItem.folder === 'music') {
-          const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username })
+          const nextUrl = buildCachePlaybackUrl({
+            filename: cachedItem.filename,
+            folder: 'music',
+            username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username,
+          })
           setSongUrl(currentSong, nextUrl, sessionGeneration)
           notify('歌曲已经在下载目录中，已切换到下载路径')
           setDrawer('download')
           return
         }
-        const result = await playerApi.cacheMove([{ filename: cachedItem.filename, folder: cachedItem.folder, user: cachedItem.username, rawUsername: cachedItem.username, sourceUser: cachedItem.username }], 'music')
+        const result = await playerApi.cacheMove(
+          [
+            {
+              filename: cachedItem.filename,
+              folder: cachedItem.folder,
+              user: cachedItem.username,
+              rawUsername: cachedItem.username,
+              sourceUser: cachedItem.username,
+            },
+          ],
+          'music',
+        )
         if (!isCurrentSession()) return
         if (Number(result.successCount || 0) < 1) throw new Error('缓存文件尚未准备好，请稍后再试')
-        const nextUrl = buildCachePlaybackUrl({ filename: cachedItem.filename, folder: 'music', username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username })
+        const nextUrl = buildCachePlaybackUrl({
+          filename: cachedItem.filename,
+          folder: 'music',
+          username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username,
+        })
         setSongUrl(currentSong, nextUrl, sessionGeneration)
         notify('已移入下载目录，后续播放不会重复消耗音源次数')
         setDrawer('download')
@@ -202,23 +288,50 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
       }
 
       const remoteUrl = extractRemotePlaybackUrl(resolvedUrl) ?? extractRemotePlaybackUrl(currentSong.url)
-      const result = remoteUrl && quality === preferredQuality
-        ? { url: remoteUrl }
-        : await playerApi.songUrl(currentSong, preferredQuality, undefined, enableAutoSwitchSource)
+      const result =
+        remoteUrl && quality === preferredQuality
+          ? { url: remoteUrl }
+          : await playerApi.songUrl(currentSong, preferredQuality, undefined, enableAutoSwitchSource)
       if (!isCurrentSession()) return
       await playerApi.download(currentSong, result.url, preferredQuality)
       if (!isCurrentSession()) return
-      notify(remoteUrl && quality === preferredQuality ? '已加入下载队列，继续复用当前播放链接' : `已加入下载队列，音质：${preferredQuality}`)
+      notify(
+        remoteUrl && quality === preferredQuality
+          ? '已加入下载队列，继续复用当前播放链接'
+          : `已加入下载队列，音质：${preferredQuality}`,
+      )
       setDrawer('download')
-    } catch (error) { if (isCurrentSession()) notify(error instanceof Error ? error.message : '下载失败') }
-  }, [currentSong, enableAutoSwitchSource, notify, preferredQuality, quality, resolvedUrl, setSongUrl, setDrawer, userName])
+    } catch (error) {
+      if (isCurrentSession()) notify(error instanceof Error ? error.message : '下载失败')
+    }
+  }, [
+    currentSong,
+    enableAutoSwitchSource,
+    notify,
+    preferredQuality,
+    quality,
+    resolvedUrl,
+    setSongUrl,
+    setDrawer,
+    userName,
+  ])
 
   const toggleLike = useCallback(async () => {
-    if (!currentSong) { notify('请选择歌曲后再收藏'); return }
+    if (!currentSong) {
+      notify('请选择歌曲后再收藏')
+      return
+    }
     try {
-      if (isLiked) { await removeSong('love', currentSong); notify('已取消喜欢') }
-      else { await addSong('love', currentSong); notify('已添加到喜欢') }
-    } catch (error) { notify(error instanceof Error ? error.message : '喜欢操作失败') }
+      if (isLiked) {
+        await removeSong('love', currentSong)
+        notify('已取消喜欢')
+      } else {
+        await addSong('love', currentSong)
+        notify('已添加到喜欢')
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : '喜欢操作失败')
+    }
   }, [addSong, currentSong, isLiked, notify, removeSong])
 
   const openAddToListAction = useCallback(() => {
@@ -253,50 +366,220 @@ export function PlayerFooterBar({ variant = 'normal', isActive = true }: { varia
     }
   }
 
-  return <>
-    <footer id={footerId} aria-label={immersive ? '歌词播放控制' : '播放器'} aria-hidden={isActive ? undefined : true} inert={isActive ? undefined : true} className={`react-player-footer${immersive ? ' react-immersive-shared-footer react-immersive-detail-controls' : ''}${isActive ? '' : ' is-inactive'}`}>
-      {immersive ? <>
-        <div className="react-immersive-detail-progress"><PlayerProgressRow seek={seek} /></div>
-        <div className="react-immersive-detail-transport" aria-label="歌词播放操作">
-          <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
-          <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
-          <button type="button" id={isActive ? 'btn-play' : undefined} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
-          <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
-          {mobileViewport ? <button type="button" className="player-secondary-action react-queue-button" aria-label="打开播放队列" onClick={openQueue}><Icon name="list" /></button> : <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} />}
-        </div>
-        <div className="react-immersive-volume-row" style={{ '--volume': `${Math.round((muted ? 0 : volume) * 100)}%` } as CSSProperties}>
-          <Icon name={muted || volume <= 0 ? 'volume-xmark' : 'volume-low'} />
-          <input type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} aria-label="音量" />
-          <Icon name="volume-high" />
-        </div>
-      </> : <>
-        <div className="react-footer-controls">
-          <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}><Icon name="backward-step" /></button>
-          <button type="button" id={isActive ? 'btn-play' : undefined} className="react-play-button" aria-label={isPlaying ? '暂停' : '播放'} onClick={toggle}><Icon name={isPlaying ? 'pause' : 'play'} /></button>
-          <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}><Icon name="forward-step" /></button>
-          <button type="button" id={isActive ? 'player-like-btn' : undefined} className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`} aria-label={isLiked ? '取消喜欢' : '喜欢'} aria-pressed={isLiked} title={isLiked ? '取消喜欢' : '喜欢'} onClick={() => void toggleLike()}><Icon name="heart" /><span>喜欢</span></button>
-        </div>
-        <div className="react-footer-song-section">
-          <div className="react-footer-song">
-            <button type="button" className="react-footer-cover-button" onClick={openLyrics} aria-label="打开沉浸式歌词" disabled={!currentSong}><SafeImage src={songImage(currentSong)} width="48" height="48" alt="" /></button>
-            {mobileViewport ? <button type="button" className="react-footer-song-meta react-footer-open-player" onClick={openLyrics} aria-label="打开全屏播放器" disabled={!currentSong}>
-              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云鹿音乐'}</strong></div>
-              <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
-            </button> : <div className="react-footer-song-meta">
-              <div className="react-footer-title-row"><strong title={currentSong ? songTitle(currentSong) : undefined}>{currentSong ? songTitle(currentSong) : '云鹿音乐'}</strong></div>
-              <small title={currentSong ? songArtist(currentSong) : undefined}>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
-            </div>}
-          </div>
-          <PlayerProgressRow seek={seek} />
-        </div>
-        <div className="react-footer-actions">
-          <button ref={songMenuButtonRef} type="button" className="player-secondary-action react-song-menu-button" aria-label="打开歌曲更多操作" aria-expanded={songMenuOpen} aria-controls="song-actions-popover" onClick={toggleSongMenu} disabled={!isActive || !currentSong} tabIndex={!isActive ? -1 : undefined}><Icon name="ellipsis" /></button>
-          <button type="button" className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`} aria-label={`播放模式：${modeLabel}`} aria-pressed={mode !== 'list'} onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}><Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />{mode === 'single' && <span className="react-mode-one" aria-hidden="true">1</span>}</button>
-          <button type="button" className="player-secondary-action react-queue-button" aria-label={drawer === 'queue' ? '关闭播放队列' : '打开播放队列'} aria-expanded={drawer === 'queue'} onClick={openQueue}><Icon name="list" /></button>
-          <VolumeControl volume={volume} muted={muted} active={isActive} popoverId={volumePopoverId} onVolumeChange={setVolume} />
-        </div>
-      </>}
-    </footer>
-    {!immersive && <SongActionsPopover song={currentSong} open={isActive && songMenuOpen} anchorRef={songMenuButtonRef} onClose={closeSongMenu} onAddToList={openAddToListAction} onComment={openComments} onDownload={() => void download()} onSleep={openSleepTimer} />}
-  </>
+  return (
+    <>
+      <footer
+        id={footerId}
+        aria-label={immersive ? '歌词播放控制' : '播放器'}
+        aria-hidden={isActive ? undefined : true}
+        inert={isActive ? undefined : true}
+        className={`react-player-footer${immersive ? ' react-immersive-shared-footer react-immersive-detail-controls' : ''}${isActive ? '' : ' is-inactive'}`}
+      >
+        {immersive ? (
+          <>
+            <div className="react-immersive-detail-progress">
+              <PlayerProgressRow seek={seek} />
+            </div>
+            <div className="react-immersive-detail-transport" aria-label="歌词播放操作">
+              <button
+                type="button"
+                className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
+                aria-label={`播放模式：${modeLabel}`}
+                aria-pressed={mode !== 'list'}
+                onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}
+              >
+                <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
+                {mode === 'single' && (
+                  <span className="react-mode-one" aria-hidden="true">
+                    1
+                  </span>
+                )}
+              </button>
+              <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}>
+                <Icon name="backward-step" />
+              </button>
+              <button
+                type="button"
+                id={isActive ? 'btn-play' : undefined}
+                className="react-play-button"
+                aria-label={isPlaying ? '暂停' : '播放'}
+                onClick={toggle}
+              >
+                <Icon name={isPlaying ? 'pause' : 'play'} />
+              </button>
+              <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}>
+                <Icon name="forward-step" />
+              </button>
+              {mobileViewport ? (
+                <button
+                  type="button"
+                  className="player-secondary-action react-queue-button"
+                  aria-label="打开播放队列"
+                  onClick={openQueue}
+                >
+                  <Icon name="list" />
+                </button>
+              ) : (
+                <VolumeControl
+                  volume={volume}
+                  muted={muted}
+                  active={isActive}
+                  popoverId={volumePopoverId}
+                  onVolumeChange={setVolume}
+                />
+              )}
+            </div>
+            <div
+              className="react-immersive-volume-row"
+              style={{ '--volume': `${Math.round((muted ? 0 : volume) * 100)}%` } as CSSProperties}
+            >
+              <Icon name={muted || volume <= 0 ? 'volume-xmark' : 'volume-low'} />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={muted ? 0 : volume}
+                onChange={event => setVolume(Number(event.target.value))}
+                aria-label="音量"
+              />
+              <Icon name="volume-high" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="react-footer-controls">
+              <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}>
+                <Icon name="backward-step" />
+              </button>
+              <button
+                type="button"
+                id={isActive ? 'btn-play' : undefined}
+                className="react-play-button"
+                aria-label={isPlaying ? '暂停' : '播放'}
+                onClick={toggle}
+              >
+                <Icon name={isPlaying ? 'pause' : 'play'} />
+              </button>
+              <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}>
+                <Icon name="forward-step" />
+              </button>
+              <button
+                type="button"
+                id={isActive ? 'player-like-btn' : undefined}
+                className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`}
+                aria-label={isLiked ? '取消喜欢' : '喜欢'}
+                aria-pressed={isLiked}
+                title={isLiked ? '取消喜欢' : '喜欢'}
+                onClick={() => void toggleLike()}
+              >
+                <Icon name="heart" />
+                <span>喜欢</span>
+              </button>
+            </div>
+            <div className="react-footer-song-section">
+              <div className="react-footer-song">
+                <button
+                  type="button"
+                  className="react-footer-cover-button"
+                  onClick={openLyrics}
+                  aria-label="打开沉浸式歌词"
+                  disabled={!currentSong}
+                >
+                  <SafeImage src={songImage(currentSong)} width="48" height="48" alt="" />
+                </button>
+                {mobileViewport ? (
+                  <button
+                    type="button"
+                    className="react-footer-song-meta react-footer-open-player"
+                    onClick={openLyrics}
+                    aria-label="打开全屏播放器"
+                    disabled={!currentSong}
+                  >
+                    <div className="react-footer-title-row">
+                      <strong title={currentSong ? songTitle(currentSong) : undefined}>
+                        {currentSong ? songTitle(currentSong) : '云鹿音乐'}
+                      </strong>
+                    </div>
+                    <small title={currentSong ? songArtist(currentSong) : undefined}>
+                      {currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}
+                    </small>
+                  </button>
+                ) : (
+                  <div className="react-footer-song-meta">
+                    <div className="react-footer-title-row">
+                      <strong title={currentSong ? songTitle(currentSong) : undefined}>
+                        {currentSong ? songTitle(currentSong) : '云鹿音乐'}
+                      </strong>
+                    </div>
+                    <small title={currentSong ? songArtist(currentSong) : undefined}>
+                      {currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}
+                    </small>
+                  </div>
+                )}
+              </div>
+              <PlayerProgressRow seek={seek} />
+            </div>
+            <div className="react-footer-actions">
+              <button
+                ref={songMenuButtonRef}
+                type="button"
+                className="player-secondary-action react-song-menu-button"
+                aria-label="打开歌曲更多操作"
+                aria-expanded={songMenuOpen}
+                aria-controls="song-actions-popover"
+                onClick={toggleSongMenu}
+                disabled={!isActive || !currentSong}
+                tabIndex={!isActive ? -1 : undefined}
+              >
+                <Icon name="ellipsis" />
+              </button>
+              <button
+                type="button"
+                className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
+                aria-label={`播放模式：${modeLabel}`}
+                aria-pressed={mode !== 'list'}
+                onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}
+              >
+                <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
+                {mode === 'single' && (
+                  <span className="react-mode-one" aria-hidden="true">
+                    1
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                className="player-secondary-action react-queue-button"
+                aria-label={drawer === 'queue' ? '关闭播放队列' : '打开播放队列'}
+                aria-expanded={drawer === 'queue'}
+                onClick={openQueue}
+              >
+                <Icon name="list" />
+              </button>
+              <VolumeControl
+                volume={volume}
+                muted={muted}
+                active={isActive}
+                popoverId={volumePopoverId}
+                onVolumeChange={setVolume}
+              />
+            </div>
+          </>
+        )}
+      </footer>
+      {!immersive && (
+        <SongActionsPopover
+          song={currentSong}
+          open={isActive && songMenuOpen}
+          anchorRef={songMenuButtonRef}
+          onClose={closeSongMenu}
+          onAddToList={openAddToListAction}
+          onComment={openComments}
+          onDownload={() => void download()}
+          onSleep={openSleepTimer}
+        />
+      )}
+    </>
+  )
 }

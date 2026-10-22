@@ -34,7 +34,7 @@ export default {
    * @param {*} page
    * @param {*} limit
    */
-  getSongList(id: any, page: any= 1, limit: any= 100) {
+  getSongList(id: any, page: any = 1, limit: any = 100) {
     if (page === 1) page = 0
     return weapiRequest('/v1/artist/songs', {
       id,
@@ -61,7 +61,7 @@ export default {
    * @param {*} page
    * @param {*} limit
    */
-  getAlbumList(id: any, page: any= 1, limit: any= 10) {
+  getAlbumList(id: any, page: any = 1, limit: any = 10) {
     if (page === 1) page = 0
     return weapiRequest(`/artist/albums/${id}`, {
       limit,
@@ -102,13 +102,16 @@ export default {
     raw.forEach((item: any) => {
       if (!item.id) return
 
-      const { types, _types } = buildQualitys({
-        ...item,
-        l: item.lMusic,
-        h: item.hMusic,
-        sq: item.sqMusic,
-        hr: item.hrMusic,
-      }, item.privilege)
+      const { types, _types } = buildQualitys(
+        {
+          ...item,
+          l: item.lMusic,
+          h: item.hMusic,
+          sq: item.sqMusic,
+          hr: item.hrMusic,
+        },
+        item.privilege,
+      )
 
       list.push({
         singer: formatSingerName(item.artists),

@@ -73,7 +73,11 @@ function LoginPage() {
               required
             />
           </div>
-          {error && <p className="react-error" role="alert">{error}</p>}
+          {error && (
+            <p className="react-error" role="alert">
+              {error}
+            </p>
+          )}
           <button type="submit" className="react-player-button react-player-button-primary">
             <Icon name="right-to-bracket" />
             进入播放器
@@ -85,4 +89,8 @@ function LoginPage() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(<StrictMode><LoginPage /></StrictMode>)
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <LoginPage />
+  </StrictMode>,
+)

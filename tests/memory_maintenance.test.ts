@@ -1,12 +1,25 @@
 import { expect, spyOn, test } from 'bun:test'
-import { createMemoryMaintenance, parseCgroupMemoryLimit, parseProcessSwapBytes, readContainerMemoryLimit, type MemorySnapshot } from '@/server/memoryMaintenance'
+import {
+  createMemoryMaintenance,
+  parseCgroupMemoryLimit,
+  parseProcessSwapBytes,
+  readContainerMemoryLimit,
+  type MemorySnapshot,
+} from '@/server/memoryMaintenance'
 
 const mib = 1024 * 1024
-const pressuredSnapshot = (): MemorySnapshot => ({ rss: 300 * mib, heapUsed: 60 * mib, external: 20 * mib, swap: 0, footprint: 300 * mib })
+const pressuredSnapshot = (): MemorySnapshot => ({
+  rss: 300 * mib,
+  heapUsed: 60 * mib,
+  external: 20 * mib,
+  swap: 0,
+  footprint: 300 * mib,
+})
 
 test('recognizes finite cgroup limits and ignores unlimited or malformed values', () => {
   expect(parseCgroupMemoryLimit('134217728\n')).toBe(128 * mib)
-  for (const value of ['max', '', '0', '-1', 'bad', '9223372036854771712']) expect(parseCgroupMemoryLimit(value)).toBeUndefined()
+  for (const value of ['max', '', '0', '-1', 'bad', '9223372036854771712'])
+    expect(parseCgroupMemoryLimit(value)).toBeUndefined()
 })
 
 test('reads inherited cgroup v2 limits when the process leaf and mount root are unlimited', () => {
@@ -62,7 +75,10 @@ test('coalesces deferred collection, includes swapped pages and enforces the coo
   const maintenance = createMemoryMaintenance({
     delayMs: 5,
     intervalMs: 100,
-    sample: () => { samples++; return snapshot },
+    sample: () => {
+      samples++
+      return snapshot
+    },
     collect: () => {
       collections++
       snapshot = { ...snapshot, heapUsed: 20 * mib, swap: 0, footprint: snapshot.rss }
@@ -91,7 +107,9 @@ test('leaves a low-memory process alone after completed streaming work', async (
   const maintenance = createMemoryMaintenance({
     delayMs: 5,
     sample: () => ({ rss: 40, swap: 0, footprint: 40, heapUsed: 20, external: 5 }),
-    collect: () => { throw new Error('Unexpected collection') },
+    collect: () => {
+      throw new Error('Unexpected collection')
+    },
   })
   const warning = spyOn(console, 'warn').mockImplementation(() => {})
   try {
@@ -113,9 +131,15 @@ test('backs off low-yield GC up to five minutes and lets managed growth resume t
     delayMs: 1,
     now: () => now,
     sample: () => snapshot,
-    collect: () => { collections++ },
+    collect: () => {
+      collections++
+    },
   })
-  const check = async (time: number) => { now = time; maintenance.schedule('idle'); await Bun.sleep(5) }
+  const check = async (time: number) => {
+    now = time
+    maintenance.schedule('idle')
+    await Bun.sleep(5)
+  }
   try {
     await check(0)
     expect(collections).toBe(1)
@@ -180,8 +204,13 @@ test('defers collection until heavy work is idle and cancellation removes its re
   const maintenance = createMemoryMaintenance({
     delayMs: 1,
     intervalMs: 2,
-    sample: () => { samples++; return pressuredSnapshot() },
-    collect: () => { collections++ },
+    sample: () => {
+      samples++
+      return pressuredSnapshot()
+    },
+    collect: () => {
+      collections++
+    },
   })
   maintenance.setBusyCheck(() => busy)
   try {
@@ -206,14 +235,22 @@ test('defers collection until heavy work is idle and cancellation removes its re
 })
 
 test('uses a container soft threshold without collecting for native-only RSS pressure', async () => {
-  let snapshot = { ...pressuredSnapshot(), rss: 100 * mib, footprint: 100 * mib, pressureLimit: 90 * mib, containerMemoryLimit: 128 * mib }
+  let snapshot = {
+    ...pressuredSnapshot(),
+    rss: 100 * mib,
+    footprint: 100 * mib,
+    pressureLimit: 90 * mib,
+    containerMemoryLimit: 128 * mib,
+  }
   let collections = 0
   const log = spyOn(console, 'log').mockImplementation(() => {})
   const maintenance = createMemoryMaintenance({
     delayMs: 1,
     intervalMs: 2,
     sample: () => snapshot,
-    collect: () => { collections++ },
+    collect: () => {
+      collections++
+    },
   })
   try {
     maintenance.schedule('container pressure')

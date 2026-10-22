@@ -130,7 +130,7 @@ const cursorTools = {
 export default {
   _requestObj: null as any,
   _requestObj2: null as any,
-  async getComment({ songmid }: any, page: any= 1, limit: any= 20) {
+  async getComment({ songmid }: any, page: any = 1, limit: any = 20) {
     if (this._requestObj) this._requestObj.cancelHttp()
 
     const id = 'R_SO_4_' + songmid
@@ -140,7 +140,8 @@ export default {
     const _requestObj = httpFetch('https://music.163.com/weapi/comment/resource/comments/get', {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
         origin: 'https://music.163.com',
         Refere: 'http://music.163.com/',
       },
@@ -158,9 +159,16 @@ export default {
     // console.log(body)
     if (statusCode != 200 || body.code !== 200) throw new Error('获取评论失败')
     cursorTools.setCursor(songmid, body.data.cursor, cursorInfo.orderType, cursorInfo.offset, page)
-    return { source: 'wy', comments: this.filterComment(body.data.comments), total: body.data.totalCount, page, limit, maxPage: Math.ceil(body.data.totalCount / limit) || 1 }
+    return {
+      source: 'wy',
+      comments: this.filterComment(body.data.comments),
+      total: body.data.totalCount,
+      page,
+      limit,
+      maxPage: Math.ceil(body.data.totalCount / limit) || 1,
+    }
   },
-  async getHotComment({ songmid }: any, page: any= 1, limit: any= 100) {
+  async getHotComment({ songmid }: any, page: any = 1, limit: any = 100) {
     if (this._requestObj2) this._requestObj2.cancelHttp()
 
     const id = 'R_SO_4_' + songmid
@@ -169,7 +177,8 @@ export default {
     const _requestObj2 = httpFetch(`https://music.163.com/weapi/v1/resource/hotcomments/${id}`, {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
         origin: 'https://music.163.com',
         Refere: 'http://music.163.com/',
       },
@@ -183,7 +192,14 @@ export default {
     const { body, statusCode } = await _requestObj2.promise
     if (statusCode != 200 || body.code !== 200) throw new Error('获取热门评论失败')
     const total = body.total ?? 0
-    return { source: 'wy', comments: this.filterComment(body.hotComments), total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+    return {
+      source: 'wy',
+      comments: this.filterComment(body.hotComments),
+      total,
+      page,
+      limit,
+      maxPage: Math.ceil(total / limit) || 1,
+    }
   },
   filterComment(rawList: any) {
     return rawList.map((item: any) => {
@@ -203,18 +219,18 @@ export default {
       let replyData = item.beReplied && item.beReplied[0]
       return replyData
         ? {
-          id: item.commentId,
-          rootId: replyData.beRepliedCommentId,
-          text: replyData.content ? applyEmoji(replyData.content) : '',
-          time: item.time,
-          timeStr: null,
-          location: replyData.ipLocation?.location,
-          userName: replyData.user.nickname,
-          avatar: replyData.user.avatarUrl,
-          userId: replyData.user.userId,
-          likedCount: null,
-          reply: [data],
-        }
+            id: item.commentId,
+            rootId: replyData.beRepliedCommentId,
+            text: replyData.content ? applyEmoji(replyData.content) : '',
+            time: item.time,
+            timeStr: null,
+            location: replyData.ipLocation?.location,
+            userName: replyData.user.nickname,
+            avatar: replyData.user.avatarUrl,
+            userId: replyData.user.userId,
+            likedCount: null,
+            reply: [data],
+          }
         : data
     })
   },

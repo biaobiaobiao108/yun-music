@@ -13,13 +13,16 @@ export type HeaderSource = Request | { headers: Headers | Record<string, string 
 const getHeader = (source: HeaderSource, name: string): string | null => {
   if (source.headers instanceof Headers) return source.headers.get(name)
   const value = source.headers[name] ?? source.headers[name.toLowerCase()]
-  return Array.isArray(value) ? value[0] ?? null : value ?? null
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null)
 }
 
 export const getCookieValue = (source: HeaderSource, name: string): string | null => {
   const cookieHeader = getHeader(source, 'cookie')
   if (!cookieHeader) return null
-  const item = cookieHeader.split(';').map(value => value.trim()).find(value => value.startsWith(`${name}=`))
+  const item = cookieHeader
+    .split(';')
+    .map(value => value.trim())
+    .find(value => value.startsWith(`${name}=`))
   if (!item) return null
   try {
     return decodeURIComponent(item.slice(name.length + 1))
@@ -36,7 +39,11 @@ export const safeStringEqual = (left: unknown, right: unknown): boolean => {
 }
 
 /** 兼容旧内存配置，同时优先使用持久化密码哈希。 */
-export const verifyConfiguredPassword = async (password: unknown, passwordHash: unknown, legacyPassword: unknown): Promise<boolean> => {
+export const verifyConfiguredPassword = async (
+  password: unknown,
+  passwordHash: unknown,
+  legacyPassword: unknown,
+): Promise<boolean> => {
   if (isPasswordHash(passwordHash)) return verifyPasswordHash(passwordHash, password)
   return safeStringEqual(password, legacyPassword)
 }
@@ -46,11 +53,11 @@ export const verifyConfiguredPassword = async (password: unknown, passwordHash: 
  * exactly as much as a real check, which keeps "user exists" out of the
  * response-time side channel (the login limiter made that hard but not closed).
  */
-export const DUMMY_PASSWORD_HASH = 'scrypt$28d36ecc35817cdf28df0879388882cf$564d93bc417ec2e8d48df0480871eb3133bb9f1d9b676838884c11475ae68e6c1dbc83b67f5ed3a27bb80e75102e8c98fc660b2058dd9b891ca15e3f16c1469f'
+export const DUMMY_PASSWORD_HASH =
+  'scrypt$28d36ecc35817cdf28df0879388882cf$564d93bc417ec2e8d48df0480871eb3133bb9f1d9b676838884c11475ae68e6c1dbc83b67f5ed3a27bb80e75102e8c98fc660b2058dd9b891ca15e3f16c1469f'
 
-export const hasConfiguredPassword = (passwordHash: unknown, legacyPassword: unknown): boolean => (
+export const hasConfiguredPassword = (passwordHash: unknown, legacyPassword: unknown): boolean =>
   isPasswordHash(passwordHash) || (typeof legacyPassword === 'string' && legacyPassword.trim() !== '')
-)
 
 const loginFailures = new Map<string, number[]>()
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
@@ -89,15 +96,17 @@ const getActiveLoginFailures = (ip: string, now: number): number[] => {
 export type LoginDomain = 'admin' | 'user' | 'player'
 // Keep legacy administrator keys valid; other authentication domains use
 // separate keys so their successful logins cannot clear the admin budget.
-const loginFailureKey = (ip: string, domain: LoginDomain): string => domain === 'admin' ? ip : `${domain}:${ip}`
+const loginFailureKey = (ip: string, domain: LoginDomain): string => (domain === 'admin' ? ip : `${domain}:${ip}`)
 
 export const isLoginRateLimited = (address: string, domain: LoginDomain = 'admin'): boolean => {
   const ip = loginFailureKey(address, domain)
   const now = Date.now()
   try {
-    const row = getDb().query<{ count: number }, [string, number]>(
-      'SELECT COUNT(*) AS count FROM login_failures WHERE ip = ? AND failed_at > ?'
-    ).get(ip, now - LOGIN_WINDOW_MS)
+    const row = getDb()
+      .query<{ count: number }, [string, number]>(
+        'SELECT COUNT(*) AS count FROM login_failures WHERE ip = ? AND failed_at > ?',
+      )
+      .get(ip, now - LOGIN_WINDOW_MS)
     return Number(row?.count || 0) >= MAX_LOGIN_FAILURES
   } catch {
     // Keep a bounded in-memory fallback for database recovery/startup errors.
@@ -128,7 +137,9 @@ export const recordLoginFailure = (address: string, domain: LoginDomain = 'admin
 export const clearLoginFailures = (address: string, domain: LoginDomain = 'admin'): void => {
   const ip = loginFailureKey(address, domain)
   loginFailures.delete(ip)
-  try { getDb().run('DELETE FROM login_failures WHERE ip = ?', [ip]) } catch { }
+  try {
+    getDb().run('DELETE FROM login_failures WHERE ip = ?', [ip])
+  } catch {}
 }
 
 const playerSessions = new Map<string, { createdAt: number }>()
@@ -179,7 +190,10 @@ export const createPlayerSession = (): string => {
   const sessionId = crypto.randomBytes(32).toString('hex')
   const createdAt = Date.now()
   playerSessions.set(sessionId, { createdAt })
-  getDb().run('INSERT OR REPLACE INTO player_sessions (session_hash, created_at) VALUES (?, ?)', [hashSession(sessionId), createdAt])
+  getDb().run('INSERT OR REPLACE INTO player_sessions (session_hash, created_at) VALUES (?, ?)', [
+    hashSession(sessionId),
+    createdAt,
+  ])
   return sessionId
 }
 
@@ -197,12 +211,14 @@ export const checkPlayerAuthSession = (cookies: Record<string, string>): boolean
   try {
     // The SQLite row is authoritative. A process-local cache cannot be used
     // to authorize a session because another worker may have revoked it.
-    const persisted = getDb().query<{ created_at: number }, [string]>(
-      'SELECT created_at FROM player_sessions WHERE session_hash = ?'
-    ).get(hashSession(sessionId))
+    const persisted = getDb()
+      .query<{ created_at: number }, [string]>('SELECT created_at FROM player_sessions WHERE session_hash = ?')
+      .get(hashSession(sessionId))
     if (!persisted || now - persisted.created_at > PLAYER_SESSION_TTL) {
       playerSessions.delete(sessionId)
-      try { getDb().run('DELETE FROM player_sessions WHERE session_hash = ?', [hashSession(sessionId)]) } catch { }
+      try {
+        getDb().run('DELETE FROM player_sessions WHERE session_hash = ?', [hashSession(sessionId)])
+      } catch {}
       return false
     }
     playerSessions.set(sessionId, { createdAt: persisted.created_at })
@@ -221,7 +237,9 @@ const pruneAdminSessions = (now = Date.now()): void => {
     for (const [sessionId, expiresAt] of adminSessions) {
       if (expiresAt <= now) adminSessions.delete(sessionId)
     }
-    try { getDb().run('DELETE FROM admin_sessions WHERE expires_at <= ?', [now]) } catch { }
+    try {
+      getDb().run('DELETE FROM admin_sessions WHERE expires_at <= ?', [now])
+    } catch {}
   }
   while (adminSessions.size > MAX_SESSIONS) adminSessions.delete(adminSessions.keys().next().value!)
 }
@@ -232,7 +250,10 @@ export const createAdminSession = (): string => {
   const expiresAt = Date.now() + ADMIN_SESSION_TTL
   adminSessions.set(sessionId, expiresAt)
   try {
-    getDb().run('INSERT OR REPLACE INTO admin_sessions (session_hash, expires_at) VALUES (?, ?)', [hashSession(sessionId), expiresAt])
+    getDb().run('INSERT OR REPLACE INTO admin_sessions (session_hash, expires_at) VALUES (?, ?)', [
+      hashSession(sessionId),
+      expiresAt,
+    ])
   } catch (error) {
     console.error('[Auth] 管理员会话持久化失败:', error instanceof Error ? error.message : 'unknown error')
   }
@@ -241,7 +262,9 @@ export const createAdminSession = (): string => {
 
 export const removeAdminSession = (sessionId: string): void => {
   adminSessions.delete(sessionId)
-  try { getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)]) } catch { }
+  try {
+    getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)])
+  } catch {}
 }
 
 export const revokeAllAdminSessions = (): void => {
@@ -257,13 +280,15 @@ export const checkAdminSession = (source: HeaderSource): boolean => {
   try {
     // Always consult SQLite so logout/revocation on another process takes
     // effect immediately even if this process still has a warm cache entry.
-    const persisted = getDb().query<{ expires_at: number }, [string]>(
-      'SELECT expires_at FROM admin_sessions WHERE session_hash = ?'
-    ).get(hashSession(sessionId))
+    const persisted = getDb()
+      .query<{ expires_at: number }, [string]>('SELECT expires_at FROM admin_sessions WHERE session_hash = ?')
+      .get(hashSession(sessionId))
     const expiresAt = Number(persisted?.expires_at || 0)
     if (!persisted || expiresAt <= Date.now()) {
       adminSessions.delete(sessionId)
-      try { getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)]) } catch { }
+      try {
+        getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)])
+      } catch {}
       return false
     }
     adminSessions.set(sessionId, expiresAt)
@@ -276,6 +301,7 @@ export const checkAdminSession = (source: HeaderSource): boolean => {
 }
 
 export const verifyAdminAuth = (source: HeaderSource): boolean => {
-  if (!hasConfiguredPassword(global.lx.config?.['frontend.passwordHash'], global.lx.config?.['frontend.password'])) return false
+  if (!hasConfiguredPassword(global.lx.config?.['frontend.passwordHash'], global.lx.config?.['frontend.password']))
+    return false
   return checkAdminSession(source)
 }

@@ -44,7 +44,9 @@ export const DEFAULT_SETTINGS = {
 } as const
 
 type WidenSetting<T> = T extends boolean ? boolean : T extends number ? number : T extends string ? string : T
-export type PlayerSettings = { [K in keyof typeof DEFAULT_SETTINGS]: WidenSetting<(typeof DEFAULT_SETTINGS)[K]> } & Record<string, unknown>
+export type PlayerSettings = {
+  [K in keyof typeof DEFAULT_SETTINGS]: WidenSetting<(typeof DEFAULT_SETTINGS)[K]>
+} & Record<string, unknown>
 
 export function applyAppearance(settings: Record<string, unknown>): void {
   applyThemePreferences({

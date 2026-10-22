@@ -48,10 +48,15 @@ describe('Web Cookie Authentication', () => {
   test('admin verification and login share their failure budget', async () => {
     const router = createAuthRouter()
     const ip = '192.0.2.45'
-    const verify = (password: string) => router.handle(new Request('http://localhost/api/admin/verify', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    }), { remoteAddress: ip })
+    const verify = (password: string) =>
+      router.handle(
+        new Request('http://localhost/api/admin/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        }),
+        { remoteAddress: ip },
+      )
     for (let i = 0; i < 9; i++) expect((await verify('wrong')).status).toBe(401)
     expect((await verify('admin123')).status).toBe(200)
     for (let i = 0; i < 10; i++) expect((await verify('wrong')).status).toBe(401)
@@ -61,9 +66,15 @@ describe('Web Cookie Authentication', () => {
   test('user and player logins cannot clear or consume the administrator failure budget', async () => {
     const router = createAuthRouter()
     const ip = '192.0.2.45'
-    const post = (route: string, body: object) => router.handle(new Request(`http://localhost${route}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    }), { remoteAddress: ip })
+    const post = (route: string, body: object) =>
+      router.handle(
+        new Request(`http://localhost${route}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+        { remoteAddress: ip },
+      )
     for (let i = 0; i < 9; i++) expect((await post('/api/login', { password: 'wrong' })).status).toBe(401)
     expect((await post('/api/user/login', { username: 'test_user', password: 'password123' })).status).toBe(200)
     expect((await post('/api/music/auth', { password: 'player456' })).status).toBe(200)
@@ -77,19 +88,25 @@ describe('Web Cookie Authentication', () => {
 
   test('admin and player login issue HttpOnly SameSite cookies', async () => {
     const router = createAuthRouter()
-    const admin = await router.handle(new Request('http://localhost/api/login', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ password: 'admin123' }),
-    }))
+    const admin = await router.handle(
+      new Request('http://localhost/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'admin123' }),
+      }),
+    )
     expect(admin.status).toBe(200)
     expect(admin.headers.get('set-cookie')).toContain('lx_admin_session=')
     expect(admin.headers.get('set-cookie')).toContain('HttpOnly')
     expect(admin.headers.get('set-cookie')).toContain('SameSite=Strict')
 
-    const player = await router.handle(new Request('http://localhost/api/music/auth', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ password: 'player456' }),
-    }))
+    const player = await router.handle(
+      new Request('http://localhost/api/music/auth', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'player456' }),
+      }),
+    )
     expect(player.status).toBe(200)
     expect(player.headers.get('set-cookie')).toContain('lx_player_session=')
     expect(player.headers.get('set-cookie')).toContain(`Max-Age=${PLAYER_SESSION_TTL / 1000}`)
@@ -103,14 +120,20 @@ describe('Web Cookie Authentication', () => {
     delete lxGlobal.config['player.password']
     const router = createAuthRouter()
 
-    const admin = await router.handle(new Request('http://localhost/api/login', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ password: 'admin123' }),
-    }))
-    const player = await router.handle(new Request('http://localhost/api/music/auth', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ password: 'player456' }),
-    }))
+    const admin = await router.handle(
+      new Request('http://localhost/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'admin123' }),
+      }),
+    )
+    const player = await router.handle(
+      new Request('http://localhost/api/music/auth', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'player456' }),
+      }),
+    )
 
     expect(admin.status).toBe(200)
     expect(player.status).toBe(200)
@@ -129,14 +152,18 @@ describe('Web Cookie Authentication', () => {
     ]
     const router = createAuthRouter()
     const requestCount = 35
-    const responses = await Promise.all(Array.from({ length: requestCount }, (_, index) => router.handle(
-      new Request(`http://localhost${routes[index % routes.length]!.path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(routes[index % routes.length]!.body),
-      }),
-      { remoteAddress: `192.0.2.${index + 1}` },
-    )))
+    const responses = await Promise.all(
+      Array.from({ length: requestCount }, (_, index) =>
+        router.handle(
+          new Request(`http://localhost${routes[index % routes.length]!.path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(routes[index % routes.length]!.body),
+          }),
+          { remoteAddress: `192.0.2.${index + 1}` },
+        ),
+      ),
+    )
 
     expect(responses.filter(response => response.status === 503)).toHaveLength(1)
     expect(responses.every(response => response.status === 200 || response.status === 503)).toBe(true)
@@ -144,16 +171,19 @@ describe('Web Cookie Authentication', () => {
 
   test('HTTPS reverse proxy requests keep same-origin access and secure cookies', async () => {
     const router = createAuthRouter()
-    const response = await router.handle(new Request('http://127.0.0.1:9527/api/login', {
-      method: 'POST',
-      headers: {
-        Host: 'music.example.com',
-        Origin: 'https://music.example.com',
-        'X-Forwarded-Proto': 'https',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ password: 'admin123' }),
-    }), { remoteAddress: '127.0.0.1' })
+    const response = await router.handle(
+      new Request('http://127.0.0.1:9527/api/login', {
+        method: 'POST',
+        headers: {
+          Host: 'music.example.com',
+          Origin: 'https://music.example.com',
+          'X-Forwarded-Proto': 'https',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: 'admin123' }),
+      }),
+      { remoteAddress: '127.0.0.1' },
+    )
 
     expect(response.status).toBe(200)
     expect(response.headers.get('set-cookie')).toContain('Secure')
@@ -161,10 +191,13 @@ describe('Web Cookie Authentication', () => {
 
   test('user session survives in-memory cache loss and logout revokes it', async () => {
     const router = createAuthRouter()
-    const login = await router.handle(new Request('http://localhost/api/user/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'test_user', password: 'password123' }),
-    }))
+    const login = await router.handle(
+      new Request('http://localhost/api/user/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'test_user', password: 'password123' }),
+      }),
+    )
     expect(login.status).toBe(200)
     const cookie = login.headers.get('Set-Cookie')!.split(';', 1)[0]
     const sessionId = decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1))
@@ -172,24 +205,34 @@ describe('Web Cookie Authentication', () => {
 
     const verify = await router.handle(new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }))
     expect(await verify.json()).toEqual({ valid: true, username: 'test_user' })
-    expect(verifyUserAuth(new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }))).toBe('test_user')
+    expect(verifyUserAuth(new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }))).toBe(
+      'test_user',
+    )
 
-    const logout = await router.handle(new Request('http://localhost/api/user/logout', { method: 'POST', headers: { cookie } }))
+    const logout = await router.handle(
+      new Request('http://localhost/api/user/logout', { method: 'POST', headers: { cookie } }),
+    )
     expect(logout.headers.get('Set-Cookie')).toContain('Max-Age=0')
-    const afterLogout = await router.handle(new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }))
+    const afterLogout = await router.handle(
+      new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }),
+    )
     expect(await afterLogout.json()).toEqual({ valid: false, username: null })
   })
 
   test('legacy password, token headers and token query parameters are rejected', async () => {
     const router = createAuthRouter()
-    const response = await router.handle(new Request('http://localhost/api/user/auth/verify?token=legacy', {
-      headers: { 'x-user-name': 'test_user', 'x-user-password': 'password123' },
-    }))
+    const response = await router.handle(
+      new Request('http://localhost/api/user/auth/verify?token=legacy', {
+        headers: { 'x-user-name': 'test_user', 'x-user-password': 'password123' },
+      }),
+    )
     expect(await response.json()).toEqual({ valid: false, username: null })
   })
 
   afterAll(() => {
     closeDb()
-    try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
+    try {
+      fs.rmSync(testDataDir, { recursive: true, force: true })
+    } catch {}
   })
 })

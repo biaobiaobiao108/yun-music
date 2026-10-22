@@ -5,7 +5,9 @@ const targets = ['data', 'cache', 'music', 'cover_cache']
 const workspace = path.resolve(process.cwd())
 
 if (!process.argv.includes('--confirm')) {
-  console.error('此操作会删除当前实例目录：data/、cache/、music/、cover_cache/。如需继续，请执行：bun run reset:instance -- --confirm')
+  console.error(
+    '此操作会删除当前实例目录：data/、cache/、music/、cover_cache/。如需继续，请执行：bun run reset:instance -- --confirm',
+  )
   process.exit(1)
 }
 

@@ -39,7 +39,8 @@ export function safeImageUrl(value: unknown, fallback = '/music/assets/yun-yin.p
     const base = typeof window === 'undefined' ? 'http://localhost/' : window.location.href
     const parsed = new URL(source, base)
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      if (parsed.protocol === 'http:' && typeof window !== 'undefined' && parsed.origin !== window.location.origin) parsed.protocol = 'https:'
+      if (parsed.protocol === 'http:' && typeof window !== 'undefined' && parsed.origin !== window.location.origin)
+        parsed.protocol = 'https:'
       return parsed.href
     }
   } catch {
@@ -59,12 +60,15 @@ export function safeImageUrl(value: unknown, fallback = '/music/assets/yun-yin.p
 export function formatDuration(value: unknown, unit: 'auto' | 'seconds' | 'milliseconds' = 'auto'): string {
   const numeric = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(numeric) || numeric < 0) return '00:00'
-  const totalSeconds = unit === 'milliseconds'
-    ? Math.floor(numeric / 1000)
-    : unit === 'seconds'
-      ? Math.floor(numeric)
-      : Math.floor(numeric > 86_400 ? numeric / 1000 : numeric)
-  return `${Math.floor(totalSeconds / 60).toString().padStart(2, '0')}:${(totalSeconds % 60).toString().padStart(2, '0')}`
+  const totalSeconds =
+    unit === 'milliseconds'
+      ? Math.floor(numeric / 1000)
+      : unit === 'seconds'
+        ? Math.floor(numeric)
+        : Math.floor(numeric > 86_400 ? numeric / 1000 : numeric)
+  return `${Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, '0')}:${(totalSeconds % 60).toString().padStart(2, '0')}`
 }
 
 export function formatBytes(value: unknown): string {
@@ -91,7 +95,11 @@ export function parseByteSize(value: unknown): number | undefined {
   const amount = Number(match[1])
   if (!Number.isFinite(amount) || amount <= 0) return undefined
   const unit = match[2].toUpperCase()
-  const exponent = unit.endsWith('IB') ? { B: 0, KIB: 1, MIB: 2, GIB: 3, TIB: 4 }[unit as 'B' | 'KIB' | 'MIB' | 'GIB' | 'TIB'] ?? 0 : { B: 0, K: 1, KB: 1, M: 2, MB: 2, G: 3, GB: 3, T: 4, TB: 4 }[unit as 'B' | 'K' | 'KB' | 'M' | 'MB' | 'G' | 'GB' | 'T' | 'TB'] ?? 0
+  const exponent = unit.endsWith('IB')
+    ? ({ B: 0, KIB: 1, MIB: 2, GIB: 3, TIB: 4 }[unit as 'B' | 'KIB' | 'MIB' | 'GIB' | 'TIB'] ?? 0)
+    : ({ B: 0, K: 1, KB: 1, M: 2, MB: 2, G: 3, GB: 3, T: 4, TB: 4 }[
+        unit as 'B' | 'K' | 'KB' | 'M' | 'MB' | 'G' | 'GB' | 'T' | 'TB'
+      ] ?? 0)
   return amount * 1024 ** exponent
 }
 

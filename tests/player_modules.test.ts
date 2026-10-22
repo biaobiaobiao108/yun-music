@@ -67,48 +67,85 @@ describe('React player module boundaries', () => {
       { time: 1.2, text: '第一句', translation: 'translation' },
       { time: 3.5, text: '第二句', translation: undefined },
     ])
-    expect(parseLyric({ data: { lrc: { lyric: '[00:00.50]嵌套歌词' }, tlyric: { lyric: '[00:00.50]nested translation' } } })).toEqual([
-      { time: 0.5, text: '嵌套歌词', translation: 'nested translation' },
-    ])
+    expect(
+      parseLyric({ data: { lrc: { lyric: '[00:00.50]嵌套歌词' }, tlyric: { lyric: '[00:00.50]nested translation' } } }),
+    ).toEqual([{ time: 0.5, text: '嵌套歌词', translation: 'nested translation' }])
     expect(parseLyric({ lyric: '[00:00.0]作词: Someone\n[00:01.0]真正的歌词' })).toEqual([
       { time: 1, text: '真正的歌词', translation: undefined },
     ])
   })
 
   it('resolves song action entities by their own ids and supports search fallback metadata', () => {
-    const identified = { source: 'wy', songmid: 'song-1', singer: 'Aimer', artistId: 123, albumName: 'I beg you', albumId: 'album-9', name: '花の唄' }
+    const identified = {
+      source: 'wy',
+      songmid: 'song-1',
+      singer: 'Aimer',
+      artistId: 123,
+      albumName: 'I beg you',
+      albumId: 'album-9',
+      name: '花の唄',
+    }
     expect(songEntityId(identified, 'artist')).toBe('123')
     expect(songEntityId(identified, 'album')).toBe('album-9')
-    expect(songEntityDetail(identified, 'artist')).toMatchObject({ kind: 'artist', id: '123', source: 'wy', name: 'Aimer' })
-    expect(songEntityDetail(identified, 'album')).toMatchObject({ kind: 'album', id: 'album-9', source: 'wy', name: 'I beg you' })
+    expect(songEntityDetail(identified, 'artist')).toMatchObject({
+      kind: 'artist',
+      id: '123',
+      source: 'wy',
+      name: 'Aimer',
+    })
+    expect(songEntityDetail(identified, 'album')).toMatchObject({
+      kind: 'album',
+      id: 'album-9',
+      source: 'wy',
+      name: 'I beg you',
+    })
 
     // External source records may carry nested artist and album entities even
     // though the normalized player Song shape uses a string singer.
-    const sourceShaped = { source: 'tx', singer: [{ mid: 'artist-mid', name: '歌手' }], album: { mid: 'album-mid', name: '专辑' }, name: '歌曲' } as unknown as Song
+    const sourceShaped = {
+      source: 'tx',
+      singer: [{ mid: 'artist-mid', name: '歌手' }],
+      album: { mid: 'album-mid', name: '专辑' },
+      name: '歌曲',
+    } as unknown as Song
     expect(songEntityId(sourceShaped, 'artist')).toBe('artist-mid')
     expect(songEntityId(sourceShaped, 'album')).toBe('album-mid')
 
-    const withoutIds = { source: 'tx', songmid: 'song-2', singer: '没有 ID 的歌手', albumName: '没有 ID 的专辑', name: '测试歌曲' }
+    const withoutIds = {
+      source: 'tx',
+      songmid: 'song-2',
+      singer: '没有 ID 的歌手',
+      albumName: '没有 ID 的专辑',
+      name: '测试歌曲',
+    }
     expect(songEntityDetail(withoutIds, 'artist')).toBeNull()
     expect(songEntityDetail(withoutIds, 'album')).toBeNull()
     expect(songEntityName(withoutIds, 'artist')).toBe('没有 ID 的歌手')
     expect(songEntityName(withoutIds, 'album')).toBe('没有 ID 的专辑')
 
     const libraryArtist = { id: 321, name: '媒体库歌手', img: '/artist.jpg' }
-    expect(songEntityDetail(libraryArtist, 'artist', { allowGenericId: true, allowGenericName: true })).toMatchObject({ kind: 'artist', id: '321', name: '媒体库歌手' })
+    expect(songEntityDetail(libraryArtist, 'artist', { allowGenericId: true, allowGenericName: true })).toMatchObject({
+      kind: 'artist',
+      id: '321',
+      name: '媒体库歌手',
+    })
     expect(songEntityDetail(libraryArtist, 'album')).toBeNull()
   })
 
   it('keeps private cache links playable and relays third-party source URLs', () => {
     const song = { source: 'wy', songmid: 'song-1', name: '测试歌曲', singer: '测试歌手' }
-    expect(normalizeCachePlaybackUrl('/api/music/cache/file/test.mp3?folder=cache', 'steelway108'))
-      .toBe('/api/music/cache/file/steelway108/test.mp3?folder=cache')
-    expect(normalizeCachePlaybackUrl('/api/music/cache/file/steelway108/test.mp3?folder=cache', 'steelway108'))
-      .toBe('/api/music/cache/file/steelway108/test.mp3?folder=cache')
-    expect(buildPlaybackUrl('https://media.example.test/song.mp3', song, {}, 'http://localhost:9527'))
-      .toContain('/api/music/download?url=https%3A%2F%2Fmedia.example.test%2Fsong.mp3')
-    expect(buildPlaybackUrl('http://localhost:9527/api/music/cache/file/_open/song.mp3', song, {}, 'http://localhost:9527'))
-      .toBe('http://localhost:9527/api/music/cache/file/_open/song.mp3')
+    expect(normalizeCachePlaybackUrl('/api/music/cache/file/test.mp3?folder=cache', 'steelway108')).toBe(
+      '/api/music/cache/file/steelway108/test.mp3?folder=cache',
+    )
+    expect(normalizeCachePlaybackUrl('/api/music/cache/file/steelway108/test.mp3?folder=cache', 'steelway108')).toBe(
+      '/api/music/cache/file/steelway108/test.mp3?folder=cache',
+    )
+    expect(buildPlaybackUrl('https://media.example.test/song.mp3', song, {}, 'http://localhost:9527')).toContain(
+      '/api/music/download?url=https%3A%2F%2Fmedia.example.test%2Fsong.mp3',
+    )
+    expect(
+      buildPlaybackUrl('http://localhost:9527/api/music/cache/file/_open/song.mp3', song, {}, 'http://localhost:9527'),
+    ).toBe('http://localhost:9527/api/music/cache/file/_open/song.mp3')
   })
 
   it('keeps audio lifecycle lightweight and cache APIs isolated behind services', () => {
@@ -118,7 +155,7 @@ describe('React player module boundaries', () => {
     expect(shell).toContain("import { AudioRuntime } from './audio_runtime'")
     expect(shell).toContain('<AudioRuntime />')
     expect(audioRuntime).toContain('preload="metadata"')
-    expect(audioRuntime).toContain('removeAttribute(\'src\')')
+    expect(audioRuntime).toContain("removeAttribute('src')")
     expect(audioRuntime).toContain('navigator.mediaSession')
     expect(api).toContain("'/api/music/url'")
     expect(api).toContain("'/api/music/cache/queue'")
@@ -126,8 +163,17 @@ describe('React player module boundaries', () => {
   })
 
   it('keeps recent playback compatible with the legacy play_history contract', () => {
-    const items = Array.from({ length: 55 }, (_, index) => ({ source: 'wy', songmid: String(index), name: `歌曲 ${index}`, playedAt: index }))
-    const normalized = normalizePlayHistory([items[54], ...items, { source: 'wy', songmid: '54', name: '重复歌曲', playedAt: 0 }])
+    const items = Array.from({ length: 55 }, (_, index) => ({
+      source: 'wy',
+      songmid: String(index),
+      name: `歌曲 ${index}`,
+      playedAt: index,
+    }))
+    const normalized = normalizePlayHistory([
+      items[54],
+      ...items,
+      { source: 'wy', songmid: '54', name: '重复歌曲', playedAt: 0 },
+    ])
     expect(normalized).toHaveLength(50)
     expect(normalized[0]?.songmid).toBe('54')
     expect(normalized.at(-1)?.songmid).toBe('5')
@@ -150,20 +196,53 @@ describe('React player module boundaries', () => {
 
   it('keeps queue state and audio transition synchronized when removing songs', () => {
     let pauseCalls = 0
-    connectAudioCommands({ play: () => undefined, pause: () => { pauseCalls += 1 }, seek: () => undefined, volume: () => undefined })
+    connectAudioCommands({
+      play: () => undefined,
+      pause: () => {
+        pauseCalls += 1
+      },
+      seek: () => undefined,
+      volume: () => undefined,
+    })
     const first = { source: 'wy', songmid: 'queue-1', name: '第一首' }
     const second = { source: 'wy', songmid: 'queue-2', name: '第二首' }
-    usePlaybackStore.setState({ queue: [first, second], currentIndex: 0, currentSong: first, isPlaying: true, currentTime: 12, duration: 180 })
+    usePlaybackStore.setState({
+      queue: [first, second],
+      currentIndex: 0,
+      currentSong: first,
+      isPlaying: true,
+      currentTime: 12,
+      duration: 180,
+    })
     usePlaybackStore.getState().removeFromQueue(0)
-    expect(usePlaybackStore.getState()).toMatchObject({ queue: [second], currentIndex: 0, currentSong: second, isPlaying: true })
+    expect(usePlaybackStore.getState()).toMatchObject({
+      queue: [second],
+      currentIndex: 0,
+      currentSong: second,
+      isPlaying: true,
+    })
     usePlaybackStore.getState().removeFromQueue(0)
-    expect(usePlaybackStore.getState()).toMatchObject({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0 })
+    expect(usePlaybackStore.getState()).toMatchObject({
+      queue: [],
+      currentIndex: -1,
+      currentSong: null,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+    })
     expect(pauseCalls).toBe(1)
   })
 
   it('clears playback queue and progress while preserving mode and quality', () => {
     let pauseCalls = 0
-    connectAudioCommands({ play: () => undefined, pause: () => { pauseCalls += 1 }, seek: () => undefined, volume: () => undefined })
+    connectAudioCommands({
+      play: () => undefined,
+      pause: () => {
+        pauseCalls += 1
+      },
+      seek: () => undefined,
+      volume: () => undefined,
+    })
     const song = { source: 'wy', songmid: 'queue-clear', name: '清空测试' }
     usePlaybackStore.setState({
       queue: [song],
@@ -202,12 +281,18 @@ describe('React player module boundaries', () => {
     const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
     const values = new Map<string, string>()
     const storage = {
-      get length() { return values.size },
+      get length() {
+        return values.size
+      },
       clear: () => values.clear(),
       getItem: (key: string) => values.get(key) ?? null,
       key: (index: number) => [...values.keys()][index] ?? null,
-      removeItem: (key: string) => { values.delete(key) },
-      setItem: (key: string, value: string) => { values.set(key, String(value)) },
+      removeItem: (key: string) => {
+        values.delete(key)
+      },
+      setItem: (key: string, value: string) => {
+        values.set(key, String(value))
+      },
     } as Storage
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: storage })
     setSessionScope('queue-persistence-test')
@@ -215,16 +300,44 @@ describe('React player module boundaries', () => {
     const second = { source: 'wy', songmid: 'move-2', name: '第二首' }
     const third = { source: 'wy', songmid: 'move-3', name: '第三首' }
     try {
-      usePlaybackStore.setState({ queue: [first, second, third], currentIndex: 0, currentSong: first, isPlaying: true, currentTime: 19, mode: 'random', quality: '320k' })
+      usePlaybackStore.setState({
+        queue: [first, second, third],
+        currentIndex: 0,
+        currentSong: first,
+        isPlaying: true,
+        currentTime: 19,
+        mode: 'random',
+        quality: '320k',
+      })
       usePlaybackStore.getState().moveQueueItem(0, 2)
-      expect(usePlaybackStore.getState()).toMatchObject({ queue: [second, third, first], currentIndex: 2, currentSong: first, isPlaying: true, currentTime: 19 })
+      expect(usePlaybackStore.getState()).toMatchObject({
+        queue: [second, third, first],
+        currentIndex: 2,
+        currentSong: first,
+        isPlaying: true,
+        currentTime: 19,
+      })
 
       usePlaybackStore.getState().playNext(second)
-      expect(usePlaybackStore.getState()).toMatchObject({ queue: [third, first, second], currentIndex: 1, currentSong: first, isPlaying: true, priorityNextSongKey: songKey(second) })
+      expect(usePlaybackStore.getState()).toMatchObject({
+        queue: [third, first, second],
+        currentIndex: 1,
+        currentSong: first,
+        isPlaying: true,
+        priorityNextSongKey: songKey(second),
+      })
 
       usePlaybackStore.getState().reset()
       usePlaybackStore.getState().hydrate()
-      expect(usePlaybackStore.getState()).toMatchObject({ queue: [third, first, second], currentIndex: 1, currentSong: first, priorityNextSongKey: songKey(second), mode: 'random', quality: '320k', hasHydrated: true })
+      expect(usePlaybackStore.getState()).toMatchObject({
+        queue: [third, first, second],
+        currentIndex: 1,
+        currentSong: first,
+        priorityNextSongKey: songKey(second),
+        mode: 'random',
+        quality: '320k',
+        hasHydrated: true,
+      })
     } finally {
       usePlaybackStore.getState().reset()
       setSessionScope(null)
@@ -237,21 +350,36 @@ describe('React player module boundaries', () => {
     const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
     const values = new Map<string, string>()
     const storage = {
-      get length() { return values.size },
+      get length() {
+        return values.size
+      },
       clear: () => values.clear(),
       getItem: (key: string) => values.get(key) ?? null,
       key: (index: number) => [...values.keys()][index] ?? null,
-      removeItem: (key: string) => { values.delete(key) },
-      setItem: (key: string, value: string) => { values.set(key, String(value)) },
+      removeItem: (key: string) => {
+        values.delete(key)
+      },
+      setItem: (key: string, value: string) => {
+        values.set(key, String(value))
+      },
     } as Storage
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: storage })
     setSessionScope('queue-hydration-test')
     const savedSong = { source: 'wy', songmid: 'stale-current', name: '残留歌曲' }
-    values.set(scopedStorageKey('lx_playback_state'), JSON.stringify({ song: savedSong, index: 1, time: 92, playlist: [] }))
+    values.set(
+      scopedStorageKey('lx_playback_state'),
+      JSON.stringify({ song: savedSong, index: 1, time: 92, playlist: [] }),
+    )
     try {
       usePlaybackStore.getState().reset()
       usePlaybackStore.getState().hydrate()
-      expect(usePlaybackStore.getState()).toMatchObject({ queue: [], currentSong: null, currentIndex: -1, currentTime: 0, hasHydrated: true })
+      expect(usePlaybackStore.getState()).toMatchObject({
+        queue: [],
+        currentSong: null,
+        currentIndex: -1,
+        currentTime: 0,
+        hasHydrated: true,
+      })
     } finally {
       usePlaybackStore.getState().reset()
       setSessionScope(null)
@@ -268,9 +396,20 @@ describe('React player module boundaries', () => {
     const third = { source: 'wy', songmid: 'priority-3', name: '第三首' }
     try {
       for (const mode of ['list', 'random', 'single'] as const) {
-        usePlaybackStore.setState({ queue: [first, second, third], currentIndex: 0, currentSong: first, isPlaying: true, mode, priorityNextSongKey: songKey(third) })
+        usePlaybackStore.setState({
+          queue: [first, second, third],
+          currentIndex: 0,
+          currentSong: first,
+          isPlaying: true,
+          mode,
+          priorityNextSongKey: songKey(third),
+        })
         usePlaybackStore.getState().next()
-        expect(usePlaybackStore.getState()).toMatchObject({ currentSong: third, currentIndex: 2, priorityNextSongKey: null })
+        expect(usePlaybackStore.getState()).toMatchObject({
+          currentSong: third,
+          currentIndex: 2,
+          priorityNextSongKey: null,
+        })
         usePlaybackStore.getState().next()
         expect(usePlaybackStore.getState().currentSong).toEqual(first)
       }
@@ -284,13 +423,34 @@ describe('React player module boundaries', () => {
     const first = { source: 'wy', songmid: 'priority-empty-1', name: '空队列开始' }
     const second = { source: 'wy', songmid: 'priority-empty-2', name: '待移除下一首' }
     const current = { source: 'wy', songmid: 'priority-empty-3', name: '当前歌曲' }
-    usePlaybackStore.setState({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, priorityNextSongKey: null })
+    usePlaybackStore.setState({
+      queue: [],
+      currentIndex: -1,
+      currentSong: null,
+      isPlaying: false,
+      priorityNextSongKey: null,
+    })
     usePlaybackStore.getState().playNext(first)
-    expect(usePlaybackStore.getState()).toMatchObject({ queue: [first], currentIndex: 0, currentSong: first, isPlaying: true })
+    expect(usePlaybackStore.getState()).toMatchObject({
+      queue: [first],
+      currentIndex: 0,
+      currentSong: first,
+      isPlaying: true,
+    })
 
-    usePlaybackStore.setState({ queue: [current, second], currentIndex: 0, currentSong: current, isPlaying: true, priorityNextSongKey: songKey(second) })
+    usePlaybackStore.setState({
+      queue: [current, second],
+      currentIndex: 0,
+      currentSong: current,
+      isPlaying: true,
+      priorityNextSongKey: songKey(second),
+    })
     usePlaybackStore.getState().removeFromQueue(1)
-    expect(usePlaybackStore.getState()).toMatchObject({ queue: [current], currentSong: current, priorityNextSongKey: null })
+    expect(usePlaybackStore.getState()).toMatchObject({
+      queue: [current],
+      currentSong: current,
+      priorityNextSongKey: null,
+    })
     usePlaybackStore.getState().reset()
   })
 
@@ -305,10 +465,21 @@ describe('React player module boundaries', () => {
     const adminCss = read('frontend/styles/admin.css')
     const tokens = read('frontend/styles/design-tokens.css')
     const sharedTheme = read('frontend/shared/src/theme.ts')
-    for (const label of ['home', 'favorites', 'recent', 'albums', 'artists', 'library', 'search', 'songlist', 'leaderboard']) expect(shell).toContain(`id: '${label}'`)
+    for (const label of [
+      'home',
+      'favorites',
+      'recent',
+      'albums',
+      'artists',
+      'library',
+      'search',
+      'songlist',
+      'leaderboard',
+    ])
+      expect(shell).toContain(`id: '${label}'`)
     expect(shell).not.toContain("{ id: 'genres', label: '风格'")
     expect(shell).not.toContain("{ id: 'genres', label: '分类'")
-    expect(shell).toContain("case 'genres': return <SongListView")
+    expect(shell).toMatch(/case 'genres':\s*return <SongListView/)
     expect(shell).not.toContain('GenresView')
     expect(library).not.toContain('GenresView')
     expect(shell).toContain('listId: navigation.listId')

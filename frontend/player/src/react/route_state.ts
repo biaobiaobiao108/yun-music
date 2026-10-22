@@ -3,17 +3,32 @@ import type { PlayerDetail, PlayerTab } from './types'
 export type PlayerNavigation = { tab: PlayerTab; detail: PlayerDetail | null; listId?: string }
 
 export const VALID_PLAYER_TABS: PlayerTab[] = [
-  'home', 'favorites', 'playlists', 'recent', 'albums', 'artists', 'genres', 'library',
-  'search', 'songlist', 'leaderboard', 'localmusic', 'settings',
+  'home',
+  'favorites',
+  'playlists',
+  'recent',
+  'albums',
+  'artists',
+  'genres',
+  'library',
+  'search',
+  'songlist',
+  'leaderboard',
+  'localmusic',
+  'settings',
 ]
 
 export function parsePlayerHash(hash: string): { tab: PlayerTab; listId: string } {
   const raw = hash.replace(/^#/, '')
   const [tabPart, queryPart = ''] = raw.split('?')
   let decodedTab = tabPart || ''
-  try { decodedTab = decodeURIComponent(decodedTab) } catch { decodedTab = '' }
+  try {
+    decodedTab = decodeURIComponent(decodedTab)
+  } catch {
+    decodedTab = ''
+  }
   const query = new URLSearchParams(queryPart)
-  const tab = VALID_PLAYER_TABS.includes(decodedTab as PlayerTab) ? decodedTab as PlayerTab : 'home'
+  const tab = VALID_PLAYER_TABS.includes(decodedTab as PlayerTab) ? (decodedTab as PlayerTab) : 'home'
   return { tab, listId: query.get('listId') || 'love' }
 }
 
@@ -39,7 +54,9 @@ let routeWriter: ((navigation: PlayerNavigation) => void) | null = null
  */
 export function connectPlayerNavigation(navigate: (navigation: PlayerNavigation) => void): () => void {
   routeWriter = navigate
-  return () => { if (routeWriter === navigate) routeWriter = null }
+  return () => {
+    if (routeWriter === navigate) routeWriter = null
+  }
 }
 
 export function emitPlayerNavigation(navigation: PlayerNavigation): void {

@@ -16,9 +16,7 @@ export type Song = Record<string, unknown> & {
 }
 
 function recordOf(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {}
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
 function firstText(...values: unknown[]): string {
@@ -37,7 +35,9 @@ function qualitySize(record: Record<string, unknown>, preferredQuality: unknown)
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) {
       const entries = candidate.filter(item => item && typeof item === 'object') as Record<string, unknown>[]
-      const preferredEntry = entries.find(item => String(item.type ?? item.quality ?? item.name ?? '').trim() === preferred)
+      const preferredEntry = entries.find(
+        item => String(item.type ?? item.quality ?? item.name ?? '').trim() === preferred,
+      )
       const entry = preferredEntry ?? entries[0]
       if (entry) {
         const size = entry.size ?? entry.fileSize ?? entry.sizeBytes ?? entry.bytes
@@ -46,7 +46,8 @@ function qualitySize(record: Record<string, unknown>, preferredQuality: unknown)
     } else if (candidate && typeof candidate === 'object') {
       const table = candidate as Record<string, unknown>
       const preferredEntry = preferred ? recordOf(table[preferred]) : {}
-      const directSize = preferredEntry.size ?? preferredEntry.fileSize ?? preferredEntry.sizeBytes ?? preferredEntry.bytes
+      const directSize =
+        preferredEntry.size ?? preferredEntry.fileSize ?? preferredEntry.sizeBytes ?? preferredEntry.bytes
       if (directSize !== undefined && directSize !== null && directSize !== '') return directSize
       for (const value of Object.values(table)) {
         const entry = recordOf(value)
@@ -115,20 +116,41 @@ export function songSizeValue(song: Song | null | undefined): unknown {
   const info = recordOf(record.info)
   const data = recordOf(record.data)
   const metadata = recordOf(record.metadata)
-  return record.size ?? record.fileSize ?? record.sizeBytes ?? record.bytes
-    ?? meta.size ?? meta.fileSize ?? meta.sizeBytes ?? meta.bytes
-    ?? songInfo.size ?? songInfo.fileSize ?? songInfo.sizeBytes ?? songInfo.bytes
-    ?? info.size ?? info.fileSize ?? info.sizeBytes ?? info.bytes
-    ?? data.size ?? data.fileSize ?? data.sizeBytes ?? data.bytes
-    ?? metadata.size ?? metadata.fileSize ?? metadata.sizeBytes ?? metadata.bytes
-    ?? qualitySize(record, record.quality ?? meta.quality ?? songInfo.quality ?? info.quality ?? data.quality)
-    ?? qualitySize(meta, record.quality ?? meta.quality)
+  return (
+    record.size ??
+    record.fileSize ??
+    record.sizeBytes ??
+    record.bytes ??
+    meta.size ??
+    meta.fileSize ??
+    meta.sizeBytes ??
+    meta.bytes ??
+    songInfo.size ??
+    songInfo.fileSize ??
+    songInfo.sizeBytes ??
+    songInfo.bytes ??
+    info.size ??
+    info.fileSize ??
+    info.sizeBytes ??
+    info.bytes ??
+    data.size ??
+    data.fileSize ??
+    data.sizeBytes ??
+    data.bytes ??
+    metadata.size ??
+    metadata.fileSize ??
+    metadata.sizeBytes ??
+    metadata.bytes ??
+    qualitySize(record, record.quality ?? meta.quality ?? songInfo.quality ?? info.quality ?? data.quality) ??
+    qualitySize(meta, record.quality ?? meta.quality)
+  )
 }
 
 export function songSizeBytes(songOrValue: Song | unknown): number | undefined {
-  const value = songOrValue && typeof songOrValue === 'object' && !Array.isArray(songOrValue)
-    ? songSizeValue(songOrValue as Song)
-    : songOrValue
+  const value =
+    songOrValue && typeof songOrValue === 'object' && !Array.isArray(songOrValue)
+      ? songSizeValue(songOrValue as Song)
+      : songOrValue
   return parseByteSize(value)
 }
 
@@ -158,9 +180,7 @@ export function formatSongDuration(value: unknown): string {
     if (!text || text === '--/--') return '—'
     const parts = /^(\d+):([0-5]?\d)(?::([0-5]?\d))?$/.exec(text)
     if (parts) {
-      const minutes = parts[3] === undefined
-        ? Number(parts[1])
-        : Number(parts[1]) * 60 + Number(parts[2])
+      const minutes = parts[3] === undefined ? Number(parts[1]) : Number(parts[1]) * 60 + Number(parts[2])
       const seconds = parts[3] === undefined ? Number(parts[2]) : Number(parts[3])
       return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
     }
@@ -177,15 +197,52 @@ export function songFormatValue(song: Song | null | undefined): unknown {
   const songInfo = recordOf(record.songInfo)
   const info = recordOf(record.info)
   const data = recordOf(record.data)
-  return record.format ?? record.type ?? record.ext ?? record.quality
-    ?? meta.format ?? meta.type ?? meta.ext ?? meta.quality
-    ?? songInfo.format ?? songInfo.type ?? songInfo.ext ?? songInfo.quality
-    ?? info.format ?? info.type ?? info.ext ?? info.quality
-    ?? data.format ?? data.type ?? data.ext ?? data.quality
+  return (
+    record.format ??
+    record.type ??
+    record.ext ??
+    record.quality ??
+    meta.format ??
+    meta.type ??
+    meta.ext ??
+    meta.quality ??
+    songInfo.format ??
+    songInfo.type ??
+    songInfo.ext ??
+    songInfo.quality ??
+    info.format ??
+    info.type ??
+    info.ext ??
+    info.quality ??
+    data.format ??
+    data.type ??
+    data.ext ??
+    data.quality
+  )
 }
 
-export type PlayerTab = 'home' | 'favorites' | 'playlists' | 'recent' | 'albums' | 'artists' | 'genres' | 'library' | 'search' | 'songlist' | 'leaderboard' | 'localmusic' | 'settings'
-export type PlayerDetail = { page: 'search-detail' | 'songlist-detail'; kind: 'artist' | 'album' | 'playlist'; id: string; source: string; name?: string; image?: string }
+export type PlayerTab =
+  | 'home'
+  | 'favorites'
+  | 'playlists'
+  | 'recent'
+  | 'albums'
+  | 'artists'
+  | 'genres'
+  | 'library'
+  | 'search'
+  | 'songlist'
+  | 'leaderboard'
+  | 'localmusic'
+  | 'settings'
+export type PlayerDetail = {
+  page: 'search-detail' | 'songlist-detail'
+  kind: 'artist' | 'album' | 'playlist'
+  id: string
+  source: string
+  name?: string
+  image?: string
+}
 export type PlayMode = 'list' | 'single' | 'random'
 export type DrawerName = 'queue' | 'cache' | 'download' | null
 export type LyricLine = { time: number; text: string; translation?: string; roma?: string; words?: string }
@@ -198,7 +255,7 @@ export function songKey(song: Song): string {
 // Some older entries only have songmid, so keep that as a compatibility fallback.
 export function songListId(song: Song): string {
   const record = song as Record<string, unknown>
-  const meta = record.meta && typeof record.meta === 'object' ? record.meta as Record<string, unknown> : {}
+  const meta = record.meta && typeof record.meta === 'object' ? (record.meta as Record<string, unknown>) : {}
   return String(song.id ?? song.songmid ?? song.hash ?? meta.songId ?? meta.songmid ?? '').trim()
 }
 
@@ -262,7 +319,7 @@ export function songMatchSetHas(set: Set<string>, song: Song | null | undefined)
 /** Ensure list mutations always send the persisted id field when possible. */
 export function normalizeSongForList(song: Song): Song {
   const id = songListId(song)
-  if (!id || song.id !== undefined && song.id !== null && String(song.id).trim()) return song
+  if (!id || (song.id !== undefined && song.id !== null && String(song.id).trim())) return song
   return { ...song, id }
 }
 
@@ -279,10 +336,22 @@ export function songArtist(song: Song | null | undefined): string {
   const meta = recordOf(record.meta)
   const artists = record.artists ?? meta.artists
   if (Array.isArray(artists)) {
-    const names = artists.map(item => firstText(recordOf(item).name, recordOf(item).artist, recordOf(item).singer, item)).filter(Boolean)
+    const names = artists
+      .map(item => firstText(recordOf(item).name, recordOf(item).artist, recordOf(item).singer, item))
+      .filter(Boolean)
     if (names.length) return names.join(' / ')
   }
-  return firstText(record.singer, record.artist, record.artistName, meta.singer, meta.singerName, meta.artist, meta.artistName) || '未知歌手'
+  return (
+    firstText(
+      record.singer,
+      record.artist,
+      record.artistName,
+      meta.singer,
+      meta.singerName,
+      meta.artist,
+      meta.artistName,
+    ) || '未知歌手'
+  )
 }
 
 export function songAlbum(song: Song | null | undefined): string {
@@ -293,12 +362,31 @@ export function songAlbum(song: Song | null | undefined): string {
 export function songImage(song: Song | null | undefined): unknown {
   if (!song) return undefined
   const record = song as Record<string, unknown>
-  const nested = (...keys: string[]) => keys.flatMap(key => {
-    const value = record[key]
-    if (!value || typeof value !== 'object') return []
-    const nestedRecord = value as Record<string, unknown>
-    return ['url', 'src', 'picUrl', 'pic_url', 'img', 'pic', 'cover', 'coverUrl', 'coverImgUrl', 'cover_url', 'cover_url_medium', 'picture', 'logo', 'image', 'thumbnail'].map(field => nestedRecord[field]).filter(Boolean)
-  })
+  const nested = (...keys: string[]) =>
+    keys.flatMap(key => {
+      const value = record[key]
+      if (!value || typeof value !== 'object') return []
+      const nestedRecord = value as Record<string, unknown>
+      return [
+        'url',
+        'src',
+        'picUrl',
+        'pic_url',
+        'img',
+        'pic',
+        'cover',
+        'coverUrl',
+        'coverImgUrl',
+        'cover_url',
+        'cover_url_medium',
+        'picture',
+        'logo',
+        'image',
+        'thumbnail',
+      ]
+        .map(field => nestedRecord[field])
+        .filter(Boolean)
+    })
   return [
     record.img,
     record.pic,

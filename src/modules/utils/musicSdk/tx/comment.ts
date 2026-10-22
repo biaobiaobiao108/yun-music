@@ -98,7 +98,7 @@ export default {
       promises.delete(key)
     }
   },
-  async getComment(mInfo: any, page: any= 1, limit: any= 20) {
+  async getComment(mInfo: any, page: any = 1, limit: any = 20) {
     if (this._requestObj) this._requestObj.cancelHttp()
     const songId = await this.getSongId(mInfo)
 
@@ -134,7 +134,7 @@ export default {
       maxPage: Math.ceil(total / limit) || 1,
     }
   },
-  async getHotComment(mInfo: any, page: any= 1, limit: any= 20) {
+  async getHotComment(mInfo: any, page: any = 1, limit: any = 20) {
     // const _requestObj2 = httpFetch('http://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg', {
     //   method: 'POST',
     //   headers: {
@@ -186,7 +186,8 @@ export default {
         },
       },
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/113.0.0.0',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/113.0.0.0',
         referer: 'https://y.qq.com/',
         origin: 'https://y.qq.com',
       },
@@ -228,18 +229,18 @@ export default {
         likedCount: item.praisenum,
         reply: item.middlecommentcontent
           ? item.middlecommentcontent.map((c: any) => {
-            // let index = c.subcommentid.lastIndexOf('_')
-            return {
-              id: `sub_${item.rootcommentid}_${c.subcommentid}`,
-              text: this.replaceEmoji(c.subcommentcontent).replace(/\\n/g, '\n'),
-              time: c.subcommentid == item.commentid ? time : null,
-              timeStr: c.subcommentid == item.commentid ? timeStr : null,
-              userName: c.replynick.substring(1),
-              avatar: c.avatarurl,
-              userId: c.encrypt_replyuin,
-              likedCount: c.praisenum,
-            }
-          })
+              // let index = c.subcommentid.lastIndexOf('_')
+              return {
+                id: `sub_${item.rootcommentid}_${c.subcommentid}`,
+                text: this.replaceEmoji(c.subcommentcontent).replace(/\\n/g, '\n'),
+                time: c.subcommentid == item.commentid ? time : null,
+                timeStr: c.subcommentid == item.commentid ? timeStr : null,
+                userName: c.replynick.substring(1),
+                avatar: c.avatarurl,
+                userId: c.encrypt_replyuin,
+                likedCount: c.praisenum,
+              }
+            })
           : [],
       }
     })
@@ -251,7 +252,12 @@ export default {
         rootId: item.SeqNo,
         text: item.Content ? this.replaceEmoji(item.Content).replace(/\\n/g, '\n') : '',
         time: item.PubTime ? this.formatTime(item.PubTime) : null,
-        timeStr: item.PubTime ? (() => { const time = this.formatTime(item.PubTime); return time == null ? null : dateFormat2(time) })() : null,
+        timeStr: item.PubTime
+          ? (() => {
+              const time = this.formatTime(item.PubTime)
+              return time == null ? null : dateFormat2(time)
+            })()
+          : null,
         userName: item.Nick ?? '',
         images: item.Pic ? [item.Pic] : [],
         avatar: item.Avatar,
@@ -260,18 +266,23 @@ export default {
         likedCount: item.PraiseNum,
         reply: item.SubComments
           ? item.SubComments.map((c: any) => {
-            return {
-              id: `sub_${c.SeqNo}_${c.CmId}`,
-              text: this.replaceEmoji(c.Content).replace(/\\n/g, '\n'),
-              time: c.PubTime ? this.formatTime(c.PubTime) : null,
-              timeStr: c.PubTime ? (() => { const time = this.formatTime(c.PubTime); return time == null ? null : dateFormat2(time) })() : null,
-              userName: c.Nick ?? '',
-              avatar: c.Avatar,
-              images: c.Pic ? [c.Pic] : [],
-              userId: c.EncryptUin,
-              likedCount: c.PraiseNum,
-            }
-          })
+              return {
+                id: `sub_${c.SeqNo}_${c.CmId}`,
+                text: this.replaceEmoji(c.Content).replace(/\\n/g, '\n'),
+                time: c.PubTime ? this.formatTime(c.PubTime) : null,
+                timeStr: c.PubTime
+                  ? (() => {
+                      const time = this.formatTime(c.PubTime)
+                      return time == null ? null : dateFormat2(time)
+                    })()
+                  : null,
+                userName: c.Nick ?? '',
+                avatar: c.Avatar,
+                images: c.Pic ? [c.Pic] : [],
+                userId: c.EncryptUin,
+                likedCount: c.PraiseNum,
+              }
+            })
           : [],
       }
     })
@@ -283,7 +294,10 @@ export default {
     result = Array.from(new Set(result))
     for (let item of result) {
       let code = item.replace(rxp, '$1')
-      msg = msg.replace(new RegExp(item.replace('[em]', '\\[em\\]').replace('[/em]', '\\[\\/em\\]'), 'g'), (emojis as Record<string, string>)[code] || '')
+      msg = msg.replace(
+        new RegExp(item.replace('[em]', '\\[em\\]').replace('[/em]', '\\[\\/em\\]'), 'g'),
+        (emojis as Record<string, string>)[code] || '',
+      )
     }
     return msg
   },

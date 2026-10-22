@@ -2,7 +2,15 @@ import { create } from 'zustand'
 import { playerApi, type PlaylistIconKey, type UserListData, type UserPlaylist } from '../api'
 import { invalidateRequestCache, isAbortError } from '../data/request'
 import { getSessionGeneration } from '../session'
-import { buildSongMatchSet, normalizeSongForList, sameSong, songListId, songKey, songMatchSetHas, type Song } from '../types'
+import {
+  buildSongMatchSet,
+  normalizeSongForList,
+  sameSong,
+  songListId,
+  songKey,
+  songMatchSetHas,
+  type Song,
+} from '../types'
 
 let libraryController: AbortController | null = null
 let libraryRequestId = 0
@@ -22,7 +30,10 @@ export type LibraryState = {
   removeSong: (listId: string, song: Song) => Promise<void>
   removeSongs: (listId: string, songs: Song[]) => Promise<void>
   createList: (name: string, icon?: PlaylistIconKey) => Promise<UserPlaylist>
-  toggleRemotePlaylist: (detail: { id: string; source: string; name: string; image?: string }, songs: Song[]) => Promise<boolean>
+  toggleRemotePlaylist: (
+    detail: { id: string; source: string; name: string; image?: string },
+    songs: Song[],
+  ) => Promise<boolean>
   renameList: (listId: string, name: string) => Promise<void>
   deleteList: (listId: string) => Promise<void>
   reset: () => void
@@ -81,17 +92,19 @@ function songsInList(data: UserListData, listId: string): Song[] {
 function enqueueListMutation<T>(listId: string, mutation: (isCurrent: () => boolean) => Promise<T>): Promise<T> {
   const sessionGeneration = getSessionGeneration()
   const mutationGeneration = libraryMutationGeneration
-  const isCurrent = () => sessionGeneration === getSessionGeneration() && mutationGeneration === libraryMutationGeneration
+  const isCurrent = () =>
+    sessionGeneration === getSessionGeneration() && mutationGeneration === libraryMutationGeneration
   const run = () => {
     if (!isCurrent()) throw new Error('登录账户已变化，请重新操作')
     return mutation(isCurrent)
   }
   const key = String(listId)
   const previous = libraryMutationQueues.get(key)
-  const operation = previous
-    ? previous.then(run)
-    : Promise.resolve().then(run)
-  const settled = operation.then(() => undefined, () => undefined)
+  const operation = previous ? previous.then(run) : Promise.resolve().then(run)
+  const settled = operation.then(
+    () => undefined,
+    () => undefined,
+  )
   libraryMutationQueues.set(key, settled)
   void settled.then(() => {
     if (libraryMutationQueues.get(key) === settled) libraryMutationQueues.delete(key)
@@ -99,7 +112,12 @@ function enqueueListMutation<T>(listId: string, mutation: (isCurrent: () => bool
   return operation
 }
 
-function restoreListIfUnchanged(data: UserListData, listId: string, expectedSongs: Song[], previousSongs: Song[]): UserListData {
+function restoreListIfUnchanged(
+  data: UserListData,
+  listId: string,
+  expectedSongs: Song[],
+  previousSongs: Song[],
+): UserListData {
   if (songsInList(data, listId) !== expectedSongs) return data
   return updateListData(data, listId, () => previousSongs)
 }
@@ -144,9 +162,15 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         cacheTtlMs: 30_000,
         force,
       })
-      if (!controller.signal.aborted && requestId === libraryRequestId) set({ data: data || emptyData, error: '', loadedAt: Date.now() })
+      if (!controller.signal.aborted && requestId === libraryRequestId)
+        set({ data: data || emptyData, error: '', loadedAt: Date.now() })
     } catch (error) {
-      if (!controller.signal.aborted && requestId === libraryRequestId && get().loadedAt === 0 && !isAbortError(error)) {
+      if (
+        !controller.signal.aborted &&
+        requestId === libraryRequestId &&
+        get().loadedAt === 0 &&
+        !isAbortError(error)
+      ) {
         set({ error: error instanceof Error ? error.message : '歌单加载失败' })
       }
     } finally {
@@ -156,53 +180,57 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
     }
   },
-  addSong: (listId, song) => enqueueListMutation(listId, async isCurrent => {
-    const normalizedSong = normalizeSongForList(song)
-    const previousData = get().data
-    const previousSongs = songsInList(previousData, listId)
-    const optimisticData = updateListData(previousData, listId, songs => addSongToList(songs, normalizedSong))
-    const optimisticSongs = songsInList(optimisticData, listId)
-    if (optimisticData !== previousData) set({ data: optimisticData })
-    try {
-      await playerApi.addToList(listId, [normalizedSong])
-      if (!isCurrent()) return
-      invalidateRequestCache('library:lists')
-      // The visible state is already updated optimistically. Refresh in the
-      // background to reconcile server-side normalization without starting a
-      // full-list request for every rapid favorite click.
-      scheduleLibraryHydrate(get)
-    } catch (error) {
-      if (!isCurrent()) throw error
-      set(state => {
-        const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
-        return data === state.data ? {} : { data }
-      })
-      throw error
-    }
-  }),
-  removeSong: async (listId, song) => { await get().removeSongs(listId, [song]) },
-  removeSongs: (listId, songs) => enqueueListMutation(listId, async isCurrent => {
-    const songIds = [...new Set(songs.map(songListId).filter(Boolean))]
-    if (!songIds.length) return
-    const previousData = get().data
-    const previousSongs = songsInList(previousData, listId)
-    const optimisticData = updateListData(previousData, listId, current => removeSongsFromList(current, songs))
-    const optimisticSongs = songsInList(optimisticData, listId)
-    if (optimisticData !== previousData) set({ data: optimisticData })
-    try {
-      await playerApi.removeFromList(listId, songIds)
-      if (!isCurrent()) return
-      invalidateRequestCache('library:lists')
-      scheduleLibraryHydrate(get)
-    } catch (error) {
-      if (!isCurrent()) throw error
-      set(state => {
-        const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
-        return data === state.data ? {} : { data }
-      })
-      throw error
-    }
-  }),
+  addSong: (listId, song) =>
+    enqueueListMutation(listId, async isCurrent => {
+      const normalizedSong = normalizeSongForList(song)
+      const previousData = get().data
+      const previousSongs = songsInList(previousData, listId)
+      const optimisticData = updateListData(previousData, listId, songs => addSongToList(songs, normalizedSong))
+      const optimisticSongs = songsInList(optimisticData, listId)
+      if (optimisticData !== previousData) set({ data: optimisticData })
+      try {
+        await playerApi.addToList(listId, [normalizedSong])
+        if (!isCurrent()) return
+        invalidateRequestCache('library:lists')
+        // The visible state is already updated optimistically. Refresh in the
+        // background to reconcile server-side normalization without starting a
+        // full-list request for every rapid favorite click.
+        scheduleLibraryHydrate(get)
+      } catch (error) {
+        if (!isCurrent()) throw error
+        set(state => {
+          const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
+          return data === state.data ? {} : { data }
+        })
+        throw error
+      }
+    }),
+  removeSong: async (listId, song) => {
+    await get().removeSongs(listId, [song])
+  },
+  removeSongs: (listId, songs) =>
+    enqueueListMutation(listId, async isCurrent => {
+      const songIds = [...new Set(songs.map(songListId).filter(Boolean))]
+      if (!songIds.length) return
+      const previousData = get().data
+      const previousSongs = songsInList(previousData, listId)
+      const optimisticData = updateListData(previousData, listId, current => removeSongsFromList(current, songs))
+      const optimisticSongs = songsInList(optimisticData, listId)
+      if (optimisticData !== previousData) set({ data: optimisticData })
+      try {
+        await playerApi.removeFromList(listId, songIds)
+        if (!isCurrent()) return
+        invalidateRequestCache('library:lists')
+        scheduleLibraryHydrate(get)
+      } catch (error) {
+        if (!isCurrent()) throw error
+        set(state => {
+          const data = restoreListIfUnchanged(state.data, listId, optimisticSongs, previousSongs)
+          return data === state.data ? {} : { data }
+        })
+        throw error
+      }
+    }),
   createList: async (name, icon = 'music') => {
     const list: UserPlaylist = {
       id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -263,8 +291,15 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 export const selectUserLists = (state: LibraryState): UserPlaylist[] => newestFirstUserLists(state.data.userList ?? [])
 export const selectLoveList = (state: LibraryState): Song[] => newestFirstSongs(state.data.loveList ?? [])
 export const selectLibraryData = (state: LibraryState): UserListData => state.data
-export const selectLibraryStatus = (state: LibraryState) => ({ loading: state.loading, refreshing: state.refreshing, error: state.error })
-export const selectPlaylist = (listId: string) => (state: LibraryState): UserPlaylist | undefined => selectUserLists(state).find(list => String(list.id) === String(listId))
+export const selectLibraryStatus = (state: LibraryState) => ({
+  loading: state.loading,
+  refreshing: state.refreshing,
+  error: state.error,
+})
+export const selectPlaylist =
+  (listId: string) =>
+  (state: LibraryState): UserPlaylist | undefined =>
+    selectUserLists(state).find(list => String(list.id) === String(listId))
 
 export function playlistSongs(list: UserPlaylist | undefined): Song[] {
   return list?.list?.filter(song => Boolean(song && songKey(song))) ?? []

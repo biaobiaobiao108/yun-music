@@ -38,9 +38,8 @@ const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | 
   const isAdmin = verifyAdminAuth(ctx.request)
   const tokenUser = verifyUserAuth(ctx)
 
-  const canAccessOpen = config['user.enablePublicFavorites'] && (
-    config['user.enablePublicNonAdminAccess'] || isAdmin || !!tokenUser
-  )
+  const canAccessOpen =
+    config['user.enablePublicFavorites'] && (config['user.enablePublicNonAdminAccess'] || isAdmin || !!tokenUser)
 
   if (reqUsername === '_open') {
     if (canAccessOpen) return '_open'
@@ -49,7 +48,11 @@ const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | 
 
   if (!reqUsername || reqUsername === 'default') return tokenUser || (canAccessOpen ? '_open' : null)
   if (isAdmin) {
-    try { return assertSafePathSegment(reqUsername, 'user name') } catch { return null }
+    try {
+      return assertSafePathSegment(reqUsername, 'user name')
+    } catch {
+      return null
+    }
   }
   return tokenUser && tokenUser === reqUsername ? tokenUser : null
 }
@@ -70,7 +73,7 @@ const saveUsers = async (options: { purgeDataFor?: readonly string[] } = {}) => 
     if (preserved.length > 0) {
       console.warn(
         `[User] 账号已移除但歌单/设置被保留：${preserved.join(', ')}。` +
-        `如需彻底清除，请在删除时勾选“同时删除用户数据”。`,
+          `如需彻底清除，请在删除时勾选“同时删除用户数据”。`,
       )
     }
     return { removedNames, preserved }
@@ -84,16 +87,19 @@ const resolveSnapshotUsername = (ctx: HttpContext, userParam: string, write = fa
   const isAdmin = verifyAdminAuth(ctx.request)
   if (isAdmin) {
     if (userParam === 'default' || userParam === 'open' || userParam === '_open') return '_open'
-    try { return assertSafePathSegment(userParam, 'user name') } catch { return null }
+    try {
+      return assertSafePathSegment(userParam, 'user name')
+    } catch {
+      return null
+    }
   }
 
   if (userParam === 'default' || userParam === 'open' || userParam === '_open') {
     if (write) return null
     const config = (global.lx?.config ?? {}) as any
     const tokenUser = verifyUserAuth(ctx)
-    const canAccessOpen = config['user.enablePublicFavorites'] && (
-      config['user.enablePublicNonAdminAccess'] || !!tokenUser
-    )
+    const canAccessOpen =
+      config['user.enablePublicFavorites'] && (config['user.enablePublicNonAdminAccess'] || !!tokenUser)
     return canAccessOpen ? '_open' : null
   }
 
@@ -115,23 +121,29 @@ const resolveSettingsUsername = (ctx: HttpContext, write = false): string | Resp
   }
   if (!requested) return verified!
   if (isAdmin) {
-    try { return assertSafePathSegment(requested, 'user name') } catch { return ctx.fail(400, '用户名不合法') }
+    try {
+      return assertSafePathSegment(requested, 'user name')
+    } catch {
+      return ctx.fail(400, '用户名不合法')
+    }
   }
   return verified === requested ? verified : ctx.fail(403, '没有权限操作该用户的设置')
 }
 
-const isSettingsRecord = (value: unknown): value is Record<string, unknown> => (
+const isSettingsRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
-)
 
 /** 注册用户歌单、账户管理、偏好与曲库数据管理路由 */
 export const createUserRouter = (): Router => {
   const router = new Router()
 
   // 0. 用户账户管理 (GET / POST / PUT / DELETE /api/users)
-  router.get('/api/users', (ctx) => {
+  router.get('/api/users', ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const users = (global.lx.config.users || []).map((u: any) => ({ name: u.name, hasPassword: Boolean(u.passwordHash || u.password) }))
+    const users = (global.lx.config.users || []).map((u: any) => ({
+      name: u.name,
+      hasPassword: Boolean(u.passwordHash || u.password),
+    }))
     if (global.lx.config['user.enablePublicFavorites']) {
       users.unshift({ name: '_open', hasPassword: false })
     }
@@ -144,7 +156,7 @@ export const createUserRouter = (): Router => {
     })
   })
 
-  router.post('/api/users', async (ctx) => {
+  router.post('/api/users', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     let dataLockAcquired = false
     try {
@@ -160,7 +172,8 @@ export const createUserRouter = (): Router => {
       } catch {
         return ctx.fail(422, '用户名不合法，不能包含路径分隔符等特殊字符')
       }
-      if (isReservedUserName(normalizedName)) return ctx.fail(422, 'default、open 和 _open 为系统保留名称，请更换用户名')
+      if (isReservedUserName(normalizedName))
+        return ctx.fail(422, 'default、open 和 _open 为系统保留名称，请更换用户名')
       if (global.lx.config.users.some((u: any) => u.name === normalizedName)) {
         return ctx.fail(409, '该用户名已存在')
       }
@@ -183,7 +196,9 @@ export const createUserRouter = (): Router => {
       } catch (error) {
         global.lx.config.users.pop()
         if (!dataPathExisted) {
-          try { fs.rmSync(dataPath, { recursive: true, force: true }) } catch { }
+          try {
+            fs.rmSync(dataPath, { recursive: true, force: true })
+          } catch {}
         }
         throw error
       }
@@ -198,7 +213,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.put('/api/users', async (ctx) => {
+  router.put('/api/users', async ctx => {
     const suspendedNames: string[] = []
     let dataLockAcquired = false
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
@@ -221,7 +236,8 @@ export const createUserRouter = (): Router => {
         } catch {
           return ctx.fail(422, '用户名不合法，不能包含路径分隔符等特殊字符')
         }
-        if (isReservedUserName(normalizedNewName)) return ctx.fail(422, 'default、open 和 _open 为系统保留名称，请更换用户名')
+        if (isReservedUserName(normalizedNewName))
+          return ctx.fail(422, 'default、open 和 _open 为系统保留名称，请更换用户名')
       }
       const userIdx = global.lx.config.users.findIndex((u: any) => u.name === normalizedName)
       if (userIdx === -1) {
@@ -302,7 +318,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.delete('/api/users', async (ctx) => {
+  router.delete('/api/users', async ctx => {
     const suspendedNames: string[] = []
     let dataLockAcquired = false
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
@@ -311,7 +327,10 @@ export const createUserRouter = (): Router => {
       if (body.deleteData !== undefined && typeof body.deleteData !== 'boolean') {
         return ctx.fail(422, 'deleteData 参数格式无效')
       }
-      if (body.names !== undefined && (!Array.isArray(body.names) || body.names.length > 100 || body.names.some(name => typeof name !== 'string'))) {
+      if (
+        body.names !== undefined &&
+        (!Array.isArray(body.names) || body.names.length > 100 || body.names.some(name => typeof name !== 'string'))
+      ) {
         return ctx.fail(422, 'names 参数格式无效')
       }
       if (body.name !== undefined && typeof body.name !== 'string') {
@@ -328,7 +347,8 @@ export const createUserRouter = (): Router => {
         if (targetName === '_open') return ctx.fail(422, '不能删除系统保留用户')
       }
 
-      if (accountChangeInProgress || !tryAcquireDataOperation('account-change')) return ctx.fail(409, '备份或账户变更正在进行，请稍后重试')
+      if (accountChangeInProgress || !tryAcquireDataOperation('account-change'))
+        return ctx.fail(409, '备份或账户变更正在进行，请稍后重试')
       dataLockAcquired = true
       accountChangeInProgress = true
       suspendedNames.push(...targets)
@@ -398,7 +418,7 @@ export const createUserRouter = (): Router => {
   })
 
   // 1. 读取用户歌单数据 (GET /api/user/list)
-  router.get('/api/user/list', async (ctx) => {
+  router.get('/api/user/list', async ctx => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
@@ -419,22 +439,42 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/user/playlists', async (ctx) => {
+  router.post('/api/user/playlists', async ctx => {
     const username = resolveTargetUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '公共歌单修改需要管理员权限')
     try {
       const mutation = await ctx.bodyJson<PlaylistMutation>(MAX_USER_SETTING_BODY_BYTES)
-      if (!mutation || !['create', 'toggle', 'rename', 'delete'].includes(mutation.action)) return ctx.fail(400, '歌单操作无效')
+      if (!mutation || !['create', 'toggle', 'rename', 'delete'].includes(mutation.action))
+        return ctx.fail(400, '歌单操作无效')
       if (mutation.action === 'create' || mutation.action === 'toggle') {
         const playlist = mutation.playlist
-        if (!playlist || typeof playlist.id !== 'string' || !playlist.id.trim() || ['default', 'love', 'temp'].includes(playlist.id)
-          || typeof playlist.name !== 'string' || !playlist.name.trim() || playlist.name.length > 80
-          || !Array.isArray(playlist.list) || playlist.list.some(song => !song || typeof song !== 'object' || Array.isArray(song))) return ctx.fail(400, '歌单数据无效')
-        if (mutation.action === 'toggle' && (!['wy', 'tx'].includes(String(playlist.source)) || typeof playlist.sourceListId !== 'string' || !playlist.sourceListId)) return ctx.fail(400, '在线歌单来源无效')
+        if (
+          !playlist ||
+          typeof playlist.id !== 'string' ||
+          !playlist.id.trim() ||
+          ['default', 'love', 'temp'].includes(playlist.id) ||
+          typeof playlist.name !== 'string' ||
+          !playlist.name.trim() ||
+          playlist.name.length > 80 ||
+          !Array.isArray(playlist.list) ||
+          playlist.list.some(song => !song || typeof song !== 'object' || Array.isArray(song))
+        )
+          return ctx.fail(400, '歌单数据无效')
+        if (
+          mutation.action === 'toggle' &&
+          (!['wy', 'tx'].includes(String(playlist.source)) ||
+            typeof playlist.sourceListId !== 'string' ||
+            !playlist.sourceListId)
+        )
+          return ctx.fail(400, '在线歌单来源无效')
       } else {
         if (typeof mutation.id !== 'string' || !mutation.id) return ctx.fail(400, '歌单 ID 无效')
-        if (mutation.action === 'rename' && (typeof mutation.name !== 'string' || !mutation.name.trim() || mutation.name.length > 80)) return ctx.fail(400, '歌单名称无效')
+        if (
+          mutation.action === 'rename' &&
+          (typeof mutation.name !== 'string' || !mutation.name.trim() || mutation.name.length > 80)
+        )
+          return ctx.fail(400, '歌单名称无效')
       }
       const manager = getUserSpace(username).listManage
       const result = await manager.listDataManage.mutatePlaylist(mutation)
@@ -448,7 +488,7 @@ export const createUserRouter = (): Router => {
   })
 
   // 2. 覆盖保存用户歌单数据 (POST /api/user/list)
-  router.post('/api/user/list', async (ctx) => {
+  router.post('/api/user/list', async ctx => {
     const isAdmin = verifyAdminAuth(ctx.request)
     const username = resolveTargetUsername(ctx, false)
 
@@ -471,15 +511,15 @@ export const createUserRouter = (): Router => {
   })
 
   // 3. 用户曲库：歌手与专辑 (GET & POST)
-  router.get('/api/user/library/artists', (ctx) => {
+  router.get('/api/user/library/artists', ctx => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     try {
       const db = getDb()
-      const row = db.query<{ value: string }, [string, string]>(
-        'SELECT value FROM user_settings WHERE user_name = ? AND key = ?'
-      ).get(username, 'library_artists')
+      const row = db
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(username, 'library_artists')
 
       if (row) {
         return ctx.json(JSON.parse(row.value))
@@ -490,7 +530,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/user/library/artists', async (ctx) => {
+  router.post('/api/user/library/artists', async ctx => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '修改公开收藏需要管理员权限')
@@ -498,25 +538,27 @@ export const createUserRouter = (): Router => {
       const parsed = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       if (!Array.isArray(parsed)) throw new Error('Expected an array')
       const db = getDb()
-      db.run(
-        'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
-        [username, 'library_artists', JSON.stringify(parsed), Date.now()]
-      )
+      db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+        username,
+        'library_artists',
+        JSON.stringify(parsed),
+        Date.now(),
+      ])
       return ctx.json({ success: true })
     } catch (e: any) {
       return ctx.fail(400, toUserMessage(e, '请求参数不合法'))
     }
   })
 
-  router.get('/api/user/library/albums', (ctx) => {
+  router.get('/api/user/library/albums', ctx => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     try {
       const db = getDb()
-      const row = db.query<{ value: string }, [string, string]>(
-        'SELECT value FROM user_settings WHERE user_name = ? AND key = ?'
-      ).get(username, 'library_albums')
+      const row = db
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(username, 'library_albums')
 
       if (row) {
         return ctx.json(JSON.parse(row.value))
@@ -527,7 +569,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/user/library/albums', async (ctx) => {
+  router.post('/api/user/library/albums', async ctx => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '修改公开收藏需要管理员权限')
@@ -535,10 +577,12 @@ export const createUserRouter = (): Router => {
       const parsed = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       if (!Array.isArray(parsed)) throw new Error('Expected an array')
       const db = getDb()
-      db.run(
-        'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
-        [username, 'library_albums', JSON.stringify(parsed), Date.now()]
-      )
+      db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+        username,
+        'library_albums',
+        JSON.stringify(parsed),
+        Date.now(),
+      ])
       return ctx.json({ success: true })
     } catch (e: any) {
       return ctx.fail(400, toUserMessage(e, '请求参数不合法'))
@@ -546,15 +590,15 @@ export const createUserRouter = (): Router => {
   })
 
   // 4. 用户设置 (GET & POST /api/user/settings)
-  router.get('/api/user/settings', (ctx) => {
+  router.get('/api/user/settings', ctx => {
     const resolvedUsername = resolveSettingsUsername(ctx)
     if (resolvedUsername instanceof Response) return resolvedUsername
 
     try {
       const db = getDb()
-      const row = db.query<{ value: string }, [string, string]>(
-        'SELECT value FROM user_settings WHERE user_name = ? AND key = ?'
-      ).get(resolvedUsername, 'settings')
+      const row = db
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(resolvedUsername, 'settings')
 
       if (row) {
         return new Response(row.value, {
@@ -568,7 +612,7 @@ export const createUserRouter = (): Router => {
     return ctx.json({})
   })
 
-  router.post('/api/user/settings', async (ctx) => {
+  router.post('/api/user/settings', async ctx => {
     const resolvedUsername = resolveSettingsUsername(ctx, true)
     if (resolvedUsername instanceof Response) return resolvedUsername
 
@@ -580,8 +624,11 @@ export const createUserRouter = (): Router => {
       if (resolvedUsername === '_open' && global.lx.config['user.enablePublicRestriction']) {
         const restrictedSettings: Record<string, unknown> = {}
         const allowedKeys = [
-          'serverCacheLocation', 'serverCacheNamingPattern', 'downloadConcurrency',
-          'preferredQuality', 'enablePublicSources',
+          'serverCacheLocation',
+          'serverCacheNamingPattern',
+          'downloadConcurrency',
+          'preferredQuality',
+          'enablePublicSources',
         ]
         for (const key of allowedKeys) {
           if (settings[key] !== undefined) restrictedSettings[key] = settings[key]
@@ -590,22 +637,26 @@ export const createUserRouter = (): Router => {
       }
 
       const db = getDb()
-      const previous = db.query<{ value: string }, [string, string]>(
-        'SELECT value FROM user_settings WHERE user_name = ? AND key = ?'
-      ).get(resolvedUsername, 'settings')
+      const previous = db
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(resolvedUsername, 'settings')
       let existing: Record<string, unknown> = {}
       if (previous) {
         try {
           const parsed: unknown = JSON.parse(previous.value)
           if (isSettingsRecord(parsed)) existing = parsed
-        } catch { /* Replace a malformed legacy value with valid settings. */ }
+        } catch {
+          /* Replace a malformed legacy value with valid settings. */
+        }
       }
       const value = JSON.stringify({ ...existing, ...settings })
       if (Buffer.byteLength(value) > MAX_USER_SETTING_BODY_BYTES) return ctx.fail(413, '设置数据过大')
-      db.run(
-        'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
-        [resolvedUsername, 'settings', value, Date.now()]
-      )
+      db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+        resolvedUsername,
+        'settings',
+        value,
+        Date.now(),
+      ])
       return ctx.json({ success: true })
     } catch {
       return ctx.fail(400, '请求数据格式错误')
@@ -613,14 +664,14 @@ export const createUserRouter = (): Router => {
   })
 
   // 5. 音效配置 (GET & POST /api/user/sound-effects)
-  router.get('/api/user/sound-effects', (ctx) => {
+  router.get('/api/user/sound-effects', ctx => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const db = getDb()
-      const row = db.query<{ value: string }, [string, string]>(
-        'SELECT value FROM user_settings WHERE user_name = ? AND key = ?'
-      ).get(username, 'sound_effects')
+      const row = db
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(username, 'sound_effects')
 
       if (row) {
         return new Response(row.value, {
@@ -634,7 +685,7 @@ export const createUserRouter = (): Router => {
     return ctx.json({})
   })
 
-  router.post('/api/user/sound-effects', async (ctx) => {
+  router.post('/api/user/sound-effects', async ctx => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) {
@@ -643,10 +694,12 @@ export const createUserRouter = (): Router => {
     try {
       const body = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       const db = getDb()
-      db.run(
-        'INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
-        [username, 'sound_effects', JSON.stringify(body), Date.now()]
-      )
+      db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+        username,
+        'sound_effects',
+        JSON.stringify(body),
+        Date.now(),
+      ])
       return ctx.json({ success: true })
     } catch {
       return ctx.fail(400, '请求数据格式错误')
@@ -654,7 +707,7 @@ export const createUserRouter = (): Router => {
   })
 
   // 6. 歌单与歌曲批量修改 (POST /api/music/user/list/*)
-  router.post('/api/music/user/list/remove', async (ctx) => {
+  router.post('/api/music/user/list/remove', async ctx => {
     const username = verifyUserAuth(ctx)
     if (!username) return ctx.fail(401, '需要用户认证，请先登录')
     try {
@@ -669,11 +722,15 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/music/user/list/add', async (ctx) => {
+  router.post('/api/music/user/list/add', async ctx => {
     const username = verifyUserAuth(ctx)
     if (!username) return ctx.fail(401, '需要用户认证，请先登录')
     try {
-      const { listId, musicInfos, location = 'bottom' } = await ctx.bodyJson<{ listId?: string; musicInfos?: any[]; location?: any }>()
+      const {
+        listId,
+        musicInfos,
+        location = 'bottom',
+      } = await ctx.bodyJson<{ listId?: string; musicInfos?: any[]; location?: any }>()
       if (!listId || !Array.isArray(musicInfos)) return ctx.text('参数错误:需要listId和musicInfos数组', 400)
       const userSpace = getUserSpace(username)
       await userSpace.listManage.listDataManage.listMusicAdd(listId, musicInfos, location)
@@ -685,7 +742,7 @@ export const createUserRouter = (): Router => {
   })
 
   // 7. 快照管理 (GET & POST /api/data/*)
-  router.get('/api/data', async (ctx) => {
+  router.get('/api/data', async ctx => {
     const userParam = ctx.query.get('user')
     if (!userParam) return ctx.fail(400, '缺少必要参数：user')
 
@@ -701,7 +758,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.get('/api/data/snapshots', async (ctx) => {
+  router.get('/api/data/snapshots', async ctx => {
     const userParam = ctx.query.get('user')
     if (!userParam) return ctx.fail(400, '缺少必要参数：user')
 
@@ -717,14 +774,18 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.get('/api/data/snapshot', async (ctx) => {
+  router.get('/api/data/snapshot', async ctx => {
     const userParam = ctx.query.get('user')
     const id = ctx.query.get('id')
     if (!userParam || !id) return ctx.fail(400, '缺少必要参数')
 
     const verifiedUser = resolveSnapshotUsername(ctx, userParam)
     if (!verifiedUser) return ctx.fail(403, '没有权限执行该操作')
-    try { assertSnapshotId(id) } catch { return ctx.fail(422, '快照标识无效') }
+    try {
+      assertSnapshotId(id)
+    } catch {
+      return ctx.fail(422, '快照标识无效')
+    }
 
     try {
       const userSpace = getUserSpace(verifiedUser)
@@ -736,7 +797,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/data/restore-snapshot', async (ctx) => {
+  router.post('/api/data/restore-snapshot', async ctx => {
     const userParam = ctx.query.get('user')
     if (!userParam) return ctx.fail(400, '缺少必要参数：user')
 
@@ -746,7 +807,11 @@ export const createUserRouter = (): Router => {
     try {
       const { id } = await ctx.bodyJson<{ id?: string }>()
       if (!id) return ctx.fail(400, '缺少必要参数：id')
-      try { assertSnapshotId(id) } catch { return ctx.fail(422, '快照标识无效') }
+      try {
+        assertSnapshotId(id)
+      } catch {
+        return ctx.fail(422, '快照标识无效')
+      }
       const userSpace = getUserSpace(verifiedUser)
       await userSpace.listManage.restoreSnapshot(id)
       return ctx.json({ success: true })
@@ -755,7 +820,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/data/delete-snapshot', async (ctx) => {
+  router.post('/api/data/delete-snapshot', async ctx => {
     const userParam = ctx.query.get('user')
     if (!userParam) return ctx.fail(400, '缺少必要参数：user')
 
@@ -765,7 +830,11 @@ export const createUserRouter = (): Router => {
     try {
       const { id } = await ctx.bodyJson<{ id?: string }>()
       if (!id) return ctx.fail(400, '缺少必要参数：id')
-      try { assertSnapshotId(id) } catch { return ctx.fail(422, '快照标识无效') }
+      try {
+        assertSnapshotId(id)
+      } catch {
+        return ctx.fail(422, '快照标识无效')
+      }
       const userSpace = getUserSpace(verifiedUser)
       await userSpace.listManage.removeSnapshot(id)
       return ctx.json({ success: true })
@@ -775,7 +844,7 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/data/upload-snapshot', async (ctx) => {
+  router.post('/api/data/upload-snapshot', async ctx => {
     const userParam = ctx.query.get('user')
     const time = parseInt(ctx.query.get('time') || '0')
     const filename = ctx.query.get('filename')
@@ -799,11 +868,15 @@ export const createUserRouter = (): Router => {
           const userList = jsonData.data.filter((l: any) => l.id !== 'default' && l.id !== 'love')
           finalData = JSON.stringify({ defaultList, loveList, userList })
         }
-      } catch { }
+      } catch {}
 
       let name = filename
       if (name.startsWith('snapshot_')) name = name.substring(9)
-      try { assertSnapshotId(name) } catch { return ctx.fail(422, '快照标识无效') }
+      try {
+        assertSnapshotId(name)
+      } catch {
+        return ctx.fail(422, '快照标识无效')
+      }
 
       const userSpace = getUserSpace(verifiedUser)
       await userSpace.listManage.saveSnapshotWithTime(name, finalData, time)
@@ -815,7 +888,7 @@ export const createUserRouter = (): Router => {
   })
 
   // 8. 歌单与歌曲精准修改 (POST /api/data/*)
-  router.post('/api/data/delete-playlist', async (ctx) => {
+  router.post('/api/data/delete-playlist', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const { username, playlistId } = await ctx.bodyJson<{ username?: string; playlistId?: string }>()
@@ -829,10 +902,14 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/data/delete-song', async (ctx) => {
+  router.post('/api/data/delete-song', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
-      const { username, playlistId, songId } = await ctx.bodyJson<{ username?: string; playlistId?: string; songId?: string }>()
+      const { username, playlistId, songId } = await ctx.bodyJson<{
+        username?: string
+        playlistId?: string
+        songId?: string
+      }>()
       if (!username || !playlistId || !songId) return ctx.fail(400, '缺少必要参数')
       const userSpace = getUserSpace(username)
       await userSpace.listManage.listDataManage.listMusicRemove(playlistId, [songId])
@@ -843,10 +920,14 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/data/rename-playlist', async (ctx) => {
+  router.post('/api/data/rename-playlist', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
-      const { username, playlistId, newName } = await ctx.bodyJson<{ username?: string; playlistId?: string; newName?: string }>()
+      const { username, playlistId, newName } = await ctx.bodyJson<{
+        username?: string
+        playlistId?: string
+        newName?: string
+      }>()
       if (!username || !playlistId || !newName) return ctx.fail(400, '缺少必要参数')
       const userSpace = getUserSpace(username)
       const listData = await userSpace.listManage.getListData()
@@ -861,10 +942,14 @@ export const createUserRouter = (): Router => {
     }
   })
 
-  router.post('/api/data/batch-delete-songs', async (ctx) => {
+  router.post('/api/data/batch-delete-songs', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
-      const { username, playlistId, songIndices } = await ctx.bodyJson<{ username?: string; playlistId?: string; songIndices?: number[] }>()
+      const { username, playlistId, songIndices } = await ctx.bodyJson<{
+        username?: string
+        playlistId?: string
+        songIndices?: number[]
+      }>()
       if (!username || !playlistId || !Array.isArray(songIndices)) return ctx.fail(400, '缺少必要参数')
 
       const userSpace = getUserSpace(username)

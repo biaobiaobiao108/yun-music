@@ -16,8 +16,7 @@ describe('Filesystem path boundary checks', () => {
     try {
       fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir')
 
-      expect(() => resolveInside(root, 'link', 'missing', 'child'))
-        .toThrow('Path escapes allowed directory')
+      expect(() => resolveInside(root, 'link', 'missing', 'child')).toThrow('Path escapes allowed directory')
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true })
     }
@@ -29,8 +28,7 @@ describe('Filesystem path boundary checks', () => {
     fs.mkdirSync(root)
 
     try {
-      expect(resolveInside(root, 'nested', 'missing', 'child'))
-        .toBe(path.join(root, 'nested', 'missing', 'child'))
+      expect(resolveInside(root, 'nested', 'missing', 'child')).toBe(path.join(root, 'nested', 'missing', 'child'))
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true })
     }

@@ -9,13 +9,17 @@ import {
   deduplicateDownloadTasks,
   filterPersistedTasksForUsers,
   enqueue,
-  suspendUser, releaseUser, renameUser, removeUser,
+  suspendUser,
+  releaseUser,
+  renameUser,
+  removeUser,
   initialize,
   setConcurrency,
   isDownloadTaskRunnable,
   list,
   markDownloadTaskPausedIfAborted,
-  pause, resume,
+  pause,
+  resume,
   pruneDownloadHistory,
   serializeDownloadTask,
   type ServerDownloadTask,
@@ -55,7 +59,12 @@ test('global download admission spans users and relay completion wakes queued wo
   const count = getResourceBudgetStats().downloads.maxActive
   const users = Array.from({ length: count + 1 }, (_, index) => `global-budget-${index}`)
   const cache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
-  const worker = spyOn(fileCache, 'downloadAndCache').mockImplementation((song: any) => new Promise<void>(resolve => { complete.set(song.songmid, resolve) }))
+  const worker = spyOn(fileCache, 'downloadAndCache').mockImplementation(
+    (song: any) =>
+      new Promise<void>(resolve => {
+        complete.set(song.songmid, resolve)
+      }),
+  )
   const waitFor = async (predicate: () => boolean) => {
     const deadline = Date.now() + 1000
     while (!predicate() && Date.now() < deadline) await Bun.sleep(2)
@@ -63,9 +72,14 @@ test('global download admission spans users and relay completion wakes queued wo
   }
   try {
     global.lx = { dataPath: root, config: {} } as typeof global.lx
-    while (true) { const release = tryAcquireMediaStream(); if (!release) break; heldMedia.push(release) }
+    while (true) {
+      const release = tryAcquireMediaStream()
+      if (!release) break
+      heldMedia.push(release)
+    }
     initialize(async () => ({ url: 'https://example.test/song' }))
-    for (const username of users) enqueue(username, [{ songInfo: { source: 'wy', songmid: username }, quality: '320k' }])
+    for (const username of users)
+      enqueue(username, [{ songInfo: { source: 'wy', songmid: username }, quality: '320k' }])
     expect(worker).not.toHaveBeenCalled()
     expect(users.every(username => list(username)[0]?.status === 'waiting')).toBe(true)
     heldMedia.shift()!()
@@ -81,7 +95,11 @@ test('global download admission spans users and relay completion wakes queued wo
     // Pause queued tasks first, then release the mocked in-flight downloads.
     for (const username of users) pause(username)
     for (const resolve of complete.values()) resolve()
-    for (const username of users) { await suspendUser(username); await removeUser(username); releaseUser(username) }
+    for (const username of users) {
+      await suspendUser(username)
+      await removeUser(username)
+      releaseUser(username)
+    }
     await Bun.sleep(180)
     cache.mockRestore()
     worker.mockRestore()
@@ -97,8 +115,12 @@ test('slow queue persistence coalesces updates and rename/delete await the lates
   const originalWrite = Bun.write.bind(Bun)
   let releaseWrite!: () => void
   let firstWriteStarted!: () => void
-  const blocked = new Promise<void>(resolve => { releaseWrite = resolve })
-  const started = new Promise<void>(resolve => { firstWriteStarted = resolve })
+  const blocked = new Promise<void>(resolve => {
+    releaseWrite = resolve
+  })
+  const started = new Promise<void>(resolve => {
+    firstWriteStarted = resolve
+  })
   let writes = 0
   const write = spyOn(Bun, 'write').mockImplementation(async (destination, contents) => {
     writes++
@@ -110,12 +132,16 @@ test('slow queue persistence coalesces updates and rename/delete await the lates
   })
   try {
     global.lx = { dataPath: root, config: {} } as typeof global.lx
-    initialize(async () => { throw new Error('No downloads expected') })
+    initialize(async () => {
+      throw new Error('No downloads expected')
+    })
     setConcurrency('coalesce-old', 1)
     await started
-    for (let index = 0; index < 20; index++) setConcurrency('coalesce-old', index % 5 + 1)
+    for (let index = 0; index < 20; index++) setConcurrency('coalesce-old', (index % 5) + 1)
     let renamed = false
-    const renaming = renameUser('coalesce-old', 'coalesce-new').then(() => { renamed = true })
+    const renaming = renameUser('coalesce-old', 'coalesce-new').then(() => {
+      renamed = true
+    })
     await Promise.resolve()
     expect(renamed).toBe(false)
     releaseWrite()
@@ -141,12 +167,17 @@ test('playback caching preserves an explicit music download across active, pause
   const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
   const worker = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
   let finishResolver!: () => void
-  const pending = new Promise<void>(resolve => { finishResolver = resolve })
+  const pending = new Promise<void>(resolve => {
+    finishResolver = resolve
+  })
   const username = 'download-target-user'
   const songInfo = { source: 'wy', songmid: 'target-song', name: 'Target Song' }
   try {
     global.lx = { dataPath: root, config: {} } as typeof global.lx
-    initialize(async () => { await pending; return { url: 'https://example.com/song' } })
+    initialize(async () => {
+      await pending
+      return { url: 'https://example.com/song' }
+    })
     enqueue(username, [{ id: 'target', songInfo, quality: 'flac', enableOnlyDownloadMode: true }])
     const cacheInput = { songInfo, quality: 'flac', background: true, enableOnlyDownloadMode: false }
     enqueue(username, [cacheInput])
@@ -184,8 +215,7 @@ test('persisted queue restoration drops deleted accounts but retains the shared 
     { id: 'missing-owner' },
   ]
 
-  expect(filterPersistedTasksForUsers(savedTasks, new Set(['active-user'])))
-    .toEqual([savedTasks[0], savedTasks[2]])
+  expect(filterPersistedTasksForUsers(savedTasks, new Set(['active-user']))).toEqual([savedTasks[0], savedTasks[2]])
 })
 
 for (const cancellationPhase of ['resolver', 'download'] as const) {
@@ -195,8 +225,12 @@ for (const cancellationPhase of ['resolver', 'download'] as const) {
     const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
     let releaseCancelled!: () => void
     let firstEntered!: () => void
-    const pending = new Promise<void>(resolve => { releaseCancelled = resolve })
-    const entered = new Promise<void>(resolve => { firstEntered = resolve })
+    const pending = new Promise<void>(resolve => {
+      releaseCancelled = resolve
+    })
+    const entered = new Promise<void>(resolve => {
+      firstEntered = resolve
+    })
     let workerCalls = 0
     let resolverCalls = 0
     const worker = spyOn(fileCache, 'downloadAndCache').mockImplementation(async () => {
@@ -246,19 +280,14 @@ for (const cancellationPhase of ['resolver', 'download'] as const) {
 
 describe('Server download queue retention', () => {
   test('caps terminal history per user while retaining active and resumable tasks', () => {
-    const history = Array.from({ length: 5 }, (_, index) => (
-      makeTask('user-a', `finished-${index}`, 'finished', index)
-    ))
-    const otherUserHistory = Array.from({ length: 3 }, (_, index) => (
-      makeTask('user-b', `finished-${index}`, 'error', index)
-    ))
+    const history = Array.from({ length: 5 }, (_, index) => makeTask('user-a', `finished-${index}`, 'finished', index))
+    const otherUserHistory = Array.from({ length: 3 }, (_, index) =>
+      makeTask('user-b', `finished-${index}`, 'error', index),
+    )
     const active = makeTask('user-a', 'active', 'downloading', 0)
     const paused = makeTask('user-a', 'paused', 'paused', 0)
 
-    const retained = pruneDownloadHistory(
-      [...history, ...otherUserHistory, active, paused],
-      2,
-    )
+    const retained = pruneDownloadHistory([...history, ...otherUserHistory, active, paused], 2)
 
     expect(retained.filter(task => task.username === 'user-a' && task.status === 'finished')).toHaveLength(2)
     expect(retained.filter(task => task.username === 'user-b')).toHaveLength(2)
@@ -422,12 +451,14 @@ describe('Server download queue deduplication', () => {
         return { url: 'https://example.com/already-downloaded.flac', quality: 'flac' }
       })
 
-      const queued = enqueue('existing-download-user', [{
-        id: 'wy_already-downloaded_flac',
-        songInfo,
-        quality: 'flac',
-        enableOnlyDownloadMode: true,
-      }])
+      const queued = enqueue('existing-download-user', [
+        {
+          id: 'wy_already-downloaded_flac',
+          songInfo,
+          quality: 'flac',
+          enableOnlyDownloadMode: true,
+        },
+      ])
       await new Promise(resolve => setTimeout(resolve, 50))
 
       expect(queued[0]).toMatchObject({ status: 'exists', progress: 100 })
@@ -447,8 +478,13 @@ describe('Server download queue deduplication', () => {
     const previousLx = (global as any).lx
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-queue-promote-'))
     const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
-      exists: true, isCollision: false, foundIn: 'promote-user', folder: 'cache',
-      filename: 'cached-song.flac', path: '/tmp/cached-song.flac', quality: 'flac',
+      exists: true,
+      isCollision: false,
+      foundIn: 'promote-user',
+      folder: 'cache',
+      filename: 'cached-song.flac',
+      path: '/tmp/cached-song.flac',
+      quality: 'flac',
     } as any)
     const downloadAndCache = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
     let resolverCalls = 0
@@ -459,11 +495,14 @@ describe('Server download queue deduplication', () => {
         resolverCalls++
         return { url: 'https://example.com/cached-song.flac', quality: 'flac' }
       })
-      enqueue('promote-user', [{
-        id: 'wy_cached-song_flac',
-        songInfo: { source: 'wy', songmid: 'cached-song', name: 'Cached Song' },
-        quality: 'flac', enableOnlyDownloadMode: true,
-      }])
+      enqueue('promote-user', [
+        {
+          id: 'wy_cached-song_flac',
+          songInfo: { source: 'wy', songmid: 'cached-song', name: 'Cached Song' },
+          quality: 'flac',
+          enableOnlyDownloadMode: true,
+        },
+      ])
 
       const deadline = Date.now() + 3000
       let task = list('promote-user').find(item => item.id === 'wy_cached-song_flac')
@@ -507,13 +546,15 @@ describe('Server download queue deduplication', () => {
           downloadSource: 'tx',
         }
       })
-      enqueue('retry-user', [{
-        id: 'wy_retry-song_flac',
-        songInfo: { source: 'wy', songmid: 'retry-song', name: 'Retry Song', singer: 'Singer' },
-        quality: 'flac',
-        resolvedUrl: 'https://expired.example/song.flac',
-        background: true,
-      }])
+      enqueue('retry-user', [
+        {
+          id: 'wy_retry-song_flac',
+          songInfo: { source: 'wy', songmid: 'retry-song', name: 'Retry Song', singer: 'Singer' },
+          quality: 'flac',
+          resolvedUrl: 'https://expired.example/song.flac',
+          background: true,
+        },
+      ])
 
       const deadline = Date.now() + 3000
       let task = list('retry-user').find(item => item.id === 'wy_retry-song_flac')
@@ -540,19 +581,26 @@ describe('Server download queue deduplication', () => {
   })
 })
 
-
 test('shared music is copied by the worker rather than counted as a personal download', async () => {
   const previousLx = global.lx
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-shared-download-'))
   const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({
-    exists: true, foundIn: '_open', folder: 'music', filename: 'shared.flac',
-    path: '/tmp/shared.flac', quality: 'flac',
+    exists: true,
+    foundIn: '_open',
+    folder: 'music',
+    filename: 'shared.flac',
+    path: '/tmp/shared.flac',
+    quality: 'flac',
   } as any)
   const worker = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
   try {
     global.lx = { dataPath: root, config: {} } as typeof global.lx
-    initialize(async () => { throw new Error('Shared file needs no remote URL') })
-    const added = enqueue('shared-copy-user', [{ songInfo: { id: 'shared-copy-song' }, quality: 'flac', enableOnlyDownloadMode: true }])
+    initialize(async () => {
+      throw new Error('Shared file needs no remote URL')
+    })
+    const added = enqueue('shared-copy-user', [
+      { songInfo: { id: 'shared-copy-song' }, quality: 'flac', enableOnlyDownloadMode: true },
+    ])
     expect(added[0]?.status).not.toBe('exists')
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(worker).toHaveBeenCalled()
@@ -572,14 +620,21 @@ test('account suspension drains workers, blocks new work and migrates paused tas
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-drain-download-'))
   const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
   let finishResolver!: () => void
-  const pending = new Promise<void>(resolve => { finishResolver = resolve })
+  const pending = new Promise<void>(resolve => {
+    finishResolver = resolve
+  })
   const worker = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
   try {
     global.lx = { dataPath: root, config: {} } as typeof global.lx
-    initialize(async () => { await pending; return { url: 'https://example.com/song' } })
+    initialize(async () => {
+      await pending
+      return { url: 'https://example.com/song' }
+    })
     enqueue('drain-old', [{ songInfo: { id: 'drain-song' }, quality: 'flac' }])
     let drained = false
-    const draining = suspendUser('drain-old').then(() => { drained = true })
+    const draining = suspendUser('drain-old').then(() => {
+      drained = true
+    })
     await Promise.resolve()
     expect(drained).toBe(false)
     expect(() => enqueue('drain-old', [{ songInfo: { id: 'blocked' } }])).toThrow()
@@ -601,7 +656,6 @@ test('account suspension drains workers, blocks new work and migrates paused tas
   }
 })
 
-
 test('promotion copies shared music and lyrics into the private library while preserving the originals', async () => {
   const previousLx = global.lx
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-shared-music-promote-'))
@@ -612,12 +666,31 @@ test('promotion copies shared music and lyrics into the private library while pr
     const source = fileCache.getCacheDir('_open', true, 'data')
     fs.writeFileSync(path.join(source, 'shared.mp3'), 'test-audio')
     fs.writeFileSync(path.join(source, 'shared.lrc'), '[00:01]lyrics')
-    fileCache.indexManager.update('_open', {
-      id: 'wy_shared-promotion', songmid: 'shared-promotion', name: 'Shared', singer: 'Singer',
-      albumName: '', source: 'wy', quality: '320k', filename: 'shared.mp3', folder: 'music',
-      mtime: Date.now(), size: 10, ext: 'mp3', lyricFilename: 'shared.lrc',
-    }, 'music', 'data')
-    const promoted = await fileCache.promoteCachedSongToMusic({ source: 'wy', songmid: 'shared-promotion' }, '320k', 'copy-target')
+    fileCache.indexManager.update(
+      '_open',
+      {
+        id: 'wy_shared-promotion',
+        songmid: 'shared-promotion',
+        name: 'Shared',
+        singer: 'Singer',
+        albumName: '',
+        source: 'wy',
+        quality: '320k',
+        filename: 'shared.mp3',
+        folder: 'music',
+        mtime: Date.now(),
+        size: 10,
+        ext: 'mp3',
+        lyricFilename: 'shared.lrc',
+      },
+      'music',
+      'data',
+    )
+    const promoted = await fileCache.promoteCachedSongToMusic(
+      { source: 'wy', songmid: 'shared-promotion' },
+      '320k',
+      'copy-target',
+    )
     expect(promoted.successCount).toBe(1)
     const target = fileCache.getCacheDir('copy-target', true, 'data')
     expect(fs.readFileSync(path.join(target, 'shared.mp3'), 'utf8')).toBe('test-audio')

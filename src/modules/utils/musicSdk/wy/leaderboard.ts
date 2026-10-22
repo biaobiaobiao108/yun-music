@@ -3,7 +3,8 @@ import { httpFetch } from '../../request'
 import { releaseRequestWhenSettled } from '../requestLifecycle'
 import musicDetailApi from './musicDetail'
 
-const topList = [{ id: 'wy__19723756', name: '飙升榜', bangid: '19723756' },
+const topList = [
+  { id: 'wy__19723756', name: '飙升榜', bangid: '19723756' },
   { id: 'wy__3779629', name: '新歌榜', bangid: '3779629' },
   { id: 'wy__2884035', name: '原创榜', bangid: '2884035' },
   { id: 'wy__3778678', name: '热歌榜', bangid: '3778678' },
@@ -143,7 +144,7 @@ export default {
     }
     return list
   },
-  async getBoards(retryNum: any= 0) {
+  async getBoards(retryNum: any = 0) {
     // if (++retryNum > 3) return Promise.reject(new Error('try max num'))
     // let response
     // try {
@@ -167,7 +168,7 @@ export default {
       source: 'wy',
     }
   },
-  async getList(bangid: any, page: any, retryNum: any= 0): Promise<any> {
+  async getList(bangid: any, page: any, retryNum: any = 0): Promise<any> {
     if (++retryNum > 6) return Promise.reject(new Error('try max num'))
     // console.log(bangid)
     let resp

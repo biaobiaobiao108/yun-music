@@ -1,13 +1,8 @@
 import { HttpContext, type ContextOptions } from './context'
 
-export type RouteHandler = (
-  ctx: HttpContext
-) => Response | null | void | Promise<Response | null | void>
+export type RouteHandler = (ctx: HttpContext) => Response | null | void | Promise<Response | null | void>
 
-export type Middleware = (
-  ctx: HttpContext,
-  next: () => Promise<Response>
-) => Promise<Response>
+export type Middleware = (ctx: HttpContext, next: () => Promise<Response>) => Promise<Response>
 
 interface RouteEntry {
   method: string // 'GET' | 'POST' | ... | '*'
@@ -29,8 +24,7 @@ export class Router {
   private routeIndexDirty = true
   private readonly routesByMethod = new Map<string, RouteEntry[]>()
   private readonly routeCandidatesByMethod = new Map<string, RouteEntry[]>()
-  private notFoundHandler: RouteHandler = (ctx) =>
-    ctx.fail(404, '接口不存在', { path: ctx.pathname })
+  private notFoundHandler: RouteHandler = ctx => ctx.fail(404, '接口不存在', { path: ctx.pathname })
 
   /** 注册全局或带前缀的中间件 */
   use(middleware: Middleware): this
@@ -63,9 +57,7 @@ export class Router {
 
     // 复制子路由规则并附上前缀
     for (const route of subRouter.routes) {
-      const combined = route.pattern === '/'
-        ? (normalizedPrefix || '/')
-        : `${normalizedPrefix}${route.pattern}`
+      const combined = route.pattern === '/' ? normalizedPrefix || '/' : `${normalizedPrefix}${route.pattern}`
       this.routes.push({
         ...route,
         pattern: combined,

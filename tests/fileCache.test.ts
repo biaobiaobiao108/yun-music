@@ -49,20 +49,24 @@ describe('File Cache Path Traversal Defense', () => {
       initDatabase(':memory:')
       fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
 
-      const result = fileCache.checkCache({
-        source: 'wy',
-        songmid: 'missing-song',
-        name: 'Missing Song',
-        singer: 'Missing Singer',
-        quality: 'flac',
-        exactQuality: true,
-      }, 'probe-user')
+      const result = fileCache.checkCache(
+        {
+          source: 'wy',
+          songmid: 'missing-song',
+          name: 'Missing Song',
+          singer: 'Missing Singer',
+          quality: 'flac',
+          exactQuality: true,
+        },
+        'probe-user',
+      )
 
       expect(result.exists).toBe(false)
       expect(fs.existsSync(path.join(dataPath, 'cache'))).toBe(false)
       expect(fs.existsSync(path.join(dataPath, 'music'))).toBe(false)
-      expect(fileCache.getCacheDir('probe-user', false, fileCache.CACHE_ROOTS.DATA, false))
-        .toBe(path.join(dataPath, 'cache', 'probe-user'))
+      expect(fileCache.getCacheDir('probe-user', false, fileCache.CACHE_ROOTS.DATA, false)).toBe(
+        path.join(dataPath, 'cache', 'probe-user'),
+      )
       expect(fs.existsSync(path.join(dataPath, 'cache'))).toBe(false)
     } finally {
       closeDb()
@@ -105,36 +109,43 @@ describe('File Cache Path Traversal Defense', () => {
       fs.writeFileSync(path.join(musicDir, lyricFilename), '[00:00.00]lyrics')
       const stats = fs.statSync(audioPath)
 
-      fileCache.indexManager.update('test-user', {
-        id: 'wy_test-song',
-        songmid: 'wy_test-song',
-        name: 'Test Song',
-        singer: 'Test Singer',
-        albumName: 'Test Album',
-        source: 'wy',
-        quality: 'flac',
-        filename: audioFilename,
-        folder: 'music',
-        mtime: stats.mtimeMs,
-        size: stats.size,
-        ext: 'flac',
-        hasCover: false,
-        coverType: 'none',
-        hasLyric: false,
-        coverCheckedVersion: 5,
-        coverCheckedMtime: stats.mtimeMs,
-        coverCheckedSize: stats.size,
-        interval: '00:01',
-        bitrate: 1000,
-      }, 'music')
+      fileCache.indexManager.update(
+        'test-user',
+        {
+          id: 'wy_test-song',
+          songmid: 'wy_test-song',
+          name: 'Test Song',
+          singer: 'Test Singer',
+          albumName: 'Test Album',
+          source: 'wy',
+          quality: 'flac',
+          filename: audioFilename,
+          folder: 'music',
+          mtime: stats.mtimeMs,
+          size: stats.size,
+          ext: 'flac',
+          hasCover: false,
+          coverType: 'none',
+          hasLyric: false,
+          coverCheckedVersion: 5,
+          coverCheckedMtime: stats.mtimeMs,
+          coverCheckedSize: stats.size,
+          interval: '00:01',
+          bitrate: 1000,
+        },
+        'music',
+      )
 
-      const lyric = await fileCache.checkLyricCache({
-        source: 'wy',
-        songmid: 'test-song',
-        id: 'wy_test-song',
-        name: 'Test Song',
-        singer: 'Test Singer',
-      }, 'test-user')
+      const lyric = await fileCache.checkLyricCache(
+        {
+          source: 'wy',
+          songmid: 'test-song',
+          id: 'wy_test-song',
+          name: 'Test Song',
+          singer: 'Test Singer',
+        },
+        'test-user',
+      )
       expect(lyric.exists).toBe(true)
 
       await fileCache.syncCacheIndex('test-user', ['music'])
@@ -254,17 +265,28 @@ describe('File Cache Path Traversal Defense', () => {
         fileCache.setNamingPattern(pattern)
         for (const [index, prefix] of ['A'.repeat(205), '长歌名'.repeat(40), '🎵'.repeat(70)].entries()) {
           const username = `${pattern}-${index}`
-          const song = { source: 'wy', id: '1', name: `${prefix}1`, singer: 'Singer', albumName: 'Album', quality: 'flac' }
+          const song = {
+            source: 'wy',
+            id: '1',
+            name: `${prefix}1`,
+            singer: 'Singer',
+            albumName: 'Album',
+            quality: 'flac',
+          }
           const secondSong = { ...song, id: '2', name: `${prefix}2` }
           expect(fileCache.saveLyricCache(song, { lyric: '[00:01.00]First song' }, username)).toBe(true)
           expect(fileCache.saveLyricCache(secondSong, { lyric: '[00:01.00]Second song' }, username)).toBe(true)
-          expect(fileCache.saveLyricCache({ ...song, quality: '320k' }, { lyric: '[00:01.00]Other quality' }, username)).toBe(true)
+          expect(
+            fileCache.saveLyricCache({ ...song, quality: '320k' }, { lyric: '[00:01.00]Other quality' }, username),
+          ).toBe(true)
 
           const dir = fileCache.getCacheDir(username)
           const files = fs.readdirSync(dir)
           expect(files).toHaveLength(3)
           expect(files.map(filename => fs.readFileSync(path.join(dir, filename), 'utf8')).sort()).toEqual([
-            '[00:01.00]First song', '[00:01.00]Other quality', '[00:01.00]Second song',
+            '[00:01.00]First song',
+            '[00:01.00]Other quality',
+            '[00:01.00]Second song',
           ])
           for (const filename of files) {
             const basename = path.basename(filename, '.lrc')
@@ -279,10 +301,20 @@ describe('File Cache Path Traversal Defense', () => {
 
           // Adding a same-metadata conflict later must not change the long
           // simple name or create a second lyric for the same song.
-          fileCache.indexManager.update(username, {
-            ...secondSong, id: 'wy_conflicting', songmid: 'conflicting',
-            filename: 'conflict.flac', folder: 'cache', mtime: Date.now(), size: 1, ext: 'flac',
-          }, 'cache')
+          fileCache.indexManager.update(
+            username,
+            {
+              ...secondSong,
+              id: 'wy_conflicting',
+              songmid: 'conflicting',
+              filename: 'conflict.flac',
+              folder: 'cache',
+              mtime: Date.now(),
+              size: 1,
+              ext: 'flac',
+            },
+            'cache',
+          )
           expect(fileCache.saveLyricCache(secondSong, { lyric: '[00:01.00]Second song' }, username)).toBe(true)
           expect(fs.readdirSync(dir).sort()).toEqual(files.sort())
         }
@@ -356,30 +388,37 @@ describe('File Cache Path Traversal Defense', () => {
       const audioFile = path.join(cacheDir, 'song.flac')
       fs.writeFileSync(audioFile, Buffer.from('audio'))
 
-      fileCache.indexManager.update(username, {
-        id: 'wy_111',
-        songmid: '111',
-        name: 'Collision Song',
-        singer: 'Collision Singer',
-        albumName: 'Collision Album',
-        source: 'wy',
-        quality: 'flac',
-        filename: 'song.flac',
-        folder: 'cache',
-        mtime: Date.now(),
-        size: 100,
-        ext: 'flac',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_111',
+          songmid: '111',
+          name: 'Collision Song',
+          singer: 'Collision Singer',
+          albumName: 'Collision Album',
+          source: 'wy',
+          quality: 'flac',
+          filename: 'song.flac',
+          folder: 'cache',
+          mtime: Date.now(),
+          size: 100,
+          ext: 'flac',
+        },
+        'cache',
+      )
 
       // Query with same name, singer, quality but DIFFERENT id/source
-      const res: any = fileCache.checkCache({
-        source: 'tx',
-        songmid: '222',
-        id: 'tx_222',
-        name: 'Collision Song',
-        singer: 'Collision Singer',
-        quality: 'flac',
-      }, username)
+      const res: any = fileCache.checkCache(
+        {
+          source: 'tx',
+          songmid: '222',
+          id: 'tx_222',
+          name: 'Collision Song',
+          singer: 'Collision Singer',
+          quality: 'flac',
+        },
+        username,
+      )
 
       expect(res.exists).toBe(true)
       expect(res.isCollision).toBe(true)
@@ -409,32 +448,39 @@ describe('File Cache Path Traversal Defense', () => {
       const cacheDir = fileCache.getCacheDir(username)
       const filename = 'id-alias-song.flac'
       fs.writeFileSync(path.join(cacheDir, filename), Buffer.from('cached audio'))
-      fileCache.indexManager.update(username, {
-        id: 'wy_canonical-id',
-        songmid: 'wy_canonical-id',
-        name: 'ID Alias Song',
-        singer: 'ID Alias Singer',
-        albumName: 'ID Alias Album',
-        source: 'wy',
-        quality: 'flac',
-        filename,
-        folder: 'cache',
-        mtime: Date.now(),
-        size: 12,
-        ext: 'flac',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_canonical-id',
+          songmid: 'wy_canonical-id',
+          name: 'ID Alias Song',
+          singer: 'ID Alias Singer',
+          albumName: 'ID Alias Album',
+          source: 'wy',
+          quality: 'flac',
+          filename,
+          folder: 'cache',
+          mtime: Date.now(),
+          size: 12,
+          ext: 'flac',
+        },
+        'cache',
+      )
 
-      const result: any = fileCache.checkCache({
-        source: 'wy',
-        songmid: 'not-the-indexed-value',
-        songId: 'canonical-id',
-        id: 'wy_canonical-id',
-        name: 'ID Alias Song',
-        singer: 'ID Alias Singer',
-        albumName: 'ID Alias Album',
-        quality: 'flac',
-        exactQuality: true,
-      }, username)
+      const result: any = fileCache.checkCache(
+        {
+          source: 'wy',
+          songmid: 'not-the-indexed-value',
+          songId: 'canonical-id',
+          id: 'wy_canonical-id',
+          name: 'ID Alias Song',
+          singer: 'ID Alias Singer',
+          albumName: 'ID Alias Album',
+          quality: 'flac',
+          exactQuality: true,
+        },
+        username,
+      )
 
       expect(result.exists).toBe(true)
       expect(result.isCollision).toBeUndefined()
@@ -462,46 +508,56 @@ describe('File Cache Path Traversal Defense', () => {
       const cacheDir = fileCache.getCacheDir(username)
       const filename = 'source-alias-song.flac'
       fs.writeFileSync(path.join(cacheDir, filename), Buffer.from('cached audio'))
-      fileCache.indexManager.update(username, {
-        id: 'wy_indexed-id',
-        songmid: 'wy_indexed-id',
-        name: 'Source Alias Song',
-        singer: 'Source Alias Singer',
-        albumName: 'Source Alias Album',
-        interval: '03:21',
-        source: 'wy',
-        quality: 'flac',
-        filename,
-        folder: 'cache',
-        mtime: Date.now(),
-        size: 12,
-        ext: 'flac',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_indexed-id',
+          songmid: 'wy_indexed-id',
+          name: 'Source Alias Song',
+          singer: 'Source Alias Singer',
+          albumName: 'Source Alias Album',
+          interval: '03:21',
+          source: 'wy',
+          quality: 'flac',
+          filename,
+          folder: 'cache',
+          mtime: Date.now(),
+          size: 12,
+          ext: 'flac',
+        },
+        'cache',
+      )
 
-      const sameSource: any = fileCache.checkCache({
-        source: 'wy',
-        songmid: 'another-id',
-        name: 'Source Alias Song',
-        singer: 'Source Alias Singer',
-        albumName: 'Source Alias Album',
-        interval: '03:21',
-        quality: 'flac',
-        exactQuality: true,
-      }, username)
+      const sameSource: any = fileCache.checkCache(
+        {
+          source: 'wy',
+          songmid: 'another-id',
+          name: 'Source Alias Song',
+          singer: 'Source Alias Singer',
+          albumName: 'Source Alias Album',
+          interval: '03:21',
+          quality: 'flac',
+          exactQuality: true,
+        },
+        username,
+      )
       expect(sameSource.exists).toBe(true)
       expect(sameSource.isCollision).toBe(false)
       expect(sameSource.matchedBy).toBe('metadata')
 
-      const otherSource: any = fileCache.checkCache({
-        source: 'tx',
-        songmid: 'different-source-id',
-        name: 'Source Alias Song',
-        singer: 'Source Alias Singer',
-        albumName: 'Source Alias Album',
-        interval: '03:21',
-        quality: 'flac',
-        exactQuality: true,
-      }, username)
+      const otherSource: any = fileCache.checkCache(
+        {
+          source: 'tx',
+          songmid: 'different-source-id',
+          name: 'Source Alias Song',
+          singer: 'Source Alias Singer',
+          albumName: 'Source Alias Album',
+          interval: '03:21',
+          quality: 'flac',
+          exactQuality: true,
+        },
+        username,
+      )
       expect(otherSource.exists).toBe(true)
       expect(otherSource.isCollision).toBe(true)
     } finally {
@@ -530,37 +586,55 @@ describe('File Cache Path Traversal Defense', () => {
       const rootCacheDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.ROOT)
       const audioPath = path.join(rootCacheDir, filename)
       fs.writeFileSync(audioPath, Buffer.from('cached audio'))
-      fileCache.indexManager.update(username, {
-        id: 'wy_alternate-song',
-        songmid: 'alternate-song',
-        name: 'Alternate Song',
-        singer: 'Alternate Singer',
-        albumName: 'Alternate Album',
-        source: 'wy',
-        quality: 'flac',
-        filename,
-        folder: 'cache',
-        mtime: Date.now(),
-        size: 12,
-        ext: 'mp3',
-      }, 'cache', fileCache.CACHE_ROOTS.ROOT)
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_alternate-song',
+          songmid: 'alternate-song',
+          name: 'Alternate Song',
+          singer: 'Alternate Singer',
+          albumName: 'Alternate Album',
+          source: 'wy',
+          quality: 'flac',
+          filename,
+          folder: 'cache',
+          mtime: Date.now(),
+          size: 12,
+          ext: 'mp3',
+        },
+        'cache',
+        fileCache.CACHE_ROOTS.ROOT,
+      )
 
-      const result: any = fileCache.checkCache({
-        source: 'wy',
-        songmid: 'alternate-song',
-        id: 'alternate-song',
-        name: 'Alternate Song',
-        singer: 'Alternate Singer',
-        quality: 'flac',
-      }, username)
+      const result: any = fileCache.checkCache(
+        {
+          source: 'wy',
+          songmid: 'alternate-song',
+          id: 'alternate-song',
+          name: 'Alternate Song',
+          singer: 'Alternate Singer',
+          quality: 'flac',
+        },
+        username,
+      )
       expect(result.exists).toBe(true)
       expect(result.path).toBe(audioPath)
       expect(result.location).toBe(fileCache.CACHE_ROOTS.ROOT)
 
       expect(fileCache.markCachePlayback(filename, username, 'cache', result.location)).toBe(true)
-      const updated = fileCache.indexManager.get(username, 'wy_alternate-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.ROOT)
+      const updated = fileCache.indexManager.get(
+        username,
+        'wy_alternate-song',
+        'cache',
+        'flac',
+        true,
+        fileCache.CACHE_ROOTS.ROOT,
+      )
       expect(updated?.lastPlayedAt).toBeGreaterThan(0)
-      expect(fileCache.indexManager.get(username, 'wy_alternate-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.DATA)?.lastPlayedAt).toBeUndefined()
+      expect(
+        fileCache.indexManager.get(username, 'wy_alternate-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.DATA)
+          ?.lastPlayedAt,
+      ).toBeUndefined()
     } finally {
       closeDb()
       ;(global as any).lx = previousLx
@@ -585,30 +659,37 @@ describe('File Cache Path Traversal Defense', () => {
       const cacheDir = fileCache.getCacheDir(username)
       const filename = 'empty-song.mp3'
       fs.writeFileSync(path.join(cacheDir, filename), '')
-      fileCache.indexManager.update(username, {
-        id: 'wy_empty-song',
-        songmid: 'empty-song',
-        name: 'Empty Song',
-        singer: 'Empty Singer',
-        albumName: '',
-        source: 'wy',
-        quality: '320k',
-        filename,
-        folder: 'cache',
-        mtime: Date.now(),
-        size: 0,
-        ext: 'mp3',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_empty-song',
+          songmid: 'empty-song',
+          name: 'Empty Song',
+          singer: 'Empty Singer',
+          albumName: '',
+          source: 'wy',
+          quality: '320k',
+          filename,
+          folder: 'cache',
+          mtime: Date.now(),
+          size: 0,
+          ext: 'mp3',
+        },
+        'cache',
+      )
 
-      const result: any = fileCache.checkCache({
-        source: 'wy',
-        songmid: 'empty-song',
-        id: 'empty-song',
-        name: 'Empty Song',
-        singer: 'Empty Singer',
-        quality: '320k',
-        exactQuality: true,
-      }, username)
+      const result: any = fileCache.checkCache(
+        {
+          source: 'wy',
+          songmid: 'empty-song',
+          id: 'empty-song',
+          name: 'Empty Song',
+          singer: 'Empty Singer',
+          quality: '320k',
+          exactQuality: true,
+        },
+        username,
+      )
       expect(result.exists).toBe(false)
       expect(fileCache.indexManager.get(username, 'wy_empty-song', 'cache', '320k', true)).toBeUndefined()
     } finally {
@@ -646,27 +727,34 @@ describe('File Cache Path Traversal Defense', () => {
       const audioPath = path.join(cacheDir, filename)
       fs.writeFileSync(audioPath, Buffer.from('valid-enough-audio'))
       const stats = fs.statSync(audioPath)
-      fileCache.indexManager.update(username, {
-        id: 'wy_processing-song',
-        songmid: 'processing-song',
-        name: songInfo.name,
-        singer: songInfo.singer,
-        albumName: songInfo.albumName,
-        source: songInfo.source,
-        quality: 'flac',
-        filename,
-        folder: 'cache',
-        mtime: stats.mtimeMs,
-        size: stats.size,
-        ext: 'flac',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_processing-song',
+          songmid: 'processing-song',
+          name: songInfo.name,
+          singer: songInfo.singer,
+          albumName: songInfo.albumName,
+          source: songInfo.source,
+          quality: 'flac',
+          filename,
+          folder: 'cache',
+          mtime: stats.mtimeMs,
+          size: stats.size,
+          ext: 'flac',
+        },
+        'cache',
+      )
 
       const progressKey = 'queue:processing-cache-user:test-task'
       unbind = fileCache.bindCacheProgress(username, fileCache.normalizeSongId(songInfo), 'flac', progressKey)
       setCacheProgress(progressKey, { progress: 100, status: 'tagging' })
       expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username).exists).toBe(false)
       expect(fileCache.checkCache({ ...songInfo, quality: '320k', exactQuality: false }, username).exists).toBe(false)
-      expect(fileCache.checkCache({ ...songInfo, exactQuality: true }, username, false, { ignoreActiveProgress: true }).exists).toBe(true)
+      expect(
+        fileCache.checkCache({ ...songInfo, exactQuality: true }, username, false, { ignoreActiveProgress: true })
+          .exists,
+      ).toBe(true)
       expect((await fileCache.switchFolder([filename], username, 'music')).failCount).toBe(1)
       expect((await fileCache.promoteCacheFile(filename, username, 'other-user')).failCount).toBe(1)
 
@@ -757,24 +845,28 @@ describe('File Cache Path Traversal Defense', () => {
       fs.mkdirSync(path.dirname(audioPath), { recursive: true })
       fs.writeFileSync(audioPath, Buffer.from('audio'))
       fs.writeFileSync(path.join(musicDir, 'nested/song.lrc'), '[00:00.00]lyrics')
-      fileCache.indexManager.update('test-user', {
-        id: 'wy_clear-song',
-        songmid: 'wy_clear-song',
-        name: 'Clear Song',
-        singer: 'Test Singer',
-        albumName: 'Test Album',
-        source: 'wy',
-        quality: 'mp3',
-        filename: audioFilename,
-        folder: 'music',
-        mtime: Date.now(),
-        size: 5,
-        ext: 'mp3',
-        hasCover: false,
-        coverType: 'none',
-        hasLyric: true,
-        lyricFilename: 'nested/song.lrc',
-      }, 'music')
+      fileCache.indexManager.update(
+        'test-user',
+        {
+          id: 'wy_clear-song',
+          songmid: 'wy_clear-song',
+          name: 'Clear Song',
+          singer: 'Test Singer',
+          albumName: 'Test Album',
+          source: 'wy',
+          quality: 'mp3',
+          filename: audioFilename,
+          folder: 'music',
+          mtime: Date.now(),
+          size: 5,
+          ext: 'mp3',
+          hasCover: false,
+          coverType: 'none',
+          hasLyric: true,
+          lyricFilename: 'nested/song.lrc',
+        },
+        'music',
+      )
 
       const result = fileCache.clearAllCache('test-user')
       expect(result.deletedCount).toBe(2)
@@ -886,28 +978,35 @@ describe('File Cache Path Traversal Defense', () => {
       fs.writeFileSync(sourceFile, Buffer.from('public-audio'))
       fs.writeFileSync(sourceLyric, '[00:00.00]public lyric')
       const stats = fs.statSync(sourceFile)
-      fileCache.indexManager.update('_open', {
-        id: 'wy_public-song',
-        songmid: 'public-song',
-        name: 'Public Song',
-        singer: 'Public Singer',
-        albumName: 'Public Album',
-        source: 'wy',
-        quality: '128k',
-        filename: 'public-song.mp3',
-        lyricFilename: 'public-song.lrc',
-        folder: 'cache',
-        mtime: stats.mtimeMs,
-        size: stats.size,
-        ext: 'mp3',
-      }, 'cache')
+      fileCache.indexManager.update(
+        '_open',
+        {
+          id: 'wy_public-song',
+          songmid: 'public-song',
+          name: 'Public Song',
+          singer: 'Public Singer',
+          albumName: 'Public Album',
+          source: 'wy',
+          quality: '128k',
+          filename: 'public-song.mp3',
+          lyricFilename: 'public-song.lrc',
+          folder: 'cache',
+          mtime: stats.mtimeMs,
+          size: stats.size,
+          ext: 'mp3',
+        },
+        'cache',
+      )
 
       const result = await fileCache.promoteCacheFile('public-song.mp3', '_open', 'promote-user')
       expect(result.successCount).toBe(1)
       expect(fs.existsSync(sourceFile)).toBe(true)
       expect(fs.existsSync(path.join(fileCache.getCacheDir('promote-user', true), 'public-song.mp3'))).toBe(true)
       expect(fs.existsSync(path.join(fileCache.getCacheDir('promote-user', true), 'public-song.lrc'))).toBe(true)
-      expect(fileCache.indexManager.get('promote-user', 'wy_public-song', 'music', '128k', false, fileCache.CACHE_ROOTS.DATA)?.folder).toBe('music')
+      expect(
+        fileCache.indexManager.get('promote-user', 'wy_public-song', 'music', '128k', false, fileCache.CACHE_ROOTS.DATA)
+          ?.folder,
+      ).toBe('music')
     } finally {
       closeDb()
       ;(global as any).lx = previousLx
@@ -932,34 +1031,49 @@ describe('File Cache Path Traversal Defense', () => {
       const cacheFile = path.join(cacheDir, 'move-song.mp3')
       fs.writeFileSync(cacheFile, Buffer.from('private-audio'))
       const stats = fs.statSync(cacheFile)
-      fileCache.indexManager.update(username, {
-        id: 'wy_move-song',
-        songmid: 'move-song',
-        name: 'Move Song',
-        singer: 'Move Singer',
-        albumName: 'Move Album',
-        source: 'wy',
-        quality: '128k',
-        filename: 'move-song.mp3',
-        folder: 'cache',
-        mtime: stats.mtimeMs,
-        size: stats.size,
-        ext: 'mp3',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_move-song',
+          songmid: 'move-song',
+          name: 'Move Song',
+          singer: 'Move Singer',
+          albumName: 'Move Album',
+          source: 'wy',
+          quality: '128k',
+          filename: 'move-song.mp3',
+          folder: 'cache',
+          mtime: stats.mtimeMs,
+          size: stats.size,
+          ext: 'mp3',
+        },
+        'cache',
+      )
 
-      await fileCache.downloadAndCache({
-        id: 'move-song',
-        songmid: 'move-song',
-        name: 'Move Song',
-        singer: 'Move Singer',
-        albumName: 'Move Album',
-        source: 'wy',
-      }, 'http://127.0.0.1/move-song.mp3', '128k', username, undefined, true)
+      await fileCache.downloadAndCache(
+        {
+          id: 'move-song',
+          songmid: 'move-song',
+          name: 'Move Song',
+          singer: 'Move Singer',
+          albumName: 'Move Album',
+          source: 'wy',
+        },
+        'http://127.0.0.1/move-song.mp3',
+        '128k',
+        username,
+        undefined,
+        true,
+      )
 
       expect(fs.existsSync(cacheFile)).toBe(false)
       expect(fs.existsSync(path.join(fileCache.getCacheDir(username, true), 'move-song.mp3'))).toBe(true)
-      expect(fileCache.indexManager.get(username, 'wy_move-song', 'cache', '128k', true, fileCache.CACHE_ROOTS.DATA)).toBeUndefined()
-      expect(fileCache.indexManager.get(username, 'wy_move-song', 'music', '128k', true, fileCache.CACHE_ROOTS.DATA)?.folder).toBe('music')
+      expect(
+        fileCache.indexManager.get(username, 'wy_move-song', 'cache', '128k', true, fileCache.CACHE_ROOTS.DATA),
+      ).toBeUndefined()
+      expect(
+        fileCache.indexManager.get(username, 'wy_move-song', 'music', '128k', true, fileCache.CACHE_ROOTS.DATA)?.folder,
+      ).toBe('music')
     } finally {
       closeDb()
       ;(global as any).lx = previousLx
@@ -988,20 +1102,37 @@ describe('File Cache Path Traversal Defense', () => {
       const cacheStats = fs.statSync(path.join(cacheDir, filename))
       const musicStats = fs.statSync(path.join(musicDir, filename))
       const item = {
-        id: 'wy_same-song', songmid: 'same-song', name: 'Same Song', singer: 'Same Singer',
-        albumName: 'Same Album', source: 'wy', quality: 'flac', filename, ext: 'mp3',
-        folder: 'cache' as const, mtime: cacheStats.mtimeMs, size: cacheStats.size,
+        id: 'wy_same-song',
+        songmid: 'same-song',
+        name: 'Same Song',
+        singer: 'Same Singer',
+        albumName: 'Same Album',
+        source: 'wy',
+        quality: 'flac',
+        filename,
+        ext: 'mp3',
+        folder: 'cache' as const,
+        mtime: cacheStats.mtimeMs,
+        size: cacheStats.size,
       }
       fileCache.indexManager.update(username, item, 'cache')
-      fileCache.indexManager.update(username, { ...item, folder: 'music', mtime: musicStats.mtimeMs, size: musicStats.size }, 'music')
+      fileCache.indexManager.update(
+        username,
+        { ...item, folder: 'music', mtime: musicStats.mtimeMs, size: musicStats.size },
+        'music',
+      )
 
       const result = await fileCache.switchFolder([filename], username, 'music')
 
       expect(result.successCount).toBe(1)
       expect(fs.existsSync(path.join(cacheDir, filename))).toBe(false)
       expect(fs.readFileSync(path.join(musicDir, filename), 'utf8')).toBe('downloaded')
-      expect(fileCache.indexManager.get(username, 'wy_same-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.DATA)).toBeUndefined()
-      expect(fileCache.indexManager.get(username, 'wy_same-song', 'music', 'flac', true, fileCache.CACHE_ROOTS.DATA)?.folder).toBe('music')
+      expect(
+        fileCache.indexManager.get(username, 'wy_same-song', 'cache', 'flac', true, fileCache.CACHE_ROOTS.DATA),
+      ).toBeUndefined()
+      expect(
+        fileCache.indexManager.get(username, 'wy_same-song', 'music', 'flac', true, fileCache.CACHE_ROOTS.DATA)?.folder,
+      ).toBe('music')
     } finally {
       closeDb()
       ;(global as any).lx = previousLx
@@ -1044,33 +1175,41 @@ describe('File Cache Path Traversal Defense', () => {
 
       fs.writeFileSync(newCacheFile, Buffer.alloc(1500, 3))
 
-      fileCache.indexManager.update(username, {
-        id: 'wy_old',
-        name: 'Old',
-        singer: 'Singer',
-        albumName: 'Album',
-        source: 'wy',
-        quality: '128k',
-        filename: 'old_cache.mp3',
-        folder: 'cache',
-        mtime: past.getTime(),
-        size: 1500,
-        ext: 'mp3',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_old',
+          name: 'Old',
+          singer: 'Singer',
+          albumName: 'Album',
+          source: 'wy',
+          quality: '128k',
+          filename: 'old_cache.mp3',
+          folder: 'cache',
+          mtime: past.getTime(),
+          size: 1500,
+          ext: 'mp3',
+        },
+        'cache',
+      )
 
-      fileCache.indexManager.update(username, {
-        id: 'wy_new',
-        name: 'New',
-        singer: 'Singer',
-        albumName: 'Album',
-        source: 'wy',
-        quality: '128k',
-        filename: 'new_cache.mp3',
-        folder: 'cache',
-        mtime: Date.now(),
-        size: 1500,
-        ext: 'mp3',
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_new',
+          name: 'New',
+          singer: 'Singer',
+          albumName: 'Album',
+          source: 'wy',
+          quality: '128k',
+          filename: 'new_cache.mp3',
+          folder: 'cache',
+          mtime: Date.now(),
+          size: 1500,
+          ext: 'mp3',
+        },
+        'cache',
+      )
 
       // Run cleanup
       await fileCache.checkAndCleanupCache(username)
@@ -1128,17 +1267,25 @@ describe('File Cache Path Traversal Defense', () => {
         size: 600,
         ext: 'mp3',
       }
-      fileCache.indexManager.update(username, {
-        ...baseItem,
-        id: 'wy_recent',
-        filename: 'recently_played.mp3',
-      }, 'cache')
-      fileCache.indexManager.update(username, {
-        ...baseItem,
-        id: 'wy_stale',
-        filename: 'least_recently_played.mp3',
-        lastPlayedAt: Date.now() - 100000,
-      }, 'cache')
+      fileCache.indexManager.update(
+        username,
+        {
+          ...baseItem,
+          id: 'wy_recent',
+          filename: 'recently_played.mp3',
+        },
+        'cache',
+      )
+      fileCache.indexManager.update(
+        username,
+        {
+          ...baseItem,
+          id: 'wy_stale',
+          filename: 'least_recently_played.mp3',
+          lastPlayedAt: Date.now() - 100000,
+        },
+        'cache',
+      )
 
       expect(fileCache.markCachePlayback('recently_played.mp3', username, 'cache')).toBe(true)
 
@@ -1195,16 +1342,34 @@ describe('File Cache Post-processing Limiter', () => {
       const file = path.join(fileCache.getCacheDir('cover-owner'), 'cover-state.mp3')
       fs.writeFileSync(file, Buffer.alloc(128))
       const stats = fs.statSync(file)
-      fileCache.indexManager.update('cover-owner', {
-        id: 'wy_cover-state', name: song.name, singer: song.singer, albumName: '', source: 'wy',
-        quality: '320k', filename: 'cover-state.mp3', folder: 'cache', mtime: stats.mtimeMs,
-        size: stats.size, ext: 'mp3', hasCover: true, coverType: 'embedded', coverCheckedVersion: 5,
-        coverCheckedMtime: stats.mtimeMs, coverCheckedSize: stats.size,
-      }, 'cache')
+      fileCache.indexManager.update(
+        'cover-owner',
+        {
+          id: 'wy_cover-state',
+          name: song.name,
+          singer: song.singer,
+          albumName: '',
+          source: 'wy',
+          quality: '320k',
+          filename: 'cover-state.mp3',
+          folder: 'cache',
+          mtime: stats.mtimeMs,
+          size: stats.size,
+          ext: 'mp3',
+          hasCover: true,
+          coverType: 'embedded',
+          coverCheckedVersion: 5,
+          coverCheckedMtime: stats.mtimeMs,
+          coverCheckedSize: stats.size,
+        },
+        'cache',
+      )
       // The existing validated state must survive without parsing this dummy
       // audio again. A changed file must invalidate that same state.
       await fileCache.downloadAndCache(song, '', '320k', 'cover-owner', undefined, false, false, false)
-      expect(fileCache.indexManager.get('cover-owner', 'wy_cover-state', 'cache', '320k', true)?.coverType).toBe('embedded')
+      expect(fileCache.indexManager.get('cover-owner', 'wy_cover-state', 'cache', '320k', true)?.coverType).toBe(
+        'embedded',
+      )
       fs.writeFileSync(file, Buffer.alloc(129))
       await fileCache.downloadAndCache(song, '', '320k', 'cover-owner', undefined, false, false, false)
       expect(fileCache.indexManager.get('cover-owner', 'wy_cover-state', 'cache', '320k', true)?.coverType).toBe('none')
@@ -1222,9 +1387,15 @@ describe('File Cache Post-processing Limiter', () => {
     const controller = new AbortController()
     let finishLyric!: (value: string) => void
     let lyricStarted!: () => void
-    const started = new Promise<void>(resolve => { lyricStarted = resolve })
-    const lyric = new Promise<string>(resolve => { finishLyric = resolve })
-    const safeUrl = spyOn(networkSecurity, 'assertSafeRemoteHttpUrl').mockResolvedValue(new URL('http://example.com/audio') as any)
+    const started = new Promise<void>(resolve => {
+      lyricStarted = resolve
+    })
+    const lyric = new Promise<string>(resolve => {
+      finishLyric = resolve
+    })
+    const safeUrl = spyOn(networkSecurity, 'assertSafeRemoteHttpUrl').mockResolvedValue(
+      new URL('http://example.com/audio') as any,
+    )
     const request = spyOn(http, 'get').mockImplementation(((_url: any, _options: any, callback: any) => {
       const req = new EventEmitter() as any
       req.setTimeout = () => req
@@ -1249,32 +1420,67 @@ describe('File Cache Post-processing Limiter', () => {
         return lyric
       })
       let settled = false
-      completion = fileCache.downloadAndCache({ source: 'wy', songmid: 'abort-song', name: 'Abort Song', singer: 'Singer' },
-        'http://example.com/audio', '320k', 'abort-user', controller.signal, false, true, false)
-        .then(() => { settled = true; return null }, error => { settled = true; return error })
+      completion = fileCache
+        .downloadAndCache(
+          { source: 'wy', songmid: 'abort-song', name: 'Abort Song', singer: 'Singer' },
+          'http://example.com/audio',
+          '320k',
+          'abort-user',
+          controller.signal,
+          false,
+          true,
+          false,
+        )
+        .then(
+          () => {
+            settled = true
+            return null
+          },
+          error => {
+            settled = true
+            return error
+          },
+        )
       await started
       controller.abort()
       await Bun.sleep(5)
       expect(settled).toBe(false)
       expect(fileCache.getCachePostProcessStats().active).toBe(1)
       finishLyric('[00:00.00]late lyrics')
-      expect((await completion as Error).message).toBe('Aborted')
+      expect(((await completion) as Error).message).toBe('Aborted')
       expect(fileCache.getCachePostProcessStats()).toEqual({ active: 0, waiting: 0 })
       const cacheDir = fileCache.getCacheDir('abort-user', false, undefined, false)
       expect(fs.readdirSync(cacheDir).some(file => file.endsWith('.lrc'))).toBe(false)
 
       let releaseHeld!: () => void
-      const held = fileCache.withCachePostProcess(undefined, 'test held slot', () => new Promise<void>(resolve => { releaseHeld = resolve }))
+      const held = fileCache.withCachePostProcess(
+        undefined,
+        'test held slot',
+        () =>
+          new Promise<void>(resolve => {
+            releaseHeld = resolve
+          }),
+      )
       await Bun.sleep(0)
       const waitingController = new AbortController()
-      const waiting = fileCache.downloadAndCache({ source: 'wy', songmid: 'waiting-song', name: 'Waiting Song', singer: 'Singer' },
-        'http://example.com/audio', '320k', 'abort-user', waitingController.signal, false, false, false).catch(error => error)
+      const waiting = fileCache
+        .downloadAndCache(
+          { source: 'wy', songmid: 'waiting-song', name: 'Waiting Song', singer: 'Singer' },
+          'http://example.com/audio',
+          '320k',
+          'abort-user',
+          waitingController.signal,
+          false,
+          false,
+          false,
+        )
+        .catch(error => error)
       try {
         const deadline = Date.now() + 1000
         while (fileCache.getCachePostProcessStats().waiting === 0 && Date.now() < deadline) await Bun.sleep(2)
         expect(fileCache.getCachePostProcessStats().waiting).toBe(1)
         waitingController.abort()
-        expect((await waiting as Error).message).toBe('Aborted')
+        expect(((await waiting) as Error).message).toBe('Aborted')
         expect(fileCache.getCachePostProcessStats()).toEqual({ active: 1, waiting: 0 })
       } finally {
         releaseHeld()
@@ -1311,14 +1517,15 @@ describe('File Cache Post-processing Limiter', () => {
   it('serializes heavy post-processing and releases the slot after failures', async () => {
     let active = 0
     let maxActive = 0
-    const run = (name: string, shouldFail = false) => fileCache.withCachePostProcess(undefined, name, async () => {
-      active += 1
-      maxActive = Math.max(maxActive, active)
-      await new Promise(resolve => setTimeout(resolve, 10))
-      active -= 1
-      if (shouldFail) throw new Error('expected failure')
-      return name
-    })
+    const run = (name: string, shouldFail = false) =>
+      fileCache.withCachePostProcess(undefined, name, async () => {
+        active += 1
+        maxActive = Math.max(maxActive, active)
+        await new Promise(resolve => setTimeout(resolve, 10))
+        active -= 1
+        if (shouldFail) throw new Error('expected failure')
+        return name
+      })
 
     const results = await Promise.all([run('first'), run('second')])
 
@@ -1338,10 +1545,23 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
       closeDb()
       global.lx = { dataPath: os.tmpdir(), config: {} } as any
       initDatabase(':memory:')
-      fileCache.indexManager.update('oversized-index-user', {
-        id: 'wy_large-index', name: 'x'.repeat(4 * 1024 * 1024), singer: 'Singer', albumName: '', source: 'wy',
-        quality: '320k', filename: 'large.mp3', folder: 'cache', mtime: 1, size: 1, ext: 'mp3',
-      }, 'cache')
+      fileCache.indexManager.update(
+        'oversized-index-user',
+        {
+          id: 'wy_large-index',
+          name: 'x'.repeat(4 * 1024 * 1024),
+          singer: 'Singer',
+          albumName: '',
+          source: 'wy',
+          quality: '320k',
+          filename: 'large.mp3',
+          folder: 'cache',
+          mtime: 1,
+          size: 1,
+          ext: 'mp3',
+        },
+        'cache',
+      )
       const first = fileCache.indexManager.getAll('oversized-index-user', 'cache')
       const second = fileCache.indexManager.getAll('oversized-index-user', 'cache')
       expect(first.length).toBe(1)
@@ -1369,8 +1589,8 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
         dataPath,
         appPath: root,
         config: {
-          users: [{ name: 'user1' }, { name: 'user2' }]
-        }
+          users: [{ name: 'user1' }, { name: 'user2' }],
+        },
       }
       initDatabase(dbPath)
       fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
@@ -1388,7 +1608,9 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
       fs.writeFileSync(path.join(openCacheDir, 'open_cached.flac'), Buffer.alloc(3000))
 
       const retainedStats = fs.statSync(path.join(user1MusicDir, 'downloaded1.mp3'))
-      const retainedHash = createHash('md5').update(`downloaded1.mp3:${retainedStats.size}:${retainedStats.mtimeMs}`).digest('hex')
+      const retainedHash = createHash('md5')
+        .update(`downloaded1.mp3:${retainedStats.size}:${retainedStats.mtimeMs}`)
+        .digest('hex')
       const coverDirs = [path.join(root, 'cover_cache', 'user1'), path.join(dataPath, 'cover_cache', 'user1')]
       for (const coverDir of coverDirs) {
         fs.mkdirSync(coverDir, { recursive: true })

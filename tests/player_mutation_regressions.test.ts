@@ -43,9 +43,18 @@ test.each(['album', 'artist'] as const)('serializes rapid %s saves so the latest
   const method = kind === 'album' ? 'saveLibraryAlbums' : 'saveLibraryArtists'
   const writes: Array<{ items: Song[]; finish: () => void }> = []
   let persisted: Song[] = []
-  const save = spyOn(playerApi, method).mockImplementation(items => new Promise(resolve => {
-    writes.push({ items, finish: () => { persisted = items; resolve({ success: true }) } })
-  }))
+  const save = spyOn(playerApi, method).mockImplementation(
+    items =>
+      new Promise(resolve => {
+        writes.push({
+          items,
+          finish: () => {
+            persisted = items
+            resolve({ success: true })
+          },
+        })
+      }),
+  )
   try {
     useMediaLibraryStore.getState().reset()
     const one = useMediaLibraryStore.getState().toggle(kind, first)
@@ -62,7 +71,9 @@ test.each(['album', 'artist'] as const)('serializes rapid %s saves so the latest
     await two
     expect(persisted.map(item => item.id)).toEqual(['first', 'second'])
     expect(useMediaLibraryStore.getState()[key]).toEqual(persisted)
-  } finally { save.mockRestore() }
+  } finally {
+    save.mockRestore()
+  }
 })
 
 test('a failed media save rolls back before constructing the next queued save', async () => {
@@ -70,23 +81,34 @@ test('a failed media save rolls back before constructing the next queued save', 
     .mockRejectedValueOnce(new Error('保存失败'))
     .mockResolvedValue({ success: true })
   try {
-    const one = useMediaLibraryStore.getState().toggle('album', first).catch(error => error)
+    const one = useMediaLibraryStore
+      .getState()
+      .toggle('album', first)
+      .catch(error => error)
     const two = useMediaLibraryStore.getState().toggle('album', second)
     expect(await one).toBeInstanceOf(Error)
     await two
     expect(save.mock.calls[1]?.[0].map(item => item.id)).toEqual(['second'])
     expect(useMediaLibraryStore.getState().albums.map(item => item.id)).toEqual(['second'])
-  } finally { save.mockRestore() }
+  } finally {
+    save.mockRestore()
+  }
 })
 
 test('reset discards queued media mutations from an old session', async () => {
   let finish: (() => void) | undefined
-  const save = spyOn(playerApi, 'saveLibraryAlbums').mockImplementation(() => new Promise(resolve => {
-    finish = () => resolve({ success: true })
-  }))
+  const save = spyOn(playerApi, 'saveLibraryAlbums').mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = () => resolve({ success: true })
+      }),
+  )
   try {
     const one = useMediaLibraryStore.getState().toggle('album', first)
-    const two = useMediaLibraryStore.getState().toggle('album', second).catch(error => error)
+    const two = useMediaLibraryStore
+      .getState()
+      .toggle('album', second)
+      .catch(error => error)
     await Promise.resolve()
     useMediaLibraryStore.getState().reset()
     finish!()
@@ -94,5 +116,7 @@ test('reset discards queued media mutations from an old session', async () => {
     expect(await two).toBeInstanceOf(Error)
     expect(save).toHaveBeenCalledTimes(1)
     expect(useMediaLibraryStore.getState().albums).toEqual([])
-  } finally { save.mockRestore() }
+  } finally {
+    save.mockRestore()
+  }
 })

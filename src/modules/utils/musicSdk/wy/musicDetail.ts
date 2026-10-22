@@ -59,17 +59,18 @@ export default {
     // console.log(list)
     return list
   },
-  async getList(ids: any= [], retryNum: any= 0) {
+  async getList(ids: any = [], retryNum: any = 0) {
     if (retryNum > 2) return Promise.reject(new Error('try max num'))
 
     const requestObj = httpFetch('https://music.163.com/weapi/v3/song/detail', {
       method: 'post',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
         origin: 'https://music.163.com',
       },
       form: weapi({
-        c: '[' + ids.map((id: any) => ('{"id":' + id + '}')).join(',') + ']',
+        c: '[' + ids.map((id: any) => '{"id":' + id + '}').join(',') + ']',
         ids: '[' + ids.join(',') + ']',
       }),
     })

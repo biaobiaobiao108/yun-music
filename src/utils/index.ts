@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 
-
 export const createDirSync = (path: string) => {
   if (!fs.existsSync(path)) {
     try {

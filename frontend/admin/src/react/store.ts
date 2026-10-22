@@ -1,5 +1,17 @@
 import { create } from 'zustand'
-import { adminApi, login, logout, verifySession, type AdminConfig, type AdminCustomSource, type AdminStatus, type AdminUser, type CustomSourceOwner, type Snapshot, type StorageItem } from './api'
+import {
+  adminApi,
+  login,
+  logout,
+  verifySession,
+  type AdminConfig,
+  type AdminCustomSource,
+  type AdminStatus,
+  type AdminUser,
+  type CustomSourceOwner,
+  type Snapshot,
+  type StorageItem,
+} from './api'
 
 export type AdminView = 'dashboard' | 'users' | 'storage' | 'config' | 'logs' | 'snapshots' | 'sources'
 
@@ -42,7 +54,9 @@ let loadSequence = 0
 let activeLoadController: AbortController | null = null
 
 function isAbortError(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError')
+  return Boolean(
+    error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError',
+  )
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -73,7 +87,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       set({ authenticated: false, checking: false })
     }
   },
-  signIn: async (password) => {
+  signIn: async password => {
     if (!password.trim()) throw new Error('请输入密码')
     set({ busy: true, error: '' })
     try {
@@ -93,13 +107,27 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     loadSequence += 1
     activeLoadController?.abort()
     activeLoadController = null
-    set({ authenticated: false, checking: false, busy: false, users: [], selectedUser: '', status: null, config: null, storage: [], snapshots: [], sources: [], logs: [], error: '', toast: '' })
+    set({
+      authenticated: false,
+      checking: false,
+      busy: false,
+      users: [],
+      selectedUser: '',
+      status: null,
+      config: null,
+      storage: [],
+      snapshots: [],
+      sources: [],
+      logs: [],
+      error: '',
+      toast: '',
+    })
   },
-  setView: (view) => {
+  setView: view => {
     set({ view, error: '' })
     void get().loadView(view)
   },
-  setSelectedUser: (selectedUser) => {
+  setSelectedUser: selectedUser => {
     const view = get().view
     set({
       selectedUser,
@@ -108,16 +136,16 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     })
     if (get().view === 'storage' || get().view === 'snapshots') void get().loadView()
   },
-  setLogType: (logType) => {
+  setLogType: logType => {
     set({ logType })
     if (get().view === 'logs') void get().loadView('logs')
   },
-  setStorageFolder: (storageFolder) => set({ storageFolder }),
-  setSourceOwner: (sourceOwner) => {
+  setStorageFolder: storageFolder => set({ storageFolder }),
+  setSourceOwner: sourceOwner => {
     set({ sourceOwner, sources: [], error: '' })
     if (get().view === 'sources') void get().loadView('sources')
   },
-  loadView: async (requestedView) => {
+  loadView: async requestedView => {
     const view = requestedView ?? get().view
     const sequence = ++loadSequence
     activeLoadController?.abort()
@@ -173,6 +201,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       }
     }
   },
-  notify: (toast) => set({ toast }),
+  notify: toast => set({ toast }),
   clearToast: () => set({ toast: '' }),
 }))

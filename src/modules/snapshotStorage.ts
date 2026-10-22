@@ -24,7 +24,12 @@ export const MAX_SNAPSHOT_TOTAL_BYTES = 50 * 1024 * 1024
 export class SnapshotConflictError extends Error {}
 
 export function assertSnapshotId(name: unknown): asserts name is string {
-  if (typeof name !== 'string' || !name || Buffer.byteLength(name, 'utf8') > MAX_SNAPSHOT_ID_BYTES || /[\u0000-\u001f\u007f]/.test(name)) {
+  if (
+    typeof name !== 'string' ||
+    !name ||
+    Buffer.byteLength(name, 'utf8') > MAX_SNAPSHOT_ID_BYTES ||
+    /[\u0000-\u001f\u007f]/.test(name)
+  ) {
     throw new Error('快照标识无效')
   }
 }
@@ -35,19 +40,24 @@ export function assertSnapshotData(data: unknown): asserts data is string {
   }
 }
 
-const getSnapshotRows = (userName: string, module: string): SnapshotRow[] => getDb().query<SnapshotRow, [string, string]>(
-  // Prune order is "most recently stored", not "newest display timestamp":
-  // an imported backup keeps its old mtime and must not be treated as stale.
-  // Rows migrated from v4 have stored_at backfilled from created_at, so their
-  // previous order is preserved.
-  'SELECT id, size, created_at, stored_at FROM snapshots WHERE user_name = ? AND module = ? ORDER BY stored_at DESC, created_at DESC, id DESC'
-).all(userName, module)
+const getSnapshotRows = (userName: string, module: string): SnapshotRow[] =>
+  getDb()
+    .query<SnapshotRow, [string, string]>(
+      // Prune order is "most recently stored", not "newest display timestamp":
+      // an imported backup keeps its old mtime and must not be treated as stale.
+      // Rows migrated from v4 have stored_at backfilled from created_at, so their
+      // previous order is preserved.
+      'SELECT id, size, created_at, stored_at FROM snapshots WHERE user_name = ? AND module = ? ORDER BY stored_at DESC, created_at DESC, id DESC',
+    )
+    .all(userName, module)
 
 /** Strictly increasing per user/module, so two writes in the same ms still order. */
 const nextStoredAt = (userName: string, module: string): number => {
-  const row = getDb().query<{ value: number | null }, [string, string]>(
-    'SELECT max(stored_at) AS value FROM snapshots WHERE user_name = ? AND module = ?'
-  ).get(userName, module)
+  const row = getDb()
+    .query<{ value: number | null }, [string, string]>(
+      'SELECT max(stored_at) AS value FROM snapshots WHERE user_name = ? AND module = ?',
+    )
+    .get(userName, module)
   return Math.max(Date.now(), (Number(row?.value) || 0) + 1)
 }
 
@@ -70,25 +80,44 @@ export const writeSnapshot = (
   db.transaction(() => {
     // Importing history must not overwrite the only durable copy of live data.
     if (options.prune) {
-      const current = db.query<{ data: string }, [string, string, string]>(
-        'SELECT s.data FROM snapshots s JOIN snapshot_meta m ON s.user_name = m.user_name AND s.module = m.module AND s.id = m.latest_id WHERE s.user_name = ? AND s.module = ? AND s.id = ?'
-      ).get(userName, module, id)
-      if (current && current.data !== data) throw new SnapshotConflictError('不能覆盖当前使用的快照，请更换文件名后上传')
+      const current = db
+        .query<{ data: string }, [string, string, string]>(
+          'SELECT s.data FROM snapshots s JOIN snapshot_meta m ON s.user_name = m.user_name AND s.module = m.module AND s.id = m.latest_id WHERE s.user_name = ? AND s.module = ? AND s.id = ?',
+        )
+        .get(userName, module, id)
+      if (current && current.data !== data)
+        throw new SnapshotConflictError('不能覆盖当前使用的快照，请更换文件名后上传')
     }
     db.run(
       'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at, stored_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, userName, module, data, Buffer.byteLength(data, 'utf8'), createdAt || Date.now(), nextStoredAt(userName, module)],
+      [
+        id,
+        userName,
+        module,
+        data,
+        Buffer.byteLength(data, 'utf8'),
+        createdAt || Date.now(),
+        nextStoredAt(userName, module),
+      ],
     )
     if (!options.prune) return
     pruneSnapshots(userName, module, { protectIds: [id] })
-    const stored = getDb().query<{ id: string }, [string, string, string]>(
-      'SELECT id FROM snapshots WHERE user_name = ? AND module = ? AND id = ?'
-    ).get(userName, module, id)
+    const stored = getDb()
+      .query<{ id: string }, [string, string, string]>(
+        'SELECT id FROM snapshots WHERE user_name = ? AND module = ? AND id = ?',
+      )
+      .get(userName, module, id)
     if (!stored) throw new Error('快照写入后未能在历史中保留，请检查快照数量/容量上限')
   })()
 }
 
-const repairLatestSnapshot = (userName: string, module: string, rows: SnapshotRow[], latestId: string | null | undefined, updatedAt = Date.now()): string | null => {
+const repairLatestSnapshot = (
+  userName: string,
+  module: string,
+  rows: SnapshotRow[],
+  latestId: string | null | undefined,
+  updatedAt = Date.now(),
+): string | null => {
   // Absence of metadata is meaningful: imported history should not become the
   // current snapshot until the caller explicitly sets it.
   if (latestId === undefined) return null
@@ -97,10 +126,12 @@ const repairLatestSnapshot = (userName: string, module: string, rows: SnapshotRo
 
   const db = getDb()
   if (nextLatest) {
-    db.run(
-      'INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)',
-      [userName, module, nextLatest, rows.find(row => row.id === nextLatest)?.created_at || updatedAt],
-    )
+    db.run('INSERT OR REPLACE INTO snapshot_meta (user_name, module, latest_id, updated_at) VALUES (?, ?, ?, ?)', [
+      userName,
+      module,
+      nextLatest,
+      rows.find(row => row.id === nextLatest)?.created_at || updatedAt,
+    ])
   } else {
     db.run('DELETE FROM snapshot_meta WHERE user_name = ? AND module = ?', [userName, module])
   }
@@ -110,9 +141,11 @@ const repairLatestSnapshot = (userName: string, module: string, rows: SnapshotRo
 export const getSnapshotInfo = (userName: string, module: string): SnapshotInfo => {
   const db = getDb()
   const rows = getSnapshotRows(userName, module)
-  const meta = db.query<{ latest_id: string | null; updated_at: number }, [string, string]>(
-    'SELECT latest_id, updated_at FROM snapshot_meta WHERE user_name = ? AND module = ?'
-  ).get(userName, module)
+  const meta = db
+    .query<{ latest_id: string | null; updated_at: number }, [string, string]>(
+      'SELECT latest_id, updated_at FROM snapshot_meta WHERE user_name = ? AND module = ?',
+    )
+    .get(userName, module)
   const latest = repairLatestSnapshot(userName, module, rows, meta?.latest_id, meta?.updated_at)
   return {
     latest,
@@ -135,9 +168,11 @@ export const pruneSnapshots = (
   }
 
   const maxSnapshots = Math.max(1, Math.min(MAX_STORED_SNAPSHOT_COUNT, Math.floor(getMaxSnapshotNum(userName))))
-  const latestMeta = db.query<{ latest_id: string | null }, [string, string]>(
-    'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?'
-  ).get(userName, module)
+  const latestMeta = db
+    .query<{ latest_id: string | null }, [string, string]>(
+      'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?',
+    )
+    .get(userName, module)
   const latestId = latestMeta?.latest_id
 
   const keep = new Set<string>()
@@ -181,16 +216,23 @@ export const pruneSnapshots = (
     }
 
     // Legacy/imported data may contain a stale latest pointer. Repair it after pruning.
-    repairLatestSnapshot(userName, module, rows.filter(row => keep.has(row.id)), latestId)
+    repairLatestSnapshot(
+      userName,
+      module,
+      rows.filter(row => keep.has(row.id)),
+      latestId,
+    )
   })()
 }
 
 export const removeSnapshot = (userName: string, module: string, id: string): void => {
   const db = getDb()
   db.transaction(() => {
-    const meta = db.query<{ latest_id: string | null }, [string, string]>(
-      'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?'
-    ).get(userName, module)
+    const meta = db
+      .query<{ latest_id: string | null }, [string, string]>(
+        'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?',
+      )
+      .get(userName, module)
     if (meta?.latest_id === id) {
       throw new SnapshotConflictError('不能删除当前使用的快照，请先恢复其他快照或保存新的歌单')
     }

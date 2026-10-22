@@ -13,7 +13,10 @@ export const parseConfigFile = (filePath: string): any => {
   }
   const trimmed = content.trim()
   if (trimmed.startsWith('module.exports =') || trimmed.startsWith('module.exports=')) {
-    const raw = trimmed.replace(/^module\.exports\s*=\s*/, '').replace(/;\s*$/, '').trim()
+    const raw = trimmed
+      .replace(/^module\.exports\s*=\s*/, '')
+      .replace(/;\s*$/, '')
+      .trim()
     try {
       return JSON.parse(raw)
     } catch {
@@ -28,5 +31,5 @@ export const parseConfigFile = (filePath: string): any => {
   }
   vm.runInNewContext(content, sandbox, { timeout: 2000 })
   const result = sandbox.module.exports || sandbox.exports
-  return (result && typeof result === 'object' && 'default' in result && result.default) ? result.default : result
+  return result && typeof result === 'object' && 'default' in result && result.default ? result.default : result
 }

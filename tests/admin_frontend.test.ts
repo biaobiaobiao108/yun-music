@@ -26,21 +26,67 @@ describe('React admin frontend', () => {
   it('normalizes persisted song metadata for snapshot exports', () => {
     const data = normalizeAdminData({
       data: {
-        defaultList: [{ id: 7, name: '试听歌曲', singer: '歌手', albumName: '专辑', album: '旧专辑字段', meta: { picUrl: 'https://example.com/cover.jpg', songId: 7 } }],
+        defaultList: [
+          {
+            id: 7,
+            name: '试听歌曲',
+            singer: '歌手',
+            albumName: '专辑',
+            album: '旧专辑字段',
+            meta: { picUrl: 'https://example.com/cover.jpg', songId: 7 },
+          },
+        ],
         loveList: [],
-        userList: [{ id: 12, name: '夜间歌单', list: [{ songmid: 88, title: '另一首歌', artist: '另一位歌手', albumName: '另一张专辑' }] }],
+        userList: [
+          {
+            id: 12,
+            name: '夜间歌单',
+            list: [{ songmid: 88, title: '另一首歌', artist: '另一位歌手', albumName: '另一张专辑' }],
+          },
+        ],
       },
     })
-    expect(data.defaultList?.[0]).toMatchObject({ id: '7', name: '试听歌曲', singer: '歌手', albumName: '专辑', img: 'https://example.com/cover.jpg' })
+    expect(data.defaultList?.[0]).toMatchObject({
+      id: '7',
+      name: '试听歌曲',
+      singer: '歌手',
+      albumName: '专辑',
+      img: 'https://example.com/cover.jpg',
+    })
     expect('album' in (data.defaultList?.[0] ?? {})).toBe(false)
     expect(data.userList?.[0]).toMatchObject({ id: '12', name: '夜间歌单' })
-    expect(data.userList?.[0]?.list[0]).toMatchObject({ id: '88', name: '另一首歌', singer: '另一位歌手', albumName: '另一张专辑' })
+    expect(data.userList?.[0]?.list[0]).toMatchObject({
+      id: '88',
+      name: '另一首歌',
+      singer: '另一位歌手',
+      albumName: '另一张专辑',
+    })
     expect(adminSongId(data.userList?.[0]?.list[0] ?? {}, '0')).toBe('88')
   })
 
   it('normalizes legacy nested duration, format and quality size fields', () => {
-    const data = normalizeAdminData({ loveList: [{ title: '旧歌曲', artist: '旧歌手', meta: { album: { name: '旧专辑' }, interval: '03:21', ext: 'flac', qualitys: [{ type: 'flac', size: '5 MB' }] } }] })
-    expect(data.loveList?.[0]).toMatchObject({ name: '旧歌曲', singer: '旧歌手', albumName: '旧专辑', interval: '03:21', format: 'flac', size: '5 MB' })
+    const data = normalizeAdminData({
+      loveList: [
+        {
+          title: '旧歌曲',
+          artist: '旧歌手',
+          meta: {
+            album: { name: '旧专辑' },
+            interval: '03:21',
+            ext: 'flac',
+            qualitys: [{ type: 'flac', size: '5 MB' }],
+          },
+        },
+      ],
+    })
+    expect(data.loveList?.[0]).toMatchObject({
+      name: '旧歌曲',
+      singer: '旧歌手',
+      albumName: '旧专辑',
+      interval: '03:21',
+      format: 'flac',
+      size: '5 MB',
+    })
   })
 
   it('publishes a minimal shell with a hashed React module entry', () => {
@@ -60,7 +106,16 @@ describe('React admin frontend', () => {
     const sources = [entry, store, customSources, views, read('frontend/admin/src/react/components.tsx')].join('\n')
     expect(entry).toContain('createRoot')
     expect(entry).toContain('LoginGate')
-    for (const view of ['DashboardView', 'UsersView', 'StorageView', 'ConfigView', 'LogsView', 'SnapshotsView', 'CustomSourcesView']) expect(sources).toContain(view)
+    for (const view of [
+      'DashboardView',
+      'UsersView',
+      'StorageView',
+      'ConfigView',
+      'LogsView',
+      'SnapshotsView',
+      'CustomSourcesView',
+    ])
+      expect(sources).toContain(view)
     expect(entry).not.toContain('DataView')
     expect(store).toContain("from 'zustand'")
     expect(sources).toContain('<dialog')
@@ -160,7 +215,7 @@ describe('React admin frontend', () => {
     const playerCss = read('frontend/styles/player.css')
     expect(adminEntry).toContain('toastPhase')
     expect(adminEntry).not.toContain('toast-close')
-    expect(playerEntry).toContain("const [phase, setPhase]")
+    expect(playerEntry).toContain('const [phase, setPhase]')
     expect(playerEntry).not.toContain('react-toast-close')
     expect(adminCss).toContain('border: 0;')
     expect(playerCss).toContain('backdrop-filter: none')

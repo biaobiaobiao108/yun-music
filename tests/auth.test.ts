@@ -19,7 +19,7 @@ const { verifyAdminAuth, createAdminSession, ADMIN_SESSION_COOKIE_NAME } = await
 
 describe('Admin Authentication Security (verifyAdminAuth)', () => {
   beforeEach(() => {
-    (global as any).lx.config['frontend.password'] = 'secure123'
+    ;(global as any).lx.config['frontend.password'] = 'secure123'
   })
 
   it('should allow access when a valid HttpOnly session cookie is present', () => {
@@ -48,7 +48,7 @@ describe('Admin Authentication Security (verifyAdminAuth)', () => {
   })
 
   it('should deny access when configured password is empty or not set (prevents empty bypass)', () => {
-    (global as any).lx.config['frontend.password'] = ''
+    ;(global as any).lx.config['frontend.password'] = ''
     const mockReq1 = {
       headers: { 'x-frontend-auth': '' },
     } as any
@@ -74,6 +74,8 @@ describe('Admin Authentication Security (verifyAdminAuth)', () => {
 
   afterAll(() => {
     closeDb()
-    try { fs.rmSync(testDataDir, { recursive: true, force: true }) } catch { }
+    try {
+      fs.rmSync(testDataDir, { recursive: true, force: true })
+    } catch {}
   })
 })

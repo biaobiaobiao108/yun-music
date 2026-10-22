@@ -20,36 +20,37 @@ type ScryptJob = { start: () => void }
 let activeScryptJobs = 0
 const queuedScryptJobs: ScryptJob[] = []
 
-const runScrypt = (password: string, salt: string): Promise<Buffer> => new Promise((resolve, reject) => {
-  const start = () => {
-    activeScryptJobs++
-    const finish = () => {
-      activeScryptJobs--
-      queuedScryptJobs.shift()?.start()
-    }
+const runScrypt = (password: string, salt: string): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    const start = () => {
+      activeScryptJobs++
+      const finish = () => {
+        activeScryptJobs--
+        queuedScryptJobs.shift()?.start()
+      }
 
-    try {
-      crypto.scrypt(password, salt, 64, (error, key) => {
-        if (error) reject(error)
-        else resolve(Buffer.from(key))
+      try {
+        crypto.scrypt(password, salt, 64, (error, key) => {
+          if (error) reject(error)
+          else resolve(Buffer.from(key))
+          finish()
+        })
+      } catch (error) {
+        reject(error)
         finish()
-      })
-    } catch (error) {
-      reject(error)
-      finish()
+      }
     }
-  }
 
-  if (activeScryptJobs < PASSWORD_HASH_MAX_CONCURRENT) {
-    start()
-    return
-  }
-  if (queuedScryptJobs.length >= PASSWORD_HASH_MAX_QUEUED) {
-    reject(new PasswordHashCapacityError())
-    return
-  }
-  queuedScryptJobs.push({ start })
-})
+    if (activeScryptJobs < PASSWORD_HASH_MAX_CONCURRENT) {
+      start()
+      return
+    }
+    if (queuedScryptJobs.length >= PASSWORD_HASH_MAX_QUEUED) {
+      reject(new PasswordHashCapacityError())
+      return
+    }
+    queuedScryptJobs.push({ start })
+  })
 
 /** 使用原生异步 scrypt 保存密码，避免密码计算阻塞服务事件循环。 */
 export const hashPassword = async (password: string): Promise<string> => {
@@ -61,9 +62,8 @@ export const hashPassword = async (password: string): Promise<string> => {
   return `${PASSWORD_HASH_PREFIX}${salt}$${digest}`
 }
 
-export const isPasswordHash = (value: unknown): value is string => (
+export const isPasswordHash = (value: unknown): value is string =>
   typeof value === 'string' && PASSWORD_HASH_PATTERN.test(value)
-)
 
 export const verifyPasswordHash = async (passwordHash: string | undefined, password: unknown): Promise<boolean> => {
   if (!isPasswordHash(passwordHash) || typeof password !== 'string' || password.length > 1024) return false

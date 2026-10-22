@@ -28,7 +28,8 @@ export const readContainerMemoryLimit = (readText: (filename: string) => string)
     for (const line of readText('/proc/self/cgroup').split('\n')) {
       const match = /^\d+:([^:]*):(\/.*)$/.exec(line)
       if (!match) continue
-      const root = match[1] === '' ? '/sys/fs/cgroup' : match[1]!.split(',').includes('memory') ? '/sys/fs/cgroup/memory' : null
+      const root =
+        match[1] === '' ? '/sys/fs/cgroup' : match[1]!.split(',').includes('memory') ? '/sys/fs/cgroup/memory' : null
       if (!root) continue
       let directory = path.posix.resolve(root, `.${match[2]}`)
       if (directory !== root && !directory.startsWith(`${root}/`)) continue
@@ -39,13 +40,13 @@ export const readContainerMemoryLimit = (readText: (filename: string) => string)
         directory = path.posix.dirname(directory)
       }
     }
-  } catch { }
+  } catch {}
   const limits: number[] = []
   for (const filename of candidates) {
     try {
       const limit = parseCgroupMemoryLimit(readText(filename))
       if (limit !== undefined) limits.push(limit)
-    } catch { }
+    } catch {}
   }
   return limits.length ? Math.min(...limits) : undefined
 }
@@ -77,22 +78,29 @@ export const getProcessMemorySnapshot = (): MemorySnapshot => {
   const { rss, heapUsed, external } = process.memoryUsage()
   let swap = 0
   if (process.platform === 'linux') {
-    try { swap = parseProcessSwapBytes(fs.readFileSync('/proc/self/status', 'utf8')) } catch { }
+    try {
+      swap = parseProcessSwapBytes(fs.readFileSync('/proc/self/status', 'utf8'))
+    } catch {}
   }
   const containerMemoryLimit = getContainerMemoryLimit()
-  const pressureLimit = containerMemoryLimit === undefined ? MEMORY_PRESSURE_BYTES : Math.min(MEMORY_PRESSURE_BYTES, containerMemoryLimit * .7)
+  const pressureLimit =
+    containerMemoryLimit === undefined
+      ? MEMORY_PRESSURE_BYTES
+      : Math.min(MEMORY_PRESSURE_BYTES, containerMemoryLimit * 0.7)
   return { rss, heapUsed, external, swap, footprint: rss + swap, pressureLimit, containerMemoryLimit }
 }
 
-export const createMemoryMaintenance = (options: {
-  sample?: () => MemorySnapshot
-  collect?: () => void
-  intervalMs?: number
-  delayMs?: number
-  maxIntervalMs?: number
-  isBusy?: () => boolean
-  now?: () => number
-} = {}) => {
+export const createMemoryMaintenance = (
+  options: {
+    sample?: () => MemorySnapshot
+    collect?: () => void
+    intervalMs?: number
+    delayMs?: number
+    maxIntervalMs?: number
+    isBusy?: () => boolean
+    now?: () => number
+  } = {},
+) => {
   const sample = options.sample || getProcessMemorySnapshot
   const collect = options.collect || (() => Bun.gc(true))
   const intervalMs = options.intervalMs ?? MEMORY_CHECK_INTERVAL_MS
@@ -119,21 +127,25 @@ export const createMemoryMaintenance = (options: {
         const before = sample()
         const limit = before.pressureLimit ?? MEMORY_PRESSURE_BYTES
         const managedBytes = before.heapUsed + before.external
-        const minManagedBytes = Math.min(32 * MIB, limit * .125)
+        const minManagedBytes = Math.min(32 * MIB, limit * 0.125)
         // footprint can expose swapped process pages on NAS hosts, but it is
         // only an advisory signal. Native allocations alone do not justify GC.
         if (Math.max(before.rss, before.footprint) < limit || managedBytes < minManagedBytes) return
-        const growing = afterCollectionBytes !== undefined && managedBytes - afterCollectionBytes >= Math.max(16 * MIB, afterCollectionBytes * .25)
+        const growing =
+          afterCollectionBytes !== undefined &&
+          managedBytes - afterCollectionBytes >= Math.max(16 * MIB, afterCollectionBytes * 0.25)
         if (now() - lastCollection < (growing ? intervalMs : cooldownMs)) return
         collect()
         lastCollection = now()
         const after = sample()
         afterCollectionBytes = after.heapUsed + after.external
         const reclaimed = Math.max(0, managedBytes - afterCollectionBytes)
-        const useful = reclaimed >= 8 * MIB || reclaimed >= managedBytes * .05
+        const useful = reclaimed >= 8 * MIB || reclaimed >= managedBytes * 0.05
         cooldownMs = useful ? intervalMs : Math.min(maxIntervalMs, cooldownMs * 2)
         const mib = (bytes: number) => (bytes / MIB).toFixed(1)
-        console.log(`[Memory] ${stage}: gc rss=${mib(before.rss)}->${mib(after.rss)}MiB swap=${mib(before.swap)}->${mib(after.swap)}MiB heap=${mib(before.heapUsed)}->${mib(after.heapUsed)}MiB external=${mib(before.external)}->${mib(after.external)}MiB reclaimed=${mib(reclaimed)}MiB cooldown=${cooldownMs}ms`)
+        console.log(
+          `[Memory] ${stage}: gc rss=${mib(before.rss)}->${mib(after.rss)}MiB swap=${mib(before.swap)}->${mib(after.swap)}MiB heap=${mib(before.heapUsed)}->${mib(after.heapUsed)}MiB external=${mib(before.external)}->${mib(after.external)}MiB reclaimed=${mib(reclaimed)}MiB cooldown=${cooldownMs}ms`,
+        )
       } catch (error) {
         lastCollection = now()
         cooldownMs = Math.min(maxIntervalMs, cooldownMs * 2)
@@ -150,7 +162,9 @@ export const createMemoryMaintenance = (options: {
       // Bursts of chunks and downloads share one check, including on idle exit.
       arm(stage, Math.max(delayMs, intervalMs - (now() - lastCheck)))
     },
-    setBusyCheck(check: () => boolean): void { isBusy = check },
+    setBusyCheck(check: () => boolean): void {
+      isBusy = check
+    },
     cancel(): void {
       if (timer) clearTimeout(timer)
       timer = null

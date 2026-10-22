@@ -7,7 +7,8 @@ import { acquireBufferedRequestBudget, type BufferedRequestLease } from '@/serve
 
 const httpsRxp = /^https:/
 const defaultHeaders: Record<string, string> = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
 }
 
 export interface HttpOptions extends Record<string, any> {
@@ -41,18 +42,17 @@ type ResponseLike = {
 
 type FetchResponse = ResponseLike & { body: any }
 
-const hasHeader = (headers: Record<string, string>, name: string): boolean => (
+const hasHeader = (headers: Record<string, string>, name: string): boolean =>
   Object.keys(headers).some(key => key.toLowerCase() === name.toLowerCase())
-)
 
-const isBodyObject = (value: unknown): value is Record<string, unknown> => (
-  !!value && typeof value === 'object' &&
+const isBodyObject = (value: unknown): value is Record<string, unknown> =>
+  !!value &&
+  typeof value === 'object' &&
   !(value instanceof ArrayBuffer) &&
   !(value instanceof Uint8Array) &&
   !(value instanceof Blob) &&
   !(value instanceof URLSearchParams) &&
   !(value instanceof FormData)
-)
 
 const toFormBody = (value: Record<string, unknown>): URLSearchParams => {
   const params = new URLSearchParams()
@@ -91,7 +91,9 @@ const getConfiguredProxy = (url: string): string | undefined => {
 
 const collectHeaders = (headers: Headers): Record<string, string> => {
   const result: Record<string, string> = {}
-  headers.forEach((value, key) => { result[key.toLowerCase()] = value })
+  headers.forEach((value, key) => {
+    result[key.toLowerCase()] = value
+  })
   return result
 }
 
@@ -104,7 +106,12 @@ const parseBody = (raw: Buffer): any => {
   }
 }
 
-const createResponse = (statusCode: number, statusMessage: string, headers: Record<string, string>, raw: Buffer): FetchResponse => ({
+const createResponse = (
+  statusCode: number,
+  statusMessage: string,
+  headers: Record<string, string>,
+  raw: Buffer,
+): FetchResponse => ({
   statusCode,
   statusMessage,
   headers,
@@ -124,9 +131,7 @@ const normalizeMaxResponseBytes = (value: unknown): number => {
 
 const normalizeTimeout = (value: unknown): number => {
   const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.min(Math.floor(parsed), 5 * 60 * 1000)
-    : 15_000
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), 5 * 60 * 1000) : 15_000
 }
 
 const readResponseBody = async (response: Response, maxBytes: number): Promise<Buffer> => {
@@ -170,7 +175,9 @@ const requestThroughSocks = async (
   const agent = new SocksProxyAgent(proxyAddress)
   const requestModule = target.protocol === 'https:' ? httpsModule : httpModule
   const headers: Record<string, string> = {}
-  new Headers(options.headers).forEach((value, key) => { headers[key] = value })
+  new Headers(options.headers).forEach((value, key) => {
+    headers[key] = value
+  })
 
   return await new Promise<FetchResponse>((resolve, reject) => {
     let settled = false
@@ -181,51 +188,78 @@ const requestThroughSocks = async (
       callback()
     }
     const fail = (error: unknown) => finish(() => reject(error))
-    const request = requestModule.request({
-      protocol: target.protocol,
-      hostname: target.hostname.replace(/^\[|\]$/g, ''),
-      port: target.port || undefined,
-      path: `${target.pathname}${target.search}`,
-      method: options.method,
-      headers,
-      agent,
-    }, response => {
-      if (String(options.method).toUpperCase() === 'HEAD' || [204, 205, 304].includes(response.statusCode || 0)) {
-        response.on('error', fail)
-        response.resume()
-        finish(() => resolve(createResponse(response.statusCode || 0, response.statusMessage || '',
-          Object.fromEntries(Object.entries(response.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value ?? '')])), Buffer.alloc(0))))
-        return
-      }
-      const declaredLength = Number(response.headers['content-length'] || 0)
-      if (declaredLength > maxBytes) {
-        response.resume()
-        request.destroy()
-        fail(new Error('Remote response is too large'))
-        return
-      }
-      const chunks: Buffer[] = []
-      let received = 0
-      response.on('data', chunk => {
-        const buffer = Buffer.from(chunk)
-        received += buffer.byteLength
-        if (received > maxBytes) {
-          response.destroy()
+    const request = requestModule.request(
+      {
+        protocol: target.protocol,
+        hostname: target.hostname.replace(/^\[|\]$/g, ''),
+        port: target.port || undefined,
+        path: `${target.pathname}${target.search}`,
+        method: options.method,
+        headers,
+        agent,
+      },
+      response => {
+        if (String(options.method).toUpperCase() === 'HEAD' || [204, 205, 304].includes(response.statusCode || 0)) {
+          response.on('error', fail)
+          response.resume()
+          finish(() =>
+            resolve(
+              createResponse(
+                response.statusCode || 0,
+                response.statusMessage || '',
+                Object.fromEntries(
+                  Object.entries(response.headers).map(([key, value]) => [
+                    key,
+                    Array.isArray(value) ? value.join(', ') : String(value ?? ''),
+                  ]),
+                ),
+                Buffer.alloc(0),
+              ),
+            ),
+          )
+          return
+        }
+        const declaredLength = Number(response.headers['content-length'] || 0)
+        if (declaredLength > maxBytes) {
+          response.resume()
           request.destroy()
           fail(new Error('Remote response is too large'))
           return
         }
-        chunks.push(buffer)
-      })
-      response.on('end', () => finish(() => resolve(createResponse(
-          response.statusCode || 0,
-          response.statusMessage || '',
-          Object.fromEntries(Object.entries(response.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value ?? '')])),
-          Buffer.concat(chunks),
-        ))))
-      response.on('aborted', () => fail(new Error('Remote response aborted')))
-      response.on('error', fail)
-    })
+        const chunks: Buffer[] = []
+        let received = 0
+        response.on('data', chunk => {
+          const buffer = Buffer.from(chunk)
+          received += buffer.byteLength
+          if (received > maxBytes) {
+            response.destroy()
+            request.destroy()
+            fail(new Error('Remote response is too large'))
+            return
+          }
+          chunks.push(buffer)
+        })
+        response.on('end', () =>
+          finish(() =>
+            resolve(
+              createResponse(
+                response.statusCode || 0,
+                response.statusMessage || '',
+                Object.fromEntries(
+                  Object.entries(response.headers).map(([key, value]) => [
+                    key,
+                    Array.isArray(value) ? value.join(', ') : String(value ?? ''),
+                  ]),
+                ),
+                Buffer.concat(chunks),
+              ),
+            ),
+          ),
+        )
+        response.on('aborted', () => fail(new Error('Remote response aborted')))
+        response.on('error', fail)
+      },
+    )
 
     const abort = () => {
       request.destroy(new Error(requestMsg.cancelRequest))
@@ -236,11 +270,12 @@ const requestThroughSocks = async (
     request.on('error', fail)
 
     if (options.body != null) {
-      const body = options.body instanceof URLSearchParams
-        ? options.body.toString()
-        : options.body instanceof Uint8Array
-          ? Buffer.from(options.body)
-          : options.body
+      const body =
+        options.body instanceof URLSearchParams
+          ? options.body.toString()
+          : options.body instanceof Uint8Array
+            ? Buffer.from(options.body)
+            : options.body
       request.write(body)
     }
     request.end()
@@ -264,7 +299,12 @@ const fetchResponse = async (
   }
   const response = await fetch(url, fetchOptions)
   const noBody = String(options.method).toUpperCase() === 'HEAD' || [204, 205, 304].includes(response.status)
-  return createResponse(response.status, response.statusText, collectHeaders(response.headers), noBody ? Buffer.alloc(0) : await readResponseBody(response, maxBytes))
+  return createResponse(
+    response.status,
+    response.statusText,
+    collectHeaders(response.headers),
+    noBody ? Buffer.alloc(0) : await readResponseBody(response, maxBytes),
+  )
 }
 
 const buildBody = (options: HttpOptions, headers: Record<string, string>): BodyInit | undefined => {
@@ -302,7 +342,11 @@ const fetchData = async (
 
     const v1 = '2050201'
     const v2 = '10'
-    const v = v1.split('-')[0].split('.').map(n => (n.length < 3 ? n.padStart(3, '0') : n)).join('')
+    const v = v1
+      .split('-')[0]
+      .split('.')
+      .map(n => (n.length < 3 ? n.padStart(3, '0') : n))
+      .join('')
     const payload = Buffer.from(JSON.stringify(`${path}${v}`.match(/(?:\d\w)+/g), null, 1).concat(v)).toString('base64')
     requestHeaders[s] = `${Buffer.from(Bun.deflateSync(Buffer.from(payload))).toString('hex')}&${parseInt(v, 10)}${v2}`
     delete requestHeaders[bHh]
@@ -318,14 +362,22 @@ const fetchData = async (
   try {
     timeoutHandle = setTimeout(() => controller.abort(), timeoutMs)
     timeoutHandle.unref?.()
-    budgetLease = await acquireBufferedRequestBudget(normalizedMethod === 'HEAD' ? 1024 : responseLimit, controller.signal)
-    const response = await fetchResponse(url, {
-      method: normalizedMethod,
-      headers: requestHeaders,
-      body,
-      signal: controller.signal,
-      redirect: 'follow',
-    }, controller, Math.min(responseLimit, budgetLease.maxBytes))
+    budgetLease = await acquireBufferedRequestBudget(
+      normalizedMethod === 'HEAD' ? 1024 : responseLimit,
+      controller.signal,
+    )
+    const response = await fetchResponse(
+      url,
+      {
+        method: normalizedMethod,
+        headers: requestHeaders,
+        body,
+        signal: controller.signal,
+        redirect: 'follow',
+      },
+      controller,
+      Math.min(responseLimit, budgetLease.maxBytes),
+    )
     callbackStarted = true
     callback(null, response, response.body)
     return response
@@ -357,17 +409,25 @@ const buildHttpPromise = <T = any>(url: string, options: HttpOptions): HttpPromi
   obj.promise = new Promise<T>((resolve, reject) => {
     obj.cancelFn = reject
     if (debugRequest) console.log(`\n---send request------${url}------------`)
-    void fetchData(url, options.method || 'get', options, (err, _resp, body) => {
-      if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
-      if (err) {
-        reject(err)
-        return
-      }
-      resolve(_resp as T)
-    }, controller).catch(() => undefined).finally(() => {
-      obj.requestObj = null
-      obj.cancelFn = null
-    })
+    void fetchData(
+      url,
+      options.method || 'get',
+      options,
+      (err, _resp, body) => {
+        if (debugRequest) console.log(`\n---response------${url}------------\n`, body)
+        if (err) {
+          reject(err)
+          return
+        }
+        resolve(_resp as T)
+      },
+      controller,
+    )
+      .catch(() => undefined)
+      .finally(() => {
+        obj.requestObj = null
+        obj.cancelFn = null
+      })
   })
   return obj
 }
@@ -409,7 +469,11 @@ export const http = (url: string, options: any, cb?: (err: any, resp: any, body:
   })
 }
 
-export const httpGet = (url: string, options: any, callback?: (err: any, resp: any, body: any) => void): Promise<any> => {
+export const httpGet = (
+  url: string,
+  options: any,
+  callback?: (err: any, resp: any, body: any) => void,
+): Promise<any> => {
   if (typeof options === 'function') {
     callback = options
     options = {}
@@ -418,7 +482,12 @@ export const httpGet = (url: string, options: any, callback?: (err: any, resp: a
   return http(url, { ...options, method: 'get' }, callback)
 }
 
-export const httpPost = (url: string, data: any, options: any, callback?: (err: any, resp: any, body: any) => void): Promise<any> => {
+export const httpPost = (
+  url: string,
+  data: any,
+  options: any,
+  callback?: (err: any, resp: any, body: any) => void,
+): Promise<any> => {
   if (typeof options === 'function') {
     callback = options
     options = {}
@@ -427,7 +496,11 @@ export const httpPost = (url: string, data: any, options: any, callback?: (err: 
   return http(url, { ...options, method: 'post', data }, callback)
 }
 
-export const http_jsonp = (url: string, options: any, callback?: (err: any, resp: any, body: any) => void): Promise<any> => {
+export const http_jsonp = (
+  url: string,
+  options: any,
+  callback?: (err: any, resp: any, body: any) => void,
+): Promise<any> => {
   if (typeof options === 'function') {
     callback = options
     options = {}
@@ -438,14 +511,17 @@ export const http_jsonp = (url: string, options: any, callback?: (err: any, resp
   const jsonpUrl = `${url}${separator}${options.jsonpCallback || 'callback'}=${jsonpCallback}`
   return http(jsonpUrl, { ...options, method: 'get' }, (err, resp, body) => {
     if (!err && typeof body === 'string') {
-      try { body = JSON.parse(body.replace(new RegExp(`^${jsonpCallback}\\(({.*})\\)$`), '$1')) } catch { }
+      try {
+        body = JSON.parse(body.replace(new RegExp(`^${jsonpCallback}\\(({.*})\\)$`), '$1'))
+      } catch {}
     }
     callback?.(err, resp, body)
   })
 }
 
-export const checkUrl = (url: string, options: HttpOptions = {}): Promise<void> => (
-  fetchData(url, 'head', options, () => {}).then(resp => {
-    if (resp.statusCode !== 200) throw new Error(resp.statusCode.toString() || 'Request failed')
-  }).then(() => undefined)
-)
+export const checkUrl = (url: string, options: HttpOptions = {}): Promise<void> =>
+  fetchData(url, 'head', options, () => {})
+    .then(resp => {
+      if (resp.statusCode !== 200) throw new Error(resp.statusCode.toString() || 'Request failed')
+    })
+    .then(() => undefined)

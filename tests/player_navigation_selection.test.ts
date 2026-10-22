@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { getSidebarActiveTab, parsePlayerHash, serializePlayerHash, VALID_PLAYER_TABS } from '../frontend/player/src/react/route_state'
+import {
+  getSidebarActiveTab,
+  parsePlayerHash,
+  serializePlayerHash,
+  VALID_PLAYER_TABS,
+} from '../frontend/player/src/react/route_state'
 import { usePlayerUiStore } from '../frontend/player/src/react/store/ui'
 
 const initialUi = usePlayerUiStore.getState()

@@ -46,9 +46,8 @@ const getSecret = (): Buffer => {
   return secret
 }
 
-const sign = (url: string, expires: number): string => createHmac('sha256', getSecret())
-  .update(`${expires}\n${url}`)
-  .digest('base64url')
+const sign = (url: string, expires: number): string =>
+  createHmac('sha256', getSecret()).update(`${expires}\n${url}`).digest('base64url')
 
 export const issueDownloadToken = (url: string): string => {
   const expires = Date.now() + TOKEN_TTL_MS

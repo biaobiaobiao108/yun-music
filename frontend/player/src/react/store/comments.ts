@@ -9,7 +9,9 @@ export function normalizeComments(payload: unknown): { items: CommentItem[]; tot
   if (Array.isArray(payload)) return { items: payload as CommentItem[], total: payload.length, maxPage: 1 }
   if (!payload || typeof payload !== 'object') return { items: [], total: 0, maxPage: 1 }
   const record = payload as Record<string, unknown>
-  const items = (['comments', 'list', 'data', 'hotComments', 'newComments'].map(key => record[key]).find(value => Array.isArray(value)) ?? []) as CommentItem[]
+  const items = (['comments', 'list', 'data', 'hotComments', 'newComments']
+    .map(key => record[key])
+    .find(value => Array.isArray(value)) ?? []) as CommentItem[]
   const total = Math.max(items.length, Number(record.total ?? record.totalCount ?? record.commentCount ?? 0) || 0)
   const maxPage = Math.max(1, Number(record.maxPage ?? record.totalPages ?? Math.ceil(total / 20)) || 1)
   return { items, total, maxPage }
@@ -52,7 +54,8 @@ export const useCommentStore = create<CommentState>((set, get) => ({
       const result = normalizeComments(await playerApi.comments(song, type, page, 20, controller.signal))
       if (!controller.signal.aborted) set({ items: result.items, total: result.total, maxPage: result.maxPage })
     } catch (error) {
-      if (!controller.signal.aborted && !isAbortError(error)) set({ items: [], error: error instanceof Error ? error.message : '评论加载失败' })
+      if (!controller.signal.aborted && !isAbortError(error))
+        set({ items: [], error: error instanceof Error ? error.message : '评论加载失败' })
     } finally {
       if (commentController === controller) {
         commentController = null

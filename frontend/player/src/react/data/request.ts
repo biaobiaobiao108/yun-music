@@ -9,11 +9,12 @@ export type RequestPolicy = {
 
 export type RequestPriority = 'high' | 'low' | 'auto'
 
-export type PlayerRequestInit = RequestInit & RequestPolicy & {
-  fetcher?: typeof fetch
-  /** Progressive enhancement; unsupported browsers ignore the extra option. */
-  priority?: RequestPriority
-}
+export type PlayerRequestInit = RequestInit &
+  RequestPolicy & {
+    fetcher?: typeof fetch
+    /** Progressive enhancement; unsupported browsers ignore the extra option. */
+    priority?: RequestPriority
+  }
 
 export class ApiRequestError extends Error {
   readonly status: number
@@ -50,7 +51,9 @@ function abortError(): DOMException {
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException
     ? error.name === 'AbortError'
-    : Boolean(error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError')
+    : Boolean(
+        error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError',
+      )
 }
 
 function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -63,8 +66,14 @@ function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
     }
     signal.addEventListener('abort', onAbort, { once: true })
     promise.then(
-      value => { signal.removeEventListener('abort', onAbort); resolve(value) },
-      error => { signal.removeEventListener('abort', onAbort); reject(error) },
+      value => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      error => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
     )
   })
 }
@@ -153,17 +162,27 @@ export async function requestJson<T>(input: RequestInfo | URL, init: PlayerReque
   })()
 
   if (requestCacheKey) {
-    const pending: PendingRequest = { promise: request, controller: requestController as AbortController, consumers: 0, settled: false }
+    const pending: PendingRequest = {
+      promise: request,
+      controller: requestController as AbortController,
+      consumers: 0,
+      settled: false,
+    }
     inFlight.set(requestCacheKey, pending)
-    void request.then(value => {
-      // Invalidated or superseded requests may finish even if fetch ignores abort.
-      if (inFlight.get(requestCacheKey) === pending && !pending.controller.signal.aborted) {
-        cacheValue(requestCacheKey, value, cacheTtlMs)
-      }
-    }, () => undefined).finally(() => {
-      pending.settled = true
-      if (inFlight.get(requestCacheKey) === pending) inFlight.delete(requestCacheKey)
-    })
+    void request
+      .then(
+        value => {
+          // Invalidated or superseded requests may finish even if fetch ignores abort.
+          if (inFlight.get(requestCacheKey) === pending && !pending.controller.signal.aborted) {
+            cacheValue(requestCacheKey, value, cacheTtlMs)
+          }
+        },
+        () => undefined,
+      )
+      .finally(() => {
+        pending.settled = true
+        if (inFlight.get(requestCacheKey) === pending) inFlight.delete(requestCacheKey)
+      })
     return joinPending<T>(pending, requestInit.signal ?? undefined)
   }
   return withAbort(request, requestInit.signal ?? undefined)

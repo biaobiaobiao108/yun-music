@@ -11,12 +11,14 @@
     "build": "bun build src/index.ts --outdir ./server --target bun --packages=external",
     "build:frontend": "bun run scripts/build-frontend.ts",
     "check:frontend-assets": "bun run build:frontend && bun run scripts/check-frontend-assets.ts",
+    "format": "bun fmt src frontend scripts tests index.js ecosystem.config.js tailwind.admin.config.cjs tailwind.player.config.cjs package.json tsconfig.json bunfig.toml",
+    "format:check": "bun fmt --check src frontend scripts tests index.js ecosystem.config.js tailwind.admin.config.cjs tailwind.player.config.cjs package.json tsconfig.json bunfig.toml",
     "reset:instance": "bun run scripts/reset-instance.ts",
     "dev:frontend": "bun run scripts/build-frontend.ts --watch",
     "test": "bun test --check"
   },
   "engines": {
-    "bun": ">= 1.4.3"
+    "bun": ">= 1.4.4"
   },
   "repository": {
     "type": "git",
@@ -40,7 +42,7 @@
     "@types/archiver": "^8.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "bun-types": "1.4.3",
+    "bun-types": "1.4.4",
     "marked": "15.0.12",
     "tailwindcss": "^4.3.3"
   }

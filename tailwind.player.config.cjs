@@ -1,11 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
-  content: [
-    './public/music/**/*.html',
-    './frontend/player/src/**/*.{ts,tsx}',
-    './public/music/js/**/*.js',
-  ],
+  content: ['./public/music/**/*.html', './frontend/player/src/**/*.{ts,tsx}', './public/music/js/**/*.js'],
   theme: {
     extend: {
       screens: {
@@ -31,4 +27,4 @@ module.exports = {
       },
     },
   },
-};
+}

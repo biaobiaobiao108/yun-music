@@ -66,7 +66,11 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   },
   setDetail: detail => {
     set({ detail })
-    emitPlayerNavigation({ tab: get().tab, detail, listId: get().tab === 'favorites' ? get().favoriteListId : undefined })
+    emitPlayerNavigation({
+      tab: get().tab,
+      detail,
+      listId: get().tab === 'favorites' ? get().favoriteListId : undefined,
+    })
   },
   openLibraryDetail: (tab, detail) => {
     set({ tab, detail, sidebarOpen: false })
@@ -80,22 +84,25 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
     set({ tab: 'favorites', detail: null, favoriteListId: listId, sidebarOpen: false })
     emitPlayerNavigation({ tab: 'favorites', detail: null, listId })
   },
-  setTabFromHistory: (tab, detail = null, favoriteListId = 'love') => set({
-    tab,
-    detail,
-    favoriteListId: tab === 'favorites' ? String(favoriteListId || 'love') : get().favoriteListId,
-    sidebarOpen: false,
-  }),
+  setTabFromHistory: (tab, detail = null, favoriteListId = 'love') =>
+    set({
+      tab,
+      detail,
+      favoriteListId: tab === 'favorites' ? String(favoriteListId || 'love') : get().favoriteListId,
+      sidebarOpen: false,
+    }),
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
   closeSidebar: () => set({ sidebarOpen: false }),
   setDrawer: drawer => set({ drawer }),
   setDialog: dialog => set(dialog === null ? { dialog, playlistSong: null } : { dialog }),
   openAddToList: playlistSong => set({ playlistSong, dialog: 'addToList' }),
   closeAddToList: () => set({ playlistSong: null, dialog: null }),
-  closeOverlays: () => set({ immersiveLyrics: false, dialog: null, drawer: null, sidebarOpen: false, playlistSong: null }),
+  closeOverlays: () =>
+    set({ immersiveLyrics: false, dialog: null, drawer: null, sidebarOpen: false, playlistSong: null }),
   setImmersiveLyrics: open => set({ immersiveLyrics: open }),
   notify: notice => set({ notice: createNotice(notice, 'info', 2000) }),
-  notifyPlayback: (notice, kind = 'info') => set({ notice: createNotice(notice, kind, kind === 'error' ? 2200 : 1600) }),
+  notifyPlayback: (notice, kind = 'info') =>
+    set({ notice: createNotice(notice, kind, kind === 'error' ? 2200 : 1600) }),
   clearNotice: () => set({ notice: null }),
 }))
 

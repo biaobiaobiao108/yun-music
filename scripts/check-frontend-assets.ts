@@ -1,19 +1,12 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, normalize, relative, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, normalize, relative, resolve } from 'node:path'
 
-const repoRoot = resolve(import.meta.dir, '..');
-const publicRoot = join(repoRoot, 'public');
+const repoRoot = resolve(import.meta.dir, '..')
+const publicRoot = join(repoRoot, 'public')
 
-const htmlFiles = [
-  'public/index.html',
-  'public/music/index.html',
-  'public/music/login.html',
-];
+const htmlFiles = ['public/index.html', 'public/music/index.html', 'public/music/login.html']
 
-const serviceWorkerFiles = [
-  'public/sw.js',
-  'public/music/sw.js',
-];
+const serviceWorkerFiles = ['public/sw.js', 'public/music/sw.js']
 
 const deletedResourceNames = [
   'ui-utils.js',
@@ -41,13 +34,13 @@ const deletedResourceNames = [
   'vendor-bridge.js',
   'wave.js',
   'phase-vocoder.js',
-];
+]
 
 const forbiddenDomMigrationPatterns = [
   /data-event-click-action/i,
   /data-admin-action/i,
   /<script[^>]+>[^<]*(?:onclick|onchange|onsubmit)\s*=/is,
-];
+]
 
 // These names belong to the retired player-side custom-source manager. The
 // React player may read `/api/custom-source/list`, but upload/import/delete
@@ -59,147 +52,147 @@ const forbiddenPlayerSourceManagementPatterns = [
   /导入远程音源/i,
   /删除自定义源/i,
   /custom-source-modal/i,
-];
+]
 
 function readText(path: string): string {
-  return readFileSync(join(repoRoot, path), 'utf8');
+  return readFileSync(join(repoRoot, path), 'utf8')
 }
 
 function isExternalResource(value: string): boolean {
-  return value.startsWith('http://') ||
+  return (
+    value.startsWith('http://') ||
     value.startsWith('https://') ||
     value.startsWith('//') ||
     value.startsWith('data:') ||
-    value.startsWith('#');
+    value.startsWith('#')
+  )
 }
 
 function isRuntimeGeneratedResource(value: string): boolean {
-  return value === '/js/config.js';
+  return value === '/js/config.js'
 }
 
 function toPublicPath(sourceFile: string, reference: string): string | null {
-  const cleanReference = reference.split(/[?#]/, 1)[0];
-  if (!cleanReference || isExternalResource(cleanReference)) return null;
+  const cleanReference = reference.split(/[?#]/, 1)[0]
+  if (!cleanReference || isExternalResource(cleanReference)) return null
 
-  const sourceDirectory = join(repoRoot, sourceFile, '..');
+  const sourceDirectory = join(repoRoot, sourceFile, '..')
   const absolutePath = cleanReference.startsWith('/')
     ? join(publicRoot, cleanReference.slice(1))
-    : resolve(sourceDirectory, cleanReference);
+    : resolve(sourceDirectory, cleanReference)
 
-  return normalize(absolutePath);
+  return normalize(absolutePath)
 }
 
 function collectHtmlReferences(file: string): string[] {
-  const content = readText(file);
-  const references: string[] = [];
-  const referencePattern = /<(?:script[^>]+src|link[^>]+href)=["']([^"']+)["']/gi;
+  const content = readText(file)
+  const references: string[] = []
+  const referencePattern = /<(?:script[^>]+src|link[^>]+href)=["']([^"']+)["']/gi
 
   for (const match of content.matchAll(referencePattern)) {
-    if (match[1]) references.push(match[1]);
+    if (match[1]) references.push(match[1])
   }
 
-  return references;
+  return references
 }
 
 function collectServiceWorkerReferences(file: string): string[] {
-  const content = readText(file);
-  const references: string[] = [];
+  const content = readText(file)
+  const references: string[] = []
 
   for (const match of content.matchAll(/["'](\.\/[^"']+)["']/g)) {
-    if (match[1] && !match[1].endsWith('/')) references.push(match[1]);
+    if (match[1] && !match[1].endsWith('/')) references.push(match[1])
   }
 
-  return references;
+  return references
 }
 
 function collectLazyReferences(): string[] {
-  const references: string[] = [];
-  const sourceRoot = join(repoRoot, 'frontend');
+  const references: string[] = []
+  const sourceRoot = join(repoRoot, 'frontend')
 
   function visit(directory: string): void {
     for (const entry of readdirSync(directory)) {
-      const entryPath = join(directory, entry);
+      const entryPath = join(directory, entry)
       if (statSync(entryPath).isDirectory()) {
-        visit(entryPath);
-        continue;
+        visit(entryPath)
+        continue
       }
 
-      if (!entry.endsWith('.ts') && !entry.endsWith('.tsx')) continue;
-      const content = readFileSync(entryPath, 'utf8');
+      if (!entry.endsWith('.ts') && !entry.endsWith('.tsx')) continue
+      const content = readFileSync(entryPath, 'utf8')
       for (const match of content.matchAll(/["'](\/music\/)?(?:js|assets|css)\/[^"']+["']/g)) {
-        if (match[0]) references.push(match[0].slice(1, -1));
+        if (match[0]) references.push(match[0].slice(1, -1))
       }
     }
   }
 
-  visit(sourceRoot);
-  return references;
+  visit(sourceRoot)
+  return references
 }
 
 function collectTrackedFiles(): Set<string> {
-  const result = Bun.spawnSync(['git', 'ls-files'], { cwd: repoRoot });
+  const result = Bun.spawnSync(['git', 'ls-files'], { cwd: repoRoot })
   if (result.exitCode !== 0) {
-    throw new Error(new TextDecoder().decode(result.stderr));
+    throw new Error(new TextDecoder().decode(result.stderr))
   }
 
-  return new Set(new TextDecoder().decode(result.stdout).split(/\r?\n/).filter(Boolean));
+  return new Set(new TextDecoder().decode(result.stdout).split(/\r?\n/).filter(Boolean))
 }
 
-const missing: string[] = [];
-const deletedReferences: string[] = [];
-const checkedReferences = new Set<string>();
+const missing: string[] = []
+const deletedReferences: string[] = []
+const checkedReferences = new Set<string>()
 
 for (const file of [...htmlFiles, ...serviceWorkerFiles]) {
-  const content = readText(file);
-  if (file.endsWith('.html') && forbiddenDomMigrationPatterns.some((pattern) => pattern.test(content))) {
-    deletedReferences.push(`${file} -> legacy inline DOM handler`);
+  const content = readText(file)
+  if (file.endsWith('.html') && forbiddenDomMigrationPatterns.some(pattern => pattern.test(content))) {
+    deletedReferences.push(`${file} -> legacy inline DOM handler`)
   }
-  const references = file.endsWith('.html')
-    ? collectHtmlReferences(file)
-    : collectServiceWorkerReferences(file);
+  const references = file.endsWith('.html') ? collectHtmlReferences(file) : collectServiceWorkerReferences(file)
 
   for (const reference of references) {
-    if (isRuntimeGeneratedResource(reference)) continue;
-    if (deletedResourceNames.some((name) => reference.endsWith(`/${name}`))) {
-      deletedReferences.push(`${file} -> ${reference}`);
-      continue;
+    if (isRuntimeGeneratedResource(reference)) continue
+    if (deletedResourceNames.some(name => reference.endsWith(`/${name}`))) {
+      deletedReferences.push(`${file} -> ${reference}`)
+      continue
     }
 
-    const publicPath = toPublicPath(file, reference);
-    if (!publicPath) continue;
-    checkedReferences.add(publicPath);
+    const publicPath = toPublicPath(file, reference)
+    if (!publicPath) continue
+    checkedReferences.add(publicPath)
     if (!existsSync(publicPath)) {
-      missing.push(`${file} -> ${reference}`);
+      missing.push(`${file} -> ${reference}`)
     }
   }
 }
 
 for (const reference of collectLazyReferences()) {
-  if (deletedResourceNames.some((name) => reference.endsWith(`/${name}`))) {
-    deletedReferences.push(`frontend -> ${reference}`);
-    continue;
+  if (deletedResourceNames.some(name => reference.endsWith(`/${name}`))) {
+    deletedReferences.push(`frontend -> ${reference}`)
+    continue
   }
 
-  const cleanReference = reference.replace(/^\/music\//, '').replace(/^\//, '');
-  const publicPath = join(publicRoot, 'music', cleanReference);
-  checkedReferences.add(publicPath);
+  const cleanReference = reference.replace(/^\/music\//, '').replace(/^\//, '')
+  const publicPath = join(publicRoot, 'music', cleanReference)
+  checkedReferences.add(publicPath)
   if (!existsSync(publicPath)) {
-    missing.push(`frontend -> ${reference}`);
+    missing.push(`frontend -> ${reference}`)
   }
 }
 
 for (const file of ['public/music/index.html']) {
   for (const reference of collectHtmlReferences(file)) {
-    const publicPath = toPublicPath(file, reference);
-    if (!publicPath || !publicPath.endsWith('.js') || !existsSync(publicPath)) continue;
-    const content = readFileSync(publicPath, 'utf8');
+    const publicPath = toPublicPath(file, reference)
+    if (!publicPath || !publicPath.endsWith('.js') || !existsSync(publicPath)) continue
+    const content = readFileSync(publicPath, 'utf8')
     for (const pattern of forbiddenPlayerSourceManagementPatterns) {
-      if (pattern.test(content)) deletedReferences.push(`${file} -> published player bundle contains ${pattern}`);
+      if (pattern.test(content)) deletedReferences.push(`${file} -> published player bundle contains ${pattern}`)
     }
   }
 }
 
-const trackedFiles = collectTrackedFiles();
+const trackedFiles = collectTrackedFiles()
 const generatedFiles = [
   'public/index.html',
   'public/sw.js',
@@ -212,26 +205,44 @@ const generatedFiles = [
   'public/music/js/download_manager.js',
   'public/music/login.js',
   'public/music/css/tailwind.generated.css',
-];
-const trackedGeneratedFiles = generatedFiles.filter((file) => trackedFiles.has(file));
-const trackedChunkFiles = [...trackedFiles].filter((file) => file.startsWith('public/music/js/chunks/'));
-const trackedHashedEntryFiles = [...trackedFiles].filter((file) => /^public\/(?:music\/)?app-[a-z0-9]+\.js$/i.test(file));
-const trackedHashedLoginFiles = [...trackedFiles].filter((file) => /^public\/music\/login-[a-z0-9]+\.js$/i.test(file));
+]
+const trackedGeneratedFiles = generatedFiles.filter(file => trackedFiles.has(file))
+const trackedChunkFiles = [...trackedFiles].filter(file => file.startsWith('public/music/js/chunks/'))
+const trackedHashedEntryFiles = [...trackedFiles].filter(file => /^public\/(?:music\/)?app-[a-z0-9]+\.js$/i.test(file))
+const trackedHashedLoginFiles = [...trackedFiles].filter(file => /^public\/music\/login-[a-z0-9]+\.js$/i.test(file))
 
-if (missing.length || deletedReferences.length || trackedGeneratedFiles.length || trackedChunkFiles.length || trackedHashedEntryFiles.length || trackedHashedLoginFiles.length) {
+if (
+  missing.length ||
+  deletedReferences.length ||
+  trackedGeneratedFiles.length ||
+  trackedChunkFiles.length ||
+  trackedHashedEntryFiles.length ||
+  trackedHashedLoginFiles.length
+) {
   if (missing.length) {
-    console.error('Missing frontend resources:');
-    for (const item of missing) console.error(`  ${item}`);
+    console.error('Missing frontend resources:')
+    for (const item of missing) console.error(`  ${item}`)
   }
   if (deletedReferences.length) {
-    console.error('Deleted frontend resources are still referenced:');
-    for (const item of deletedReferences) console.error(`  ${item}`);
+    console.error('Deleted frontend resources are still referenced:')
+    for (const item of deletedReferences) console.error(`  ${item}`)
   }
-  if (trackedGeneratedFiles.length || trackedChunkFiles.length || trackedHashedEntryFiles.length || trackedHashedLoginFiles.length) {
-    console.error('Generated frontend files must not be tracked by Git:');
-    for (const item of [...trackedGeneratedFiles, ...trackedChunkFiles, ...trackedHashedEntryFiles, ...trackedHashedLoginFiles]) console.error(`  ${item}`);
+  if (
+    trackedGeneratedFiles.length ||
+    trackedChunkFiles.length ||
+    trackedHashedEntryFiles.length ||
+    trackedHashedLoginFiles.length
+  ) {
+    console.error('Generated frontend files must not be tracked by Git:')
+    for (const item of [
+      ...trackedGeneratedFiles,
+      ...trackedChunkFiles,
+      ...trackedHashedEntryFiles,
+      ...trackedHashedLoginFiles,
+    ])
+      console.error(`  ${item}`)
   }
-  process.exit(1);
+  process.exit(1)
 }
 
-console.log(`Frontend asset check passed (${checkedReferences.size} references checked).`);
+console.log(`Frontend asset check passed (${checkedReferences.size} references checked).`)

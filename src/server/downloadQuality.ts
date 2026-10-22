@@ -11,12 +11,12 @@ export const DOWNLOAD_QUALITY_PRIORITY = [
 ] as const
 
 export const getDownloadQualityCandidates = (requestedQuality: string) => {
-  const index = DOWNLOAD_QUALITY_PRIORITY.indexOf(requestedQuality as typeof DOWNLOAD_QUALITY_PRIORITY[number])
+  const index = DOWNLOAD_QUALITY_PRIORITY.indexOf(requestedQuality as (typeof DOWNLOAD_QUALITY_PRIORITY)[number])
   if (index < 0) return [requestedQuality]
   return DOWNLOAD_QUALITY_PRIORITY.slice(index)
 }
 
-export const resolveWithQualityFallback = async <T extends { url?: string, type?: string }>(
+export const resolveWithQualityFallback = async <T extends { url?: string; type?: string }>(
   requestedQuality: string,
   resolve: (quality: string) => Promise<T>,
 ) => {

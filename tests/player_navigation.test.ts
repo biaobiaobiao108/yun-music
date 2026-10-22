@@ -3,7 +3,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createPlayerHistoryController } from '../frontend/player/src/react/player_history'
 import { formatDuration } from '../frontend/shared/src/runtime'
-import { formatSongDuration, songAlbum, songArtist, songDurationValue, songFormatValue, songSizeBytes, songSizeValue, songTitle } from '../frontend/player/src/react/types'
+import {
+  formatSongDuration,
+  songAlbum,
+  songArtist,
+  songDurationValue,
+  songFormatValue,
+  songSizeBytes,
+  songSizeValue,
+  songTitle,
+} from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
@@ -16,8 +25,10 @@ describe('React player navigation and state restoration', () => {
     expect(shell).toContain('aria-controls="main-sidebar"')
     expect(shell).toContain('aria-expanded={sidebarOpen}')
     expect(css).toMatch(/@media \(max-width: 900px\) \{[\s\S]*?\.react-menu-button \{\s*display: inline-grid;/)
-    expect(css).toMatch(/@media \(max-width: 720px\) \{[\s\S]*?\.react-menu-button \{ display: none !important; \}/)
-    expect(css).toMatch(/@media \(min-width: 721px\) and \(max-width: 900px\) \{[\s\S]*?\.react-player-topbar \{ display: block !important; \}[\s\S]*?\.react-menu-button \{[\s\S]*?pointer-events: auto;/)
+    expect(css).toMatch(/@media \(max-width: 720px\) \{[\s\S]*?\.react-menu-button \{\s*display: none !important;\s*\}/)
+    expect(css).toMatch(
+      /@media \(min-width: 721px\) and \(max-width: 900px\) \{[\s\S]*?\.react-player-topbar \{\s*display: block !important;\s*\}[\s\S]*?\.react-menu-button \{[\s\S]*?pointer-events: auto;/,
+    )
   })
 
   it('selects the highlighted option with Enter or Space in player SelectMenu', () => {
@@ -32,10 +43,26 @@ describe('React player navigation and state restoration', () => {
     const stack: unknown[] = []
     let stackIndex = -1
     const history = {
-      get state() { return currentState },
-      replaceState(state: unknown) { currentState = state; if (stackIndex < 0) { stack.push(state); stackIndex = 0 } else stack[stackIndex] = state },
-      pushState(state: unknown) { currentState = state; stack.splice(stackIndex + 1); stack.push(state); stackIndex += 1 },
-      go(delta: number) { stackIndex = Math.max(0, Math.min(stack.length - 1, stackIndex + delta)); currentState = stack[stackIndex] },
+      get state() {
+        return currentState
+      },
+      replaceState(state: unknown) {
+        currentState = state
+        if (stackIndex < 0) {
+          stack.push(state)
+          stackIndex = 0
+        } else stack[stackIndex] = state
+      },
+      pushState(state: unknown) {
+        currentState = state
+        stack.splice(stackIndex + 1)
+        stack.push(state)
+        stackIndex += 1
+      },
+      go(delta: number) {
+        stackIndex = Math.max(0, Math.min(stack.length - 1, stackIndex + delta))
+        currentState = stack[stackIndex]
+      },
     }
     const documentRef = { getElementById: () => null }
     const controller = createPlayerHistoryController({ history, documentRef })
@@ -56,7 +83,9 @@ describe('React player navigation and state restoration', () => {
     const stack: Array<{ state: unknown; url: string }> = []
     let stackIndex = -1
     const history = {
-      get state() { return currentState },
+      get state() {
+        return currentState
+      },
       replaceState(state: unknown, _title: string, url?: string | URL | null) {
         currentState = state
         currentUrl = String(url ?? '')
@@ -95,14 +124,28 @@ describe('React player navigation and state restoration', () => {
   it('keeps detail presentation metadata across browser history restores', () => {
     let currentState: unknown = null
     const history = {
-      get state() { return currentState },
-      replaceState(state: unknown) { currentState = state },
-      pushState(state: unknown) { currentState = state },
+      get state() {
+        return currentState
+      },
+      replaceState(state: unknown) {
+        currentState = state
+      },
+      pushState(state: unknown) {
+        currentState = state
+      },
       go() {},
     }
     const controller = createPlayerHistoryController({ history, documentRef: { getElementById: () => null } })
     controller.initialize({ page: 'tab', tabId: 'search' })
-    controller.push({ page: 'search-detail', tabId: 'search', kind: 'artist', id: 'artist-1', source: 'wy', name: 'Aimer', image: '/aimer.jpg' })
+    controller.push({
+      page: 'search-detail',
+      tabId: 'search',
+      kind: 'artist',
+      id: 'artist-1',
+      source: 'wy',
+      name: 'Aimer',
+      image: '/aimer.jpg',
+    })
     const restored = controller.handlePopState(currentState)
     expect(restored?.state.name).toBe('Aimer')
     expect(restored?.state.image).toBe('/aimer.jpg')
@@ -125,7 +168,7 @@ describe('React player navigation and state restoration', () => {
     expect(shell).toContain('aria-label="播放队列"')
     expect(footer).toContain("setDrawer(drawer === 'queue' ? null : 'queue')")
     expect(footer).toContain("aria-label={drawer === 'queue' ? '关闭播放队列' : '打开播放队列'}")
-    expect(footer).toContain('aria-expanded={drawer === \'queue\'}')
+    expect(footer).toContain("aria-expanded={drawer === 'queue'}")
     expect(views).toContain('LyricsDialog')
     expect(components).toContain('<dialog')
     expect(components).toContain('inert={!open ? true : undefined}')
@@ -143,19 +186,23 @@ describe('React player navigation and state restoration', () => {
     expect(shell).not.toContain('react-sidebar-user')
     expect(css).toContain('width: 0 !important')
     expect(css).toContain('.react-immersive-lyrics-list::-webkit-scrollbar')
-    expect(css).toMatch(/\.react-immersive-lyrics-list > button:focus:not\(:focus-visible\)\s*\{\s*outline: 0 !important;\s*box-shadow: none !important;/)
-    expect(css).toMatch(/\.react-immersive-lyrics-list > button:focus-visible\s*\{\s*outline: 0 !important;\s*box-shadow: inset 0 0 0 1px var\(--app-accent\) !important;/)
+    expect(css).toMatch(
+      /\.react-immersive-lyrics-list > button:focus:not\(:focus-visible\)\s*\{\s*outline: 0 !important;\s*box-shadow: none !important;/,
+    )
+    expect(css).toMatch(
+      /\.react-immersive-lyrics-list > button:focus-visible\s*\{\s*outline: 0 !important;\s*box-shadow: inset 0 0 0 1px var\(--app-accent\) !important;/,
+    )
     expect(views).toContain('onFooterHostChange')
     expect(views).toContain("onFooterHostChange('immersive')")
     expect(views).toContain("onFooterHostChange('normal')")
     expect(shell).toContain('immersiveFooterHost')
-    expect(footer).toContain('<SongActionsPopover song={currentSong}')
+    expect(footer).toMatch(/<SongActionsPopover\s+song=\{currentSong\}/)
     expect(footer).not.toContain('if (immersive) setImmersiveLyrics(false)')
     expect(footer).toContain('preferredQuality')
     expect(footer).not.toContain('react-immersive-footer')
-    expect(shell).toContain('<PlayerFooter hidden={immersiveFooterHost !== \'normal\'} />')
+    expect(shell).toContain("<PlayerFooter hidden={immersiveFooterHost !== 'normal'} />")
     expect(views).toContain('consumeImmersiveLyricsTrigger')
-    expect(views).toContain("#player-footer .react-footer-cover-button")
+    expect(views).toContain('#player-footer .react-footer-cover-button')
     expect(shell).not.toContain('react-sidebar-close')
   })
 
@@ -168,25 +215,39 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain('react-immersive-mobile-lyric-header')
     expect(views).not.toContain('is-mobile-lyrics')
     expect(css).toContain('flex-direction: column;')
-    expect(css).toContain('.react-immersive-lyrics-list {\n        order: 1;\n        display: block;\n        flex: 1 1 0;')
+    expect(css).toContain(
+      '.react-immersive-lyrics-list {\n        order: 1;\n        display: block;\n        flex: 1 1 0;',
+    )
     expect(library).toContain('favoriteSongs.slice(0, 24)')
     expect(library).toContain('recentSongs.slice(0, 24)')
     expect(library).toContain('artists.slice(0, 12)')
     expect(library).toContain('export function MobileLibraryView()')
     expect(library).toContain("title: '账户登录'")
     expect(library).toContain("setDialog('userLogin')")
-    expect(read('frontend/player/src/react/shell.tsx')).toContain("case 'library': return <MobileLibraryView />")
-    expect(read('frontend/player/src/react/shell.tsx')).toContain("{ id: 'library', label: '资料库', icon: 'folder-open'")
+    expect(read('frontend/player/src/react/shell.tsx')).toMatch(/case 'library':\s*return <MobileLibraryView \/>/)
+    expect(read('frontend/player/src/react/shell.tsx')).toContain(
+      "{ id: 'library', label: '资料库', icon: 'folder-open'",
+    )
     expect(library.match(/react-home-fixed-grid/g)?.length).toBeGreaterThanOrEqual(2)
-    expect(css).toContain('.react-home-fixed-grid > .react-artwork-card:nth-child(n + 5) { display: none; }')
-    expect(css).toContain('.react-home-fixed-grid > .react-artwork-card:nth-child(n + 7) { display: none; }')
+    expect(css).toMatch(/\.react-home-fixed-grid > \.react-artwork-card:nth-child\(n \+ 5\)\s*\{\s*display: none;\s*\}/)
+    expect(css).toMatch(/\.react-home-fixed-grid > \.react-artwork-card:nth-child\(n \+ 7\)\s*\{\s*display: none;\s*\}/)
     expect(css).toContain('.react-artwork-grid.react-home-songs-grid {')
-    expect(css).toContain('@media (max-width: 720px) {\n    .react-artwork-grid.react-home-songs-grid {\n        grid-template-columns: none;\n        grid-template-rows: auto;\n        grid-auto-flow: column;\n        grid-auto-columns: calc((100% - .55rem) / 2);')
-    expect(css).toContain('overflow-x: auto;\n        overflow-y: hidden;\n        overscroll-behavior-inline: contain;\n        scroll-snap-type: x proximity;')
-    expect(css).toContain('.react-artwork-grid.react-home-songs-grid > .react-artwork-card { scroll-snap-align: start; }')
+    expect(css).toMatch(
+      /@media \(max-width: 720px\) \{\s*\.react-artwork-grid\.react-home-songs-grid\s*\{\s*grid-template-columns: none;\s*grid-template-rows: auto;\s*grid-auto-flow: column;\s*grid-auto-columns: calc\(\(100% - 0?\.55rem\) \/ 2\);/,
+    )
+    expect(css).toContain(
+      'overflow-x: auto;\n        overflow-y: hidden;\n        overscroll-behavior-inline: contain;\n        scroll-snap-type: x proximity;',
+    )
+    expect(css).toMatch(
+      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card\s*\{\s*scroll-snap-align: start;\s*\}/,
+    )
     expect(css).toContain('grid-template-columns: repeat(6, minmax(0, 1fr));')
-    expect(css).toContain('.react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 7) { display: block; }')
-    expect(css).toContain('.react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 13) { display: none; }')
+    expect(css).toMatch(
+      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card:nth-child\(n \+ 7\)\s*\{\s*display: block;\s*\}/,
+    )
+    expect(css).toMatch(
+      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card:nth-child\(n \+ 13\)\s*\{\s*display: none;\s*\}/,
+    )
     expect(css).toContain('.react-artwork-grid.react-home-artist-row {')
     expect(css).toContain('grid-auto-columns: clamp(5.25rem, 5.6vw, 6.75rem);')
     expect(css).toContain('.react-mobile-library-link {')
@@ -196,9 +257,13 @@ describe('React player navigation and state restoration', () => {
     expect(library).toContain("title: '歌单'")
     expect(library).toContain("setTab('playlists')")
     expect(library).toContain('export function MyPlaylistsView()')
-    expect(css).toContain('.react-library-grid,\n    .react-entity-grid {\n        grid-template-columns: minmax(0, 1fr);')
-    expect(css).toContain('.react-song-table--without-file-metadata .react-song-row.is-selectable { grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem auto; }')
-    expect(css).toContain('.react-song-actions button:first-child { display: grid; }')
+    expect(css).toContain(
+      '.react-library-grid,\n    .react-entity-grid {\n        grid-template-columns: minmax(0, 1fr);',
+    )
+    expect(css).toMatch(
+      /\.react-song-table--without-file-metadata \.react-song-row\.is-selectable\s*\{\s*grid-template-columns: 1\.65rem minmax\(0, 1fr\) 2\.45rem auto;\s*\}/,
+    )
+    expect(css).toMatch(/\.react-song-actions button:first-child\s*\{\s*display: grid;\s*\}/)
   })
 
   it('keeps mobile account controls icon-only and uses a lyric-first mobile player layout', () => {
@@ -219,8 +284,8 @@ describe('React player navigation and state restoration', () => {
     expect(footer).toContain('react-immersive-volume-row')
     expect(footer).toContain('aria-label="音量"')
     expect(footer).not.toContain('onSongActionsClose')
-    expect(footer).toContain('{!immersive && <SongActionsPopover')
-    expect(css).toContain('.react-immersive-volume-row { display: none; }')
+    expect(footer).toMatch(/\{!immersive &&\s*\(\s*<SongActionsPopover/)
+    expect(css).toMatch(/\.react-immersive-volume-row\s*\{\s*display: none;\s*\}/)
     expect(css).not.toContain('filter: blur(1.25px);')
     expect(css).not.toContain('filter: blur(2.5px);')
     expect(css).toContain('-webkit-mask-image: none;')
@@ -247,7 +312,9 @@ describe('React player navigation and state restoration', () => {
     expect(searchStore).toContain('if (query) void get().search(query, 1, { force: true })')
     expect(views).not.toContain('<span>音源</span>')
     expect(views).not.toContain('<span>类型</span>')
-    expect(css).toContain('grid-template-columns: minmax(12rem, 1fr) minmax(8.75rem, 10rem) minmax(8.75rem, 10rem) auto')
+    expect(css).toContain(
+      'grid-template-columns: minmax(12rem, 1fr) minmax(8.75rem, 10rem) minmax(8.75rem, 10rem) auto',
+    )
     expect(css).toContain('.react-search-filter .react-select-menu-trigger')
   })
 
@@ -257,8 +324,12 @@ describe('React player navigation and state restoration', () => {
     expect(songAlbum({ album: { name: '对象专辑' } })).toBe('对象专辑')
     expect(songSizeValue({ meta: { sizeBytes: 5242880 } })).toBe(5242880)
     expect(songSizeValue({ meta: { qualitys: [{ type: 'flac', size: '5 MB' }] }, quality: 'flac' })).toBe('5 MB')
-    expect(songSizeBytes({ meta: { qualitys: [{ type: 'flac', size: '5 MB' }] }, quality: 'flac' })).toBe(5 * 1024 * 1024)
-    expect(songSizeBytes({ meta: { qualitys: [{ type: 'flac', size: '3.56M' }] }, quality: 'flac' })).toBeCloseTo(3.56 * 1024 * 1024)
+    expect(songSizeBytes({ meta: { qualitys: [{ type: 'flac', size: '5 MB' }] }, quality: 'flac' })).toBe(
+      5 * 1024 * 1024,
+    )
+    expect(songSizeBytes({ meta: { qualitys: [{ type: 'flac', size: '3.56M' }] }, quality: 'flac' })).toBeCloseTo(
+      3.56 * 1024 * 1024,
+    )
     expect(songTitle({ meta: { title: '旧标题' } })).toBe('旧标题')
     expect(songArtist({ meta: { singerName: '旧歌手' } })).toBe('旧歌手')
     expect(songDurationValue({ meta: { interval: '03:21' } })).toBe('03:21')
@@ -278,7 +349,13 @@ describe('React player navigation and state restoration', () => {
   it('preserves explicit milliseconds in source metadata and seconds in audio positions', () => {
     for (const durationMs of [1000, 60000, 86000, 251000]) {
       const expected = formatDuration(durationMs, 'milliseconds')
-      for (const song of [{ durationMs }, { meta: { durationMs } }, { songInfo: { durationMs } }, { info: { durationMs } }, { data: { durationMs } }]) {
+      for (const song of [
+        { durationMs },
+        { meta: { durationMs } },
+        { songInfo: { durationMs } },
+        { info: { durationMs } },
+        { data: { durationMs } },
+      ]) {
         expect(formatSongDuration(songDurationValue(song))).toBe(expected)
       }
     }
@@ -305,7 +382,7 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-queue-play-next {')
     expect(css).toContain('.react-queue-drawer .react-queue-list li:hover .react-queue-duration')
     expect(css).toContain('visibility 0s linear var(--app-motion-fast, 140ms)')
-    expect(css).toContain('padding-inline: 0 .45rem;')
+    expect(css).toMatch(/padding-inline:\s*0\s+0?\.45rem;/)
     expect(css).toContain('.react-queue-remove:hover,')
     expect(css).toMatch(/\.react-queue-remove:focus-visible\s*\{\s*outline: 0;\s*box-shadow: none;/)
     expect(css).toContain('background: transparent;')
@@ -316,9 +393,13 @@ describe('React player navigation and state restoration', () => {
     const css = read('frontend/styles/player.css')
     expect(css).toContain('.react-player-drawer.react-glass-drawer:not(.is-open)')
     expect(css).toContain('.react-player-drawer.react-glass-drawer.is-open')
-    expect(css).toContain('translate3d(8px, 0, 0) scale(.99)')
-    expect(css).toContain('transition: opacity var(--app-motion-fast, 140ms) ease, transform var(--app-motion, 220ms)')
-    const reducedMotion = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)].map(match => match[1]).join('\n')
+    expect(css).toMatch(/translate3d\(8px, 0, 0\) scale\(0?\.99\)/)
+    expect(css).toMatch(
+      /transition:\s*opacity var\(--app-motion-fast, 140ms\) ease,\s*transform var\(--app-motion, 220ms\)/,
+    )
+    const reducedMotion = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)]
+      .map(match => match[1])
+      .join('\n')
     expect(reducedMotion).toContain('.react-player-drawer.react-glass-drawer.is-open')
     expect(reducedMotion).toContain('.react-player-drawer.react-glass-drawer:not(.is-open)')
     expect(reducedMotion).toContain('transform: none;')
@@ -331,7 +412,9 @@ describe('React player navigation and state restoration', () => {
     const normalFooter = footer.slice(footer.indexOf('<div className="react-footer-controls">'))
     const controls = normalFooter.slice(0, normalFooter.indexOf('<div className="react-footer-song-section">'))
     const footerActions = normalFooter.slice(normalFooter.indexOf('<div className="react-footer-actions">'))
-    expect(normalFooter.indexOf('react-footer-controls')).toBeLessThan(normalFooter.indexOf('react-footer-song-section'))
+    expect(normalFooter.indexOf('react-footer-controls')).toBeLessThan(
+      normalFooter.indexOf('react-footer-song-section'),
+    )
     expect(normalFooter.indexOf('react-footer-song-section')).toBeLessThan(normalFooter.indexOf('react-footer-actions'))
     expect(controls).toContain('react-like-button')
     expect(footerActions).not.toContain('react-like-button')
@@ -350,12 +433,13 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-volume-control.is-open')
     expect(css).toContain('.react-footer-controls .react-like-button span')
     expect(css).toContain('grid-template-columns: auto minmax(0, 1fr);')
-    expect(css).toContain('.react-player-footer#player-footer .react-footer-actions { display: none; }')
+    expect(css).toMatch(/\.react-player-footer#player-footer \.react-footer-actions\s*\{\s*display: none;\s*\}/)
     expect(css).toContain('inline-size: min(9.875rem, calc(100vw - 1rem));')
     expect(actions).toContain('createPortal')
     expect(actions).toContain("anchorRef.current?.closest('dialog')")
     expect(actions).toContain('role="dialog"')
-    for (const label of ['歌手详情', '专辑', '添加到歌单', '评论', '下载歌曲', '睡眠定时器']) expect(actions).toContain(label)
+    for (const label of ['歌手详情', '专辑', '添加到歌单', '评论', '下载歌曲', '睡眠定时器'])
+      expect(actions).toContain(label)
     expect(views).toContain('export function AddToListDialog')
     expect(views).toContain("name: '我的收藏'")
     expect(views).toContain('userList')
@@ -374,7 +458,7 @@ describe('React player navigation and state restoration', () => {
     expect(heavyViews).toContain('<SelectMenu')
     expect(shell).not.toContain("{ id: 'genres', label: '风格'")
     expect(shell).not.toContain("{ id: 'genres', label: '分类'")
-    expect(shell).toContain("case 'genres': return <SongListView")
+    expect(shell).toMatch(/case 'genres':\s*return <SongListView/)
     expect(shell).not.toContain('GenresView')
     expect(libraryViews).not.toContain('GenresView')
     expect(heavyViews).not.toContain("setTab('genres')")
@@ -391,8 +475,8 @@ describe('React player navigation and state restoration', () => {
     expect(library).toContain('userList')
     expect(library).toContain('Promise<UserPlaylist>')
     expect(library).toContain('removeSongs')
-    expect(shell).toContain('favoriteListId === \'love\'')
-    expect(shell).toContain('aria-current={isActive ? \'page\' : undefined}')
+    expect(shell).toContain("favoriteListId === 'love'")
+    expect(shell).toContain("aria-current={isActive ? 'page' : undefined}")
     expect(views).toContain('name="我喜欢的音乐"')
     expect(views).toContain('function UserPlaylistView')
     expect(views).toContain('react-playlist-page')
@@ -418,17 +502,21 @@ describe('React player navigation and state restoration', () => {
     const listTypes = read('src/types/list.d.ts')
     const listManage = read('src/modules/list/listDataManage.ts')
     expect(api).toContain('export type PlaylistIconKey')
-    for (const icon of ['music', 'heart', 'moon', 'sun', 'cloud-rain', 'fire', 'leaf', 'bolt']) expect(api).toContain(`key: '${icon}'`)
+    for (const icon of ['music', 'heart', 'moon', 'sun', 'cloud-rain', 'fire', 'leaf', 'bolt'])
+      expect(api).toContain(`key: '${icon}'`)
     expect(libraryViews).not.toContain('react-home-shortcut')
     expect(libraryViews).not.toContain('react-home-feature')
     expect(libraryViews).not.toContain('继续聆听')
-    const homeView = libraryViews.slice(libraryViews.indexOf('export function HomeView()'), libraryViews.indexOf('export function RecentView()'))
+    const homeView = libraryViews.slice(
+      libraryViews.indexOf('export function HomeView()'),
+      libraryViews.indexOf('export function RecentView()'),
+    )
     expect(homeView).toContain('<ul className="react-playlist-catalog-list react-home-playlists">')
     expect(homeView).toContain('className="react-playlist-catalog-row"')
     expect(homeView).toContain('react-home-playlists-section')
-    expect(css).toContain('.react-home-playlists-section { display: none; }')
+    expect(css).toMatch(/\.react-home-playlists-section\s*\{\s*display: none;\s*\}/)
     expect(homeView.indexOf('<h2>艺人</h2>')).toBeLessThan(homeView.indexOf('<h2>我的歌单</h2>'))
-    expect(libraryViews).toContain('react-artwork-cover ${kind === \'artist\' ? \'is-artist\' : \'\'}')
+    expect(libraryViews).toContain("react-artwork-cover ${kind === 'artist' ? 'is-artist' : ''}")
     expect(views).not.toContain('hideActionsOnMobile')
     expect(viewFrame).toContain('react-view-hide-actions-mobile')
     expect(views).toContain('type="radio"')
@@ -439,15 +527,25 @@ describe('React player navigation and state restoration', () => {
     expect(shell).toContain('playlistIcon(list.icon)')
     expect(css).toContain('border: 0;')
     expect(css).toContain('grid-template-columns: 6.5rem minmax(0, 1fr) 2.8rem;')
-    expect(css).toContain('margin-top: .45rem;')
-    expect(css).toContain('background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);')
-    expect(css).toContain('.react-immersive-volume-row input[type="range"] {\n        width: 100%;\n        height: 1.4rem;')
+    expect(css).toMatch(/margin-top:\s*0?\.45rem;/)
+    expect(css).toContain(
+      'background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);',
+    )
+    expect(css).toContain(
+      '.react-immersive-volume-row input[type="range"] {\n        width: 100%;\n        height: 1.4rem;',
+    )
     expect(css).toContain('background: transparent;')
-    expect(css).toContain('.react-immersive-volume-row input[type="range"]::-webkit-slider-runnable-track {\n        height: .22rem;\n        border-radius: 999px;\n        background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);')
+    expect(css).toContain(
+      '.react-immersive-volume-row input[type="range"]::-webkit-slider-runnable-track {\n        height: 0.22rem;\n        border-radius: 999px;\n        background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);',
+    )
     expect(css).toContain('-webkit-appearance: none;')
-    expect(css).toContain('padding: .38rem .55rem !important;')
-    expect(css).toContain('.react-home-fixed-grid.react-artist-grid { grid-template-columns: repeat(4, minmax(0, 1fr));')
-    expect(css).toContain('.react-home-fixed-grid.react-artist-grid > .react-artwork-card:nth-child(n + 9) { display: none; }')
+    expect(css).toMatch(/padding:\s*0?\.38rem\s+0?\.55rem\s*!important;/)
+    expect(css).toMatch(
+      /\.react-home-fixed-grid\.react-artist-grid\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/,
+    )
+    expect(css).toMatch(
+      /\.react-home-fixed-grid\.react-artist-grid > \.react-artwork-card:nth-child\(n \+ 9\)\s*\{\s*display: none;\s*\}/,
+    )
     expect(playerManifest).toContain('"src": "./assets/yun-yin-favicon.png"')
     expect(playerManifest).toContain('"sizes": "256x256"')
     expect(adminManifest).toContain('"src": "assets/yun-yin-favicon.png"')
@@ -460,14 +558,16 @@ describe('React player navigation and state restoration', () => {
     expect(favicon.readUInt32BE(20)).toBe(256)
     expect(css).toContain('@keyframes react-home-playlist-drift')
     expect(css).toContain('.react-home-shortcut:hover .react-home-shortcut-arrow')
-    expect(css).toContain('.react-home-playlists { display: block; grid-template-columns: none; gap: 0; }')
-    expect(css).toContain('.react-playlist-catalog-row::after { content: \'\'; position: absolute; inset-inline: 4.65rem 0; bottom: 0; height: 1px; background: var(--app-border); }')
-    expect(shell).toContain('NAV_ITEMS.filter(item => item.id !== \'library\')')
+    expect(css).toMatch(/\.react-home-playlists\s*\{\s*display: block;\s*grid-template-columns: none;\s*gap: 0;\s*\}/)
+    expect(css).toMatch(
+      /\.react-playlist-catalog-row::after\s*\{\s*content: "";\s*position: absolute;\s*inset-inline: 4\.65rem 0;\s*bottom: 0;\s*height: 1px;\s*background: var\(--app-border\);\s*\}/,
+    )
+    expect(shell).toContain("NAV_ITEMS.filter(item => item.id !== 'library')")
     expect(shell).toContain('className="react-sidebar-history"')
     expect(shell).toContain('id="player-history-back"')
     expect(shell).toContain('id="player-history-forward"')
     expect(css).toContain('.react-player-topbar .react-topbar-actions')
-    expect(css).toContain('.react-player-topbar { display: none !important; }')
+    expect(css).toMatch(/\.react-player-topbar\s*\{\s*display: none !important;\s*\}/)
     expect(css).toContain('.react-playlist-icon-option.is-selected .react-playlist-icon-option-visual')
     expect(css).toContain('overflow: hidden;')
     expect(css).toContain('background: var(--app-surface) !important;')
@@ -481,7 +581,7 @@ describe('React player navigation and state restoration', () => {
     const cacheStore = read('frontend/player/src/react/store/cache.ts')
     const views = read('frontend/player/src/react/views.tsx')
     const components = read('frontend/player/src/react/components.tsx')
-    expect(api).toContain("enableOnlyDownloadMode: true")
+    expect(api).toContain('enableOnlyDownloadMode: true')
     expect(cacheStore).toContain('enqueueDownloads: (songs: Song[], quality?: string) => Promise<number>')
     expect(cacheStore).toContain('for (let offset = 0; offset < uniqueSongs.length; offset += 100)')
     expect(cacheStore).toContain('enableOnlyDownloadMode: true')
@@ -499,7 +599,9 @@ describe('React player navigation and state restoration', () => {
     const css = read('frontend/styles/player.css')
     expect(shell).not.toContain('className="react-topbar-title"')
     expect(shell).toContain('document.title = `${title} - 云鹿音乐`')
-    expect(views).not.toContain('<h2>歌曲</h2>{batchMode && selectedSongs.size > 0 && <p>已选择 {selectedSongs.size} 首</p>}')
+    expect(views).not.toContain(
+      '<h2>歌曲</h2>{batchMode && selectedSongs.size > 0 && <p>已选择 {selectedSongs.size} 首</p>}',
+    )
     expect(views).toContain('react-header-selection-count')
     expect(views).toContain('showFileMetadata={false}')
     expect(components).toContain('react-song-table--without-file-metadata')
@@ -527,7 +629,7 @@ describe('React player navigation and state restoration', () => {
   it('loads artist songs in 40-song pages and keeps requesting on the scroll sentinel', () => {
     const views = read('frontend/player/src/react/views.tsx')
     const api = read('frontend/player/src/react/api.ts')
-    expect(api).toContain('artistSongs: (source: string, id: string, order = \'hot\', page = 1, limit = 40')
+    expect(api).toMatch(/artistSongs:\s*\(\s*source: string,\s*id: string,\s*order = 'hot',\s*page = 1,\s*limit = 40/)
     expect(views).toContain('artistSongs(detail.source, detail.id, order, 1, 40')
     expect(views).toContain('artistSongs(detail.source, detail.id, order, nextPage, 40')
     expect(views).toContain('new IntersectionObserver')
@@ -585,11 +687,13 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('.react-immersive-lyrics-dialog.is-closing')
     expect(css).toContain('@keyframes react-immersive-content-enter')
     expect(css).toContain('@keyframes react-immersive-content-exit')
-    expect(css).toContain('translate: 0 .4rem')
+    expect(css).toMatch(/translate:\s*0\s+0?\.4rem/)
     expect(views).toContain('const closeTimer = useRef<number | null>(null)')
     expect(views).toContain('onClosed?: () => void')
-    expect(views).toContain("const closeDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220")
-    expect(views).toContain('className={`react-immersive-lyrics-dialog ${isClosing ? \'is-closing\' : \'\'}`}')
+    expect(views).toContain(
+      "const closeDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220",
+    )
+    expect(views).toContain("className={`react-immersive-lyrics-dialog ${isClosing ? 'is-closing' : ''}`}")
     expect(shell).toContain('(immersiveLyricsMounted || immersiveLyrics)')
     expect(shell).toContain('if (immersiveLyrics) setImmersiveLyricsMounted(true)')
     expect(shell).toContain('setImmersiveLyricsMounted(true)\n    setImmersiveLyrics(false)')
@@ -652,7 +756,10 @@ describe('React player navigation and state restoration', () => {
 
   it('keeps history and transfer controls in the sidebar instead of the top bar', () => {
     const shellSource = read('frontend/player/src/react/shell.tsx')
-    const sidebar = shellSource.slice(shellSource.indexOf('function Sidebar()'), shellSource.indexOf('const MOBILE_NAV_ITEMS'))
+    const sidebar = shellSource.slice(
+      shellSource.indexOf('function Sidebar()'),
+      shellSource.indexOf('const MOBILE_NAV_ITEMS'),
+    )
     const topbarStart = shellSource.indexOf('function TopBar()')
     const topbarEnd = shellSource.indexOf('\nfunction ', topbarStart + 1)
     const topbar = shellSource.slice(topbarStart, topbarEnd)

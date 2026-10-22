@@ -1,5 +1,13 @@
 import { expect, spyOn, test } from 'bun:test'
-import { ResourceBudget, acquireBufferedRequestBudget, getResourceBudgetStats, getWorkloadLimits, memoryCacheBudgets, tryAcquireDownloadSlot, tryAcquireMediaStream } from '@/server/resourceBudget'
+import {
+  ResourceBudget,
+  acquireBufferedRequestBudget,
+  getResourceBudgetStats,
+  getWorkloadLimits,
+  memoryCacheBudgets,
+  tryAcquireDownloadSlot,
+  tryAcquireMediaStream,
+} from '@/server/resourceBudget'
 import { httpFetch } from '@/modules/utils/request'
 
 test('workload and cache ceilings tighten for small container memory limits', () => {
@@ -22,7 +30,9 @@ test('shared admission bounds bytes and waiting work, cancels FIFO waiters and r
   expect(await cancelled).toBeInstanceOf(Error)
   const second = await next
   expect(pool.getStats()).toMatchObject({ active: 2, reservedBytes: 10, waiting: 0 })
-  first(); first(); second()
+  first()
+  first()
+  second()
   expect(pool.getStats()).toMatchObject({ active: 0, reservedBytes: 0, waiting: 0 })
 })
 
@@ -43,7 +53,9 @@ test('admission timeouts remove waiters and invalid oversized work cannot block 
 test('SDK cancellation while waiting for the global byte budget never starts an upstream request', async () => {
   const hold = await acquireBufferedRequestBudget(Number.MAX_SAFE_INTEGER)
   const original = globalThis.fetch
-  const fetch = spyOn(globalThis, 'fetch').mockImplementation(Object.assign(async () => new Response('{}'), { preconnect: original.preconnect }))
+  const fetch = spyOn(globalThis, 'fetch').mockImplementation(
+    Object.assign(async () => new Response('{}'), { preconnect: original.preconnect }),
+  )
   try {
     const operation = httpFetch('https://example.test/budget')
     const rejected = operation.promise.catch(error => error)
@@ -80,7 +92,10 @@ test('global media slots are shared by relays and downloads and downloads have a
     expect(getResourceBudgetStats().media.active).toBe(getResourceBudgetStats().media.maxActive)
     expect(tryAcquireMediaStream()).toBeNull()
   } finally {
-    for (const release of releases) { release(); release() }
+    for (const release of releases) {
+      release()
+      release()
+    }
   }
   expect(getResourceBudgetStats().downloads.active).toBe(0)
   expect(getResourceBudgetStats().media.active).toBe(0)

@@ -129,5 +129,15 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 export const getSearchActions = () => useSearchStore.getState()
 
 export function prepareSearch(source: string, type: SearchType, query: string): void {
-  useSearchStore.setState({ source, type, query, page: 1, results: [], error: '', refreshing: false, loading: false, loadedAt: 0 })
+  useSearchStore.setState({
+    source,
+    type,
+    query,
+    page: 1,
+    results: [],
+    error: '',
+    refreshing: false,
+    loading: false,
+    loadedAt: 0,
+  })
 }

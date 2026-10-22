@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 
 if (typeof (global as any).navigator === 'undefined') {
-  (global as any).navigator = { userAgent: 'node.js' }
+  ;(global as any).navigator = { userAgent: 'node.js' }
 }
 
 import { initLogger } from '@/utils/log4js'
@@ -19,7 +19,6 @@ import { hashPassword, isPasswordHash } from './utils/passwordHash'
 // Declare Env Params Type
 type ENV_PARAMS_Type = typeof ENV_PARAMS
 type ENV_PARAMS_Value_Type = ENV_PARAMS_Type[number]
-
 
 let fatalShutdown: (() => Promise<void>) | null = null
 let fatalShutdownStarted = false
@@ -47,8 +46,8 @@ const handleFatalProcessError = (kind: string, error: unknown): void => {
 // Continuing after an uncaught exception can leave SQLite, file writes, or
 // download queues in a partially-mutated state. Exit after best-effort cleanup
 // so Docker/systemd can restart a known-good process.
-process.on('uncaughtException', (err) => handleFatalProcessError('uncaught exception', err))
-process.on('unhandledRejection', (reason) => handleFatalProcessError('unhandled rejection', reason))
+process.on('uncaughtException', err => handleFatalProcessError('uncaught exception', err))
+process.on('unhandledRejection', reason => handleFatalProcessError('unhandled rejection', reason))
 
 let envParams: Partial<Record<Exclude<ENV_PARAMS_Value_Type, 'LX_USER_'>, string>> = {}
 let envUsers: LX.User[] = []
@@ -56,25 +55,26 @@ const envParamKeys = Object.values(ENV_PARAMS).filter(v => v != 'LX_USER_')
 
 {
   const envLog = [
-    ...(envParamKeys.map(e => [e, process.env[e]]) as Array<[Exclude<ENV_PARAMS_Value_Type, 'LX_USER_'>, string]>).filter(([k, v]) => {
+    ...(
+      envParamKeys.map(e => [e, process.env[e]]) as Array<[Exclude<ENV_PARAMS_Value_Type, 'LX_USER_'>, string]>
+    ).filter(([k, v]) => {
       if (!v) return false
       envParams[k] = v
       return true
     }),
-    ...Object.entries(process.env)
-      .filter(([k, v]) => {
-        if (k.startsWith('LX_USER_') && !!v) {
-          const name = k.replace('LX_USER_', '')
-          if (name) {
-            envUsers.push({
-              name,
-              password: v,
-            })
-            return true
-          }
+    ...Object.entries(process.env).filter(([k, v]) => {
+      if (k.startsWith('LX_USER_') && !!v) {
+        const name = k.replace('LX_USER_', '')
+        if (name) {
+          envUsers.push({
+            name,
+            password: v,
+          })
+          return true
         }
-        return false
-      }),
+      }
+      return false
+    }),
   ].map(([e]) => `${e}: [configured]`)
   if (envLog.length) console.log(`Load env: \n  ${envLog.join('\n  ')}`)
 }
@@ -112,8 +112,10 @@ const saveConfigToFile = async () => {
   }
   // Environment-managed secrets must not be copied into the bind-mounted
   // config file. They will be applied again during the next startup.
-  if (Object.prototype.hasOwnProperty.call(process.env, 'FRONTEND_PASSWORD')) delete configForFile['frontend.passwordHash']
-  if (Object.prototype.hasOwnProperty.call(process.env, 'WEBPLAYER_PASSWORD')) delete configForFile['player.passwordHash']
+  if (Object.prototype.hasOwnProperty.call(process.env, 'FRONTEND_PASSWORD'))
+    delete configForFile['frontend.passwordHash']
+  if (Object.prototype.hasOwnProperty.call(process.env, 'WEBPLAYER_PASSWORD'))
+    delete configForFile['player.passwordHash']
   if (Object.prototype.hasOwnProperty.call(process.env, 'PROXY_ALL_ADDRESS')) delete configForFile['proxy.all.address']
   const content = `module.exports = ${JSON.stringify(configForFile, null, 2)}\n`
   try {
@@ -121,14 +123,18 @@ const saveConfigToFile = async () => {
     if (await file.exists()) {
       const existing = await file.text()
       if (existing.trim() === content.trim()) {
-        try { fs.chmodSync(configPath, 0o600) } catch { }
+        try {
+          fs.chmodSync(configPath, 0o600)
+        } catch {}
         lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
         return
       }
     }
     lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
     await Bun.write(configPath, content)
-    try { fs.chmodSync(configPath, 0o600) } catch { }
+    try {
+      fs.chmodSync(configPath, 0o600)
+    } catch {}
     // console.log('Current memory config saved to config.js')
   } catch (err) {
     console.error('Failed to save config.js:', err)
@@ -226,14 +232,16 @@ if (dataConfigPath === p1 && !rootConfigLoaded) {
 if (dataConfigPath !== p1 && fs.existsSync(dataConfigPath) && !margeConfig(dataConfigPath)) {
   abortConfigLoad(dataConfigPath)
 }
-envParams.CONFIG_PATH && envParams.CONFIG_PATH !== dataConfigPath && fs.existsSync(envParams.CONFIG_PATH) && margeConfig(envParams.CONFIG_PATH)
+envParams.CONFIG_PATH &&
+  envParams.CONFIG_PATH !== dataConfigPath &&
+  fs.existsSync(envParams.CONFIG_PATH) &&
+  margeConfig(envParams.CONFIG_PATH)
 if (envParams.PROXY_HEADER) {
   global.lx.config['proxy.enabled'] = true
   global.lx.config['proxy.header'] = envParams.PROXY_HEADER
 }
 if (envParams.TRUSTED_PROXY_ADDRESSES) {
-  global.lx.config['proxy.trustedAddresses'] = envParams.TRUSTED_PROXY_ADDRESSES
-    .split(',')
+  global.lx.config['proxy.trustedAddresses'] = envParams.TRUSTED_PROXY_ADDRESSES.split(',')
     .map(value => value.trim())
     .filter(Boolean)
 }
@@ -310,7 +318,9 @@ if (envParams.PLAYER_PATH !== undefined) {
   global.lx.config['player.path'] = envParams.PLAYER_PATH
 }
 if (envParams.SINGER_SOURCE_PRIORITY !== undefined) {
-  const priority = envParams.SINGER_SOURCE_PRIORITY.split(',').filter(s => s === 'tx' || s === 'wy') as Array<'tx' | 'wy'>
+  const priority = envParams.SINGER_SOURCE_PRIORITY.split(',').filter(s => s === 'tx' || s === 'wy') as Array<
+    'tx' | 'wy'
+  >
   if (priority.length > 0) global.lx.config['singer.sourcePriority'] = priority
 }
 if (envParams.SERVER_NAME) {
@@ -373,15 +383,22 @@ const checkUserConfig = (users: LX.Config['users']) => {
     }
     if (user.name === '_open') exit('User name is reserved: _open')
     if (userNames.includes(user.name)) exit('User name duplicate: ' + user.name)
-    if (typeof user.password !== 'string' || user.password.trim() === '') exit(`User ${user.name} must have a non-empty password`)
+    if (typeof user.password !== 'string' || user.password.trim() === '')
+      exit(`User ${user.name} must have a non-empty password`)
     if (user.password.length > 1024) exit(`User ${user.name} password is too long`)
-    if (!allowDuplicatePasswords && passwords.includes(user.password)) exit(`Duplicate password is not allowed for user ${user.name}`)
+    if (!allowDuplicatePasswords && passwords.includes(user.password))
+      exit(`Duplicate password is not allowed for user ${user.name}`)
     userNames.push(user.name)
     passwords.push(user.password)
   }
 }
 
-const normalizeConfiguredPassword = async (plainKey: 'frontend.password' | 'player.password', hashKey: 'frontend.passwordHash' | 'player.passwordHash', label: string, required: boolean): Promise<void> => {
+const normalizeConfiguredPassword = async (
+  plainKey: 'frontend.password' | 'player.password',
+  hashKey: 'frontend.passwordHash' | 'player.passwordHash',
+  label: string,
+  required: boolean,
+): Promise<void> => {
   const config = global.lx.config as unknown as Record<string, unknown>
   const configuredHash = config[hashKey]
   if (configuredHash !== undefined && configuredHash !== '' && !isPasswordHash(configuredHash)) {
@@ -412,7 +429,9 @@ const normalizeConfiguredPassword = async (plainKey: 'frontend.password' | 'play
 }
 
 try {
-  global.lx.config['proxy.trustedAddresses'] = normalizeTrustedProxyAddresses(global.lx.config['proxy.trustedAddresses'])
+  global.lx.config['proxy.trustedAddresses'] = normalizeTrustedProxyAddresses(
+    global.lx.config['proxy.trustedAddresses'],
+  )
 } catch (error: any) {
   exit(error?.message || 'proxy.trustedAddresses is invalid')
 }
@@ -427,7 +446,12 @@ checkAndCreateDir(global.lx.userPath)
 checkUserConfig(global.lx.config.users)
 try {
   await normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
-  await normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
+  await normalizeConfiguredPassword(
+    'player.password',
+    'player.passwordHash',
+    'player.password',
+    Boolean(global.lx.config['player.enableAuth']),
+  )
 } catch (error) {
   exit(error instanceof Error ? error.message : String(error))
 }
@@ -446,7 +470,6 @@ for (const user of global.lx.config.users) {
 }
 
 initLogger()
-
 
 /**
  * Normalize a port into a number, string, or false.
@@ -507,7 +530,7 @@ let configWatcher: fs.FSWatcher | null = null
 if (fs.existsSync(rootConfigPath)) {
   lastConfigHash = getConfigHash(rootConfigPath)
   let debounceTimer: NodeJS.Timeout | null = null
-  configWatcher = fs.watch(rootConfigPath, (event) => {
+  configWatcher = fs.watch(rootConfigPath, event => {
     if (event === 'change') {
       if (debounceTimer) clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => {
@@ -522,7 +545,12 @@ if (fs.existsSync(rootConfigPath)) {
           try {
             if (!margeConfig(rootConfigPath, true)) return
             await normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
-            await normalizeConfiguredPassword('player.password', 'player.passwordHash', 'player.password', Boolean(global.lx.config['player.enableAuth']))
+            await normalizeConfiguredPassword(
+              'player.password',
+              'player.passwordHash',
+              'player.password',
+              Boolean(global.lx.config['player.enableAuth']),
+            )
             await saveConfigToFile()
           } catch (e) {
             for (const key of Object.keys(global.lx.config)) {
@@ -549,7 +577,7 @@ const gracefulShutdown = async (signal: string) => {
       configWatcher.close()
       configWatcher = null
     }
-  } catch { }
+  } catch {}
 
   try {
     await stopServer(true)

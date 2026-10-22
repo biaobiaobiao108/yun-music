@@ -12,7 +12,7 @@ export class DislikeManage {
     this.dislikeDataManage = new DislikeDataManage(this.snapshotDataManage)
   }
 
-  createSnapshot = async() => {
+  createSnapshot = async () => {
     const listData = await this.getDislikeRules()
     const md5 = toMD5(listData.trim())
     const snapshotInfo = await this.snapshotDataManage.getSnapshotInfo()
@@ -28,7 +28,7 @@ export class DislikeManage {
     return md5
   }
 
-  getCurrentListInfoKey = async() => {
+  getCurrentListInfoKey = async () => {
     const snapshotInfo = await this.snapshotDataManage.getSnapshotInfo()
     if (snapshotInfo.latest) return snapshotInfo.latest
     // snapshotInfo.latest = toMD5((await this.getDislikeRules()).trim())
@@ -36,7 +36,7 @@ export class DislikeManage {
     return this.createSnapshot()
   }
 
-  getDislikeRules = async() => {
+  getDislikeRules = async () => {
     return await this.dislikeDataManage.getDislikeRules()
   }
 }

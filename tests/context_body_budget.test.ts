@@ -7,7 +7,9 @@ describe('HTTP request body buffering budget', () => {
     const controllers: ReadableStreamDefaultController<Uint8Array>[] = []
     const requests = Array.from({ length: 8 }, (_, index) => {
       const body = new ReadableStream<Uint8Array>({
-        start(controller) { controllers[index] = controller },
+        start(controller) {
+          controllers[index] = controller
+        },
       })
       const request = new Request('http://localhost/api/test', {
         method: 'POST',

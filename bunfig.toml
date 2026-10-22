@@ -1,0 +1,9 @@
+[fmt]
+semi = false
+singleQuote = true
+printWidth = 120
+arrowParens = "avoid"
+
+[[fmt.overrides]]
+files = ["**/*.css"]
+options = { tabWidth = 4, singleQuote = false, printWidth = 1000 }

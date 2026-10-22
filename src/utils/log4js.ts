@@ -54,11 +54,9 @@ const createLogConfig = (logPath: string) => {
   }
 }
 
-
 export const initLogger = () => {
   log4js.configure(createLogConfig(global.lx.logPath))
 }
-
 
 export const startupLog = log4js.getLogger('startup')
 export const accessLog = log4js.getLogger('access')

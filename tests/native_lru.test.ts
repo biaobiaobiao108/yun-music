@@ -2,9 +2,8 @@ import { expect, test } from 'bun:test'
 import { NativeLruCache, estimateCacheBytes } from '@/utils/nativeLru'
 
 // Inspect retained storage without get()/keys(), which themselves expire entries.
-const retainedSize = (cache: NativeLruCache<string, object>) => (
-  cache as unknown as { entries: Map<string, unknown> }
-).entries.size
+const retainedSize = (cache: NativeLruCache<string, object>) =>
+  (cache as unknown as { entries: Map<string, unknown> }).entries.size
 
 test('cold expired cache values are released without a subsequent lookup', async () => {
   const cache = new NativeLruCache<string, object>({ max: 2, ttl: 20 })
