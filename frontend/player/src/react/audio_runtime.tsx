@@ -323,13 +323,25 @@ export function AudioRuntime() {
     if (state.queue.length <= 1) return
     const currentPlaybackKey = `${songKey(state.currentSong)}:${quality}`
     if (prefetchTriggeredKey.current === currentPlaybackKey) return
-    const nextIndex = state.mode === 'random'
-      ? state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[Math.floor(Math.random() * (state.queue.length - 1))] ?? -1
-      : (state.currentIndex + 1) % state.queue.length
+    const priorityNextIndex = state.priorityNextSongKey ? state.queue.findIndex(song => songKey(song) === state.priorityNextSongKey) : -1
+    const randomNextIndex = state.mode === 'random' && state.randomNextSongKey ? state.queue.findIndex(song => songKey(song) === state.randomNextSongKey) : -1
+    const queuedNextIndex = priorityNextIndex >= 0 ? priorityNextIndex : randomNextIndex
+    const nextIndex = queuedNextIndex >= 0
+      ? queuedNextIndex
+      : state.mode === 'random'
+        ? state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[Math.floor(Math.random() * (state.queue.length - 1))] ?? -1
+        : (state.currentIndex + 1) % state.queue.length
     const nextSong = state.queue[nextIndex]
-    if (!nextSong || nextIndex === state.currentIndex || nextSong.url) return
+    if (state.mode === 'random' && nextSong && queuedNextIndex < 0) {
+      usePlaybackStore.getState().setRandomNextSongKey(songKey(nextSong))
+    }
+    if (!nextSong || nextIndex === state.currentIndex) return
     const key = songUrlCacheKey(nextSong, quality)
-    prefetchTriggeredKey.current = currentPlaybackKey
+    const prefetchKey = `${currentPlaybackKey}:${songKey(nextSong)}`
+    if (prefetchTriggeredKey.current === prefetchKey) return
+    cancelScheduledPrefetch()
+    prefetchTriggeredKey.current = prefetchKey
+    if (nextSong.url) return
     const cachedUrl = prefetchedUrls.get(key)
     if (cachedUrl && cachedUrl.expiresAt > Date.now()) return
     if (cachedUrl) prefetchedUrls.delete(key)
@@ -461,13 +473,22 @@ export function AudioRuntime() {
       if (settings.enableCrossfade && duration > 0 && currentTime < duration) {
         const state = usePlaybackStore.getState()
         let nextSong: Song | undefined
-        if (state.priorityNextSongKey) {
-          nextSong = state.queue.find(song => songKey(song) === state.priorityNextSongKey)
+        const priorityNextSong = state.priorityNextSongKey
+          ? state.queue.find(song => songKey(song) === state.priorityNextSongKey)
+          : undefined
+        const randomNextSong = state.mode === 'random' && state.randomNextSongKey
+          ? state.queue.find(song => songKey(song) === state.randomNextSongKey)
+          : undefined
+        if (priorityNextSong || randomNextSong) {
+          nextSong = priorityNextSong ?? randomNextSong
         } else if (state.mode !== 'single' && state.queue.length > 1) {
           const nextIndex = state.mode === 'random'
-            ? state.queue.findIndex((_, index) => index !== state.currentIndex)
+            ? state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[Math.floor(Math.random() * (state.queue.length - 1))] ?? -1
             : (state.currentIndex + 1) % state.queue.length
           nextSong = state.queue[nextIndex]
+          if (state.mode === 'random' && nextSong) {
+            usePlaybackStore.getState().setRandomNextSongKey(songKey(nextSong))
+          }
         }
         const remaining = duration - currentTime
         if (nextSong && songKey(nextSong) !== songId && remaining <= CROSSFADE_DURATION_MS / 1000 && remaining > 0) {

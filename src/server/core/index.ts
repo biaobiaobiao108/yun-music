@@ -153,10 +153,12 @@ export const compressionMiddleware: Middleware = async (ctx, next) => {
   const response = await next()
   if (!(response instanceof Response)) return response
   if (ctx.method === 'HEAD' || response.status === 204 || response.status === 206 || response.status === 304) return response
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.split(';', 1)[0].trim().toLowerCase() === 'text/event-stream') return response
+  if (response.headers.get('cache-control')?.split(',').some(value => value.trim().toLowerCase() === 'no-transform')) return response
   if (!ctx.headers.get('accept-encoding')?.toLowerCase().includes('gzip')) return response
   if (response.headers.get('content-encoding') || ctx.headers.get('range')) return response
 
-  const contentType = response.headers.get('content-type') || ''
   if (!COMPRESSIBLE_TYPE.test(contentType)) return response
   if (!response.body || typeof CompressionStream !== 'function') return response
 

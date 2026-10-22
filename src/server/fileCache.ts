@@ -53,6 +53,15 @@ const assertCachePathInside = (baseDir: string, fullPath: string, message: strin
         throw new Error(message)
     }
 
+    // The account directory is a direct child of the cache base. Reject it
+    // when it is a symlink: resolving it inside the shared base is not enough,
+    // because it may point at another account's directory.
+    try {
+        if (fs.lstatSync(resolvedFullLexical).isSymbolicLink()) throw new Error(message)
+    } catch (error: any) {
+        if (error?.code !== 'ENOENT') throw error
+    }
+
     // When the user directory does not exist yet, compare the nearest existing
     // ancestor with the real base directory. This keeps the symlink boundary
     // check while avoiding the macOS /var -> /private/var false positive.
@@ -3897,6 +3906,7 @@ export const switchFolder = async (filenames: string[], username: string | undef
     const normalizedUsername = normalizeCacheUsername(username)
     let successCount = 0
     let failCount = 0
+    let cacheChanged = false
     const moved: Array<{ filename: string; from: CacheFolder; to: CacheFolder }> = []
 
     const locations = getCacheLocations()
@@ -3995,9 +4005,45 @@ export const switchFolder = async (filenames: string[], username: string | undef
                     continue
                 }
 
+                let sourceLrcPath: string | null = null
+                let targetLrcPath: string | null = null
+                let shouldMoveLyric = false
+                if (item.lyricFilename) {
+                    sourceLrcPath = resolveCacheRelativePath(sourceDir, item.lyricFilename)
+                    targetLrcPath = resolveCacheRelativePath(targetDir, item.lyricFilename)
+                    if (!sourceLrcPath || !targetLrcPath) {
+                        failCount++
+                        continue
+                    }
+
+                    let sourceLyricStats: Stats | null = null
+                    try {
+                        sourceLyricStats = fs.lstatSync(sourceLrcPath)
+                    } catch (error: any) {
+                        if (error?.code !== 'ENOENT') throw error
+                    }
+                    if (sourceLyricStats && (sourceLyricStats.isSymbolicLink() || !sourceLyricStats.isFile())) {
+                        failCount++
+                        continue
+                    }
+
+                    shouldMoveLyric = !!sourceLyricStats
+                    if (shouldMoveLyric && pathExists(targetLrcPath)) {
+                        // Preserve both files and leave the audio in place when
+                        // the destination already has a companion lyric.
+                        failCount++
+                        continue
+                    }
+                    if (shouldMoveLyric) {
+                        const targetLyricDir = path.dirname(targetLrcPath)
+                        if (!fs.existsSync(targetLyricDir)) fs.mkdirSync(targetLyricDir, { recursive: true, mode: 0o700 })
+                    }
+                }
+
                 // Move audio file
                 try {
                     safeRenameSync(sourcePath, targetPath)
+                    cacheChanged = true
                     console.log(`[FileCache][DEBUG] moved audio`, { filename, sourcePath, targetPath })
                 } catch (moveErr) {
                     const errMsg = moveErr instanceof Error ? moveErr.stack : String(moveErr)
@@ -4006,24 +4052,46 @@ export const switchFolder = async (filenames: string[], username: string | undef
                     continue
                 }
 
-                // Move lyric file if exists
-                if (item.lyricFilename) {
-                    const sourceLrcPath = resolveCacheRelativePath(sourceDir, item.lyricFilename)
-                    const targetLrcPath = resolveCacheRelativePath(targetDir, item.lyricFilename)
-                    if (sourceLrcPath && targetLrcPath && fs.existsSync(sourceLrcPath)) {
-                        const targetLrcDir = path.dirname(targetLrcPath)
-                        if (!fs.existsSync(targetLrcDir)) fs.mkdirSync(targetLrcDir, { recursive: true, mode: 0o700 })
-                        if (fs.existsSync(targetLrcPath)) fs.unlinkSync(targetLrcPath)
+                // Move the companion lyric without replacing an existing file.
+                // If it fails, put the audio back before leaving the source
+                // index untouched. A failed rollback is handled as a partial
+                // move below so the index still describes the audio on disk.
+                if (shouldMoveLyric && sourceLrcPath && targetLrcPath) {
+                    try {
+                        moveFileNoOverwriteSync(sourceLrcPath, targetLrcPath)
+                        console.log(`[FileCache][DEBUG] moved lyric`, { filename, sourceLrcPath, targetLrcPath })
+                    } catch (lrErr) {
+                        const errMsg = lrErr instanceof Error ? lrErr.stack : String(lrErr)
+                        console.error(`[FileCache][ERROR] move lyric failed for ${filename}:`, errMsg)
+
                         try {
-                            safeRenameSync(sourceLrcPath, targetLrcPath)
-                            console.log(`[FileCache][DEBUG] moved lyric`, { filename, sourceLrcPath, targetLrcPath })
-                        } catch (lrErr) {
-                            const errMsg = lrErr instanceof Error ? lrErr.stack : String(lrErr)
-                            console.error(`[FileCache][ERROR] move lyric failed for ${filename}:`, errMsg)
+                            moveFileNoOverwriteSync(targetPath, sourcePath)
+                        } catch (rollbackErr) {
+                            const rollbackMsg = rollbackErr instanceof Error ? rollbackErr.stack : String(rollbackErr)
+                            console.error(`[FileCache][ERROR] audio rollback failed for ${filename}:`, rollbackMsg)
                         }
-                    } else {
-                        console.log(`[FileCache][DEBUG] lyric not found`, { filename, sourceLrcPath })
+
+                        const sourceAudioExists = fs.existsSync(sourcePath)
+                        const targetAudioExists = fs.existsSync(targetPath)
+                        if (!sourceAudioExists && targetAudioExists) {
+                            indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLocation)
+                            item.folder = targetFolder
+                            item.hasLyric = false
+                            item.lyricFilename = undefined
+                            item.lyricSize = 0
+                            indexManager.update(normalizedUsername, item, targetFolder, sourceLocation)
+                        } else if (!sourceAudioExists && !targetAudioExists) {
+                            indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLocation)
+                        }
+                        failCount++
+                        continue
                     }
+                } else if (item.lyricFilename && targetLrcPath && !pathExists(targetLrcPath)) {
+                    // The source sidecar was already missing; do not keep a
+                    // stale lyric reference in the destination index.
+                    item.hasLyric = false
+                    item.lyricFilename = undefined
+                    item.lyricSize = 0
                 }
 
                 // Update Index
@@ -4031,6 +4099,7 @@ export const switchFolder = async (filenames: string[], username: string | undef
                 console.log(`[FileCache][DEBUG] index remove result`, { filename, removed })
                 item.folder = targetFolder
                 indexManager.update(normalizedUsername, item, targetFolder, sourceLocation)
+                cacheChanged = true
                 successCount++
                 moved.push({ filename, from: sourceFolder, to: targetFolder })
             } else {
@@ -4044,7 +4113,7 @@ export const switchFolder = async (filenames: string[], username: string | undef
         }
     }
 
-    if (successCount > 0) {
+    if (cacheChanged || successCount > 0) {
         invalidateCacheListSync(normalizedUsername)
         invalidateGlobalCacheStats()
     }

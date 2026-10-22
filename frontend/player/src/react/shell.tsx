@@ -485,14 +485,24 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 
 function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const remaining = useSleepTimerStore(state => state.remaining)
+  const storedRemaining = useSleepTimerStore(state => state.remaining)
   const deadline = useSleepTimerStore(state => state.deadline)
   const setTimer = useSleepTimerStore(state => state.setTimer)
   const cancelTimer = useSleepTimerStore(state => state.cancelTimer)
   const tick = useSleepTimerStore(state => state.tick)
   const [minutes, setMinutes] = useState('30')
-  useEffect(() => { if (!deadline) return; const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer) }, [deadline, tick])
-  const label = remaining > 0 ? `${Math.floor(remaining / 60)}分 ${remaining % 60}秒后停止` : '未设置定时器'
+  useEffect(() => {
+    if (!open || !deadline) return
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => window.clearInterval(timer)
+  }, [deadline, open, tick])
+  const remaining = deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : storedRemaining
+  const label = deadline && remaining === 0
+    ? '即将停止'
+    : remaining > 0
+      ? `${Math.floor(remaining / 60)}分 ${remaining % 60}秒后停止`
+      : '未设置定时器'
   return <Modal open={open} title="睡眠定时器" onClose={onClose}><div className="react-sleep-timer"><p role="status">{label}</p><div className="react-dialog-actions">{[15, 30, 60, 90].map(value => <Button key={value} onClick={() => { setTimer(value); onClose() }}>{value} 分钟</Button>)}</div><form className="react-dialog-form" onSubmit={event => { event.preventDefault(); setTimer(Number(minutes)); onClose() }}><label htmlFor="sleep-minutes">自定义分钟数</label><input id="sleep-minutes" type="number" min="1" max="1440" value={minutes} onChange={event => setMinutes(event.target.value)} /><Button variant="primary" type="submit">开始计时</Button></form>{deadline && <Button onClick={() => { cancelTimer(); onClose() }}>取消定时器</Button>}</div></Modal>
 }
 
@@ -545,6 +555,7 @@ export function PlayerShell() {
         if (immersiveLyrics) { event.preventDefault(); setImmersiveLyrics(false) }
         return
       }
+      if (drawer) return
       if (!keyboardShortcuts || editing || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === ' ' || event.key === 'Spacebar') { event.preventDefault(); togglePlayback() }
       else if (event.key === 'ArrowLeft') {

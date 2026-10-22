@@ -322,49 +322,102 @@ export function Modal({ open, title, onClose, children, className }: { open: boo
   </dialog>
 }
 
+let drawerFocusTarget: HTMLElement | null = null
+let drawerFocusRestoreFrame: number | null = null
+
+function cancelDrawerFocusRestore(): void {
+  if (drawerFocusRestoreFrame === null) return
+  window.cancelAnimationFrame(drawerFocusRestoreFrame)
+  drawerFocusRestoreFrame = null
+}
+
+function scheduleDrawerFocusRestore(): void {
+  cancelDrawerFocusRestore()
+  drawerFocusRestoreFrame = window.requestAnimationFrame(() => {
+    drawerFocusRestoreFrame = null
+    const target = drawerFocusTarget
+    if (target?.isConnected && !target.matches(':disabled')) target.focus()
+    else (document.getElementById('admin-main') ?? document.getElementById('player-main-content'))?.focus()
+    drawerFocusTarget = null
+  })
+}
+
 export function Drawer({ open, title, titleSuffix, onClose, children, labelledBy, className = '', headerActions }: { open: boolean; title: string; titleSuffix?: ReactNode; onClose: () => void; children: ReactNode; labelledBy?: string; className?: string; headerActions?: ReactNode }) {
   const drawerRef = useRef<HTMLElement>(null)
-  const lastFocus = useRef<HTMLElement | null>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
-  useEffect(() => {
-    if (open) {
-      lastFocus.current = document.activeElement as HTMLElement | null
+  useLayoutEffect(() => {
+    if (!open) {
+      if (drawerFocusTarget) scheduleDrawerFocusRestore()
+      return undefined
+    }
+
+    cancelDrawerFocusRestore()
+    if (!drawerFocusTarget || !drawerFocusTarget.isConnected || drawerFocusTarget.closest('.react-player-drawer')) {
+      const activeElement = document.activeElement
+      drawerFocusTarget = activeElement instanceof HTMLElement && activeElement !== document.body && !activeElement.closest('.react-player-drawer')
+        ? activeElement
+        : null
+    }
+    headingRef.current?.focus()
+
+    {
       const onKeyDown = (event: KeyboardEvent) => {
         if (event.key === 'Escape') {
           event.preventDefault()
           event.stopPropagation()
-          onClose()
+          onCloseRef.current()
+          return
+        }
+        if (event.key !== 'Tab') return
+
+        const drawer = drawerRef.current
+        if (!drawer) return
+        const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(
+          'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        )).filter(element => !element.closest('[inert], [aria-hidden="true"]') && element.getClientRects().length > 0)
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (!first || !last) {
+          event.preventDefault()
+          drawer.focus()
+        } else if (!focusable.includes(document.activeElement as HTMLElement)) {
+          event.preventDefault()
+          const target = event.shiftKey ? last : first
+          target.focus()
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
         }
       }
       const onPointerDown = (event: PointerEvent) => {
         if (!drawerRef.current?.contains(event.target as Node)) {
-          onClose()
+          onCloseRef.current()
         }
       }
-      window.addEventListener('keydown', onKeyDown)
+      window.addEventListener('keydown', onKeyDown, true)
       const timer = setTimeout(() => {
         window.addEventListener('pointerdown', onPointerDown)
       }, 0)
       return () => {
         clearTimeout(timer)
-        window.removeEventListener('keydown', onKeyDown)
+        window.removeEventListener('keydown', onKeyDown, true)
         window.removeEventListener('pointerdown', onPointerDown)
-      }
-    } else if (lastFocus.current) {
-      const target = lastFocus.current
-      lastFocus.current = null
-      if (target.isConnected && !target.matches(':disabled')) {
-        target.focus()
+        scheduleDrawerFocusRestore()
       }
     }
-    return undefined
-  }, [open, onClose])
+  }, [open])
 
   return <>
     {open && <div className="react-drawer-backdrop" onClick={onClose} aria-hidden="true" />}
-    <aside ref={drawerRef} className={'react-player-drawer ' + className + (open ? ' is-open' : '')} aria-hidden={!open} aria-labelledby={labelledBy} inert={!open ? true : undefined}>
+    <aside ref={drawerRef} className={'react-player-drawer ' + className + (open ? ' is-open' : '')} role="dialog" aria-modal={open ? true : undefined} aria-hidden={!open} aria-labelledby={labelledBy} inert={!open ? true : undefined} tabIndex={-1}>
       <div className="react-drawer-header">
-        <h2 id={labelledBy}>{title}{titleSuffix}</h2>
+        <h2 ref={headingRef} id={labelledBy} tabIndex={-1}>{title}{titleSuffix}</h2>
         <div className="react-drawer-actions">
           {headerActions}
           <button type="button" className="react-icon-button" onClick={onClose} aria-label={'关闭' + title}><Icon name="xmark" /></button>

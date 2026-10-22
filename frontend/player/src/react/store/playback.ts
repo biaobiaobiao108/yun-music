@@ -11,6 +11,7 @@ export type PlaybackState = {
   currentIndex: number
   currentSong: Song | null
   priorityNextSongKey: string | null
+  randomNextSongKey: string | null
   hasHydrated: boolean
   isPlaying: boolean
   currentTime: number
@@ -32,6 +33,7 @@ export type PlaybackState = {
   setMode: (mode: PlayMode) => void
   setQuality: (quality: string) => void
   setResolvedUrl: (url: string | null) => void
+  setRandomNextSongKey: (key: string | null) => void
   setSongUrl: (song: Song, url: string, sessionGeneration: number) => void
   seek: (time: number) => void
   next: () => void
@@ -131,6 +133,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   currentIndex: -1,
   currentSong: null,
   priorityNextSongKey: null,
+  randomNextSongKey: null,
   hasHydrated: false,
   isPlaying: false,
   currentTime: 0,
@@ -151,7 +154,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song))
     const state = get()
     const priorityNextSongKey = state.priorityNextSongKey === songKey(song) ? null : state.priorityNextSongKey
-    const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, resolvedUrl: null, error: '', priorityNextSongKey }
+    const next = { currentSong: song, queue: nextQueue, currentIndex: nextIndex, currentTime: 0, isPlaying: true, resolvedUrl: null, error: '', priorityNextSongKey, randomNextSongKey: null }
     set(next)
     persistPlaybackNow({ ...get(), ...next })
   },
@@ -197,7 +200,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   },
   setMode: mode => {
     writeString(browserStorage(), 'lx_play_mode', mode)
-    set({ mode })
+    set({ mode, randomNextSongKey: null })
     persistPlaybackNow({ ...get(), mode })
   },
   setQuality: quality => {
@@ -206,6 +209,14 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     persistPlaybackNow({ ...get(), quality: next })
   },
   setResolvedUrl: resolvedUrl => set({ resolvedUrl }),
+  setRandomNextSongKey: key => {
+    const state = get()
+    const validKey = state.mode === 'random' && key && key !== (state.currentSong ? songKey(state.currentSong) : '')
+      && state.queue.some(song => songKey(song) === key)
+      ? key
+      : null
+    set({ randomNextSongKey: validKey })
+  },
   setSongUrl: (song, url, sessionGeneration) => {
     if (sessionGeneration !== getSessionGeneration()) return
     const state = get()
@@ -222,7 +233,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     set({ currentTime: time })
   },
   next: () => {
-    const { queue, currentIndex, mode, priorityNextSongKey } = get()
+    const { queue, currentIndex, mode, priorityNextSongKey, randomNextSongKey } = get()
     if (!queue.length) return
     if (priorityNextSongKey) {
       const priorityIndex = queue.findIndex(song => songKey(song) === priorityNextSongKey)
@@ -232,6 +243,15 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
         return
       }
       set({ priorityNextSongKey: null })
+    }
+    if (mode === 'random' && randomNextSongKey) {
+      const randomIndex = queue.findIndex(song => songKey(song) === randomNextSongKey)
+      if (randomIndex >= 0 && randomIndex !== currentIndex) {
+        const song = queue[randomIndex]
+        if (song) get().playSong(song, queue, randomIndex)
+        return
+      }
+      set({ randomNextSongKey: null })
     }
     let index = (currentIndex + 1) % queue.length
     if (mode === 'random') {
@@ -296,7 +316,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     }
     const currentIndex = queue.findIndex(item => songKey(item) === currentKey)
     const next = { ...state, queue, currentIndex, priorityNextSongKey: key }
-    set({ queue, currentIndex, priorityNextSongKey: key })
+    set({ queue, currentIndex, priorityNextSongKey: key, randomNextSongKey: null })
     persistPlaybackNow(next)
   },
   removeFromQueue: index => {
@@ -307,7 +327,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const queue = state.queue.filter((_, itemIndex) => itemIndex !== index)
     if (!queue.length) {
       pauseCommand()
-      set({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, resolvedUrl: null, priorityNextSongKey: null })
+      set({ queue: [], currentIndex: -1, currentSong: null, isPlaying: false, currentTime: 0, duration: 0, resolvedUrl: null, priorityNextSongKey: null, randomNextSongKey: null })
       persistPlaybackNow({ ...state, queue: [], currentIndex: -1, currentSong: null, currentTime: 0, priorityNextSongKey: null })
       return
     }
@@ -319,7 +339,8 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     const currentIndex = state.currentIndex > index ? state.currentIndex - 1 : state.currentIndex
     const currentSong = currentIndex >= 0 ? queue[currentIndex] ?? null : null
     const priorityNextSongKey = state.priorityNextSongKey === removedSongKey ? null : state.priorityNextSongKey
-    set({ queue, currentIndex, currentSong, priorityNextSongKey })
+    const randomNextSongKey = state.randomNextSongKey === removedSongKey ? null : state.randomNextSongKey
+    set({ queue, currentIndex, currentSong, priorityNextSongKey, randomNextSongKey })
     persistPlaybackNow({ ...state, queue, currentIndex, currentSong, priorityNextSongKey })
   },
   clearQueue: () => {
@@ -337,6 +358,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       resolving: false,
       error: '',
       priorityNextSongKey: null,
+      randomNextSongKey: null,
     }
     set(cleared)
     persistPlaybackNow({ ...state, ...cleared })
@@ -351,6 +373,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       currentIndex: -1,
       currentSong: null,
       priorityNextSongKey: null,
+      randomNextSongKey: null,
       hasHydrated: false,
       isPlaying: false,
       currentTime: 0,
@@ -381,6 +404,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       mode: saved.playMode ?? get().mode,
       quality: saved.quality ?? 'flac',
       priorityNextSongKey: requestedNextKey && queue.some(song => songKey(song) === requestedNextKey) ? requestedNextKey : null,
+      randomNextSongKey: null,
     })
   },
 }))

@@ -22,6 +22,7 @@ import { SnapshotConflictError } from '@/modules/snapshotStorage'
 import { PlaylistIdConflictError, type PlaylistMutation } from '@/modules/list/listDataManage'
 import { deleteUserCacheData } from '@/server/fileCache'
 import * as downloadQueue from '@/server/serverDownloadQueue'
+import { releaseDataOperation, tryAcquireDataOperation } from '../dataOperationLock'
 
 let accountChangeInProgress = false
 
@@ -145,6 +146,7 @@ export const createUserRouter = (): Router => {
 
   router.post('/api/users', async (ctx) => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
+    let dataLockAcquired = false
     try {
       const { name, password } = await ctx.bodyJson<{ name?: string; password?: string }>()
       if (typeof name !== 'string' || !name.trim() || typeof password !== 'string' || !password.trim()) {
@@ -162,6 +164,9 @@ export const createUserRouter = (): Router => {
       if (global.lx.config.users.some((u: any) => u.name === normalizedName)) {
         return ctx.fail(409, '该用户名已存在')
       }
+      if (!tryAcquireDataOperation('account-change')) return ctx.fail(409, '备份或账户变更正在进行，请稍后重试')
+      dataLockAcquired = true
+      accountChangeInProgress = true
 
       const dataPath = path.join(global.lx.userPath, getUserDirname(normalizedName))
       const dataPathExisted = fs.existsSync(dataPath)
@@ -185,11 +190,17 @@ export const createUserRouter = (): Router => {
       return ctx.json({ success: true })
     } catch {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
+    } finally {
+      if (dataLockAcquired) {
+        accountChangeInProgress = false
+        releaseDataOperation('account-change')
+      }
     }
   })
 
   router.put('/api/users', async (ctx) => {
     const suspendedNames: string[] = []
+    let dataLockAcquired = false
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const { name, newName, password } = await ctx.bodyJson<{ name?: string; newName?: string; password?: string }>()
@@ -218,13 +229,15 @@ export const createUserRouter = (): Router => {
       }
 
       const user = global.lx.config.users[userIdx]
+      if (!tryAcquireDataOperation('account-change')) return ctx.fail(409, '备份或账户变更正在进行，请稍后重试')
+      dataLockAcquired = true
+      accountChangeInProgress = true
 
       if (normalizedNewName !== undefined && normalizedNewName !== normalizedName) {
         if (global.lx.config.users.some((u: any) => u.name === normalizedNewName)) {
           return ctx.fail(409, '新用户名已存在')
         }
 
-        accountChangeInProgress = true
         suspendedNames.push(normalizedName, normalizedNewName)
         await Promise.all(suspendedNames.map(name => downloadQueue.suspendUser(name)))
         const previousUser = { ...user }
@@ -282,12 +295,16 @@ export const createUserRouter = (): Router => {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
     } finally {
       for (const name of suspendedNames) downloadQueue.releaseUser(name)
-      if (suspendedNames.length) accountChangeInProgress = false
+      if (dataLockAcquired) {
+        accountChangeInProgress = false
+        releaseDataOperation('account-change')
+      }
     }
   })
 
   router.delete('/api/users', async (ctx) => {
     const suspendedNames: string[] = []
+    let dataLockAcquired = false
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
       const body = await ctx.bodyJson<{ name?: string; names?: string[]; deleteData?: boolean }>()
@@ -311,7 +328,8 @@ export const createUserRouter = (): Router => {
         if (targetName === '_open') return ctx.fail(422, '不能删除系统保留用户')
       }
 
-      if (accountChangeInProgress) return ctx.fail(409, '账户数据正在迁移或删除，请稍后重试')
+      if (accountChangeInProgress || !tryAcquireDataOperation('account-change')) return ctx.fail(409, '备份或账户变更正在进行，请稍后重试')
+      dataLockAcquired = true
       accountChangeInProgress = true
       suspendedNames.push(...targets)
       await Promise.all(targets.map(name => downloadQueue.suspendUser(name)))
@@ -372,7 +390,10 @@ export const createUserRouter = (): Router => {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
     } finally {
       for (const name of suspendedNames) downloadQueue.releaseUser(name)
-      if (suspendedNames.length) accountChangeInProgress = false
+      if (dataLockAcquired) {
+        accountChangeInProgress = false
+        releaseDataOperation('account-change')
+      }
     }
   })
 

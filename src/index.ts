@@ -214,9 +214,18 @@ const margeConfig = (p: string, preserveUsers = false) => {
 
 //加载环境变量
 const p1 = path.join(__dirname, '../config.js')
-fs.existsSync(p1) && margeConfig(p1)
+const rootConfigLoaded = !fs.existsSync(p1) || margeConfig(p1)
 const dataConfigPath = envParams.CONFIG_PATH || path.join(dataPath, 'config.js')
-dataConfigPath !== p1 && fs.existsSync(dataConfigPath) && margeConfig(dataConfigPath)
+const abortConfigLoad = (filePath: string): never => {
+  console.error(`配置文件无法解析，已保留原文件：${filePath}`)
+  process.exit(1)
+}
+if (dataConfigPath === p1 && !rootConfigLoaded) {
+  abortConfigLoad(dataConfigPath)
+}
+if (dataConfigPath !== p1 && fs.existsSync(dataConfigPath) && !margeConfig(dataConfigPath)) {
+  abortConfigLoad(dataConfigPath)
+}
 envParams.CONFIG_PATH && envParams.CONFIG_PATH !== dataConfigPath && fs.existsSync(envParams.CONFIG_PATH) && margeConfig(envParams.CONFIG_PATH)
 if (envParams.PROXY_HEADER) {
   global.lx.config['proxy.enabled'] = true

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { playerApi, type CacheStats, type CacheTask } from '../api'
 import type { Song } from '../types'
 import { songKey } from '../types'
+import { getSessionGeneration } from '../session'
 import { usePlayerUiStore } from './ui'
 
 export type CacheTaskAction = 'pause' | 'resume' | 'remove'
@@ -129,20 +130,25 @@ async function runTaskAction(
   errorLabel: string,
 ): Promise<boolean> {
   if (!id || get().pendingTaskActions[id] || get().pendingBatchAction) return false
+  const sessionGeneration = getSessionGeneration()
+  const isCurrentSession = () => sessionGeneration === getSessionGeneration()
   set(state => ({ pendingTaskActions: { ...state.pendingTaskActions, [id]: action } }))
   try {
     await request()
+    if (!isCurrentSession()) return false
     await get().load({ force: true })
-    return true
+    return isCurrentSession()
   } catch (error) {
-    usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
+    if (isCurrentSession()) usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
     return false
   } finally {
-    set(state => {
-      const pendingTaskActions = { ...state.pendingTaskActions }
-      delete pendingTaskActions[id]
-      return { pendingTaskActions }
-    })
+    if (isCurrentSession()) {
+      set(state => {
+        const pendingTaskActions = { ...state.pendingTaskActions }
+        delete pendingTaskActions[id]
+        return { pendingTaskActions }
+      })
+    }
   }
 }
 
@@ -154,15 +160,18 @@ async function runBatchAction(
   errorLabel: string,
 ): Promise<boolean> {
   if (get().pendingBatchAction || Object.keys(get().pendingTaskActions).length > 0) return false
+  const sessionGeneration = getSessionGeneration()
+  const isCurrentSession = () => sessionGeneration === getSessionGeneration()
   set({ pendingBatchAction: action })
   try {
     await request()
+    if (!isCurrentSession()) return false
     await get().load({ force: true })
-    return true
+    return isCurrentSession()
   } catch (error) {
-    usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
+    if (isCurrentSession()) usePlayerUiStore.getState().notifyPlayback(error instanceof Error ? error.message : errorLabel, 'error')
     return false
   } finally {
-    set({ pendingBatchAction: null })
+    if (isCurrentSession()) set({ pendingBatchAction: null })
   }
 }
