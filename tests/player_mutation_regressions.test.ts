@@ -8,6 +8,10 @@ import type { Song } from '../frontend/player/src/react/types'
 const first: Song = { id: 'first', source: 'wy', name: '第一项' }
 const second: Song = { id: 'second', source: 'wy', name: '第二项' }
 
+function markMediaLibraryLoaded(): void {
+  useMediaLibraryStore.setState({ loadedAt: Date.now() })
+}
+
 afterEach(() => {
   usePlaybackStore.getState().reset()
   useMediaLibraryStore.getState().reset()
@@ -57,6 +61,7 @@ test.each(['album', 'artist'] as const)('serializes rapid %s saves so the latest
   )
   try {
     useMediaLibraryStore.getState().reset()
+    markMediaLibraryLoaded()
     const one = useMediaLibraryStore.getState().toggle(kind, first)
     const two = useMediaLibraryStore.getState().toggle(kind, second)
     await Promise.resolve()
@@ -81,6 +86,7 @@ test('a failed media save rolls back before constructing the next queued save', 
     .mockRejectedValueOnce(new Error('保存失败'))
     .mockResolvedValue({ success: true })
   try {
+    markMediaLibraryLoaded()
     const one = useMediaLibraryStore
       .getState()
       .toggle('album', first)
@@ -104,6 +110,7 @@ test('reset discards queued media mutations from an old session', async () => {
       }),
   )
   try {
+    markMediaLibraryLoaded()
     const one = useMediaLibraryStore.getState().toggle('album', first)
     const two = useMediaLibraryStore
       .getState()

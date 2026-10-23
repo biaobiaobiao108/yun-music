@@ -6,6 +6,7 @@ import { songEntityId, songEntityName, songSource } from '../song_details'
 import { songImage, type Song } from '../types'
 
 let mediaController: AbortController | null = null
+let mediaHydrationPromise: Promise<void> | null = null
 let mediaRequestId = 0
 const mediaToggleRequestIds: Record<'albums' | 'artists', number> = { albums: 0, artists: 0 }
 const mediaMutationQueues = new Map<'albums' | 'artists', Promise<void>>()
@@ -57,7 +58,8 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
   refreshing: false,
   error: '',
   loadedAt: 0,
-  hydrate: async (options = {}) => {
+  hydrate: (options = {}) => {
+    if (mediaHydrationPromise) return mediaHydrationPromise
     const hadController = Boolean(mediaController)
     mediaController?.abort()
     const controller = new AbortController()
@@ -66,22 +68,28 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
     const force = options.force ?? hadController
     const hasLoadedData = get().loadedAt > 0
     set({ loading: !hasLoadedData, refreshing: hasLoadedData, error: '' })
-    try {
-      const [albums, artists] = await Promise.all([
-        playerApi.libraryAlbums(controller.signal, { cacheKey: 'media-library:albums', cacheTtlMs: 60_000, force }),
-        playerApi.libraryArtists(controller.signal, { cacheKey: 'media-library:artists', cacheTtlMs: 60_000, force }),
-      ])
-      if (!controller.signal.aborted && requestId === mediaRequestId)
-        set({ albums: normalizeLibraryItems(albums), artists: normalizeLibraryItems(artists), loadedAt: Date.now() })
-    } catch (error) {
-      if (!controller.signal.aborted && requestId === mediaRequestId && get().loadedAt === 0 && !isAbortError(error))
-        set({ error: error instanceof Error ? error.message : '媒体库加载失败' })
-    } finally {
-      if (mediaController === controller) {
-        mediaController = null
-        set({ loading: false, refreshing: false })
+    let promise!: Promise<void>
+    promise = (async () => {
+      try {
+        const [albums, artists] = await Promise.all([
+          playerApi.libraryAlbums(controller.signal, { cacheKey: 'media-library:albums', cacheTtlMs: 60_000, force }),
+          playerApi.libraryArtists(controller.signal, { cacheKey: 'media-library:artists', cacheTtlMs: 60_000, force }),
+        ])
+        if (!controller.signal.aborted && requestId === mediaRequestId)
+          set({ albums: normalizeLibraryItems(albums), artists: normalizeLibraryItems(artists), loadedAt: Date.now() })
+      } catch (error) {
+        if (!controller.signal.aborted && requestId === mediaRequestId && get().loadedAt === 0 && !isAbortError(error))
+          set({ error: error instanceof Error ? error.message : '媒体库加载失败' })
+      } finally {
+        if (mediaController === controller) {
+          mediaController = null
+          set({ loading: false, refreshing: false })
+        }
+        if (mediaHydrationPromise === promise) mediaHydrationPromise = null
       }
-    }
+    })()
+    mediaHydrationPromise = promise
+    return promise
   },
   toggle: (kind, item) => {
     const key = kind === 'artist' ? 'artists' : 'albums'
@@ -96,6 +104,11 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
     // so a failed save is rolled back before the next snapshot is constructed.
     const run = async () => {
       if (!isCurrent()) throw new Error('登录账户已变化，请重新操作')
+      if (get().loadedAt === 0) {
+        await get().hydrate({ force: true })
+        if (!isCurrent()) throw new Error('登录账户已变化，请重新操作')
+        if (get().loadedAt === 0) throw new Error(get().error || '媒体库尚未加载完成，请稍后重试')
+      }
       mediaRequestId += 1
       mediaController?.abort()
       mediaController = null
@@ -145,12 +158,15 @@ export const useMediaLibraryStore = create<MediaLibraryState>((set, get) => ({
     mediaToggleRequestIds.artists += 1
     mediaController?.abort()
     mediaController = null
+    mediaHydrationPromise = null
     invalidateRequestCache('media-library:')
     set({ albums: [], artists: [], loading: false, refreshing: false, error: '', loadedAt: 0 })
   },
   invalidate: () => {
     mediaRequestId += 1
     mediaController?.abort()
+    mediaController = null
+    mediaHydrationPromise = null
     invalidateRequestCache('media-library:')
     set({ loadedAt: 0 })
   },

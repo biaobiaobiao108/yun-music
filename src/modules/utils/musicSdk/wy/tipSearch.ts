@@ -9,7 +9,6 @@ export default {
     if (this.requestObj && this.requestObj.cancelHttp) this.requestObj.cancelHttp()
   },
   tipSearchBySong(str: any) {
-    this.cancelTipSearch()
     this.requestObj = httpFetch('https://music.163.com/weapi/search/suggest/web', {
       method: 'POST',
       headers: {

@@ -75,7 +75,6 @@ export default {
   // http://nplserver.kuwo.cn/pl.svc?op=getlistinfo&pid=2849349915&pn=0&rn=100&encode=utf8&keyset=pl2012&identity=kuwo&pcmp4=1&vipver=MUSIC_9.0.5.0_W1&newver=1
   // 获取标签
   getTag(tryNum: any = 0) {
-    if (this._requestObj_tags) this._requestObj_tags.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_tags = httpFetch(this.tagsUrl)
     releaseRequestWhenSettled(this, '_requestObj_tags')
@@ -86,7 +85,6 @@ export default {
   },
   // 获取标签
   getHotTag(tryNum: any = 0) {
-    if (this._requestObj_hotTags) this._requestObj_hotTags.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_hotTags = httpFetch(this.hotTagUrl)
     releaseRequestWhenSettled(this, '_requestObj_hotTags')
@@ -126,7 +124,6 @@ export default {
 
   // 获取列表数据
   getList(sortId: any, tagId: any, page: any, tryNum: any = 0) {
-    if (this._requestObj_list) this._requestObj_list.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_list = httpFetch(this.getListUrl(sortId, tagId, page))
     // console.log(this.getListUrl(sortId, tagId, page))

@@ -1,9 +1,7 @@
 import { httpFetch } from '../../request'
 
 export default {
-  _requestObj: null as any,
   async getList(retryNum: any = 0) {
-    if (this._requestObj) this._requestObj.cancelHttp()
     if (retryNum > 2) return Promise.reject(new Error('try max num'))
 
     // const _requestObj = httpFetch('https://c.y.qq.com/splcloud/fcgi-bin/gethotkey.fcg', {

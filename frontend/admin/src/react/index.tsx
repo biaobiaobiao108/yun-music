@@ -131,12 +131,14 @@ function AdminShell() {
   const view = useAdminStore(state => state.view)
   const setView = useAdminStore(state => state.setView)
   const signOut = useAdminStore(state => state.signOut)
+  const notify = useAdminStore(state => state.notify)
   const toast = useAdminStore(state => state.toast)
   const clearToast = useAdminStore(state => state.clearToast)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [toastPhase, setToastPhase] = useState<'entering' | 'visible' | 'leaving'>('entering')
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [signingOut, setSigningOut] = useState(false)
   const [appearance, setAppearance] = useState<Appearance>(
     () => (readThemePreferences().appearance || 'system') as Appearance,
   )
@@ -182,6 +184,17 @@ function AdminShell() {
   const closeMobile = () => {
     setMobileOpen(false)
     window.requestAnimationFrame(() => menuButtonRef.current?.focus())
+  }
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      await signOut()
+    } catch (error) {
+      notify(`退出登录失败：${error instanceof Error ? error.message : '请求失败，请稍后重试'}`)
+    } finally {
+      setSigningOut(false)
+    }
   }
   const selectView = (next: AdminView) => {
     setView(next)
@@ -245,7 +258,7 @@ function AdminShell() {
           </div>
         </nav>
         <div className="sidebar-footer">
-          <Button onClick={() => void signOut()} className="btn-logout">
+          <Button onClick={() => void handleSignOut()} disabled={signingOut} className="btn-logout">
             <Icon name="right-from-bracket" />
             退出登录
           </Button>
@@ -283,7 +296,7 @@ function AdminShell() {
                 安装应用
               </Button>
             )}
-            <Button variant="secondary" onClick={() => void signOut()}>
+            <Button variant="secondary" onClick={() => void handleSignOut()} disabled={signingOut}>
               <Icon name="right-from-bracket" />
               退出
             </Button>

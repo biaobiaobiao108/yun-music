@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { playerApi, type CacheItem } from './api'
+import { loadPlaylistSongs, playerApi, type CacheItem } from './api'
 import { Button, DescriptionDisclosure, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
 import { selectUserLists, useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 import type { PlayerDetail, Song } from './types'
@@ -20,6 +20,7 @@ import { useRequestResource } from './data/use_request'
 import { useRealtimePoll } from './data/use_realtime_poll'
 import { useCacheEvents } from './data/use_cache_events'
 import { goBack } from './route_state'
+import { getSessionGeneration } from './session'
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -52,26 +53,38 @@ function listItemImage(item: Song, fallback?: unknown): string {
   return resolved || safeImageUrl(fallback)
 }
 
-function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
+export function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
+  const [page, setPage] = useState(1)
+  const [collecting, setCollecting] = useState(false)
+  const collectionController = useRef<AbortController | null>(null)
+  useEffect(() => () => collectionController.current?.abort(), [detail.id, detail.source])
   const loadDetail = useCallback(
     async (signal: AbortSignal, options: { force: boolean }) => {
-      const result = await playerApi.songListDetail(detail.source, detail.id, signal, {
-        cacheKey: `songlist:detail:${detail.source}:${detail.id}`,
-        cacheTtlMs: 60_000,
-        force: options.force,
-      })
+      const result = await playerApi.songListDetail(
+        detail.source,
+        detail.id,
+        signal,
+        {
+          cacheKey: `songlist:detail:${detail.source}:${detail.id}:${page}`,
+          cacheTtlMs: 60_000,
+          force: options.force,
+        },
+        page,
+      )
       const payload = result && typeof result === 'object' ? (result as Record<string, unknown>) : {}
       return { payload, songs: extractSongs(result) }
     },
-    [detail.id, detail.source],
+    [detail.id, detail.source, page],
   )
-  const resource = useRequestResource(loadDetail, [detail.id, detail.source], {
+  const resource = useRequestResource(loadDetail, [detail.id, detail.source, page], {
     initialData: { payload: {}, songs: [] as Song[] },
   })
   const { payload, songs } = resource.data
   const { loading, error } = resource
+  const total = Number(payload.total) || songs.length
   const userLists = useLibraryStore(selectUserLists)
   const toggleRemotePlaylist = useLibraryStore(state => state.toggleRemotePlaylist)
+  const deleteList = useLibraryStore(state => state.deleteList)
   const userAuthenticated = useAuthStore(state => state.userAuthenticated)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const notify = usePlayerUiStore(state => state.notify)
@@ -79,21 +92,37 @@ function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
   const name = String(payload.name ?? payload.title ?? payload.dissname ?? info.name ?? detail.name ?? '歌单详情')
   const image = listItemImage(payload as Song, detail.image)
   const description = String(payload.desc ?? payload.description ?? payload.intro ?? info.desc ?? '')
-  const isCollected = userLists.some(
+  const collectedList = userLists.find(
     list => String(list.source || '') === detail.source && String(list.sourceListId ?? '') === detail.id,
   )
+  const isCollected = Boolean(collectedList)
   const toggleCollected = async () => {
-    if (loading || error) return
+    if (loading || error || collectionController.current) return
     if (!userAuthenticated) {
       setDialog('userLogin')
       notify('请先登录用户账户')
       return
     }
+    const controller = new AbortController()
+    const sessionGeneration = getSessionGeneration()
+    collectionController.current = controller
+    setCollecting(true)
     try {
-      const next = await toggleRemotePlaylist({ id: detail.id, source: detail.source, name, image }, songs)
+      if (collectedList) {
+        await deleteList(String(collectedList.id))
+        notify('已取消收藏歌单')
+        return
+      }
+      const completeSongs = await loadPlaylistSongs(detail.source, detail.id, controller.signal)
+      controller.signal.throwIfAborted()
+      if (getSessionGeneration() !== sessionGeneration) throw new Error('登录账户已变化，请重新操作')
+      const next = await toggleRemotePlaylist({ id: detail.id, source: detail.source, name, image }, completeSongs)
       notify(next ? '歌单已收藏' : '已取消收藏歌单')
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : '歌单收藏失败')
+      if (!controller.signal.aborted) notify(cause instanceof Error ? cause.message : '歌单收藏失败')
+    } finally {
+      if (collectionController.current === controller) collectionController.current = null
+      setCollecting(false)
     }
   }
   return (
@@ -101,7 +130,7 @@ function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
       <section className="react-detail-header t-bg-panel">
         <button type="button" className="react-secondary-button" onClick={goBack}>
           <Icon name="arrow-left" />
-          返回歌单广场
+          {detail.page === 'search-detail' ? '返回搜索结果' : '返回歌单广场'}
         </button>
         <div className="react-detail-hero">
           <SafeImage src={image} width="144" height="144" loading="lazy" alt={`${name}封面`} />
@@ -109,17 +138,18 @@ function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
             <h1>{name}</h1>
             {description && <DescriptionDisclosure text={description} />}
             <small>
-              {String(payload.source ?? detail.source).toUpperCase()} · {songs.length} 首歌曲
+              {String(payload.source ?? detail.source).toUpperCase()} · {total} 首歌曲
             </small>
             <button
               type="button"
               className={`react-entity-favorite react-detail-favorite ${isCollected ? 'is-active' : ''}`}
               aria-label={isCollected ? '取消收藏歌单' : '收藏歌单'}
               aria-pressed={isCollected}
+              disabled={loading || Boolean(error) || collecting}
               onClick={() => void toggleCollected()}
             >
               <Icon name="heart" />
-              {isCollected ? '已收藏' : '收藏歌单'}
+              {collecting ? '处理中…' : isCollected ? '已收藏' : '收藏歌单'}
             </button>
           </div>
         </div>
@@ -134,6 +164,25 @@ function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
         ) : (
           <SongList songs={songs} empty="歌单暂无歌曲" />
         )}
+        <div className="react-pagination react-pagination-bottom">
+          <button
+            type="button"
+            aria-label="上一页"
+            disabled={page <= 1 || loading}
+            onClick={() => setPage(value => value - 1)}
+          >
+            <Icon name="chevron-left" />
+          </button>
+          <span>第 {page} 页</span>
+          <button
+            type="button"
+            aria-label="下一页"
+            disabled={loading || Boolean(error) || page * 50 >= total}
+            onClick={() => setPage(value => value + 1)}
+          >
+            <Icon name="chevron-right" />
+          </button>
+        </div>
       </section>
     </ViewFrame>
   )
@@ -314,7 +363,11 @@ function SongListGrid() {
 }
 
 export function SongListView({ detail = null }: { detail?: PlayerDetail | null } = {}) {
-  return detail?.kind === 'playlist' ? <PlaylistDetailView detail={detail} /> : <SongListGrid />
+  return detail?.kind === 'playlist' ? (
+    <PlaylistDetailView key={`${detail.source}:${detail.id}`} detail={detail} />
+  ) : (
+    <SongListGrid />
+  )
 }
 
 export function LeaderboardView() {

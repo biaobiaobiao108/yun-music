@@ -10,6 +10,7 @@ export type PlayerConfig = RuntimeConfig & {
   'user.enablePublicFavorites'?: boolean
 }
 export type SearchType = 'song' | 'singer' | 'album' | 'playlist'
+export type PlaylistDetail = Record<string, unknown> & { list: Song[]; total: number; page: number; limit: number }
 export const PLAYLIST_ICON_OPTIONS = [
   { key: 'music', label: '通用' },
   { key: 'heart', label: '心动' },
@@ -228,9 +229,9 @@ export const playerApi = {
       `/api/music/songList/list?source=${encodeURIComponent(source)}&tagId=${encodeURIComponent(tagId)}&sortId=${encodeURIComponent(sortId)}&page=${page}`,
       { signal, ...policy },
     ),
-  songListDetail: (source: string, id: string, signal?: AbortSignal, policy?: RequestPolicy) =>
-    requestJson<unknown>(
-      `/api/music/songList/detail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`,
+  songListDetail: (source: string, id: string, signal?: AbortSignal, policy?: RequestPolicy, page = 1, limit = 50) =>
+    requestJson<PlaylistDetail>(
+      `/api/music/songList/detail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&page=${page}&limit=${limit}`,
       { signal, ...policy },
     ),
   leaderboardBoards: async (source: string, signal?: AbortSignal, policy?: RequestPolicy) => {
@@ -341,6 +342,21 @@ function pickLyricText(roots: Record<string, unknown>[], keys: string[]): string
     }
   }
   return ''
+}
+
+/** Read every page before saving an online playlist as a personal copy. */
+export async function loadPlaylistSongs(source: string, id: string, signal?: AbortSignal): Promise<Song[]> {
+  const songs: Song[] = []
+  const limit = 100
+  for (let page = 1; page <= 1000; page += 1) {
+    signal?.throwIfAborted()
+    const result = await playerApi.songListDetail(source, id, signal, undefined, page, limit)
+    signal?.throwIfAborted()
+    songs.push(...result.list)
+    if (page * limit >= result.total) return songs
+    if (!result.list.length) throw new Error('歌单未能完整加载，请稍后重试')
+  }
+  throw new Error('歌单歌曲数量超出加载范围')
 }
 
 export function parseLyric(payload: Record<string, unknown>): LyricLine[] {

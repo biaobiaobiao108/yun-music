@@ -375,7 +375,7 @@ export async function login(password: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await adminRequest('/api/logout', { method: 'POST' }).catch(() => undefined)
+  await adminRequest('/api/logout', { method: 'POST' })
 }
 
 export async function verifySession(): Promise<AdminStatus> {

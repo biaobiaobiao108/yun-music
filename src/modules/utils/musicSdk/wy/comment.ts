@@ -128,11 +128,7 @@ const cursorTools = {
 }
 
 export default {
-  _requestObj: null as any,
-  _requestObj2: null as any,
   async getComment({ songmid }: any, page: any = 1, limit: any = 20) {
-    if (this._requestObj) this._requestObj.cancelHttp()
-
     const id = 'R_SO_4_' + songmid
 
     const cursorInfo = cursorTools.getCursor(songmid, page, limit)
@@ -169,8 +165,6 @@ export default {
     }
   },
   async getHotComment({ songmid }: any, page: any = 1, limit: any = 100) {
-    if (this._requestObj2) this._requestObj2.cancelHttp()
-
     const id = 'R_SO_4_' + songmid
     page = page - 1
 

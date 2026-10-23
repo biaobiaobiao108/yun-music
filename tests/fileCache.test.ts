@@ -828,6 +828,126 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('preserves a cache index written while stale entries are being reconciled', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-sync-race-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    const originalSetImmediate = globalThis.setImmediate
+    let injected = false
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, appPath: root, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'sync-race-user'
+      const cacheDir = fileCache.getCacheDir(username)
+      const triggerPath = path.join(cacheDir, 'trigger.mp3')
+      fs.writeFileSync(triggerPath, Buffer.from('trigger'))
+      const triggerStats = fs.statSync(triggerPath)
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_trigger',
+          songmid: 'trigger',
+          name: 'Trigger',
+          singer: 'Singer',
+          albumName: '',
+          source: 'wy',
+          quality: 'mp3',
+          filename: 'trigger.mp3',
+          folder: 'cache',
+          mtime: triggerStats.mtimeMs,
+          size: triggerStats.size,
+          ext: 'mp3',
+          hasCover: false,
+          coverType: 'none',
+          hasLyric: false,
+          coverCheckedVersion: 5,
+          coverCheckedMtime: triggerStats.mtimeMs,
+          coverCheckedSize: triggerStats.size,
+          interval: '00:01',
+          bitrate: 1000,
+        },
+        'cache',
+      )
+      fileCache.indexManager.update(
+        username,
+        {
+          id: 'wy_new',
+          songmid: 'new',
+          name: 'New Song',
+          singer: 'Singer',
+          albumName: '',
+          source: 'wy',
+          quality: '320k',
+          filename: 'new.mp3',
+          folder: 'cache',
+          mtime: 1,
+          size: 4,
+          ext: 'mp3',
+        },
+        'cache',
+      )
+
+      ;(globalThis as any).setImmediate = (callback: (...args: any[]) => void, ...args: any[]) =>
+        originalSetImmediate(() => {
+          if (!injected) {
+            injected = true
+            fs.writeFileSync(path.join(cacheDir, 'new.mp3'), Buffer.from('new-audio'))
+            fileCache.indexManager.update(
+              username,
+              {
+                id: 'wy_new',
+                songmid: 'new',
+                name: 'New Song',
+                singer: 'Singer',
+                albumName: '',
+                source: 'wy',
+                quality: '320k',
+                filename: 'new.mp3',
+                folder: 'cache',
+                mtime: Date.now(),
+                size: 9,
+                ext: 'mp3',
+              },
+              'cache',
+            )
+          }
+          callback(...args)
+        }) as ReturnType<typeof setImmediate>
+
+      await fileCache.syncCacheIndex(username, ['cache'])
+
+      expect(injected).toBe(true)
+      expect(fs.existsSync(path.join(cacheDir, 'new.mp3'))).toBe(true)
+      expect(
+        fileCache.indexManager.get(username, 'wy_new', 'cache', '320k', true, fileCache.CACHE_ROOTS.DATA),
+      ).toBeDefined()
+      expect(
+        fileCache.checkCache(
+          {
+            id: 'wy_new',
+            songmid: 'new',
+            source: 'wy',
+            name: 'New Song',
+            singer: 'Singer',
+            quality: '320k',
+            exactQuality: true,
+          },
+          username,
+        ).exists,
+      ).toBe(true)
+    } finally {
+      globalThis.setImmediate = originalSetImmediate
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should clear nested cache files and their SQLite index rows together', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-clear-'))
     const previousLx = (global as any).lx

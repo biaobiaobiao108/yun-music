@@ -1441,10 +1441,11 @@ const sanitize = (str: any) => String(str || '').replace(/[\\/:*?"<>|]/g, '_')
  */
 export const syncCacheIndex = async (username?: string, roots: Array<'cache' | 'music'> = ['cache', 'music']) => {
   const normalizedUsername = normalizeCacheUsername(username)
+  const location = currentCacheLocation
   const extensions = ['.mp3', '.flac', '.m4a', '.ogg', '.wav']
 
   for (const folder of roots) {
-    const index = indexManager.load(normalizedUsername, folder)
+    const index = indexManager.load(normalizedUsername, folder, location)
 
     const existingKeysInIndex = new Set(index.keys())
     const foundKeysOnDisk = new Set<string>()
@@ -1454,7 +1455,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
     for (const [key, item] of index.entries()) {
       filenameToItemMap.set(item.filename, { key, item })
     }
-    const dir = getCacheDir(normalizedUsername, folder === 'music')
+    const dir = getCacheDir(normalizedUsername, folder === 'music', location)
     if (!fs.existsSync(dir)) continue
 
     // [Unified Enhancement] Recursive file walker (asynchronous)
@@ -1757,9 +1758,9 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
       // repairs lyric/cover flags in the actual database.
       if (itemChanged && existing) {
         if (oldKey && oldKey !== compositeKey && originalItemId && originalItemQuality) {
-          indexManager.remove(normalizedUsername, originalItemId, folder, originalItemQuality)
+          indexManager.remove(normalizedUsername, originalItemId, folder, originalItemQuality, location)
         }
-        indexManager.update(normalizedUsername, existing, folder)
+        indexManager.update(normalizedUsername, existing, folder, location)
       }
 
       // Yield control back to Node.js event loop
@@ -1771,14 +1772,39 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
       if (!foundKeysOnDisk.has(key)) {
         const staleItem = index.get(key)
         if (staleItem) {
-          indexManager.remove(normalizedUsername, staleItem.id, folder, staleItem.quality)
+          // A download can install this key after the disk walk took its
+          // snapshot. Re-read the index and keep the new row when its file is
+          // already present; otherwise this stale pass can erase a fresh item.
+          const latestItem = indexManager.get(
+            normalizedUsername,
+            staleItem.id,
+            folder,
+            staleItem.quality,
+            true,
+            location,
+          )
+          const latestPath = latestItem ? resolveCacheRelativePath(dir, latestItem.filename) : null
+          let latestFileExists = false
+          if (latestPath) {
+            try {
+              const latestStats = fs.statSync(latestPath)
+              latestFileExists = latestStats.isFile() && latestStats.size > 0
+            } catch {
+              latestFileExists = false
+            }
+          }
+          if (latestItem && latestFileExists) {
+            index.set(key, latestItem)
+            continue
+          }
+          indexManager.remove(normalizedUsername, staleItem.id, folder, staleItem.quality, location)
         }
         index.delete(key)
       }
     }
   }
 
-  const syncKey = `${currentCacheLocation}:${normalizedUsername}`
+  const syncKey = `${location}:${normalizedUsername}`
   const syncState = cacheListSyncState.get(syncKey) || { lastSync: 0 }
   syncState.lastSync = Date.now()
   cacheListSyncState.set(syncKey, syncState)

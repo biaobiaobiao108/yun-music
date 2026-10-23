@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import {
+  loadPlaylistSongs,
   playerApi,
   PLAYLIST_ICON_OPTIONS,
   playlistIcon,
@@ -32,6 +33,8 @@ import { sameSong, songArtist, songImage, songKey, songTitle } from './types'
 import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runtime'
 import { goBack } from './route_state'
 import { ViewFrame } from './view_frame'
+import { PlaylistDetailView } from './heavy_views'
+import { getSessionGeneration } from './session'
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -100,10 +103,13 @@ function SearchEntityGrid({
   const toggleMedia = useMediaLibraryStore(state => state.toggle)
   const userLists = useLibraryStore(selectUserLists)
   const toggleRemotePlaylist = useLibraryStore(state => state.toggleRemotePlaylist)
+  const deleteList = useLibraryStore(state => state.deleteList)
   const userAuthenticated = useAuthStore(state => state.userAuthenticated)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const notify = usePlayerUiStore(state => state.notify)
   const [busyKey, setBusyKey] = useState('')
+  const favoriteController = useRef<AbortController | null>(null)
+  useEffect(() => () => favoriteController.current?.abort(), [items, kind])
   const favoriteMediaKeys = useMemo(
     () => (kind === 'playlist' ? new Set<string>() : new Set(mediaItems.map(item => mediaLibraryItemKey(item, kind)))),
     [kind, mediaItems],
@@ -150,25 +156,38 @@ function SearchEntityGrid({
           onOpen({ page: 'search-detail', kind, id, source, name, image: resultImage(item) })
         }
         const toggleFavorite = async () => {
-          if (busyKey) return
+          if (favoriteController.current) return
           if (!userAuthenticated) {
             setDialog('userLogin')
             notify('请先登录用户账户')
             return
           }
+          const controller = new AbortController()
+          const sessionGeneration = getSessionGeneration()
+          favoriteController.current = controller
           setBusyKey(favoriteKey)
           try {
             const next =
               kind === 'playlist'
                 ? await (async () => {
-                    const payload = await playerApi.songListDetail(source, id)
-                    return toggleRemotePlaylist({ id, source, name, image: resultImage(item) }, extractSongs(payload))
+                    const collected = userLists.find(
+                      list => String(list.source || '') === source && String(list.sourceListId ?? '') === id,
+                    )
+                    if (collected) {
+                      await deleteList(String(collected.id))
+                      return false
+                    }
+                    const songs = await loadPlaylistSongs(source, id, controller.signal)
+                    controller.signal.throwIfAborted()
+                    if (getSessionGeneration() !== sessionGeneration) throw new Error('登录账户已变化，请重新操作')
+                    return toggleRemotePlaylist({ id, source, name, image: resultImage(item) }, songs)
                   })()
                 : await toggleMedia(kind, item)
             notify(next ? `已收藏${kind === 'artist' ? '歌手' : kind === 'album' ? '专辑' : '歌单'}` : '已取消收藏')
           } catch (error) {
-            notify(error instanceof Error ? error.message : '收藏操作失败')
+            if (!controller.signal.aborted) notify(error instanceof Error ? error.message : '收藏操作失败')
           } finally {
+            if (favoriteController.current === controller) favoriteController.current = null
             setBusyKey('')
           }
         }
@@ -200,6 +219,14 @@ function SearchEntityGrid({
 }
 
 export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
+  return detail.kind === 'playlist' ? (
+    <PlaylistDetailView key={`${detail.source}:${detail.id}`} detail={detail} />
+  ) : (
+    <EntityDetailView detail={detail} />
+  )
+}
+
+function EntityDetailView({ detail }: { detail: PlayerDetail }) {
   const setDetail = usePlayerUiStore(state => state.setDetail)
   const [info, setInfo] = useState<Record<string, unknown>>({})
   const [songs, setSongs] = useState<Song[]>([])
@@ -264,14 +291,6 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
           if (controller.signal.aborted) return
           setInfo(recordOf(payload))
           setSongs(extractSongs(payload))
-        } else {
-          const payload = await playerApi.songListDetail(detail.source, detail.id, controller.signal, {
-            cacheKey: `songlist:detail:${detail.source}:${detail.id}`,
-            cacheTtlMs: 60_000,
-          })
-          if (controller.signal.aborted) return
-          setInfo(recordOf(payload))
-          setSongs(extractSongs(payload))
         }
       } catch (cause) {
         if (!controller.signal.aborted && requestId === songRequestId.current)
@@ -289,11 +308,9 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
       loadMoreIntersectionActive.current = false
     }
   }, [detail.id, detail.kind, detail.source, order])
-  const mediaKind = detail.kind === 'artist' || detail.kind === 'album' ? detail.kind : null
+  const mediaKind = detail.kind === 'artist' ? 'artist' : 'album'
   const mediaItems = useMediaLibraryStore(state => (mediaKind === 'artist' ? state.artists : state.albums))
   const toggleMedia = useMediaLibraryStore(state => state.toggle)
-  const userLists = useLibraryStore(selectUserLists)
-  const toggleRemotePlaylist = useLibraryStore(state => state.toggleRemotePlaylist)
   const userAuthenticated = useAuthStore(state => state.userAuthenticated)
   const setDialog = usePlayerUiStore(state => state.setDialog)
   const notify = usePlayerUiStore(state => state.notify)
@@ -308,11 +325,9 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
     }),
     [detail.id, detail.image, detail.kind, detail.name, detail.source],
   )
-  const isDetailFavorite = mediaKind
-    ? mediaItems.some(item => mediaLibraryItemKey(item, mediaKind) === mediaLibraryItemKey(favoriteItem, mediaKind))
-    : userLists.some(
-        list => String(list.source || '') === detail.source && String(list.sourceListId ?? '') === detail.id,
-      )
+  const isDetailFavorite = mediaItems.some(
+    item => mediaLibraryItemKey(item, mediaKind) === mediaLibraryItemKey(favoriteItem, mediaKind),
+  )
   const toggleDetailFavorite = async () => {
     if (favoriteBusy || loading || error) return
     if (!userAuthenticated) {
@@ -322,12 +337,7 @@ export function SearchDetailView({ detail }: { detail: PlayerDetail }) {
     }
     setFavoriteBusy(true)
     try {
-      const next = mediaKind
-        ? await toggleMedia(mediaKind, favoriteItem)
-        : await toggleRemotePlaylist(
-            { id: detail.id, source: detail.source, name: detail.name || '在线歌单', image: detail.image },
-            songs,
-          )
+      const next = await toggleMedia(mediaKind, favoriteItem)
       notify(next ? `已收藏${mediaKind === 'artist' ? '歌手' : mediaKind === 'album' ? '专辑' : '歌单'}` : '已取消收藏')
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : '收藏操作失败')

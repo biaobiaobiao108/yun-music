@@ -175,7 +175,6 @@ export default {
   // 获取列表数据
   getList(sortId: any, tagId: any, page: any, tryNum: any = 0) {
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
-    if (this._requestObj_list) this._requestObj_list.cancelHttp()
     this._requestObj_list = httpFetch('https://music.163.com/weapi/playlist/list', {
       method: 'post',
       form: weapi({
@@ -217,7 +216,6 @@ export default {
 
   // 获取标签
   getTag(tryNum: any = 0) {
-    if (this._requestObj_tags) this._requestObj_tags.cancelHttp()
     this._requestObj_tags = httpFetch('https://music.163.com/weapi/playlist/catalogue', {
       method: 'post',
       form: weapi({}),
@@ -255,7 +253,6 @@ export default {
 
   // 获取热门标签
   getHotTag(tryNum: any = 0) {
-    if (this._requestObj_hotTags) this._requestObj_hotTags.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
     this._requestObj_hotTags = httpFetch('https://music.163.com/weapi/playlist/hottags', {
       method: 'post',

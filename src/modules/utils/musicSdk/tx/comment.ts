@@ -79,8 +79,6 @@ const songIdMap = new NativeLruCache<string, any>({
 const promises = new Map()
 
 export default {
-  _requestObj: null as any,
-  _requestObj2: null as any,
   async getSongId({ songId, songmid }: any) {
     if (songId) return songId
     const key = String(songmid)
@@ -99,7 +97,6 @@ export default {
     }
   },
   async getComment(mInfo: any, page: any = 1, limit: any = 20) {
-    if (this._requestObj) this._requestObj.cancelHttp()
     const songId = await this.getSongId(mInfo)
 
     const _requestObj = httpFetch('http://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg', {
@@ -153,7 +150,6 @@ export default {
     //     pagesize: limit,
     //   },
     // })
-    if (this._requestObj2) this._requestObj2.cancelHttp()
     const songId = await this.getSongId(mInfo)
 
     const _requestObj2 = httpFetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {

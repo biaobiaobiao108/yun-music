@@ -110,7 +110,6 @@ export default {
   },
   _requestBoardsObj: null as any,
   getBoardsData() {
-    if (this._requestBoardsObj) this._requestBoardsObj.cancelHttp()
     this._requestBoardsObj = httpFetch('https://music.163.com/weapi/toplist', {
       method: 'post',
       form: weapi({}),
