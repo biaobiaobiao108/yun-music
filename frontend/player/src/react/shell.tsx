@@ -74,6 +74,10 @@ const SearchView = lazy(() => import('./views').then(module => ({ default: modul
 const SettingsView = lazy(() => import('./views').then(module => ({ default: module.SettingsView })))
 const UserLoginDialog = lazy(() => import('./views').then(module => ({ default: module.UserLoginDialog })))
 
+const SIDEBAR_HOME_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
+  { id: 'home', label: '首页', icon: 'home' },
+]
+
 const SIDEBAR_MY_MUSIC_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'recent', label: '最近播放', icon: 'clock' },
   { id: 'favorites', label: '我的收藏', icon: 'heart' },
@@ -86,7 +90,6 @@ const SIDEBAR_LIBRARY_ITEMS: { id: PlayerTab; label: string; icon: string }[] = 
 ]
 
 const SIDEBAR_DISCOVERY_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
-  { id: 'home', label: '首页', icon: 'home' },
   { id: 'songlist', label: '发现', icon: 'compass' },
   { id: 'leaderboard', label: '排行榜', icon: 'chart-line' },
   { id: 'search', label: '搜索', icon: 'search' },
@@ -97,6 +100,7 @@ const SIDEBAR_SETTINGS_ITEMS: { id: PlayerTab; label: string; icon: string }[] =
 ]
 
 const ALL_NAV_ITEMS = [
+  ...SIDEBAR_HOME_ITEMS,
   ...SIDEBAR_MY_MUSIC_ITEMS,
   ...SIDEBAR_LIBRARY_ITEMS,
   ...SIDEBAR_DISCOVERY_ITEMS,
@@ -244,6 +248,21 @@ function Sidebar() {
         </div>
         <div className="react-sidebar-scroll-region">
           <nav ref={sidebarNavRef} className="react-sidebar-nav">
+            {SIDEBAR_HOME_ITEMS.map(item => {
+              const isActive = activeTab === item.id
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={`netease-nav-item ${isActive ? 'active-tab' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => setTab(item.id)}
+                >
+                  <Icon name={item.icon} />
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
             <p className="react-sidebar-label">我的音乐</p>
             {SIDEBAR_MY_MUSIC_ITEMS.map(item => {
               const isActive = activeTab === item.id
@@ -1151,7 +1170,7 @@ export function PlayerShell() {
     const historyController = createPlayerHistoryController()
     const savedState = window.history.state
     const isSavedDetail =
-      savedState &&
+      savedState?.tabId === initialTab &&
       (savedState.page === 'search-detail' || savedState.page === 'songlist-detail') &&
       savedState.kind &&
       savedState.id
@@ -1165,11 +1184,8 @@ export function PlayerShell() {
           image: savedState.image,
         } as PlayerDetail)
       : null
-    const targetTab =
-      savedState?.tabId && VALID_PLAYER_TABS.includes(savedState.tabId as PlayerTab)
-        ? (savedState.tabId as PlayerTab)
-        : initialTab
-    const targetListId = savedState?.listId || initialRoute.listId
+    const targetTab = initialTab
+    const targetListId = initialRoute.listId
 
     const initialPayload: PlayerHistoryPayload = initialDetail
       ? {

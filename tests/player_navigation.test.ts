@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createPlayerHistoryController } from '../frontend/player/src/react/player_history'
+import { parsePlayerHash } from '../frontend/player/src/react/route_state'
 import { formatDuration } from '../frontend/shared/src/runtime'
 import {
   formatSongDuration,
@@ -21,6 +22,10 @@ describe('React player navigation and state restoration', () => {
   it('keeps the complete sidebar reachable between mobile and desktop breakpoints', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
     const css = read('frontend/styles/player.css')
+    const sidebar = shell.slice(
+      shell.indexOf('<nav ref={sidebarNavRef}'),
+      shell.indexOf('</nav>', shell.indexOf('<nav ref={sidebarNavRef}')),
+    )
     expect(shell).toContain('className="react-player-button react-menu-button"')
     expect(shell).toContain('aria-controls="main-sidebar"')
     expect(shell).toContain('aria-expanded={sidebarOpen}')
@@ -29,6 +34,10 @@ describe('React player navigation and state restoration', () => {
     expect(css).toMatch(
       /@media \(min-width: 721px\) and \(max-width: 900px\) \{[\s\S]*?\.react-player-topbar \{\s*display: block !important;\s*\}[\s\S]*?\.react-menu-button \{[\s\S]*?pointer-events: auto;/,
     )
+    expect(sidebar.indexOf('SIDEBAR_HOME_ITEMS.map')).toBeLessThan(sidebar.indexOf('我的音乐'))
+    expect(shell).toContain('const targetTab = initialTab')
+    expect(parsePlayerHash('').tab).toBe('home')
+    expect(parsePlayerHash('#recent').tab).toBe('recent')
   })
 
   it('selects the highlighted option with Enter or Space in player SelectMenu', () => {
@@ -566,6 +575,7 @@ describe('React player navigation and state restoration', () => {
       shell.indexOf('<nav ref={sidebarNavRef}'),
       shell.indexOf('</nav>', shell.indexOf('<nav ref={sidebarNavRef}')),
     )
+    expect(sidebar.indexOf('SIDEBAR_HOME_ITEMS.map')).toBeLessThan(sidebar.indexOf('我的音乐'))
     expect(sidebar.indexOf('我的音乐')).toBeLessThan(sidebar.indexOf('我的歌单'))
     expect(sidebar.indexOf('我的歌单')).toBeLessThan(sidebar.indexOf('资料库'))
     expect(sidebar.indexOf('资料库')).toBeLessThan(sidebar.indexOf('发现'))
