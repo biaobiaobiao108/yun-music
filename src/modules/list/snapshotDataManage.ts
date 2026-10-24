@@ -62,6 +62,11 @@ export class SnapshotDataManage {
     writeSnapshot(this.userDataManage.userName, this.module, name, data, time, { prune: true })
   }
 
+  saveSnapshotWithTimeData = async (name: string, data: string, parsedData: unknown, time: number): Promise<void> => {
+    assertListData(parsedData)
+    writeSnapshot(this.userDataManage.userName, this.module, name, data, time, { prune: true })
+  }
+
   removeSnapshot = async (name: string): Promise<void> => {
     assertSnapshotId(name)
     removeStoredSnapshot(this.userDataManage.userName, this.module, name)

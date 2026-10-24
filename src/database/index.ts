@@ -236,6 +236,10 @@ export const initDatabase = (customDbPath?: string): Database => {
     })()
   }
 
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_snapshots_storage_order ON snapshots(user_name, module, stored_at DESC, created_at DESC, id DESC);',
+  )
+
   db.run(`PRAGMA user_version = ${DATABASE_VERSION}`)
 
   dbInstance = db

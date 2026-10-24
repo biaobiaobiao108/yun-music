@@ -77,4 +77,8 @@ export class ListManage {
   saveSnapshotWithTime = async (name: string, data: string, time: number) => {
     await this.snapshotDataManage.saveSnapshotWithTime(name, data, time)
   }
+
+  saveSnapshotWithTimeData = async (name: string, data: string, parsedData: unknown, time: number) => {
+    await this.snapshotDataManage.saveSnapshotWithTimeData(name, data, parsedData, time)
+  }
 }

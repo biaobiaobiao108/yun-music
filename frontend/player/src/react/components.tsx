@@ -222,11 +222,13 @@ type SafeImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
 
 export function SafeImage({ src, fallback = '/music/assets/yun-yin.png', onError, ...props }: SafeImageProps) {
   const fallbackUrl = safeImageUrl(fallback)
+  const imageSrc = safeImageUrl(src, fallback)
   return (
     <img
       {...props}
+      key={`${imageSrc}\u0000${fallbackUrl}`}
       decoding={props.decoding ?? 'async'}
-      src={safeImageUrl(src, fallback)}
+      src={imageSrc}
       onError={event => {
         onError?.(event)
         const target = event.currentTarget

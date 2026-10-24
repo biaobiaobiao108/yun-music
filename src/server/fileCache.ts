@@ -14,6 +14,7 @@ import { NativeLruCache } from '@/utils/nativeLru'
 import { memoryMaintenance } from './memoryMaintenance'
 import { memoryCacheBudgets } from './resourceBudget'
 import { getMusicTagNative } from './musicTagNative'
+import { walkCacheFilesAsync } from './cacheFileWalker'
 
 // --- Cache Naming Patterns ---
 export const CACHE_NAMING_PATTERNS = {
@@ -1448,7 +1449,6 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
     const index = indexManager.load(normalizedUsername, folder, location)
 
     const existingKeysInIndex = new Set(index.keys())
-    const foundKeysOnDisk = new Set<string>()
 
     // Pre-build a filename to Item map within this folder for fast lookup
     const filenameToItemMap = new Map<string, { key: string; item: CacheItem }>()
@@ -1458,34 +1458,8 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
     const dir = getCacheDir(normalizedUsername, folder === 'music', location)
     if (!fs.existsSync(dir)) continue
 
-    // [Unified Enhancement] Recursive file walker (asynchronous)
-    const getAllFilesAsync = async (dirPath: string, base: string = dirPath): Promise<string[]> => {
-      const acc: string[] = []
-      try {
-        const exists = await fs.promises
-          .access(dirPath)
-          .then(() => true)
-          .catch(() => false)
-        if (!exists) return acc
-        const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
-        for (const entry of entries) {
-          if (entry.isSymbolicLink()) continue
-          const fullPath = path.join(dirPath, entry.name)
-          if (entry.isDirectory()) {
-            const subFiles = await getAllFilesAsync(fullPath, base)
-            acc.push(...subFiles)
-          } else {
-            acc.push(path.relative(base, fullPath).replace(/\\/g, '/'))
-          }
-        }
-      } catch (e: any) {
-        if (e?.code !== 'ENOENT') console.error(`[fileCache] error walking path: ${dirPath}`, e)
-      }
-      return acc
-    }
-
-    const files = await getAllFilesAsync(dir)
-    for (const file of files) {
+    for await (const discoveredPath of walkCacheFilesAsync(dir)) {
+      const file = path.relative(dir, discoveredPath).replace(/\\/g, '/')
       if (file === 'cache_index.json' || file === 'music_index.json') continue
       const ext = path.extname(file).toLowerCase()
       if (!extensions.includes(ext)) continue
@@ -1744,7 +1718,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
       }
 
       const compositeKey = `${normalizedId}_${finalQuality || 'unknown'}`
-      foundKeysOnDisk.add(compositeKey)
+      if (oldKey) existingKeysInIndex.delete(oldKey)
 
       if (oldKey && oldKey !== compositeKey) {
         index.delete(oldKey)
@@ -1769,38 +1743,29 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
 
     // Remove deleted files from index
     for (const key of existingKeysInIndex) {
-      if (!foundKeysOnDisk.has(key)) {
-        const staleItem = index.get(key)
-        if (staleItem) {
-          // A download can install this key after the disk walk took its
-          // snapshot. Re-read the index and keep the new row when its file is
-          // already present; otherwise this stale pass can erase a fresh item.
-          const latestItem = indexManager.get(
-            normalizedUsername,
-            staleItem.id,
-            folder,
-            staleItem.quality,
-            true,
-            location,
-          )
-          const latestPath = latestItem ? resolveCacheRelativePath(dir, latestItem.filename) : null
-          let latestFileExists = false
-          if (latestPath) {
-            try {
-              const latestStats = fs.statSync(latestPath)
-              latestFileExists = latestStats.isFile() && latestStats.size > 0
-            } catch {
-              latestFileExists = false
-            }
+      const staleItem = index.get(key)
+      if (staleItem) {
+        // A download can install this key after the disk walk took its
+        // snapshot. Re-read the index and keep the new row when its file is
+        // already present; otherwise this stale pass can erase a fresh item.
+        const latestItem = indexManager.get(normalizedUsername, staleItem.id, folder, staleItem.quality, true, location)
+        const latestPath = latestItem ? resolveCacheRelativePath(dir, latestItem.filename) : null
+        let latestFileExists = false
+        if (latestPath) {
+          try {
+            const latestStats = await fs.promises.stat(latestPath)
+            latestFileExists = latestStats.isFile() && latestStats.size > 0
+          } catch {
+            latestFileExists = false
           }
-          if (latestItem && latestFileExists) {
-            index.set(key, latestItem)
-            continue
-          }
-          indexManager.remove(normalizedUsername, staleItem.id, folder, staleItem.quality, location)
         }
-        index.delete(key)
+        if (latestItem && latestFileExists) {
+          index.set(key, latestItem)
+          continue
+        }
+        indexManager.remove(normalizedUsername, staleItem.id, folder, staleItem.quality, location)
       }
+      index.delete(key)
     }
   }
 
@@ -3812,6 +3777,8 @@ const GLOBAL_STATS_TTL = 10 * 1000
 
 export const invalidateGlobalCacheStats = () => {
   lastGlobalStatsTime = 0
+  displayStatsGeneration++
+  cachedDisplayStats.clear()
 }
 
 const scanGlobalCacheStats = (): CacheStatsSummary => {
@@ -3928,6 +3895,120 @@ export const getGlobalCacheStats = (): CacheStatsSummary => {
 }
 
 const CACHE_SIZE_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.ogg', '.wav', '.lrc'])
+
+const CACHE_STATS_REFRESH_TTL_MS = 10 * 1000
+const cachedDisplayStats = new NativeLruCache<string, { stats: CacheStatsSummary; refreshedAt: number }>({ max: 2048 })
+const displayStatsRefreshes = new Map<string, Promise<void>>()
+let displayStatsGeneration = 0
+
+const createEmptyCacheStats = (): CacheStatsSummary => ({
+  cache: { totalSize: 0, fileCount: 0 },
+  music: { totalSize: 0, fileCount: 0 },
+  totalSize: 0,
+  fileCount: 0,
+})
+
+const getStatsRoots = (username?: string): Array<{ folder: 'cache' | 'music'; dir: string }> => {
+  const roots: Array<{ folder: 'cache' | 'music'; dir: string }> = []
+  for (const location of getCacheLocations()) {
+    for (const folder of ['cache', 'music'] as const) {
+      const dir = username
+        ? getCacheDir(username, folder === 'music', location, false)
+        : location === CACHE_ROOTS.DATA
+          ? path.join(global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data'), folder)
+          : path.join(getRootPath(), folder)
+      roots.push({ folder, dir })
+    }
+  }
+  return roots
+}
+
+/** Slow, exact disk scan used off the request path and by quota enforcement. */
+const scanCacheStatsAsync = async (username?: string): Promise<CacheStatsSummary> => {
+  const result = createEmptyCacheStats()
+  const seenRoots = new Set<string>()
+
+  for (const { folder, dir } of getStatsRoots(username)) {
+    const resolvedRoot = path.resolve(dir)
+    if (seenRoots.has(resolvedRoot)) continue
+    seenRoots.add(resolvedRoot)
+
+    for await (const filePath of walkCacheFilesAsync(dir)) {
+      if (!CACHE_SIZE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue
+      try {
+        const stats = await fs.promises.stat(filePath)
+        if (!stats.isFile()) continue
+        result[folder].totalSize += stats.size
+        result.totalSize += stats.size
+        if (path.extname(filePath).toLowerCase() !== '.lrc') {
+          result[folder].fileCount++
+          result.fileCount++
+        }
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') console.error(`[fileCache] failed to read cache size: ${filePath}`, error)
+      }
+    }
+  }
+  return result
+}
+
+const scheduleDisplayStatsRefresh = (key: string, username?: string): void => {
+  if (displayStatsRefreshes.has(key)) return
+  const generation = displayStatsGeneration
+  const refresh = scanCacheStatsAsync(username)
+    .then(stats => {
+      if (generation === displayStatsGeneration) {
+        cachedDisplayStats.set(key, { stats, refreshedAt: Date.now() })
+        if (key === 'global') {
+          lastGlobalStats = stats
+          lastGlobalStatsTime = Date.now()
+        }
+      }
+    })
+    .catch(error => {
+      console.error(`[fileCache] cache stats refresh failed${username ? ` for ${username}` : ''}:`, error)
+    })
+    .finally(() => {
+      if (displayStatsRefreshes.get(key) === refresh) displayStatsRefreshes.delete(key)
+    })
+  displayStatsRefreshes.set(key, refresh)
+}
+
+/**
+ * Display-only stats: serve a recent disk scan or the SQLite aggregate, then
+ * refresh from disk asynchronously. Cache limits use the exact async scan.
+ */
+export const getCachedCacheStats = (username?: string): CacheStatsSummary => {
+  const normalizedUsername = normalizeCacheUsername(username)
+  const key = `user:${normalizedUsername}`
+  let cached = cachedDisplayStats.get(key)
+  if (!cached) {
+    cached = { stats: indexManager.getStats(normalizedUsername).stats, refreshedAt: 0 }
+    cachedDisplayStats.set(key, cached)
+  }
+  if (Date.now() - cached.refreshedAt >= CACHE_STATS_REFRESH_TTL_MS) {
+    scheduleCacheIndexSync(normalizedUsername)
+    scheduleDisplayStatsRefresh(key, normalizedUsername)
+  }
+  return cached.stats
+}
+
+/** Display-only global stats; the SQLite aggregate avoids a cold disk scan. */
+export const getCachedGlobalCacheStats = (): CacheStatsSummary => {
+  let cached = cachedDisplayStats.get('global')
+  if (!cached) {
+    cached = { stats: indexManager.getStats().stats, refreshedAt: 0 }
+    cachedDisplayStats.set('global', cached)
+  }
+  if (Date.now() - cached.refreshedAt >= CACHE_STATS_REFRESH_TTL_MS) {
+    scheduleCacheIndexSync('_open')
+    for (const user of global.lx?.config?.users || []) {
+      if (user?.name) scheduleCacheIndexSync(user.name)
+    }
+    scheduleDisplayStatsRefresh('global')
+  }
+  return cached.stats
+}
 
 const getCacheFilesRecursively = (root: string): string[] => {
   const files: string[] = []
@@ -4213,12 +4294,12 @@ export const clearLyricCache = (username?: string) => {
 export const checkAndCleanupCache = async (username?: string) => {
   const config = (global as any).lx.config
   if (!config || !config['user.enableCacheSizeLimit']) return
-  const stats = getCacheStats(username)
+  const normalizedUsername = normalizeCacheUsername(username)
+  scheduleCacheIndexSync(normalizedUsername)
+  const stats = await scanCacheStatsAsync(normalizedUsername)
   const cacheSize = stats.cache?.totalSize ?? 0
   const limitBytes = (config['user.cacheSizeLimit'] || 2000) * 1024 * 1024
   if (cacheSize <= limitBytes) return
-
-  const normalizedUsername = normalizeCacheUsername(username)
 
   type CleanupCandidate = {
     path: string

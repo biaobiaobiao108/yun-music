@@ -7,6 +7,7 @@ import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runti
 
 type ConfirmRequest = { title: string; message: string; confirmLabel?: string; onConfirm: () => void | Promise<void> }
 type SortMode = 'default' | 'name-asc' | 'name-desc' | 'size-desc' | 'time-desc'
+const STORAGE_PAGE_SIZE = 100
 
 function storageItemKey(item: StorageItem): string {
   return `${String(item.rawUsername ?? '_open')}|${String(item.folder ?? 'cache')}|${String(item.filename ?? item.id ?? item.name ?? '')}`
@@ -111,7 +112,8 @@ export function StorageView() {
   const notify = useAdminStore(state => state.notify)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortMode>('default')
-  const [selected, setSelected] = useState<string[]>([])
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [page, setPage] = useState(0)
   const [playingKey, setPlayingKey] = useState('')
   const [confirmation, setConfirmation] = useState<ConfirmRequest | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -150,13 +152,33 @@ export function StorageView() {
       return displayName(a).localeCompare(displayName(b), 'zh-CN') * direction
     })
   }, [folder, query, sort, storage])
-  const currentKeys = currentItems.map(storageItemKey)
-  const selectedCurrent = selected.filter(key => currentKeys.includes(key))
-  const allSelected = currentItems.length > 0 && currentItems.every(item => selected.includes(storageItemKey(item)))
-  const summaryCount = storage.filter(item => item.folder === folder).length
-  const summarySize = storage
-    .filter(item => item.folder === folder)
-    .reduce((total, item) => total + Number(item.size ?? 0), 0)
+  const currentKeys = useMemo(() => currentItems.map(storageItemKey), [currentItems])
+  const currentKeySet = useMemo(() => new Set(currentKeys), [currentKeys])
+  const selectedCurrent = useMemo(
+    () => currentItems.filter(item => selected.has(storageItemKey(item))),
+    [currentItems, selected],
+  )
+  const allSelected = currentItems.length > 0 && selectedCurrent.length === currentItems.length
+  const pageCount = Math.max(1, Math.ceil(currentItems.length / STORAGE_PAGE_SIZE))
+  const pageIndex = Math.min(page, pageCount - 1)
+  const pageItems = useMemo(
+    () => currentItems.slice(pageIndex * STORAGE_PAGE_SIZE, (pageIndex + 1) * STORAGE_PAGE_SIZE),
+    [currentItems, pageIndex],
+  )
+  const { count: summaryCount, size: summarySize } = useMemo(() => {
+    let count = 0
+    let size = 0
+    for (const item of storage) {
+      if (item.folder !== folder) continue
+      count++
+      size += Number(item.size ?? 0)
+    }
+    return { count, size }
+  }, [folder, storage])
+
+  useEffect(() => {
+    setPage(0)
+  }, [folder, query, sort, selectedUser])
 
   const remove = async (items: StorageItem[]) => {
     if (!items.length) return
@@ -170,7 +192,7 @@ export function StorageView() {
           }))
           .filter(item => item.filename),
       )
-      setSelected([])
+      setSelected(new Set())
       notify(`已删除 ${items.length} 个文件`)
       await loadView('storage')
     } catch (error) {
@@ -186,7 +208,7 @@ export function StorageView() {
           .map(item => ({ filename: String(item.filename ?? ''), user: String(item.rawUsername ?? '_open') }))
           .filter(item => item.filename),
       )
-      setSelected([])
+      setSelected(new Set())
       notify(`已移动 ${items.length} 个文件`)
       await loadView('storage')
     } catch (error) {
@@ -197,7 +219,7 @@ export function StorageView() {
   const clear = async () => {
     try {
       await adminApi.clearCache(selectedUser || 'all')
-      setSelected([])
+      setSelected(new Set())
       notify('缓存已清空')
       await loadView('storage')
     } catch (error) {
@@ -268,7 +290,10 @@ export function StorageView() {
                   { value: '_open', label: '公开空间' },
                   ...users.filter(user => user.name !== '_open').map(user => ({ value: user.name, label: user.name })),
                 ]}
-                onChange={setSelectedUser}
+                onChange={value => {
+                  setPage(0)
+                  setSelectedUser(value)
+                }}
               />
             </label>
             <Button onClick={() => void loadView('storage')} disabled={busy}>
@@ -284,7 +309,10 @@ export function StorageView() {
             role="tab"
             aria-selected={folder === 'cache'}
             className={folder === 'cache' ? 'is-active' : ''}
-            onClick={() => setStorageFolder('cache')}
+            onClick={() => {
+              setPage(0)
+              setStorageFolder('cache')
+            }}
           >
             服务端缓存
           </button>
@@ -293,7 +321,10 @@ export function StorageView() {
             role="tab"
             aria-selected={folder === 'music'}
             className={folder === 'music' ? 'is-active' : ''}
-            onClick={() => setStorageFolder('music')}
+            onClick={() => {
+              setPage(0)
+              setStorageFolder('music')
+            }}
           >
             下载音乐
           </button>
@@ -304,7 +335,10 @@ export function StorageView() {
             <input
               aria-label="搜索存储歌曲"
               value={query}
-              onChange={event => setQuery(event.target.value)}
+              onChange={event => {
+                setPage(0)
+                setQuery(event.target.value)
+              }}
               placeholder="搜索歌曲、歌手或文件名"
             />
           </div>
@@ -318,7 +352,10 @@ export function StorageView() {
               { value: 'size-desc', label: '文件最大' },
               { value: 'time-desc', label: '最近更新' },
             ]}
-            onChange={value => setSort(value as SortMode)}
+            onChange={value => {
+              setPage(0)
+              setSort(value as SortMode)
+            }}
           />
         </div>
         <div className="admin-storage-summary">
@@ -326,7 +363,7 @@ export function StorageView() {
           <strong>{summaryCount} 首</strong>
           <small>
             占用 {formatBytes(summarySize)}
-            {query ? ` · 当前显示 ${currentItems.length} 首` : ''}
+            {query ? ` · 筛选后 ${currentItems.length} 首` : ''}
           </small>
         </div>
         <div className="admin-react-batch-bar">
@@ -338,28 +375,22 @@ export function StorageView() {
                 if (element) element.indeterminate = selectedCurrent.length > 0 && !allSelected
               }}
               onChange={event =>
-                setSelected(
-                  event.target.checked
-                    ? [...new Set([...selected, ...currentKeys])]
-                    : selected.filter(key => !currentKeys.includes(key)),
-                )
+                setSelected(current => {
+                  const next = new Set(current)
+                  if (event.target.checked) currentKeys.forEach(key => next.add(key))
+                  else currentKeySet.forEach(key => next.delete(key))
+                  return next
+                })
               }
             />
             全选
           </label>
           <span>已选择 {selectedCurrent.length} 项</span>
-          <Button
-            disabled={!selectedCurrent.length}
-            onClick={() => requestMove(currentItems.filter(item => selectedCurrent.includes(storageItemKey(item))))}
-          >
+          <Button disabled={!selectedCurrent.length} onClick={() => requestMove(selectedCurrent)}>
             <Icon name="right-left" />
             {folder === 'cache' ? '转为下载' : '转为缓存'}
           </Button>
-          <Button
-            variant="danger"
-            disabled={!selectedCurrent.length}
-            onClick={() => requestRemove(currentItems.filter(item => selectedCurrent.includes(storageItemKey(item))))}
-          >
+          <Button variant="danger" disabled={!selectedCurrent.length} onClick={() => requestRemove(selectedCurrent)}>
             <Icon name="trash" />
             删除所选
           </Button>
@@ -388,19 +419,23 @@ export function StorageView() {
                 </tr>
               </thead>
               <tbody>
-                {currentItems.map((item, index) => {
+                {pageItems.map((item, offset) => {
+                  const index = pageIndex * STORAGE_PAGE_SIZE + offset
                   const key = storageItemKey(item)
                   return (
                     <StorageSongRow
                       key={key}
                       item={item}
                       index={index}
-                      selected={selected.includes(key)}
+                      selected={selected.has(key)}
                       playing={playingKey === key}
                       onSelect={checked =>
-                        setSelected(current =>
-                          checked ? [...new Set([...current, key])] : current.filter(itemKey => itemKey !== key),
-                        )
+                        setSelected(current => {
+                          const next = new Set(current)
+                          if (checked) next.add(key)
+                          else next.delete(key)
+                          return next
+                        })
                       }
                       onPreview={() => preview(item)}
                       onMove={() => requestMove([item])}
@@ -410,6 +445,19 @@ export function StorageView() {
                 })}
               </tbody>
             </table>
+            {pageCount > 1 && (
+              <nav className="admin-react-toolbar admin-storage-pagination" aria-label="存储列表分页">
+                <Button disabled={pageIndex === 0} onClick={() => setPage(pageIndex - 1)}>
+                  上一页
+                </Button>
+                <span aria-live="polite">
+                  第 {pageIndex + 1} / {pageCount} 页
+                </span>
+                <Button disabled={pageIndex + 1 >= pageCount} onClick={() => setPage(pageIndex + 1)}>
+                  下一页
+                </Button>
+              </nav>
+            )}
           </div>
         ) : (
           <Empty label={query ? '没有匹配的存储文件' : `当前${folder === 'cache' ? '缓存' : '下载'}目录暂无文件`} />

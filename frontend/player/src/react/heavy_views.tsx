@@ -9,7 +9,6 @@ import {
   songDurationValue,
   songFormatValue,
   songImage,
-  songKey,
   songSizeBytes,
   songSizeValue,
   songTitle,
@@ -21,6 +20,8 @@ import { useRealtimePoll } from './data/use_realtime_poll'
 import { useCacheEvents } from './data/use_cache_events'
 import { goBack } from './route_state'
 import { getSessionGeneration } from './session'
+
+const LOCAL_MUSIC_PAGE_SIZE = 100
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -548,6 +549,7 @@ export function LocalMusicView() {
   const [cacheErrorScope, setCacheErrorScope] = useState<string | null>(null)
   const [cacheFilter, setCacheFilter] = useState<'all' | 'cache' | 'music'>('all')
   const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmOpen, setConfirmOpen] = useState(false)
   const cacheController = useRef<AbortController | null>(null)
@@ -623,34 +625,40 @@ export function LocalMusicView() {
     intervalMs: 2500,
     refresh: () => loadCache({ sync: false, silent: true }),
   })
-  const cacheFileUrl = (item: CacheItem) => {
-    const params = new URLSearchParams({ folder: String(item.folder || 'cache') })
-    const username = String(item.rawUsername || item.username || userName || '_open').trim()
-    const encodedFilename = encodeURIComponent(String(item.filename))
-    const isPublic = username === '_open' || username === 'open' || username === 'default'
-    const target = isPublic ? encodedFilename : `${encodeURIComponent(username)}/${encodedFilename}`
-    return `/api/music/cache/file/${target}?${params.toString()}`
-  }
-  const cacheSong = (item: CacheItem): Song => {
-    const metadata = item.songInfo ?? {}
-    const image = [item.img, songImage(metadata), metadata.img, metadata.pic, metadata.picUrl].find(
-      value => typeof value === 'string' && value.trim(),
-    ) as string | undefined
-    return {
-      ...metadata,
-      id: item.id ?? metadata.id,
-      songmid: item.songmid ?? metadata.songmid ?? metadata.id,
-      name: item.name || metadata.name,
-      singer: item.singer || songArtist(metadata),
-      albumName: item.albumName || songAlbum(metadata),
-      source: item.source || metadata.source,
-      img: image,
-      size: item.size ?? songSizeValue(metadata),
-      quality: item.quality || metadata.quality,
-      url: cacheFileUrl(item),
-      cacheItem: item,
-    }
-  }
+  const cacheFileUrl = useCallback(
+    (item: CacheItem) => {
+      const params = new URLSearchParams({ folder: String(item.folder || 'cache') })
+      const username = String(item.rawUsername || item.username || userName || '_open').trim()
+      const encodedFilename = encodeURIComponent(String(item.filename))
+      const isPublic = username === '_open' || username === 'open' || username === 'default'
+      const target = isPublic ? encodedFilename : `${encodeURIComponent(username)}/${encodedFilename}`
+      return `/api/music/cache/file/${target}?${params.toString()}`
+    },
+    [userName],
+  )
+  const cacheSong = useCallback(
+    (item: CacheItem): Song => {
+      const metadata = item.songInfo ?? {}
+      const image = [item.img, songImage(metadata), metadata.img, metadata.pic, metadata.picUrl].find(
+        value => typeof value === 'string' && value.trim(),
+      ) as string | undefined
+      return {
+        ...metadata,
+        id: item.id ?? metadata.id,
+        songmid: item.songmid ?? metadata.songmid ?? metadata.id,
+        name: item.name || metadata.name,
+        singer: item.singer || songArtist(metadata),
+        albumName: item.albumName || songAlbum(metadata),
+        source: item.source || metadata.source,
+        img: image,
+        size: item.size ?? songSizeValue(metadata),
+        quality: item.quality || metadata.quality,
+        url: cacheFileUrl(item),
+        cacheItem: item,
+      }
+    },
+    [cacheFileUrl],
+  )
   const visibleCacheItems = useMemo(() => {
     const needle = keyword.trim().toLocaleLowerCase()
     const currentItems = cacheDataScope === (userName || '') ? cacheItems : []
@@ -661,8 +669,17 @@ export function LocalMusicView() {
           `${item.name} ${item.singer} ${item.albumName} ${item.filename}`.toLocaleLowerCase().includes(needle)),
     )
   }, [cacheDataScope, cacheFilter, cacheItems, keyword, userName])
+  const pageCount = Math.max(1, Math.ceil(visibleCacheItems.length / LOCAL_MUSIC_PAGE_SIZE))
+  const pageIndex = Math.min(page, pageCount - 1)
+  const pageItems = useMemo(
+    () => visibleCacheItems.slice(pageIndex * LOCAL_MUSIC_PAGE_SIZE, (pageIndex + 1) * LOCAL_MUSIC_PAGE_SIZE),
+    [pageIndex, visibleCacheItems],
+  )
   const hasCacheDataForCurrentUser = cacheDataScope === (userName || '')
   const cacheErrorForCurrentUser = cacheErrorScope === (userName || '') ? cacheError : ''
+  useEffect(() => {
+    setPage(0)
+  }, [cacheFilter, keyword])
   const toggleSelected = (item: CacheItem) =>
     setSelected(current => {
       const next = new Set(current)
@@ -685,7 +702,7 @@ export function LocalMusicView() {
       notify(error instanceof Error ? error.message : '删除本地文件失败')
     }
   }
-  const serverSongs = visibleCacheItems.map(cacheSong)
+  const serverSongs = useMemo(() => visibleCacheItems.map(cacheSong), [cacheSong, visibleCacheItems])
   const cacheDuration = (item: CacheItem, song: Song): string => {
     const value = item.duration ?? item.interval ?? songDurationValue(item) ?? songDurationValue(song)
     if (typeof value === 'string' && value.includes(':')) return value
@@ -704,14 +721,20 @@ export function LocalMusicView() {
               { value: 'cache', label: '缓存' },
               { value: 'music', label: '已下载' },
             ]}
-            onChange={value => setCacheFilter(value as typeof cacheFilter)}
+            onChange={value => {
+              setPage(0)
+              setCacheFilter(value as typeof cacheFilter)
+            }}
           />
         </div>
         <label className="react-global-search react-local-search">
           <Icon name="search" />
           <input
             value={keyword}
-            onChange={event => setKeyword(event.target.value)}
+            onChange={event => {
+              setPage(0)
+              setKeyword(event.target.value)
+            }}
             placeholder="搜索歌曲、歌手或文件名"
             aria-label="搜索本地音乐"
           />
@@ -770,8 +793,9 @@ export function LocalMusicView() {
               <span />
             </div>
             <ul className="react-song-list">
-              {visibleCacheItems.map((item, index) => {
-                const song = cacheSong(item)
+              {pageItems.map((item, offset) => {
+                const index = pageIndex * LOCAL_MUSIC_PAGE_SIZE + offset
+                const song = serverSongs[index]
                 const key = localCacheItemKey(item, userName)
                 const album = songAlbum(song)
                 const sizeBytes = songSizeBytes(item.size ?? song)
@@ -797,11 +821,7 @@ export function LocalMusicView() {
                           folder: String(item.folder),
                           user: item.rawUsername,
                         })
-                        playSong(
-                          song,
-                          serverSongs,
-                          serverSongs.findIndex(candidate => songKey(candidate) === songKey(song)),
-                        )
+                        playSong(song, serverSongs, index)
                       }}
                     >
                       <SafeImage src={songImage(song)} width="48" height="48" loading="lazy" alt="" />
@@ -832,6 +852,19 @@ export function LocalMusicView() {
                 )
               })}
             </ul>
+            {pageCount > 1 && (
+              <nav className="react-dialog-actions react-local-pagination" aria-label="本地音乐列表分页">
+                <Button disabled={pageIndex === 0} onClick={() => setPage(pageIndex - 1)}>
+                  上一页
+                </Button>
+                <span aria-live="polite">
+                  第 {pageIndex + 1} / {pageCount} 页
+                </span>
+                <Button disabled={pageIndex + 1 >= pageCount} onClick={() => setPage(pageIndex + 1)}>
+                  下一页
+                </Button>
+              </nav>
+            )}
           </div>
         ) : (
           <div className="react-empty">

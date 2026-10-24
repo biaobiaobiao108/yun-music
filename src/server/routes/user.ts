@@ -17,7 +17,7 @@ import {
 import { startupLog } from '@/utils/log4js'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
-import { assertSnapshotId } from '@/modules/list/snapshotDataManage'
+import { assertSnapshotData, assertSnapshotId } from '@/modules/list/snapshotDataManage'
 import { SnapshotConflictError } from '@/modules/snapshotStorage'
 import { PlaylistIdConflictError, type PlaylistMutation } from '@/modules/list/listDataManage'
 import { deleteUserCacheData } from '@/server/fileCache'
@@ -857,18 +857,19 @@ export const createUserRouter = (): Router => {
 
     try {
       const body = await ctx.bodyText()
+      assertSnapshotData(body)
+      const jsonData = JSON.parse(body)
       let finalData = body
+      let parsedData: unknown = jsonData
 
-      try {
-        const jsonData = JSON.parse(body)
-        if (jsonData && jsonData.type === 'playList_v2' && Array.isArray(jsonData.data)) {
-          startupLog.info(`[Snapshot] Detected legacy backup format for user ${verifiedUser}, converting...`)
-          const defaultList = jsonData.data.find((l: any) => l.id === 'default')?.list || []
-          const loveList = jsonData.data.find((l: any) => l.id === 'love')?.list || []
-          const userList = jsonData.data.filter((l: any) => l.id !== 'default' && l.id !== 'love')
-          finalData = JSON.stringify({ defaultList, loveList, userList })
-        }
-      } catch {}
+      if (jsonData && jsonData.type === 'playList_v2' && Array.isArray(jsonData.data)) {
+        startupLog.info(`[Snapshot] Detected legacy backup format for user ${verifiedUser}, converting...`)
+        const defaultList = jsonData.data.find((l: any) => l.id === 'default')?.list || []
+        const loveList = jsonData.data.find((l: any) => l.id === 'love')?.list || []
+        const userList = jsonData.data.filter((l: any) => l.id !== 'default' && l.id !== 'love')
+        parsedData = { defaultList, loveList, userList }
+        finalData = JSON.stringify(parsedData)
+      }
 
       let name = filename
       if (name.startsWith('snapshot_')) name = name.substring(9)
@@ -879,7 +880,7 @@ export const createUserRouter = (): Router => {
       }
 
       const userSpace = getUserSpace(verifiedUser)
-      await userSpace.listManage.saveSnapshotWithTime(name, finalData, time)
+      await userSpace.listManage.saveSnapshotWithTimeData(name, finalData, parsedData, time)
       return ctx.json({ success: true })
     } catch (err: any) {
       if (err instanceof SnapshotConflictError) return ctx.fail(409, err.message)

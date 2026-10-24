@@ -723,7 +723,7 @@ export const createCacheRouter = (): Router => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
-      const stats = fileCache.getCacheStats(username)
+      const stats = fileCache.getCachedCacheStats(username)
       return ctx.json({ success: true, data: stats })
     } catch (e: any) {
       return ctx.fail(500, toUserMessage(e, '获取缓存统计失败，请稍后重试'))
