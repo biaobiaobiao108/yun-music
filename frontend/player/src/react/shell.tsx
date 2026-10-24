@@ -74,24 +74,36 @@ const SearchView = lazy(() => import('./views').then(module => ({ default: modul
 const SettingsView = lazy(() => import('./views').then(module => ({ default: module.SettingsView })))
 const UserLoginDialog = lazy(() => import('./views').then(module => ({ default: module.UserLoginDialog })))
 
-const NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
+const SIDEBAR_MY_MUSIC_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
+  { id: 'recent', label: '最近播放', icon: 'clock' },
+  { id: 'favorites', label: '我的收藏', icon: 'heart' },
+]
+
+const SIDEBAR_LIBRARY_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
+  { id: 'localmusic', label: '本地音乐', icon: 'folder-open' },
+  { id: 'albums', label: '专辑', icon: 'compact-disc' },
+  { id: 'artists', label: '艺人', icon: 'user' },
+]
+
+const SIDEBAR_DISCOVERY_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'home', label: '首页', icon: 'home' },
   { id: 'songlist', label: '发现', icon: 'compass' },
-  { id: 'recent', label: '最近', icon: 'clock' },
-  { id: 'library', label: '资料库', icon: 'folder-open' },
+  { id: 'leaderboard', label: '排行榜', icon: 'chart-line' },
   { id: 'search', label: '搜索', icon: 'search' },
 ]
 
-const MORE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
-  { id: 'leaderboard', label: '排行榜', icon: 'chart-line' },
-  { id: 'favorites', label: '我的收藏', icon: 'heart' },
-  { id: 'albums', label: '专辑', icon: 'compact-disc' },
-  { id: 'artists', label: '艺人', icon: 'user' },
-  { id: 'localmusic', label: '本地音乐', icon: 'folder-open' },
+const SIDEBAR_SETTINGS_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'settings', label: '设置', icon: 'gear' },
 ]
 
-const ALL_NAV_ITEMS = [...NAV_ITEMS, ...MORE_NAV_ITEMS, { id: 'playlists', label: '歌单', icon: 'list' }]
+const ALL_NAV_ITEMS = [
+  ...SIDEBAR_MY_MUSIC_ITEMS,
+  ...SIDEBAR_LIBRARY_ITEMS,
+  ...SIDEBAR_DISCOVERY_ITEMS,
+  ...SIDEBAR_SETTINGS_ITEMS,
+  { id: 'library', label: '资料库', icon: 'folder-open' },
+  { id: 'playlists', label: '歌单', icon: 'list' },
+]
 
 function PlayerView({ tab, detail }: { tab: PlayerTab; detail: PlayerDetail | null }) {
   const view = (() => {
@@ -232,8 +244,8 @@ function Sidebar() {
         </div>
         <div className="react-sidebar-scroll-region">
           <nav ref={sidebarNavRef} className="react-sidebar-nav">
-            <p className="react-sidebar-label">浏览</p>
-            {NAV_ITEMS.filter(item => item.id !== 'library').map(item => {
+            <p className="react-sidebar-label">我的音乐</p>
+            {SIDEBAR_MY_MUSIC_ITEMS.map(item => {
               const isActive = activeTab === item.id
               return (
                 <button
@@ -248,13 +260,8 @@ function Sidebar() {
                 </button>
               )
             })}
-            <p className="react-sidebar-label react-sidebar-more-label">任务</p>
-            <button type="button" className="netease-nav-item" onClick={() => setDrawer('cache')}>
-              <Icon name="cloud-arrow-down" />
-              <span>缓存与下载</span>
-            </button>
             <div className="react-sidebar-playlists-heading">
-              <p className="react-sidebar-label">播放列表</p>
+              <p className="react-sidebar-label">我的歌单</p>
               <button
                 type="button"
                 className="react-icon-button"
@@ -294,7 +301,7 @@ function Sidebar() {
               )}
             </div>
             <p className="react-sidebar-label react-sidebar-more-label">资料库</p>
-            {MORE_NAV_ITEMS.filter(item => item.id !== 'settings').map(item => (
+            {SIDEBAR_LIBRARY_ITEMS.map(item => (
               <button
                 type="button"
                 key={item.id}
@@ -306,8 +313,8 @@ function Sidebar() {
                 <span>{item.label}</span>
               </button>
             ))}
-            <p className="react-sidebar-label react-sidebar-more-label">偏好设置</p>
-            {MORE_NAV_ITEMS.filter(item => item.id === 'settings').map(item => (
+            <p className="react-sidebar-label react-sidebar-more-label">发现</p>
+            {SIDEBAR_DISCOVERY_ITEMS.map(item => (
               <button
                 type="button"
                 key={item.id}
@@ -319,7 +326,23 @@ function Sidebar() {
                 <span>{item.label}</span>
               </button>
             ))}
-            <p className="react-sidebar-label react-sidebar-more-label">账户与外观</p>
+            <p className="react-sidebar-label react-sidebar-more-label">工具与设置</p>
+            <button type="button" className="netease-nav-item" onClick={() => setDrawer('cache')}>
+              <Icon name="cloud-arrow-down" />
+              <span>缓存与下载</span>
+            </button>
+            {SIDEBAR_SETTINGS_ITEMS.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`}
+                aria-current={activeTab === item.id ? 'page' : undefined}
+                onClick={() => setTab(item.id)}
+              >
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+              </button>
+            ))}
             <button
               type="button"
               className="netease-nav-item"

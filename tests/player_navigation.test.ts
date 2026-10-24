@@ -562,7 +562,18 @@ describe('React player navigation and state restoration', () => {
     expect(css).toMatch(
       /\.react-playlist-catalog-row::after\s*\{\s*content: "";\s*position: absolute;\s*inset-inline: 4\.65rem 0;\s*bottom: 0;\s*height: 1px;\s*background: var\(--app-border\);\s*\}/,
     )
-    expect(shell).toContain("NAV_ITEMS.filter(item => item.id !== 'library')")
+    const sidebar = shell.slice(
+      shell.indexOf('<nav ref={sidebarNavRef}'),
+      shell.indexOf('</nav>', shell.indexOf('<nav ref={sidebarNavRef}')),
+    )
+    expect(sidebar.indexOf('我的音乐')).toBeLessThan(sidebar.indexOf('我的歌单'))
+    expect(sidebar.indexOf('我的歌单')).toBeLessThan(sidebar.indexOf('资料库'))
+    expect(sidebar.indexOf('资料库')).toBeLessThan(sidebar.indexOf('发现'))
+    expect(sidebar.indexOf('发现')).toBeLessThan(sidebar.indexOf('工具与设置'))
+    expect(shell).toContain("{ id: 'recent', label: '最近播放', icon: 'clock' }")
+    expect(shell).toContain("{ id: 'favorites', label: '我的收藏', icon: 'heart' }")
+    expect(shell).toContain("{ id: 'localmusic', label: '本地音乐', icon: 'folder-open' }")
+    expect(shell).toContain("{ id: 'leaderboard', label: '排行榜', icon: 'chart-line' }")
     expect(shell).toContain('className="react-sidebar-history"')
     expect(shell).toContain('id="player-history-back"')
     expect(shell).toContain('id="player-history-forward"')
