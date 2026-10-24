@@ -11,8 +11,8 @@
     "build": "bun build src/index.ts --outdir ./server --target bun --packages=external",
     "build:frontend": "bun run scripts/build-frontend.ts",
     "check:frontend-assets": "bun run build:frontend && bun run scripts/check-frontend-assets.ts",
-    "format": "bun fmt src frontend scripts tests index.js ecosystem.config.js tailwind.admin.config.cjs tailwind.player.config.cjs package.json tsconfig.json bunfig.toml",
-    "format:check": "bun fmt --check src frontend scripts tests index.js ecosystem.config.js tailwind.admin.config.cjs tailwind.player.config.cjs package.json tsconfig.json bunfig.toml",
+    "format": "bun fmt \"src/**/*.ts\" \"frontend/**/*.ts\" \"frontend/**/*.tsx\" \"frontend/**/*.css\" \"frontend/**/*.html\" \"frontend/**/*.js\" \"frontend/**/*.json\" \"scripts/**/*.ts\" \"scripts/**/*.js\" \"tests/**/*.ts\" index.js ecosystem.config.js tailwind.admin.config.cjs tailwind.player.config.cjs package.json tsconfig.json bunfig.toml",
+    "format:check": "bun fmt --check \"src/**/*.ts\" \"frontend/**/*.ts\" \"frontend/**/*.tsx\" \"frontend/**/*.css\" \"frontend/**/*.html\" \"frontend/**/*.js\" \"frontend/**/*.json\" \"scripts/**/*.ts\" \"scripts/**/*.js\" \"tests/**/*.ts\" index.js ecosystem.config.js tailwind.admin.config.cjs tailwind.player.config.cjs package.json tsconfig.json bunfig.toml",
     "reset:instance": "bun run scripts/reset-instance.ts",
     "dev:frontend": "bun run scripts/build-frontend.ts --watch",
     "test": "bun test --check"
