@@ -12,10 +12,9 @@
 ## 修改与验证
 
 - JavaScript/TypeScript 的安装、运行和检查使用 Bun；不要使用 npm、yarn、pnpm 或 Node.js。
-- 每次修改代码后，先对本次改动的源码文件运行 `bun fmt <文件...>`，再运行 `bun check`。
-- 修改核心逻辑或修复缺陷后运行 `bun test --check`；测试范围应与改动相符。
+- 每次修改代码后，先对本次改动的源码文件运行 `bun fmt <文件...>`，再运行 `bun check` 和全量测试 `bun test --check`。
 - 修改 `frontend/` 或 `frontend/styles/` 后运行 `bun run build:frontend`；改动发布资源引用时再运行 `bun run check:frontend-assets`。
-- 每次代码修改通过对应验证后都要提交，提交信息使用语义化前缀和中文说明，例如 `fix: 修复缓存路径校验`。
+- 每次代码修改通过所有适用检查后都要提交，提交信息使用语义化前缀和中文说明，例如 `fix: 修复缓存路径校验`。
 - 不要为未提出的需求扩展范围，也不要新增未经评估的重型依赖。
 
 ## 关键实现约束
