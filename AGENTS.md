@@ -9,12 +9,17 @@
 - `frontend/`：前端源码；`public/`：构建产物，禁止手动修改。
 - 前端状态、请求和播放边界详见 [`docs/frontend-react.md`](docs/frontend-react.md)。部署与实例限制详见 [`README.md`](README.md)。
 
-## 修改与验证
+## 修改、验证与提交
 
 - JavaScript/TypeScript 的安装、运行和检查使用 Bun；不要使用 npm、yarn、pnpm 或 Node.js。
-- 每次修改代码后，先对本次改动的源码文件运行 `bun fmt <文件...>`，再运行 `bun check` 和全量测试 `bun test --check`。
-- 修改 `frontend/` 或 `frontend/styles/` 后运行 `bun run build:frontend`；改动发布资源引用时再运行 `bun run check:frontend-assets`。
-- 每次代码修改通过所有适用检查后都要提交，提交信息使用语义化前缀和中文说明，例如 `fix: 修复缓存路径校验`。
+- 每次提交包含代码改动时，提交前按顺序执行：
+  1. 运行 `bun run format`。
+  2. 检查格式化产生的 diff，确认没有无关改动。
+  3. 依次运行 `bun check`、`bun test --check` 和 `bun run build`。
+- 修改 `frontend/` 或 `frontend/styles/` 后，还要运行 `bun run build:frontend`；改动发布资源引用时再运行 `bun run check:frontend-assets`。
+- 检查全部通过后再提交。代码再次改动后，从格式化开始重跑完整流程；任一检查失败，修复后重新验证。
+- 仅修改文档时可跳过上述代码检查。
+- 每个完成的代码改动集都必须提交，包括重构、维护和小修复。提交信息使用语义化前缀和中文说明，例如 `fix: 修复缓存路径校验`。
 - 不要为未提出的需求扩展范围，也不要新增未经评估的重型依赖。
 
 ## 关键实现约束
