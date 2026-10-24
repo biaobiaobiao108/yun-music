@@ -8960,3 +8960,41 @@ body:has(.admin-react-login) {
         gap: 0.08rem;
     }
 }
+
+/* Preserve the dialog title for context while letting compact forms share a
+   single surface instead of reserving a divided heading band. */
+.admin-react-dialog-content > header {
+    padding: 0.8rem 1.2rem 0.2rem;
+    border-bottom: 0 !important;
+}
+
+.admin-react-dialog-content > header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    font-weight: 700;
+}
+
+.admin-react-dialog-content > header > .admin-react-icon-button {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    min-height: 2.25rem;
+    border: 0;
+    font-size: 0.95rem;
+}
+
+.admin-react-dialog-content > header > .admin-react-icon-button:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+}
+
+.admin-react-dialog-body {
+    padding-block: 0.7rem 1.2rem;
+}
+
+@media (max-width: 620px) {
+    .admin-react-dialog-content > header {
+        padding-inline: 0.9rem;
+    }
+}

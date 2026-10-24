@@ -932,7 +932,9 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
         </Modal>
         <Modal open={renameOpen} title="重命名歌单" onClose={() => setRenameOpen(false)}>
           <form className="react-dialog-form" onSubmit={submitRename}>
-            <label htmlFor="rename-list-name">新的歌单名称</label>
+            <label className="sr-only" htmlFor="rename-list-name">
+              歌单名称
+            </label>
             <input
               id="rename-list-name"
               value={renameValue}

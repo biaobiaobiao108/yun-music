@@ -12080,6 +12080,39 @@ textarea:focus-visible {
     }
 }
 
+/* Keep modal titles available for context and screen readers without giving
+   every small form a separate, divided title bar. */
+.react-dialog-content > header {
+    align-items: center;
+    padding: 0.8rem 1.2rem 0.2rem;
+    border: 0;
+}
+
+.react-dialog-content > header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    font-weight: 700;
+}
+
+.react-dialog-content > header > .react-icon-button {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    min-height: 2.25rem;
+    border: 0;
+    font-size: 0.95rem;
+}
+
+.react-dialog-content > header > .react-icon-button:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+}
+
+.react-dialog-body {
+    padding-block: 0.7rem 1.2rem;
+}
+
 /* Near-full-height floating navigation island: preserve a slim viewport
    margin while keeping the mobile drawer height supplied by its insets. */
 @media (min-width: 901px) {
