@@ -13853,7 +13853,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         display: none;
     }
     .react-home-fixed-grid.react-artist-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 0.65rem 0.4rem;
     }
     .react-home-fixed-grid.react-artist-grid > .react-artwork-card:nth-child(n + 5) {
@@ -14463,7 +14463,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         display: none;
     }
     .react-home-fixed-grid.react-artist-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .react-home-fixed-grid.react-artist-grid > .react-artwork-card:nth-child(n + 7) {
         display: block;
@@ -14542,7 +14542,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         grid-template-columns: none;
         grid-template-rows: auto;
         grid-auto-flow: column;
-        grid-auto-columns: clamp(5.25rem, 5.6vw, 6.75rem);
+        grid-auto-columns: clamp(6.25rem, 7.5vw, 8rem);
         grid-auto-rows: auto;
         gap: 1rem 0.8rem;
         overflow-x: auto;

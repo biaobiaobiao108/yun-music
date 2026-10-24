@@ -37,7 +37,7 @@ function ArtworkCard({
           : songAlbum(song)
         : songTitle(song)
   const subtitle =
-    kind === 'artist' ? String(song.songCount ?? song.count ?? '歌手') : String(song.singer || song.artist || '专辑')
+    kind === 'artist' ? String(song.songCount ?? song.count ?? '') : String(song.singer || song.artist || '专辑')
   return (
     <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''}`}>
       <button type="button" className="react-artwork-button" onClick={onOpen ?? onPlay}>
@@ -45,7 +45,7 @@ function ArtworkCard({
           <SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} />
         </span>
         <strong title={title}>{title}</strong>
-        <small>{subtitle}</small>
+        {subtitle != null && subtitle !== '' && <small>{subtitle}</small>}
       </button>
       {onPlay && (
         <button
