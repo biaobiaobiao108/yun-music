@@ -724,6 +724,7 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
     () => songs.filter(song => selectedSongs.has(songKey(song))),
     [selectedSongs, songs],
   )
+  const hasSelection = selectedSongs.size > 0
   const toggleSong = (song: Song) =>
     setSelectedSongs(current => {
       const next = new Set(current)
@@ -791,60 +792,105 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
   }
   const headerActions = (
     <>
-      <Button variant="primary" onClick={playRandom} disabled={!songs.length}>
-        <Icon name="play" />
-        随机漫游
+      <Button
+        variant="primary"
+        className="react-icon-only-button"
+        aria-label="随机漫游"
+        title="随机漫游"
+        onClick={playRandom}
+        disabled={!songs.length}
+      >
+        <Icon name="shuffle" />
       </Button>
       {onRename && (
         <Button
+          className="react-icon-only-button"
+          aria-label="重命名歌单"
+          title="重命名歌单"
           onClick={() => {
             setRenameValue(name)
             setRenameOpen(true)
           }}
         >
           <Icon name="pen" />
-          重命名
         </Button>
       )}
       {onDelete && (
-        <Button variant="danger" onClick={() => setDeleteOpen(true)}>
+        <Button
+          variant="danger"
+          className="react-icon-only-button"
+          aria-label="删除歌单"
+          title="删除歌单"
+          onClick={() => setDeleteOpen(true)}
+        >
           <Icon name="trash" />
-          删除
         </Button>
       )}
     </>
   )
-  const listActions = (
+  const batchActions = (
     <>
-      {batchMode && selectedSongs.size > 0 && (
-        <span className="react-header-selection-count">已选择 {selectedSongs.size} 首</span>
-      )}
-      {batchMode && (
-        <>
-          <Button onClick={selectAll} disabled={!songs.length}>
-            全选
-          </Button>
-          <Button onClick={() => setSelectedSongs(new Set())} disabled={!selectedSongs.size}>
-            取消选择
-          </Button>
-          <Button variant="primary" onClick={() => void downloadBatch()} disabled={!selectedSongs.size || downloadBusy}>
-            <Icon name={downloadBusy ? 'spinner' : 'download'} />
-            {downloadBusy ? '加入中…' : '批量下载'}
-          </Button>
-          <Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selectedSongs.size || downloadBusy}>
-            批量移除
-          </Button>
-        </>
-      )}
+      <span className="react-header-selection-count" aria-live="polite">
+        已选择 {selectedSongs.size} 首
+      </span>
       <Button
+        className="react-icon-only-button"
+        aria-label={hasSelection ? '取消选择' : '全选'}
+        title={hasSelection ? '取消选择' : '全选'}
+        onClick={() => (hasSelection ? setSelectedSongs(new Set()) : selectAll())}
+        disabled={!songs.length}
+      >
+        <Icon name={hasSelection ? 'xmark' : 'check'} />
+      </Button>
+      <Button
+        variant="primary"
+        className="react-icon-only-button"
+        aria-label={downloadBusy ? '正在加入下载队列' : '批量下载'}
+        title={downloadBusy ? '正在加入下载队列' : '批量下载'}
+        onClick={() => void downloadBatch()}
+        disabled={!selectedSongs.size || downloadBusy}
+      >
+        <Icon name={downloadBusy ? 'spinner' : 'download'} />
+      </Button>
+      <Button
+        variant="danger"
+        className="react-icon-only-button"
+        aria-label="批量移除"
+        title="批量移除"
+        onClick={() => setConfirmOpen(true)}
+        disabled={!selectedSongs.size || downloadBusy}
+      >
+        <Icon name="trash" />
+      </Button>
+      <Button
+        className="react-icon-only-button"
+        aria-label="退出多选"
+        title="退出多选"
         onClick={() => {
-          setBatchMode(value => !value)
+          setBatchMode(false)
           setSelectedSongs(new Set())
         }}
         disabled={downloadBusy}
       >
-        {batchMode ? '退出多选' : '多选操作'}
+        <Icon name="xmark" />
       </Button>
+    </>
+  )
+  const normalActions = (
+    <>
+      <Button
+        className="react-icon-only-button"
+        aria-label="多选操作"
+        title="多选操作"
+        onClick={() => {
+          setBatchMode(true)
+          setSelectedSongs(new Set())
+        }}
+        disabled={downloadBusy}
+      >
+        <Icon name="list" />
+      </Button>
+      {headerActions}
     </>
   )
   return (
@@ -852,8 +898,7 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
       title={name}
       actions={
         <div className="react-view-header-actions react-playlist-header-actions">
-          {listActions}
-          {headerActions}
+          {batchMode ? batchActions : normalActions}
         </div>
       }
     >

@@ -12182,6 +12182,26 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
+.react-playlist-header-actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+}
+
+.react-playlist-header-actions > .react-icon-only-button {
+    box-sizing: border-box;
+    width: 2.7rem;
+    min-width: 2.7rem;
+    height: 2.7rem;
+    min-height: 2.7rem;
+    flex: 0 0 auto;
+    padding: 0;
+}
+
+.react-playlist-header-actions .react-header-selection-count {
+    min-width: max-content;
+}
+
 @media (max-width: 680px) {
     .react-local-toolbar {
         grid-template-columns: minmax(0, 1fr) auto;
