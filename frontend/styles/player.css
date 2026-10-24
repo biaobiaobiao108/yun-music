@@ -8182,6 +8182,10 @@ textarea:focus-visible {
     font-size: 0.92rem;
 }
 
+.react-home-artist-row .react-artwork-button {
+    text-align: center;
+}
+
 .react-artwork-button small {
     color: var(--app-text-muted);
     font-size: 0.76rem;
@@ -8919,6 +8923,7 @@ textarea:focus-visible {
     min-height: 4.35rem;
     padding: 0.45rem 0.1rem;
     border-bottom: 1px solid color-mix(in srgb, var(--app-border) 84%, transparent);
+    border-radius: 0;
     content-visibility: auto;
     contain-intrinsic-size: auto 4.35rem;
 }

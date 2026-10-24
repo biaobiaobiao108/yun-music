@@ -331,33 +331,35 @@ export function CustomSourcesView() {
                       </td>
                       <td>{formatBytes(source.size)}</td>
                       <td>{formatDate(source.uploadTime)}</td>
-                      <td className="admin-react-row-actions">
-                        <Button onClick={() => void toggleSource(source)} disabled={Boolean(action)}>
-                          {source.enabled ? '停用' : '启用'}
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setUpdateTarget(source)
-                            setUpdateUrl('')
-                          }}
-                          disabled={Boolean(action)}
-                          title="更新音源脚本"
-                        >
-                          <Icon name="rotate" />
-                          更新
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setTransferTarget(source)
-                            setTargetOwner(source.owner === 'open' ? (userOptions[0]?.value ?? 'open') : 'open')
-                          }}
-                          disabled={!transferOptions.length || Boolean(action)}
-                        >
-                          转移
-                        </Button>
-                        <Button variant="danger" onClick={() => setRemoveTarget(source)} disabled={Boolean(action)}>
-                          删除
-                        </Button>
+                      <td>
+                        <div className="admin-react-row-actions">
+                          <Button onClick={() => void toggleSource(source)} disabled={Boolean(action)}>
+                            {source.enabled ? '停用' : '启用'}
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setUpdateTarget(source)
+                              setUpdateUrl('')
+                            }}
+                            disabled={Boolean(action)}
+                            title="更新音源脚本"
+                          >
+                            <Icon name="rotate" />
+                            更新
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setTransferTarget(source)
+                              setTargetOwner(source.owner === 'open' ? (userOptions[0]?.value ?? 'open') : 'open')
+                            }}
+                            disabled={!transferOptions.length || Boolean(action)}
+                          >
+                            转移
+                          </Button>
+                          <Button variant="danger" onClick={() => setRemoveTarget(source)} disabled={Boolean(action)}>
+                            删除
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   )

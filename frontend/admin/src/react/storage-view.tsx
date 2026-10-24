@@ -65,32 +65,34 @@ function StorageSongRow({
       <td>{formatBytes(item.size)}</td>
       <td>{String(item.username ?? item.rawUsername ?? '公共空间')}</td>
       <td>{formatDate(item.mtime)}</td>
-      <td className="admin-react-row-actions">
-        <Button
-          className="admin-react-button-compact"
-          aria-label={playing ? `暂停试听${name}` : `试听${name}`}
-          title={playing ? '暂停试听' : '试听'}
-          onClick={onPreview}
-        >
-          <Icon name={playing ? 'pause' : 'play'} />
-        </Button>
-        <Button
-          className="admin-react-button-compact"
-          aria-label="移动文件"
-          title={item.folder === 'cache' ? '转为下载音乐' : '转为缓存音乐'}
-          onClick={onMove}
-        >
-          <Icon name="right-left" />
-        </Button>
-        <Button
-          className="admin-react-button-compact"
-          variant="danger"
-          aria-label={`删除${name}`}
-          title="删除"
-          onClick={onDelete}
-        >
-          <Icon name="trash" />
-        </Button>
+      <td>
+        <div className="admin-react-row-actions">
+          <Button
+            className="admin-react-button-compact"
+            aria-label={playing ? `暂停试听${name}` : `试听${name}`}
+            title={playing ? '暂停试听' : '试听'}
+            onClick={onPreview}
+          >
+            <Icon name={playing ? 'pause' : 'play'} />
+          </Button>
+          <Button
+            className="admin-react-button-compact"
+            aria-label="移动文件"
+            title={item.folder === 'cache' ? '转为下载音乐' : '转为缓存音乐'}
+            onClick={onMove}
+          >
+            <Icon name="right-left" />
+          </Button>
+          <Button
+            className="admin-react-button-compact"
+            variant="danger"
+            aria-label={`删除${name}`}
+            title="删除"
+            onClick={onDelete}
+          >
+            <Icon name="trash" />
+          </Button>
+        </div>
       </td>
     </tr>
   )

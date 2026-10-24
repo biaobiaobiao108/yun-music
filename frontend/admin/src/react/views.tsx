@@ -256,23 +256,25 @@ export function UsersView() {
                         {user.hasPassword ? '已设置密码' : '公开用户'}
                       </span>
                     </td>
-                    <td className="admin-react-row-actions">
-                      <Button
-                        onClick={() => {
-                          setEditing(user)
-                          setDialog('edit')
-                        }}
-                        disabled={user.name === '_open'}
-                      >
-                        编辑
-                      </Button>
-                      <Button
-                        variant="danger"
-                        onClick={() => requestDeleteUsers([user.name])}
-                        disabled={user.name === '_open'}
-                      >
-                        删除
-                      </Button>
+                    <td>
+                      <div className="admin-react-row-actions">
+                        <Button
+                          onClick={() => {
+                            setEditing(user)
+                            setDialog('edit')
+                          }}
+                          disabled={user.name === '_open'}
+                        >
+                          编辑
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => requestDeleteUsers([user.name])}
+                          disabled={user.name === '_open'}
+                        >
+                          删除
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -649,23 +651,25 @@ export function SnapshotsView() {
                       <th scope="row">{id}</th>
                       <td>{formatBytes(snapshot.size)}</td>
                       <td>{formatDate(snapshot.time)}</td>
-                      <td className="admin-react-row-actions">
-                        <Button onClick={() => void downloadSnapshot(id)} disabled={Boolean(busyAction)}>
-                          <Icon name="download" />
-                          下载
-                        </Button>
-                        <Button onClick={() => requestRestoreSnapshot(id)} disabled={Boolean(busyAction)}>
-                          <Icon name="rotate" />
-                          恢复
-                        </Button>
-                        <Button
-                          variant="danger"
-                          onClick={() => requestDeleteSnapshot(id)}
-                          disabled={Boolean(busyAction)}
-                        >
-                          <Icon name="trash" />
-                          删除
-                        </Button>
+                      <td>
+                        <div className="admin-react-row-actions">
+                          <Button onClick={() => void downloadSnapshot(id)} disabled={Boolean(busyAction)}>
+                            <Icon name="download" />
+                            下载
+                          </Button>
+                          <Button onClick={() => requestRestoreSnapshot(id)} disabled={Boolean(busyAction)}>
+                            <Icon name="rotate" />
+                            恢复
+                          </Button>
+                          <Button
+                            variant="danger"
+                            onClick={() => requestDeleteSnapshot(id)}
+                            disabled={Boolean(busyAction)}
+                          >
+                            <Icon name="trash" />
+                            删除
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   )

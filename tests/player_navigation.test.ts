@@ -206,7 +206,7 @@ describe('React player navigation and state restoration', () => {
     expect(shell).not.toContain('react-sidebar-close')
   })
 
-  it('shows lyrics inline on mobile and gives home fixed two-row favorites and artists', () => {
+  it('shows lyrics inline on mobile and gives home artists more space', () => {
     const views = read('frontend/player/src/react/views.tsx')
     const library = read('frontend/player/src/react/library_views.tsx')
     const css = read('frontend/styles/player.css')
@@ -249,7 +249,7 @@ describe('React player navigation and state restoration', () => {
       /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card:nth-child\(n \+ 13\)\s*\{\s*display: none;\s*\}/,
     )
     expect(css).toContain('.react-artwork-grid.react-home-artist-row {')
-    expect(css).toContain('grid-auto-columns: clamp(5.25rem, 5.6vw, 6.75rem);')
+    expect(css).toContain('grid-auto-columns: clamp(6.25rem, 7.5vw, 8rem);')
     expect(css).toContain('.react-mobile-library-link {')
     expect(css).toContain('.react-mobile-library-link::after {')
     expect(library).not.toContain('react-mobile-library-playlists')
@@ -541,7 +541,7 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain('-webkit-appearance: none;')
     expect(css).toMatch(/padding:\s*0?\.38rem\s+0?\.55rem\s*!important;/)
     expect(css).toMatch(
-      /\.react-home-fixed-grid\.react-artist-grid\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/,
+      /\.react-home-fixed-grid\.react-artist-grid\s*\{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
     )
     expect(css).toMatch(
       /\.react-home-fixed-grid\.react-artist-grid > \.react-artwork-card:nth-child\(n \+ 9\)\s*\{\s*display: none;\s*\}/,
