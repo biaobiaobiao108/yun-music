@@ -571,15 +571,12 @@ body {
 }
 
 .stat-card[role="button"],
-.user-select-card[role="button"],
-.file-name[role="button"] {
+.user-select-card[role="button"] {
     outline: 1px solid transparent;
 }
 
 .stat-card[role="button"]:active,
-.user-select-card[role="button"]:active,
-.file-name[role="button"]:active,
-.data-stat-card.clickable:active {
+.user-select-card[role="button"]:active {
     transform: translateY(0) scale(0.99);
 }
 
@@ -883,46 +880,6 @@ body {
     color: var(--text-primary);
     font-weight: 500;
 }
-
-/* =============== 数据查看 =============== */
-.data-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.data-stat-card {
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    padding: 1.25rem;
-}
-
-.data-stat-card h4 {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-}
-
-.data-stat-card .value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.data-content {
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 16px;
-    padding: 1.5rem;
-}
-
-/* .playlist-item styles removed as they are unused */
-
-/* .playlist-name / .playlist-count 已统一移至下方的歌单卡片区块 */
-
-/* .config-form 已移除（HTML class 已改为 config-panels-layout） */
 
 .form-group {
     margin-bottom: 1.5rem;
@@ -1466,9 +1423,7 @@ select.form-input option:checked {
 }
 
 .user-select-card:focus-visible,
-.stat-card[role="button"]:focus-visible,
-.file-name[role="button"]:focus-visible,
-.data-stat-card.clickable:focus-visible {
+.stat-card[role="button"]:focus-visible {
     outline: 1px solid color-mix(in srgb, var(--accent-primary) 72%, white);
     outline-offset: -1px;
 }
@@ -1975,118 +1930,24 @@ select.form-input option:checked {
     color: var(--accent-success);
     background: var(--accent-success-tint);
 }
-.admin-react-song-cell {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-width: 180px;
-}
-.admin-react-song-cell img {
-    border-radius: 0.5rem;
-    object-fit: cover;
-    background: var(--bg-tertiary);
-}
-.admin-react-song-cell span {
-    display: grid;
-    gap: 0.2rem;
-    min-width: 0;
-}
-.admin-react-song-cell strong,
-.admin-react-song-cell small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.admin-react-song-cell small {
-    color: var(--text-secondary);
-}
-.admin-react-tabs {
-    display: flex;
-    gap: 0.35rem;
-    margin-bottom: 0.85rem;
-    border-bottom: 1px solid var(--glass-border);
-}
-.admin-react-tabs button {
-    border: 0;
-    border-bottom: 2px solid transparent;
-    background: transparent;
-    color: var(--text-secondary);
-    padding: 0.7rem 0.8rem;
-    cursor: pointer;
-    font: inherit;
-}
-.admin-react-tabs button.is-active {
-    color: var(--accent-primary);
-    border-color: var(--accent-primary);
-    font-weight: 700;
-}
 .admin-react-inline-label {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
     font-size: 0.85rem;
 }
-.admin-react-playlist-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-.admin-react-playlist-card {
-    min-height: 100px;
-    padding: 0.85rem;
-    border: 1px solid var(--glass-border);
-    border-radius: 0.8rem;
-    background: var(--surface-translucent-24);
-    color: var(--text-primary);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-    text-align: left;
-}
-.admin-react-playlist-card.is-active,
-.admin-react-playlist-card:hover {
-    border-color: var(--accent-primary);
-    background: var(--accent-tint-10);
-}
-.admin-react-playlist-card i {
-    color: var(--accent-primary);
-}
-.admin-react-playlist-card small {
-    color: var(--text-secondary);
-}
-.admin-react-detail-panel {
-    border-top: 1px solid var(--glass-border);
-    padding-top: 1rem;
-}
-.admin-react-subheader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-}
-.admin-react-subheader h3 {
-    font-size: 1rem;
-}
-.admin-react-form,
-.admin-react-config-form {
+.admin-react-form {
     display: grid;
     gap: 0.7rem;
 }
-.admin-react-form label,
-.admin-react-config-form > label {
+.admin-react-form label {
     display: grid;
     gap: 0.35rem;
     color: var(--text-secondary);
     font-size: 0.85rem;
 }
 .admin-react-form input,
-.admin-react-config-form input,
 .admin-react-form select,
-.admin-react-config-form select,
 .admin-react-toolbar input,
 .admin-react-toolbar select,
 .admin-react-inline-label select {
@@ -2099,27 +1960,10 @@ select.form-input option:checked {
     font: inherit;
 }
 .admin-react-form input:focus,
-.admin-react-config-form input:focus,
-.admin-react-config-form select:focus,
 .admin-react-toolbar input:focus,
 .admin-react-toolbar select:focus {
     border-color: var(--accent-primary);
     outline: 2px solid var(--accent-tint-18);
-}
-.admin-react-config-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-}
-.admin-react-config-form .admin-react-form-actions {
-    grid-column: 1 / -1;
-}
-.admin-react-check {
-    display: flex !important;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.65rem 0.75rem;
-    border: 1px solid var(--glass-border);
-    border-radius: 0.6rem;
 }
 .admin-react-form-actions {
     display: flex;
@@ -2273,8 +2117,7 @@ select.form-input option:checked {
     .admin-react-panel {
         padding: 0.85rem;
     }
-    .admin-react-panel-header,
-    .admin-react-subheader {
+    .admin-react-panel-header {
         align-items: stretch;
         flex-direction: column;
     }
@@ -2284,12 +2127,8 @@ select.form-input option:checked {
     .admin-react-toolbar > * {
         flex: 1;
     }
-    .admin-react-definition-list,
-    .admin-react-config-form {
+    .admin-react-definition-list {
         grid-template-columns: 1fr;
-    }
-    .admin-react-config-form .admin-react-form-actions {
-        grid-column: auto;
     }
     .admin-react-quick-actions {
         grid-template-columns: 1fr;
@@ -2457,491 +2296,8 @@ select.form-input option:checked {
     color: var(--text-muted);
 }
 
-/* =============== 文件管理器 =============== */
-.file-manager {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.file-toolbar {
-    padding: 1rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.file-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.file-breadcrumb a {
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-size: 0.875rem;
-    transition: color var(--app-motion) ease;
-}
-
-.file-breadcrumb a:hover {
-    color: var(--accent-primary);
-}
-
-.file-breadcrumb a:not(:last-child)::after {
-    content: "/";
-    margin-left: 0.5rem;
-    color: var(--text-muted);
-}
-
-.file-toolbar-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.file-list {
-    padding: 0;
-    min-height: 400px;
-}
-
-.file-list-header {
-    display: grid;
-    grid-template-columns: 2fr 120px 150px 200px;
-    gap: 1rem;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--glass-border);
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
-.file-item {
-    display: grid;
-    grid-template-columns: 2fr 120px 150px 200px;
-    gap: 1rem;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--glass-border);
-    align-items: center;
-    transition: background var(--app-motion) ease;
-}
-
-.file-item:hover {
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.file-item:last-child {
-    border-bottom: none;
-}
-
-.file-name {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    cursor: pointer;
-}
-
-.file-name:hover {
-    color: var(--accent-primary);
-}
-
-.file-name[role="button"] {
-    min-height: 2.75rem;
-}
-
-.file-icon {
-    font-size: 1.25rem;
-    flex-shrink: 0;
-}
-
-.file-size {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
-.file-date {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
-.file-item-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.file-item-actions button {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.75rem;
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-primary);
-    border-radius: 6px;
-    cursor: pointer;
-    transition:
-        color var(--app-motion) ease,
-        background-color var(--app-motion) ease,
-        border-color var(--app-motion) ease,
-        box-shadow var(--app-motion) ease,
-        opacity var(--app-motion) ease,
-        transform var(--app-motion) ease,
-        filter var(--app-motion) ease;
-}
-
-.file-item-actions button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--accent-primary);
-}
-
-/* 文件编辑器模态框 */
-.file-editor-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 3000;
-}
-
-.file-editor-content {
-    width: 90%;
-    max-width: 900px;
-    height: 80vh;
-    display: flex;
-    flex-direction: column;
-}
-
-.file-editor-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--glass-border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.file-editor-body {
-    flex: 1;
-    padding: 1.5rem;
-    overflow: auto;
-}
-
-.file-editor-textarea {
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    padding: 1rem;
-    color: var(--text-primary);
-    font-family: Monaco, Menlo, "Courier New", monospace;
-    font-size: 0.875rem;
-    line-height: 1.6;
-    resize: none;
-}
-
-.file-editor-footer {
-    padding: 1.5rem;
-    border-top: 1px solid var(--glass-border);
-    display: flex;
-    gap: 1rem;
-    justify-content: flex-end;
-}
-
-/* 响应式 - 文件管理器 */
-@media (max-width: 768px) {
-    .file-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .file-toolbar-actions {
-        justify-content: space-between;
-    }
-
-    .file-list-header,
-    .file-item {
-        grid-template-columns: 1fr;
-    }
-
-    .file-col-size,
-    .file-col-date {
-        display: none;
-    }
-
-    .file-size,
-    .file-date {
-        display: none;
-    }
-
-    .file-item-actions {
-        justify-content: flex-start;
-    }
-}
-
-/* =============== 数据查看 - 歌单卡片 =============== */
-.playlists-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-}
-
-.playlists-header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-}
-
-.playlists-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-.playlist-card {
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    transition:
-        transform var(--app-motion) ease,
-        box-shadow var(--app-motion) ease;
-}
-
-.playlist-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-xl);
-}
-
-.playlist-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    gap: 1rem;
-}
-
-.playlist-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.playlist-name {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.playlist-meta {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    gap: 1rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    min-width: 0;
-}
-
-.playlist-id {
-    font-family: monospace;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    min-width: 0;
-}
-
-.playlist-count {
-    color: var(--accent-primary);
-    font-weight: 500;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-.playlist-card-actions {
-    display: flex;
-    gap: 0.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--glass-border);
-}
-
-.btn-view,
-.btn-delete-playlist {
-    flex: 1;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    border: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition:
-        color var(--app-motion) ease,
-        background-color var(--app-motion) ease,
-        border-color var(--app-motion) ease,
-        box-shadow var(--app-motion) ease,
-        opacity var(--app-motion) ease,
-        transform var(--app-motion) ease,
-        filter var(--app-motion) ease;
-}
-
-.btn-view {
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--accent-primary);
-}
-
-.btn-view:hover {
-    background: rgba(59, 130, 246, 0.25);
-}
-
-.btn-delete-playlist {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--accent-error);
-}
-
-.btn-delete-playlist:hover {
-    background: rgba(239, 68, 68, 0.25);
-}
-
-.btn-view svg,
-.btn-delete-playlist svg {
-    width: 16px;
-    height: 16px;
-}
-
-/* =============== 歌单详情 =============== */
-.playlist-detail-header {
-    margin-bottom: 1.5rem;
-}
-
-.btn-back {
-    padding: 0.5rem 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--glass-border);
-    border-radius: 6px;
-    color: var(--text-primary);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    transition:
-        color var(--app-motion) ease,
-        background-color var(--app-motion) ease,
-        border-color var(--app-motion) ease,
-        box-shadow var(--app-motion) ease,
-        opacity var(--app-motion) ease,
-        transform var(--app-motion) ease,
-        filter var(--app-motion) ease;
-}
-
-.btn-back:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--accent-primary);
-}
-
-.btn-back svg {
-    width: 16px;
-    height: 16px;
-}
-
-.playlist-detail-header h3 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.playlist-detail-meta {
-    display: flex;
-    gap: 1.5rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-}
-
 /* =============== 歌曲表格 =============== */
 /* songs-table 相关样式已统一移至下方的「歌曲列表 UI 美化」区块 */
-
-/* =============== 可点击的统计卡片 =============== */
-.data-stat-card.clickable {
-    cursor: pointer;
-    transition:
-        color var(--app-motion) ease,
-        background-color var(--app-motion) ease,
-        border-color var(--app-motion) ease,
-        box-shadow var(--app-motion) ease,
-        opacity var(--app-motion) ease,
-        transform var(--app-motion) ease,
-        filter var(--app-motion) ease;
-}
-
-.data-stat-card.clickable:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-    border-color: var(--accent-primary);
-}
-
-.data-stat-card.clickable:active {
-    transform: translateY(0);
-}
-
-.data-stat-card.clickable:focus-visible {
-    outline-offset: -1px;
-}
-
-/* =============== 歌单标题编辑 =============== */
-.playlist-title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
-}
-
-.playlist-title-row h3 {
-    margin: 0;
-}
-
-.btn-edit-name {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    border: none;
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--accent-primary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition:
-        color var(--app-motion) ease,
-        background-color var(--app-motion) ease,
-        border-color var(--app-motion) ease,
-        box-shadow var(--app-motion) ease,
-        opacity var(--app-motion) ease,
-        transform var(--app-motion) ease,
-        filter var(--app-motion) ease;
-}
-
-.btn-edit-name:hover {
-    background: rgba(59, 130, 246, 0.2);
-    transform: scale(1.05);
-}
-
-.btn-edit-name svg {
-    width: 16px;
-    height: 16px;
-}
 
 /* =============== 批量操作 =============== */
 .batch-actions {
@@ -3515,14 +2871,6 @@ input:-webkit-autofill:active {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-}
-
-/* 确保每一行占满宽度 */
-/* .user-row consolidated above in '用户管理表格样式' section */
-
-/* 移动端适配用户列表 */
-@media (max-width: 768px) {
-    /* Removed hiding styles to allow card view to show all info */
 }
 
 /* =============== 修复用户名列布局 =============== */
@@ -5603,10 +4951,7 @@ textarea:focus-visible {
     color: var(--app-text-muted);
 }
 
-.admin-react-shell .glass,
-.admin-react-view .panel,
-.admin-react-view .admin-react-detail-panel,
-.admin-react-view .admin-react-stats-card {
+.admin-react-shell .glass {
     border: 1px solid var(--app-border) !important;
     border-radius: var(--app-radius-lg) !important;
     background: var(--app-surface) !important;
@@ -5614,28 +4959,10 @@ textarea:focus-visible {
     color: var(--app-text);
 }
 
-.admin-react-view .panel {
-    padding: clamp(1rem, 2vw, 1.5rem);
-}
-
-.admin-react-view .panel > header,
-.admin-react-view .panel-header {
-    border-bottom-color: var(--app-border) !important;
-}
-
 .admin-react-stats-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
-}
-
-.admin-react-stats-card {
-    padding: 1rem;
-}
-
-.admin-react-stats-card strong,
-.admin-react-stats-card h3 {
-    color: var(--app-text) !important;
 }
 
 .admin-react-table-wrap {
@@ -5677,14 +5004,12 @@ textarea:focus-visible {
     border-bottom: 0;
 }
 
-.admin-react-form,
-.admin-react-config-form {
+.admin-react-form {
     display: grid;
     gap: 1rem;
 }
 
 .admin-react-form label,
-.admin-react-config-form label,
 .admin-react-inline-label {
     display: grid;
     gap: 0.4rem;
@@ -5770,8 +5095,6 @@ textarea:focus-visible {
 
 .admin-react-form input,
 .admin-react-form select,
-.admin-react-config-form input,
-.admin-react-config-form select,
 .admin-react-toolbar input,
 .admin-react-toolbar select,
 .admin-react-inline-label select {
@@ -5786,8 +5109,6 @@ textarea:focus-visible {
 
 .admin-react-form input:focus,
 .admin-react-form select:focus,
-.admin-react-config-form input:focus,
-.admin-react-config-form select:focus,
 .admin-react-toolbar input:focus,
 .admin-react-toolbar select:focus {
     border-color: var(--app-accent);
@@ -5796,8 +5117,6 @@ textarea:focus-visible {
 
 .admin-react-form input:focus-visible,
 .admin-react-form select:focus-visible,
-.admin-react-config-form input:focus-visible,
-.admin-react-config-form select:focus-visible,
 .admin-react-toolbar input:focus-visible,
 .admin-react-toolbar select:focus-visible {
     border-color: var(--app-accent);
@@ -6047,10 +5366,6 @@ textarea:focus-visible {
     .admin-react-stats-grid {
         grid-template-columns: 1fr;
     }
-
-    .admin-react-view .panel {
-        padding: 0.8rem;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -6225,8 +5540,7 @@ textarea:focus-visible {
 }
 
 .admin-react-shell .admin-react-toolbar input,
-.admin-react-shell .admin-react-form input,
-.admin-react-shell .admin-react-config-form input {
+.admin-react-shell .admin-react-form input {
     color: var(--app-text);
     -webkit-text-fill-color: var(--app-text);
 }
@@ -6236,202 +5550,6 @@ textarea:focus-visible {
     color: var(--app-text-dim);
     opacity: 1;
     -webkit-text-fill-color: var(--app-text-dim);
-}
-
-.admin-data-workspace {
-    display: grid;
-    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
-    gap: 1rem;
-    min-width: 0;
-    align-items: start;
-}
-
-.admin-data-nav {
-    position: sticky;
-    top: 0.75rem;
-    min-width: 0;
-    padding: 0.65rem;
-    border: 1px solid var(--app-border);
-    border-radius: var(--app-radius-lg);
-    background: var(--app-surface-soft);
-}
-
-.admin-data-nav-heading {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.35rem 0.55rem 0.65rem;
-    color: var(--app-text);
-    font-size: 0.78rem;
-    font-weight: 760;
-}
-
-.admin-data-nav-heading small {
-    color: var(--app-text-dim);
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-
-.admin-data-nav-items {
-    display: grid;
-    gap: 0.25rem;
-    max-height: min(50vh, 32rem);
-    overflow-y: auto;
-    scrollbar-gutter: stable;
-}
-
-.admin-data-nav-item {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    width: 100%;
-    min-width: 0;
-    min-height: 3.1rem;
-    padding: 0.55rem 0.6rem;
-    border: 1px solid transparent;
-    border-radius: 0.72rem;
-    background: transparent;
-    color: var(--app-text-muted);
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-    transition:
-        color var(--app-motion-fast) ease,
-        background-color var(--app-motion-fast) ease,
-        border-color var(--app-motion-fast) ease,
-        transform var(--app-motion-fast) ease;
-}
-
-.admin-data-nav-item:hover,
-.admin-data-nav-item:focus-visible,
-.admin-data-nav-item.is-active {
-    border-color: var(--app-border);
-    background: var(--app-surface-solid);
-    color: var(--app-text);
-    outline: 1px solid transparent;
-}
-
-.admin-data-nav-item.is-active {
-    box-shadow: inset 0.18rem 0 var(--app-accent);
-}
-
-.admin-data-nav-icon {
-    display: grid;
-    flex: 0 0 1.9rem;
-    place-items: center;
-    width: 1.9rem;
-    height: 1.9rem;
-    border-radius: 0.58rem;
-    background: var(--app-accent-soft);
-    color: var(--app-accent);
-}
-
-.admin-data-nav-copy {
-    display: grid;
-    min-width: 0;
-    gap: 0.15rem;
-}
-
-.admin-data-nav-copy strong,
-.admin-data-nav-copy small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.admin-data-nav-copy strong {
-    color: inherit;
-    font-size: 0.8rem;
-    font-weight: 700;
-}
-
-.admin-data-nav-copy small {
-    color: var(--app-text-dim);
-    font-size: 0.7rem;
-}
-
-.admin-data-detail {
-    min-width: 0;
-}
-
-.admin-data-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.65rem;
-    margin-bottom: 0.9rem;
-}
-
-.admin-data-summary-metric {
-    display: grid;
-    gap: 0.2rem;
-    min-width: 0;
-    padding: 0.7rem 0.8rem;
-    border: 1px solid var(--app-border);
-    border-radius: 0.75rem;
-    background: var(--app-surface-soft);
-}
-
-.admin-data-summary-metric span {
-    overflow: hidden;
-    color: var(--app-text-muted);
-    font-size: 0.72rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.admin-data-summary-metric strong {
-    color: var(--app-text);
-    font-size: 1.12rem;
-    font-variant-numeric: tabular-nums;
-}
-
-.admin-data-detail-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    min-width: 0;
-    margin: 0.15rem 0 1rem;
-}
-
-.admin-data-detail-header > div:first-child {
-    min-width: 0;
-}
-
-.admin-data-kicker {
-    margin: 0 0 0.3rem;
-    color: var(--app-accent);
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.admin-data-detail-header h3 {
-    overflow: hidden;
-    margin: 0;
-    color: var(--app-text);
-    font-size: clamp(1.2rem, 2vw, 1.55rem);
-    letter-spacing: -0.025em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.admin-data-detail-header span {
-    display: block;
-    margin-top: 0.3rem;
-    color: var(--app-text-muted);
-    font-size: 0.78rem;
-}
-
-.admin-data-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.65rem;
-    min-width: 0;
-    margin-bottom: 0.65rem;
 }
 
 .admin-data-search {
@@ -6465,102 +5583,6 @@ textarea:focus-visible {
     -webkit-text-fill-color: var(--app-text);
 }
 
-.admin-data-toolbar > .admin-react-select {
-    flex: 0 0 9.5rem;
-}
-
-.admin-data-batchbar {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    min-width: 0;
-    min-height: 2.6rem;
-    margin-bottom: 0.65rem;
-    color: var(--app-text-muted);
-    font-size: 0.76rem;
-}
-
-.admin-data-batchbar > span {
-    margin-right: auto;
-}
-
-.admin-data-check-all {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    white-space: nowrap;
-}
-
-.admin-data-table-wrap {
-    max-height: min(62vh, 48rem);
-    overflow: auto;
-    scrollbar-gutter: stable;
-    overscroll-behavior: contain;
-}
-
-.admin-data-table {
-    min-width: 62rem;
-    table-layout: fixed;
-}
-
-.admin-data-table th,
-.admin-data-table td {
-    padding: 0.55rem 0.65rem;
-    font-size: 0.76rem;
-}
-
-.admin-data-table thead th {
-    position: sticky;
-    z-index: 1;
-    top: 0;
-    background: var(--app-surface-soft);
-}
-
-.admin-data-table thead th:nth-child(1),
-.admin-data-table tbody td:nth-child(1) {
-    width: 2.5rem;
-}
-.admin-data-table thead th:nth-child(2),
-.admin-data-table tbody td:nth-child(2) {
-    width: 2.8rem;
-}
-.admin-data-table thead th:nth-child(3),
-.admin-data-table tbody th:nth-child(3) {
-    width: 20rem;
-}
-.admin-data-table thead th:nth-child(4),
-.admin-data-table tbody td:nth-child(4) {
-    width: 13rem;
-}
-.admin-data-table thead th:nth-child(5),
-.admin-data-table tbody td:nth-child(5) {
-    width: 8.5rem;
-}
-.admin-data-table thead th:nth-child(6),
-.admin-data-table tbody td:nth-child(6) {
-    width: 4.7rem;
-}
-.admin-data-table thead th:nth-child(7),
-.admin-data-table tbody td:nth-child(7) {
-    width: 5.8rem;
-}
-.admin-data-table thead th:nth-child(8),
-.admin-data-table tbody td:nth-child(8) {
-    width: 4.2rem;
-}
-.admin-data-table thead th:nth-child(9),
-.admin-data-table tbody td:nth-child(9) {
-    width: 3.4rem;
-}
-
-.admin-data-check-cell,
-.admin-data-index-cell,
-.admin-data-meta-cell {
-    color: var(--app-text-muted) !important;
-    font-variant-numeric: tabular-nums;
-    text-align: center !important;
-}
-
 .admin-data-song-cell {
     display: flex;
     align-items: center;
@@ -6585,9 +5607,7 @@ textarea:focus-visible {
 }
 
 .admin-data-song-cell strong,
-.admin-data-song-cell small,
-.admin-data-album-cell,
-.admin-data-source-cell {
+.admin-data-song-cell small {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -6599,76 +5619,16 @@ textarea:focus-visible {
     font-weight: 720;
 }
 
-.admin-data-song-cell small,
-.admin-data-album-cell,
-.admin-data-source-cell {
+.admin-data-song-cell small {
     color: var(--app-text-muted);
 }
 
-.admin-data-song-row {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 3.85rem;
-}
-
-.admin-data-song-row:hover {
-    background: color-mix(in srgb, var(--app-accent) 5%, transparent) !important;
-}
-
-@media (max-width: 820px) {
-    .admin-data-workspace {
-        grid-template-columns: 1fr;
-    }
-
-    .admin-data-nav {
-        position: static;
-    }
-
-    .admin-data-nav-items {
-        display: flex;
-        max-height: none;
-        overflow-x: auto;
-        padding-bottom: 0.15rem;
-    }
-
-    .admin-data-nav-item {
-        flex: 0 0 10.5rem;
-    }
-}
-
-@media (max-width: 620px) {
-    .admin-data-summary-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .admin-data-detail-header,
-    .admin-data-toolbar {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .admin-data-toolbar > .admin-react-select {
-        flex-basis: auto;
-        width: 100%;
-    }
-
-    .admin-data-batchbar {
-        align-items: flex-start;
-        flex-wrap: wrap;
-    }
-
-    .admin-data-batchbar > span {
-        flex: 1 0 100%;
-    }
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .admin-react-shell .admin-react-button,
-    .admin-data-nav-item {
+    .admin-react-shell .admin-react-button {
         transition: none;
     }
 
-    .admin-react-shell .admin-react-button:hover:not(:disabled),
-    .admin-data-nav-item:hover {
+    .admin-react-shell .admin-react-button:hover:not(:disabled) {
         transform: none;
     }
 }
@@ -6921,7 +5881,7 @@ textarea:focus-visible {
     box-shadow: inset 0 0 0 1px var(--app-accent) !important;
 }
 
-:where(.admin-data-search, .admin-react-login-form, .admin-react-form, .admin-react-toolbar, .admin-react-config-form, .admin-config-field, .admin-react-select-trigger):focus-within {
+:where(.admin-data-search, .admin-react-login-form, .admin-react-form, .admin-react-toolbar, .admin-config-field, .admin-react-select-trigger):focus-within {
     border-color: var(--app-border) !important;
     box-shadow: none !important;
 }
@@ -6952,7 +5912,6 @@ textarea:focus-visible {
 .admin-react-login-form:focus-within,
 .admin-react-form:focus-within,
 .admin-react-toolbar:focus-within,
-.admin-react-config-form:focus-within,
 .admin-config-field:focus-within {
     border-color: var(--app-border) !important;
     box-shadow: none !important;
@@ -7058,8 +6017,7 @@ textarea:focus-visible {
 }
 
 .admin-users-panel .admin-react-batch-bar,
-.admin-storage-panel .admin-react-batch-bar,
-.admin-data-panel .admin-data-batchbar {
+.admin-storage-panel .admin-react-batch-bar {
     min-height: 2.35rem;
     margin-bottom: 0.65rem;
     padding: 0.45rem 0.6rem;
@@ -7090,8 +6048,7 @@ textarea:focus-visible {
     font-size: 0.76rem;
 }
 
-.admin-storage-panel .admin-react-panel-header .admin-react-inline-label,
-.admin-data-panel .admin-react-panel-header .admin-react-inline-label {
+.admin-storage-panel .admin-react-panel-header .admin-react-inline-label {
     display: flex;
     align-items: center;
     gap: 0.45rem;
@@ -7099,8 +6056,7 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
-.admin-storage-panel .admin-react-panel-header .admin-react-select,
-.admin-data-panel .admin-react-panel-header .admin-react-select {
+.admin-storage-panel .admin-react-panel-header .admin-react-select {
     min-width: 10rem;
 }
 
@@ -7130,71 +6086,6 @@ textarea:focus-visible {
 .admin-react-shell .admin-storage-summary {
     margin: 0.15rem 0.2rem 0.65rem;
     padding: 0.15rem 0;
-}
-
-.admin-data-panel .admin-data-workspace {
-    gap: 0.85rem;
-}
-
-.admin-data-panel .admin-data-nav {
-    padding: 0.5rem;
-    border-radius: 0.85rem;
-    background: var(--app-surface-soft);
-}
-
-.admin-data-panel .admin-data-nav-heading {
-    padding: 0.3rem 0.5rem 0.55rem;
-}
-
-.admin-data-panel .admin-data-nav-item {
-    min-height: 2.8rem;
-    padding: 0.45rem 0.5rem;
-}
-
-.admin-data-panel .admin-data-detail {
-    min-width: 0;
-    padding-left: 0.85rem;
-    border-left: 1px solid var(--app-border);
-}
-
-.admin-data-panel .admin-data-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
-    margin-bottom: 0.7rem;
-}
-
-.admin-data-panel .admin-data-summary-metric {
-    padding: 0.6rem 0.7rem;
-    border-radius: 0.65rem;
-    background: var(--app-surface-soft);
-}
-
-.admin-data-panel .admin-data-detail-header {
-    align-items: center;
-    margin: 0 0 0.65rem;
-    padding-bottom: 0.65rem;
-    border-bottom: 1px solid var(--app-border);
-}
-
-.admin-data-panel .admin-data-detail-header h3 {
-    font-size: 1.15rem;
-}
-
-.admin-data-panel .admin-data-toolbar {
-    margin-bottom: 0.55rem;
-    padding: 0.35rem;
-    border: 1px solid var(--app-border);
-    border-radius: 0.75rem;
-    background: var(--app-surface-soft);
-}
-
-.admin-data-panel .admin-data-toolbar .admin-data-search {
-    border-color: transparent;
-    background: transparent;
-}
-
-.admin-data-panel .admin-data-table-wrap {
-    max-height: min(58vh, 44rem);
 }
 
 .admin-react-storage-summary {
@@ -7232,15 +6123,6 @@ textarea:focus-visible {
 
     .admin-react-shell .admin-storage-toolbar {
         grid-template-columns: 1fr;
-    }
-
-    .admin-data-panel .admin-data-detail {
-        padding-left: 0;
-        border-left: 0;
-    }
-
-    .admin-data-panel .admin-data-summary-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
@@ -7807,110 +6689,6 @@ textarea:focus-visible {
     display: block;
 }
 
-/* The data workspace stays inside the available column. Auxiliary metadata
-   yields at narrow widths instead of forcing the entire page sideways. */
-.admin-data-panel .admin-data-workspace {
-    grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
-    gap: 0.7rem;
-}
-
-.admin-data-panel .admin-data-detail,
-.admin-data-panel .admin-data-table-wrap {
-    min-width: 0;
-}
-
-.admin-data-panel .admin-data-table-wrap {
-    overflow-x: hidden;
-    overflow-y: auto;
-    scrollbar-gutter: stable;
-}
-
-.admin-data-panel .admin-data-table {
-    width: 100%;
-    min-width: 0 !important;
-    table-layout: fixed;
-}
-
-.admin-data-panel .admin-data-table th,
-.admin-data-panel .admin-data-table td {
-    min-width: 0;
-    padding: 0.48rem 0.4rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.admin-data-panel .admin-data-table thead th:nth-child(1),
-.admin-data-panel .admin-data-table tbody td:nth-child(1) {
-    width: 3%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(2),
-.admin-data-panel .admin-data-table tbody td:nth-child(2) {
-    width: 5%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(3),
-.admin-data-panel .admin-data-table tbody th:nth-child(3) {
-    width: 30%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(4),
-.admin-data-panel .admin-data-table tbody td:nth-child(4) {
-    width: 18%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(5),
-.admin-data-panel .admin-data-table tbody td:nth-child(5) {
-    width: 14%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(6),
-.admin-data-panel .admin-data-table tbody td:nth-child(6) {
-    width: 7%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(7),
-.admin-data-panel .admin-data-table tbody td:nth-child(7) {
-    width: 8%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(8),
-.admin-data-panel .admin-data-table tbody td:nth-child(8) {
-    width: 7%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(9),
-.admin-data-panel .admin-data-table tbody td:nth-child(9) {
-    width: 8%;
-}
-
-.admin-data-panel .admin-data-table .admin-data-song-cell {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    align-items: center;
-    gap: 0.5rem;
-    white-space: normal;
-}
-
-.admin-data-panel .admin-data-table .admin-data-song-cell img {
-    flex: 0 0 2.35rem;
-    width: 2.35rem;
-    height: 2.35rem;
-}
-
-.admin-data-panel .admin-data-table .admin-data-song-cell span {
-    min-width: 0;
-}
-
-.admin-data-panel .admin-data-table .admin-data-song-cell strong,
-.admin-data-panel .admin-data-table .admin-data-song-cell small {
-    max-width: 100%;
-}
-
-.admin-data-panel .admin-data-table .admin-react-row-actions {
-    justify-content: center;
-}
-
-.admin-data-panel .admin-data-table .admin-react-button-compact {
-    width: 2rem;
-    min-width: 2rem;
-    padding-inline: 0;
-}
-
 /* Snapshot actions share one grid, so the user selector, file pickers and
    destructive actions line up without oversized header rows. */
 .admin-snapshot-toolbar {
@@ -8003,15 +6781,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 820px) {
-    .admin-data-panel .admin-data-workspace {
-        grid-template-columns: 1fr;
-    }
-
-    .admin-data-panel .admin-data-detail {
-        padding-left: 0;
-        border-left: 0;
-    }
-
     .admin-snapshot-toolbar {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
@@ -8024,32 +6793,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 680px) {
-    .admin-data-panel .admin-data-table th:nth-child(5),
-    .admin-data-panel .admin-data-table td:nth-child(5),
-    .admin-data-panel .admin-data-table th:nth-child(7),
-    .admin-data-panel .admin-data-table td:nth-child(7),
-    .admin-data-panel .admin-data-table th:nth-child(8),
-    .admin-data-panel .admin-data-table td:nth-child(8) {
-        display: none;
-    }
-
-    .admin-data-panel .admin-data-table thead th:nth-child(3),
-    .admin-data-panel .admin-data-table tbody th:nth-child(3) {
-        width: 43%;
-    }
-    .admin-data-panel .admin-data-table thead th:nth-child(4),
-    .admin-data-panel .admin-data-table tbody td:nth-child(4) {
-        width: 25%;
-    }
-    .admin-data-panel .admin-data-table thead th:nth-child(6),
-    .admin-data-panel .admin-data-table tbody td:nth-child(6) {
-        width: 10%;
-    }
-    .admin-data-panel .admin-data-table thead th:nth-child(9),
-    .admin-data-panel .admin-data-table tbody td:nth-child(9) {
-        width: 9%;
-    }
-
     .admin-snapshot-toolbar {
         grid-template-columns: 1fr;
     }
@@ -8060,11 +6803,6 @@ textarea:focus-visible {
         grid-column: auto;
     }
 }
-
-/* Keep song cells as real table cells. The artwork/text layout belongs to an
-   inner flex wrapper; making the <th> itself flex shrinks the title track to
-   its min-content width in fixed tables. */
-.admin-react-shell .admin-data-table .admin-data-song-cell,
 .admin-react-shell .admin-storage-table .admin-data-song-cell {
     display: table-cell !important;
     width: auto;
@@ -8101,31 +6839,11 @@ textarea:focus-visible {
     overflow-wrap: anywhere;
     white-space: normal;
 }
-
-.admin-data-panel .admin-data-table thead th:nth-child(3),
-.admin-data-panel .admin-data-table tbody th:nth-child(3) {
-    width: 36%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(4),
-.admin-data-panel .admin-data-table tbody td:nth-child(4) {
-    width: 16%;
-}
-.admin-data-panel .admin-data-table thead th:nth-child(5),
-.admin-data-panel .admin-data-table tbody td:nth-child(5) {
-    width: 11%;
-}
-
-/* Search fields own their capsule. The toolbar is only a layout row, so its
-   background cannot cover the input border or make the placeholder look like
-   a separate rectangle. */
-.admin-react-shell .admin-data-toolbar,
 .admin-react-shell .admin-storage-toolbar {
     padding: 0;
     border: 0;
     background: transparent;
 }
-
-.admin-react-shell .admin-data-toolbar .admin-data-search,
 .admin-react-shell .admin-storage-toolbar .admin-data-search {
     box-sizing: border-box;
     min-height: 2.75rem;
@@ -8137,14 +6855,10 @@ textarea:focus-visible {
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
     color: var(--app-text-muted);
 }
-
-.admin-react-shell .admin-data-toolbar .admin-data-search:focus-within,
 .admin-react-shell .admin-storage-toolbar .admin-data-search:focus-within {
     border-color: color-mix(in srgb, var(--app-accent) 60%, var(--app-border)) !important;
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 42%, transparent);
 }
-
-.admin-react-shell .admin-data-toolbar .admin-data-search input,
 .admin-react-shell .admin-storage-toolbar .admin-data-search input {
     min-height: 2.25rem;
     border: 0 !important;
@@ -8157,28 +6871,11 @@ textarea:focus-visible {
     -webkit-appearance: none;
     appearance: none;
 }
-
-.admin-react-shell .admin-data-toolbar .admin-data-search input::placeholder,
 .admin-react-shell .admin-storage-toolbar .admin-data-search input::placeholder {
     background: transparent;
     color: var(--app-text-dim);
     opacity: 1;
     -webkit-text-fill-color: var(--app-text-dim);
-}
-
-@media (max-width: 680px) {
-    .admin-data-panel .admin-data-table thead th:nth-child(3),
-    .admin-data-panel .admin-data-table tbody th:nth-child(3) {
-        width: 48%;
-    }
-    .admin-data-panel .admin-data-table thead th:nth-child(4),
-    .admin-data-panel .admin-data-table tbody td:nth-child(4) {
-        width: 20%;
-    }
-    .admin-data-panel .admin-data-table thead th:nth-child(5),
-    .admin-data-panel .admin-data-table tbody td:nth-child(5) {
-        width: 0;
-    }
 }
 
 /* Apple Music inspired administration surface. The React console owns these
@@ -8481,17 +7178,8 @@ body:has(.admin-react-login) {
 .admin-react-table tbody tr:hover {
     background: color-mix(in srgb, var(--app-accent) 4%, transparent);
 }
-.admin-react-tabs {
-    border-color: var(--app-border, rgba(32, 28, 48, 0.11));
-}
-.admin-react-tabs button.is-active {
-    color: var(--app-accent, #fa243c);
-    border-color: var(--app-accent, #fa243c);
-}
 .admin-react-form input,
-.admin-react-config-form input,
 .admin-react-form select,
-.admin-react-config-form select,
 .admin-react-toolbar input,
 .admin-react-toolbar select,
 .admin-react-inline-label select {
@@ -8502,7 +7190,6 @@ body:has(.admin-react-login) {
     color: var(--app-text, #1c1927);
 }
 .admin-react-form :where(input, select, textarea):focus-visible,
-.admin-react-config-form :where(input, select, textarea):focus-visible,
 .admin-react-toolbar :where(input, select):focus-visible {
     outline: 1px solid var(--app-accent, #fa243c);
     outline-offset: -1px;
@@ -8764,8 +7451,7 @@ body:has(.admin-react-login) {
         padding: 0.8rem;
         border-radius: 0.9rem;
     }
-    .admin-react-panel-header,
-    .admin-react-subheader {
+    .admin-react-panel-header {
         align-items: stretch;
         flex-direction: column;
     }
@@ -8817,12 +7503,6 @@ body:has(.admin-react-login) {
     }
     .admin-react-row-actions {
         flex-wrap: wrap;
-    }
-    .admin-react-config-form {
-        grid-template-columns: 1fr;
-    }
-    .admin-react-config-form .admin-react-form-actions {
-        grid-column: auto;
     }
     .admin-react-upload-form {
         flex-direction: column;

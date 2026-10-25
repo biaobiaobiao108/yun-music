@@ -409,20 +409,6 @@ body {
         min-inline-size: 2.75rem;
     }
 
-    #player-footer .player-footer-song-info {
-        box-sizing: border-box;
-        display: flex !important;
-        flex: 0 0 auto !important;
-        align-items: center !important;
-        inline-size: 100% !important;
-        min-inline-size: 0 !important;
-        margin: 0 !important;
-        padding-inline-end: 2.75rem !important;
-        cursor: pointer;
-        user-select: none;
-        touch-action: manipulation;
-    }
-
     #player-song-info > div:first-child {
         inline-size: 2.75rem !important;
         block-size: 2.75rem !important;
@@ -460,100 +446,6 @@ body {
         overscroll-behavior: contain;
     }
 
-    #player-footer .player-footer-center {
-        box-sizing: border-box;
-        display: flex !important;
-        flex: 0 0 auto !important;
-        flex-direction: column !important;
-        align-items: stretch !important;
-        justify-content: center !important;
-        order: 0 !important;
-        inline-size: 100% !important;
-        max-inline-size: none !important;
-        min-inline-size: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    #player-footer .player-footer-control-row {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        flex-wrap: nowrap;
-        inline-size: 100% !important;
-        min-inline-size: 0;
-        margin-block: 0.1rem !important;
-        gap: clamp(0.15rem, 2vw, 0.7rem) !important;
-        overflow: visible;
-    }
-
-    #player-footer .player-footer-control-row > .relative,
-    #player-footer .player-footer-control-row > button {
-        flex: 0 0 auto;
-        min-inline-size: 2.75rem;
-    }
-
-    #player-footer .player-footer-control-row > .relative > button,
-    #player-footer .player-footer-control-row > button {
-        box-sizing: border-box;
-        display: inline-flex !important;
-        align-items: center;
-        justify-content: center;
-        min-block-size: 2.75rem !important;
-        min-inline-size: 2.75rem !important;
-        padding: 0.5rem !important;
-        touch-action: manipulation;
-    }
-
-    #player-footer .player-footer-control-row #btn-play {
-        inline-size: 2.75rem !important;
-        block-size: 2.75rem !important;
-        min-inline-size: 2.75rem !important;
-        min-block-size: 2.75rem !important;
-        font-size: 1.05rem !important;
-        box-shadow: 0 2px 10px color-mix(in srgb, var(--app-accent, #fa243c) 40%, transparent) !important;
-    }
-
-    #player-footer .player-footer-control-row #play-mode-menu,
-    #player-footer .player-footer-control-row #playback-rate-menu {
-        inset-inline-start: 50%;
-        inset-inline-end: auto;
-        max-inline-size: calc(100dvw - 1rem);
-    }
-
-    #player-footer .player-footer-progress-row {
-        display: flex !important;
-        align-items: center !important;
-        inline-size: 100% !important;
-        min-inline-size: 0;
-        margin: 0 !important;
-        padding-block: 0.15rem !important;
-        gap: 0.5rem !important;
-    }
-
-    #player-footer .player-footer-progress-row > .flex-1 {
-        min-inline-size: 0 !important;
-        block-size: 1rem;
-    }
-
-    #player-footer .player-footer-progress-row #progress-container {
-        block-size: 0.25rem !important;
-        border-radius: 999px;
-    }
-
-    #player-footer .player-footer-progress-row #progress-bar {
-        border-radius: 999px;
-    }
-
-    #player-footer .player-footer-collapse-button {
-        inset-inline-end: 0.25rem !important;
-        inset-block-start: 0.25rem !important;
-        z-index: 20;
-        min-block-size: 2.25rem;
-        min-inline-size: 2.25rem;
-        padding: 0.5rem;
-    }
-
     #view-player-detail {
         padding-block-end: calc(var(--player-footer-offset, 0px) + env(safe-area-inset-bottom, 0px)) !important;
     }
@@ -567,29 +459,6 @@ body {
     #view-settings {
         min-inline-size: 0;
         max-inline-size: 100%;
-    }
-
-    #view-search .player-search-toolbar {
-        min-inline-size: 0;
-        margin-block-end: 0.9rem;
-    }
-
-    #view-search .player-search-controls {
-        display: grid !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        inline-size: 100%;
-        min-inline-size: 0;
-        gap: 0.5rem;
-    }
-
-    #view-search .player-search-controls > * {
-        inline-size: 100%;
-        min-inline-size: 0;
-    }
-
-    #view-search .player-search-controls select,
-    #view-search .player-search-controls button {
-        min-block-size: 2.75rem;
     }
 
     #view-search #search-results-header,
@@ -629,22 +498,6 @@ body {
         min-block-size: calc(7.25rem + env(safe-area-inset-bottom, 0px)) !important;
         padding-inline-start: max(0.5rem, env(safe-area-inset-left, 0px)) !important;
         padding-inline-end: max(0.5rem, env(safe-area-inset-right, 0px)) !important;
-    }
-
-    #player-footer .player-footer-control-row {
-        gap: 0.05rem !important;
-    }
-
-    #player-footer .player-footer-control-row > .relative,
-    #player-footer .player-footer-control-row > button,
-    #player-footer .player-footer-control-row > .relative > button {
-        min-inline-size: 2.5rem !important;
-        min-block-size: 2.5rem !important;
-    }
-
-    #player-footer .player-footer-control-row #btn-play {
-        inline-size: 2.625rem !important;
-        block-size: 2.625rem !important;
     }
 }
 
@@ -2749,10 +2602,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     padding-block: 0.25rem;
 }
 
-#main-sidebar .netease-nav-category {
-    padding-inline: 0.35rem;
-}
-
 #main-sidebar .netease-nav-item {
     inline-size: 100%;
     max-inline-size: 100%;
@@ -3005,129 +2854,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     }
 }
 
-/* 评论弹窗使用层次化背景和柔和投影，不使用会在深色主题下变成硬黑线的
-   border-* 分隔线。所有规则限定在弹窗内，避免影响其它面板。 */
-#comment-modal {
-    padding-block: max(0.75rem, env(safe-area-inset-top, 0px)) max(0.75rem, env(safe-area-inset-bottom, 0px));
-    padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px));
-    background: rgb(15 23 42 / 0.38);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-#comment-modal .comment-modal-backdrop {
-    background: transparent;
-}
-
-#comment-modal-content.comment-modal-panel {
-    max-block-size: min(88dvh, 52rem);
-    border: 0 !important;
-    outline: 0;
-    background: var(--bg-panel);
-    box-shadow:
-        0 26px 80px rgb(15 23 42 / 0.24),
-        0 8px 24px rgb(16 185 129 / 0.08);
-}
-
-#comment-modal-content .comment-modal-header,
-#comment-modal-content .comment-modal-tabs,
-#comment-modal-content .comment-modal-footer {
-    border: 0 !important;
-    box-shadow: none !important;
-}
-
-#comment-modal-content .comment-modal-header {
-    flex: 0 0 auto;
-    background: color-mix(in srgb, var(--c-500, #fa243c) 7%, var(--bg-panel));
-}
-
-#comment-modal-content .comment-modal-header > div:first-child {
-    min-inline-size: 0;
-}
-
-#comment-modal-content .comment-modal-header h3 {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-#comment-modal-content .comment-modal-tabs {
-    flex: 0 0 auto;
-    background: color-mix(in srgb, var(--bg-main) 62%, var(--bg-panel));
-}
-
-#comment-modal-content .comment-modal-tabs button {
-    min-block-size: 2.75rem;
-    border: 0;
-    border-radius: 0.75rem;
-    padding-inline: 0.65rem;
-}
-
-#comment-modal-content .comment-modal-tabs button > div {
-    bottom: 0.2rem;
-    block-size: 0.2rem;
-    box-shadow: 0 0 12px color-mix(in srgb, var(--c-500, #fa243c) 42%, transparent);
-}
-
-#comment-list-container {
-    min-block-size: 0;
-    background: color-mix(in srgb, var(--bg-main) 38%, var(--bg-panel));
-    scrollbar-gutter: stable;
-}
-
-#comment-list .comment-item + .comment-item {
-    margin-block-start: 1.25rem;
-    padding-block-start: 1.25rem;
-    border: 0 !important;
-}
-
-#comment-list .comment-reply-tree {
-    border: 0 !important;
-    border-radius: 0.875rem;
-    padding-block: 0.75rem;
-    padding-inline-end: 0.75rem;
-    background: color-mix(in srgb, var(--bg-panel) 72%, var(--bg-main));
-}
-
-#comment-modal-content .comment-modal-footer {
-    flex: 0 0 auto;
-    background: color-mix(in srgb, var(--c-500, #fa243c) 5%, var(--bg-panel));
-}
-
-#comment-modal-content .comment-modal-footer #comment-source-info {
-    max-inline-size: min(42vw, 16rem);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-@media (max-width: 639px) {
-    #comment-modal-content.comment-modal-panel {
-        border-radius: 1.25rem;
-    }
-
-    #comment-modal-content .comment-modal-header {
-        padding-block: 1rem;
-    }
-
-    #comment-modal-content .comment-modal-header .w-10 {
-        inline-size: 2.5rem;
-        block-size: 2.5rem;
-    }
-
-    #comment-modal-content .comment-modal-footer {
-        padding-block-end: max(0.75rem, env(safe-area-inset-bottom, 0px));
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    #comment-modal,
-    #comment-modal-content {
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-    }
-}
-
 /* Floating overlay scrollbars */
 * {
     scrollbar-width: thin;
@@ -3168,20 +2894,6 @@ body > .flex.flex-1.overflow-hidden.relative {
 .active-tab {
     background-color: var(--c-50);
     color: var(--c-600);
-}
-
-.active-sub-item {
-    color: var(--c-600) !important;
-}
-
-/* 选中状态下，侧边栏操作按钮（刷新、跳转）始终可见，适配移动端 */
-.active-sub-item .refresh-btn,
-.active-sub-item .jump-btn {
-    display: block !important;
-}
-
-.active-sub-item i {
-    color: var(--c-600) !important;
 }
 
 /* Lyric View Styles */
@@ -3273,14 +2985,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     display: none !important;
 }
 
-.player-track-list-content {
-    inline-size: 100%;
-    min-inline-size: 0;
-    box-sizing: border-box;
-    padding-inline: 0 !important;
-    overscroll-behavior: contain;
-}
-
 /* Artist details use one bounded scroll owner. The search view itself must
    stop scrolling while its detail content is active, otherwise the nested
    flex child grows to its content height and wheel/touch scrolling is lost.
@@ -3364,56 +3068,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     position: sticky;
     top: 0;
     z-index: 30;
-}
-
-/* Floating Action Capsule (FAB) for lists without column headers */
-.player-floating-capsule {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem;
-    border-radius: 0.875rem;
-    border: 1px solid var(--border-main);
-    background: color-mix(in srgb, var(--bg-panel) 85%, var(--bg-main));
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow:
-        0 4px 16px -2px rgb(0 0 0 / 0.15),
-        0 2px 6px -1px rgb(0 0 0 / 0.1);
-    z-index: 30;
-    transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease,
-        opacity 0.2s ease;
-}
-
-.player-floating-capsule:hover {
-    box-shadow:
-        0 8px 24px -4px rgb(0 0 0 / 0.2),
-        0 4px 8px -2px rgb(0 0 0 / 0.12);
-}
-
-.player-floating-capsule button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    inline-size: 2rem;
-    block-size: 2rem;
-    border-radius: 0.625rem;
-    color: var(--text-muted);
-    transition:
-        color 0.15s ease,
-        background-color 0.15s ease,
-        transform 0.1s ease;
-}
-
-.player-floating-capsule button:hover {
-    color: var(--text-main);
-    background-color: var(--bg-item-hover);
-}
-
-.player-floating-capsule button:active {
-    transform: scale(0.92);
 }
 
 #search-pagination-bar.hidden {
@@ -3517,159 +3171,6 @@ body > .flex.flex-1.overflow-hidden.relative {
 .list-header-action:disabled {
     cursor: not-allowed;
     opacity: 0.45;
-}
-
-.player-pagination-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.625rem;
-    inline-size: 100%;
-    min-inline-size: 0;
-    block-size: 3rem;
-    min-block-size: 3rem;
-    flex: 0 0 3rem;
-    box-sizing: border-box;
-    padding-inline: 0.75rem;
-    border-block-start: 1px solid var(--border-main);
-    background: var(--bg-main);
-    overflow: hidden;
-}
-
-.player-pagination-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    min-block-size: 2.25rem;
-    min-inline-size: 5.75rem;
-    padding-inline: 0.875rem;
-    border: 1px solid var(--border-main);
-    border-radius: 0.75rem;
-    background: var(--bg-panel);
-    color: var(--text-muted);
-    flex: 0 0 auto;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-        color 0.2s ease,
-        background-color 0.2s ease,
-        border-color 0.2s ease,
-        transform 0.2s ease;
-}
-
-.player-pagination-button:hover:not(:disabled) {
-    color: var(--c-600, #e51e38);
-    border-color: color-mix(in srgb, var(--c-500, #fa243c) 45%, var(--border-main));
-    background: var(--bg-track);
-}
-
-.player-pagination-button:active:not(:disabled) {
-    transform: translateY(1px);
-}
-
-.player-pagination-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.42;
-}
-
-.player-pagination-center {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    min-inline-size: 0;
-    flex: 0 1 auto;
-    overflow: hidden;
-}
-
-.player-pagination-info {
-    min-inline-size: 0;
-    max-inline-size: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.player-pagination-jump {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    min-inline-size: max-content;
-    padding: 0.25rem 0.375rem;
-    border: 1px solid var(--border-main);
-    border-radius: 0.625rem;
-    background: color-mix(in srgb, var(--bg-panel) 88%, var(--bg-track));
-    flex: 0 0 auto;
-}
-
-.player-pagination-jump input {
-    inline-size: 2.5rem;
-    block-size: 1.5rem;
-    padding-inline: 0.25rem;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    text-align: center;
-    outline: 1px solid transparent;
-}
-
-.player-pagination-jump > span {
-    inline-size: 1px;
-    block-size: 0.75rem;
-    background: var(--border-main);
-}
-
-.player-pagination-jump button {
-    min-block-size: 1.5rem;
-    padding-inline: 0.25rem;
-    color: var(--c-600, #e51e38);
-    font-size: 0.625rem;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.player-pagination-button:focus-visible,
-.player-pagination-jump input:focus-visible,
-.player-pagination-jump button:focus-visible {
-    outline: 1px solid var(--c-500, #fa243c);
-    outline-offset: -1px;
-}
-
-@media (max-width: 639px) {
-    .player-pagination-bar {
-        gap: 0.375rem;
-        padding-inline: 0.5rem;
-    }
-
-    .player-pagination-center {
-        flex-direction: row;
-        gap: 0.375rem;
-        margin-inline: 0;
-        flex: 0 1 auto;
-    }
-
-    .player-pagination-button {
-        min-inline-size: 2.75rem;
-        padding-inline: 0.5rem;
-        border-radius: 0.625rem;
-    }
-
-    .player-pagination-info {
-        display: inline-flex;
-        flex: 0 1 auto;
-        max-inline-size: 8rem;
-        font-size: 0.625rem;
-    }
-
-    .player-pagination-jump {
-        gap: 0.25rem;
-        padding-inline: 0.375rem;
-    }
-
-    .player-pagination-jump input {
-        inline-size: 2.25rem;
-    }
 }
 
 @media (pointer: coarse) {
@@ -5354,15 +4855,6 @@ aside {
     color: var(--c-400, #f87171) !important;
 }
 
-.netease-nav-category {
-    padding: 12px 18px 6px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-dim);
-    letter-spacing: 0.5px;
-    user-select: none;
-}
-
 /* ── 播放列表曲目数角标 ── */
 .queue-badge {
     position: absolute;
@@ -5418,109 +4910,13 @@ aside {
     letter-spacing: -0.02em;
 }
 
-/* ── 播放器统一列表与歌单卡片布局 ── */
-.player-track-grid {
-    display: grid;
-    --player-track-index-size: 5rem;
-    --player-track-action-size: 5rem;
-    grid-template-columns: var(--player-track-index-size) minmax(0, 1fr) minmax(var(--player-track-action-size), max-content);
-    column-gap: 0.625rem;
-    align-items: center;
-    min-inline-size: 0;
-    box-sizing: border-box;
-}
-
-.player-track-grid > * {
-    min-inline-size: 0;
-    min-block-size: 0;
-}
-
-.player-track-index,
-.player-track-title,
-.player-track-artist,
-.player-track-album,
-.player-track-duration,
-.player-track-source,
-.player-track-actions {
-    min-inline-size: 0;
-}
-
-.player-track-index {
-    inline-size: 100%;
-}
-
-.player-track-grid--header > .player-track-index,
-.player-track-grid--header > .player-track-title,
-.player-track-grid--header > .player-track-artist,
-.player-track-grid--header > .player-track-album,
-.player-track-grid--header > .player-track-duration,
-.player-track-grid--header > .player-track-actions,
-.list-results-header > .player-track-index,
-.list-results-header > .player-track-title,
-.list-results-header > .player-track-artist,
-.list-results-header > .player-track-album,
-.list-results-header > .player-track-duration,
-.list-results-header > .player-track-actions {
-    white-space: nowrap;
-}
-
-.player-track-artist,
-.player-track-album,
-.player-track-duration,
-.player-track-source {
-    display: none;
-    overflow: hidden;
-}
-
-.player-track-artist > *,
-.player-track-album > *,
-.player-track-duration > *,
-.player-track-source > * {
-    min-inline-size: 0;
-    max-inline-size: 100%;
-}
-
-.player-track-title {
-    overflow: hidden;
-}
-
-.player-track-title > * {
-    min-inline-size: 0;
-}
-
-.player-track-compact-meta {
-    display: flex;
-    min-inline-size: 0;
-    overflow: hidden;
-    white-space: nowrap;
-}
-
-.player-track-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.25rem;
-    min-inline-size: max-content;
-    white-space: nowrap;
-    flex-wrap: nowrap;
-}
-
-.player-track-actions > button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    min-inline-size: 2.25rem;
-    min-block-size: 2.25rem;
-}
-
-:is(.player-motion-item.player-track-grid, .artist-album-card, .hot-search-item, .lb-board-item, .playlist-card > .relative) {
+:is(.artist-album-card, .hot-search-item, .lb-board-item, .playlist-card > .relative) {
     transition-property: transform, box-shadow, background-color, border-color, color, opacity;
     transition-duration: var(--motion-duration-standard);
     transition-timing-function: var(--motion-ease-standard);
 }
 
-:is(.player-track-actions > button, #player-footer button, .player-safe-drawer button, #artist-tabs-bar button) {
+:is(#player-footer button, .player-safe-drawer button, #artist-tabs-bar button) {
     transition-property: transform, background-color, border-color, color, box-shadow, opacity;
     transition-duration: var(--motion-duration-fast);
     transition-timing-function: var(--motion-ease-standard);
@@ -5532,21 +4928,8 @@ aside {
     }
 }
 
-:is(.artist-album-card, .hot-search-item, .lb-board-item, .playlist-card > .relative, .player-track-actions > button, #player-footer button, .player-safe-drawer button, #artist-tabs-bar button):active {
+:is(.artist-album-card, .hot-search-item, .lb-board-item, .playlist-card > .relative, #player-footer button, .player-safe-drawer button, #artist-tabs-bar button):active {
     transform: scale(0.97);
-}
-
-.player-track-grid--no-album .player-track-album {
-    display: none !important;
-}
-
-.player-track-grid--network,
-.player-track-grid--local {
-    scrollbar-gutter: auto;
-}
-
-.player-track-grid--local {
-    --player-track-action-size: 7rem;
 }
 
 /* 歌手详情标签固定高度，避免歌曲/专辑切换时内容上下跳动 */
@@ -5697,8 +5080,7 @@ aside {
 
 .netease-nav-item:focus-visible,
 .favorite-sidebar-item:focus-visible,
-.playlist-card:focus-visible,
-.player-track-grid:focus-visible {
+.playlist-card:focus-visible {
     outline: 1px solid var(--c-500, #fa243c);
     outline-offset: -1px;
 }
@@ -5903,10 +5285,6 @@ aside {
     animation-play-state: paused !important;
 }
 
-.favorite-sidebar-item.active-sub-item .favorite-sidebar-name .animate-marquee {
-    animation-play-state: running !important;
-}
-
 /* 底栏元数据按内容优先排布：歌手和专辑彼此靠近，只有空间不足时才收缩。 */
 #player-song-info .player-meta-row {
     display: flex;
@@ -5977,12 +5355,6 @@ aside {
     animation-delay: calc(var(--player-motion-index, 0) * 18ms);
 }
 
-.player-pagination-button.is-page-changing {
-    transform: scale(0.94);
-    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, var(--bg-main));
-    color: var(--c-600, #e51e38);
-}
-
 @keyframes leaderboard-page-next {
     from {
         opacity: 1;
@@ -6026,23 +5398,10 @@ dialog.runtime-input-dialog #modal-input {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    #lb-songs-list.leaderboard-page-changing .player-motion-item,
-    .player-pagination-button.is-page-changing {
+    #lb-songs-list.leaderboard-page-changing .player-motion-item {
         animation: none !important;
         transform: none !important;
     }
-}
-
-.favorite-sidebar-item.active-sub-item {
-    background: color-mix(in srgb, var(--c-500, #fa243c) 12%, var(--bg-panel));
-    color: var(--c-600, #e51e38) !important;
-    font-weight: 700;
-}
-
-:root[data-appearance="dark"] .favorite-sidebar-item.active-sub-item,
-.dark .favorite-sidebar-item.active-sub-item {
-    background: color-mix(in srgb, var(--c-500, #fa243c) 22%, transparent);
-    color: var(--c-400, #34d399) !important;
 }
 
 .favorite-sidebar-empty {
@@ -6051,59 +5410,9 @@ dialog.runtime-input-dialog #modal-input {
     font-size: 0.75rem;
 }
 
-@media (min-width: 640px) {
-    .player-track-grid {
-        grid-template-columns: var(--player-track-index-size) minmax(0, 1fr) minmax(var(--player-track-action-size), max-content);
-        column-gap: 0.75rem;
-    }
-}
-
 @media (min-width: 1025px) {
-    .player-track-grid--network,
-    .player-track-grid--network.player-track-grid--no-album {
-        grid-template-columns: 5rem minmax(12rem, 3fr) minmax(10rem, 3fr) minmax(4.5rem, max-content) minmax(var(--player-track-action-size), max-content);
-        column-gap: 1rem;
-    }
-
-    .player-track-grid--local {
-        --player-track-action-size: 12.5rem;
-        grid-template-columns: 5rem minmax(12rem, 3fr) minmax(10rem, 2.5fr) minmax(9rem, 2.5fr) minmax(var(--player-track-action-size), max-content);
-        column-gap: 1rem;
-    }
-
-    .player-track-artist,
-    .player-track-duration,
-    .player-track-source {
-        display: flex;
-    }
-
-    .player-track-compact-meta {
-        display: none;
-    }
-
     #main-sidebar nav {
         padding-inline: 0.125rem;
-    }
-}
-
-@media (min-width: 1280px) {
-    .player-track-grid--network {
-        grid-template-columns:
-            5rem minmax(14rem, 3fr) minmax(12rem, 3fr) minmax(12rem, 2fr) minmax(4.5rem, max-content)
-            minmax(var(--player-track-action-size), max-content);
-    }
-
-    .player-track-grid--network.player-track-grid--no-album {
-        grid-template-columns: 5rem minmax(14rem, 3fr) minmax(12rem, 3fr) minmax(4.5rem, max-content) minmax(var(--player-track-action-size), max-content);
-    }
-
-    .player-track-grid--local {
-        --player-track-action-size: 12.5rem;
-        grid-template-columns: 5rem minmax(14rem, 3fr) minmax(12rem, 2fr) minmax(12rem, 2fr) minmax(11rem, 1.5fr) minmax(var(--player-track-action-size), max-content);
-    }
-
-    .player-track-album {
-        display: flex;
     }
 }
 
@@ -6139,7 +5448,6 @@ dialog.runtime-input-dialog #modal-input {
 }
 
 @media (hover: none) {
-    .player-track-grid .player-track-actions,
     .queue-row-actions {
         opacity: 1;
     }
@@ -6174,13 +5482,11 @@ dialog.runtime-input-dialog #modal-input {
 @media (forced-colors: active) {
     .netease-nav-item:focus-visible,
     .favorite-sidebar-item:focus-visible,
-    .playlist-card:focus-visible,
-    .player-track-grid:focus-visible {
+    .playlist-card:focus-visible {
         outline: 2px solid Highlight;
     }
 
-    .netease-nav-item.active-tab,
-    .favorite-sidebar-item.active-sub-item {
+    .netease-nav-item.active-tab {
         background: Highlight;
         color: HighlightText !important;
     }
@@ -6204,7 +5510,6 @@ dialog.runtime-input-dialog #modal-input {
     #player-detail-container,
     .player-safe-drawer,
     [id$="-modal-content"],
-    .player-track-actions > button,
     #player-footer button,
     .player-safe-drawer button,
     #artist-tabs-bar button {
@@ -6402,23 +5707,6 @@ dialog.runtime-input-dialog #modal-input {
     gap: 0.25rem;
 }
 
-#lb-songs-list .player-track-grid {
-    margin-inline: 0.35rem;
-    border: 1px solid transparent;
-    background: transparent;
-}
-
-#lb-songs-list .player-track-grid:hover,
-#lb-songs-list .player-track-grid:focus-visible {
-    background: var(--bg-item-hover);
-    border-color: color-mix(in srgb, var(--border-main) 82%, transparent);
-}
-
-/* The small list action capsule follows the same restrained pill language. */
-.player-floating-capsule {
-    border-radius: 9999px;
-}
-
 /* Actions below the turntable are deliberately icon-only and low contrast. */
 .lyric-cover-column {
     gap: 0.75rem;
@@ -6502,29 +5790,9 @@ dialog.runtime-input-dialog #modal-input {
     z-index: 1;
 }
 
-#player-footer.player-footer-immersive .player-footer-song-info {
-    opacity: 1;
-}
-
 #player-footer.player-footer-immersive #player-quality-control,
 #player-footer.player-footer-immersive #btn-player-download {
     display: inline-flex !important;
-}
-
-#player-footer .player-footer-song-info {
-    flex: 1 1 18rem;
-    inline-size: auto !important;
-    width: auto !important;
-    max-inline-size: 24rem;
-    padding-inline-end: 0 !important;
-}
-
-#player-footer .player-footer-center {
-    flex: 1 1 30rem;
-    inline-size: auto !important;
-    width: auto !important;
-    max-inline-size: 34rem !important;
-    margin-inline: 1rem !important;
 }
 
 #player-footer .player-footer-right-tools {
@@ -6572,20 +5840,6 @@ dialog.runtime-input-dialog #modal-input {
         padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px)) !important;
         padding-block: 0.45rem max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
         border-radius: 9999px !important;
-    }
-
-    #player-footer .player-footer-song-info {
-        inline-size: 100% !important;
-        width: 100% !important;
-        max-inline-size: none;
-        padding-inline-end: 0 !important;
-    }
-
-    #player-footer .player-footer-center {
-        inline-size: 100% !important;
-        width: 100% !important;
-        max-inline-size: none !important;
-        margin-inline: 0 !important;
     }
 
     #player-footer .player-footer-right-tools {
@@ -6776,13 +6030,6 @@ body > .flex.flex-1.overflow-hidden.relative {
 
     #player-footer #player-song-info > .ml-auto {
         margin-inline-start: 0.25rem !important;
-    }
-
-    #player-footer .player-footer-center {
-        flex: 1 1 24rem !important;
-        max-inline-size: 28rem !important;
-        margin-inline: 0.75rem !important;
-        min-inline-size: 0;
     }
 }
 
@@ -7017,15 +6264,11 @@ body > .flex.flex-1.overflow-hidden.relative {
     inset-block-end: 0;
     background: linear-gradient(to top, color-mix(in srgb, var(--bg-panel) 94%, transparent), color-mix(in srgb, var(--bg-panel) 48%, transparent), transparent);
 }
-
-#player-main-content #view-search > .player-search-toolbar,
 #player-main-content #view-songlist > :first-child,
 #player-main-content #view-leaderboard > :first-child {
     position: relative;
     z-index: 4;
 }
-
-#player-main-content #view-search > .player-search-toolbar::after,
 #player-main-content #view-songlist > :first-child::after,
 #player-main-content #view-leaderboard > :first-child::after {
     content: "";
@@ -7060,77 +6303,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     --player-footer-safe-space: 5.75rem;
 }
 
-.player-load-more-legacy {
-    display: none !important;
-}
-
-.player-load-more-bar {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    inline-size: 100%;
-    min-block-size: 4.25rem;
-    block-size: auto !important;
-    flex: 0 0 auto !important;
-    padding: 0.85rem 0.5rem 1.35rem;
-    box-sizing: border-box;
-    border: 0 !important;
-    background: transparent !important;
-    color: var(--text-muted);
-}
-
-.player-load-more-bar.hidden {
-    display: none !important;
-}
-
-.player-load-more-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    min-block-size: 2.25rem;
-    padding: 0.5rem 0.95rem;
-    border: 1px solid color-mix(in srgb, var(--border-main) 84%, transparent);
-    border-radius: 9999px;
-    background: color-mix(in srgb, var(--bg-panel) 90%, var(--c-500, #fa243c) 10%);
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    font-weight: 600;
-    transition:
-        color 160ms ease,
-        border-color 160ms ease,
-        background-color 160ms ease,
-        transform 160ms ease;
-}
-
-.player-load-more-button:hover:not(:disabled),
-.player-load-more-button:focus-visible {
-    border-color: color-mix(in srgb, var(--c-500, #fa243c) 45%, var(--border-main));
-    background: color-mix(in srgb, var(--c-500, #fa243c) 10%, var(--bg-panel));
-    color: var(--c-600, #e51e38);
-}
-
-.player-load-more-button:active:not(:disabled) {
-    transform: translateY(1px) scale(0.98);
-}
-
-.player-load-more-button:disabled {
-    cursor: wait;
-    opacity: 0.68;
-}
-
-.player-load-more-status {
-    min-block-size: 1rem;
-    color: var(--text-muted);
-    font-size: 0.6875rem;
-}
-
-.player-load-more-bar.is-loading .player-load-more-button {
-    pointer-events: none;
-}
-
 @media (max-width: 1024px) {
     :root {
         --player-footer-safe-space: 8.75rem;
@@ -7159,24 +6331,15 @@ body > .flex.flex-1.overflow-hidden.relative {
     backdrop-filter: none;
 }
 
-.songlist-load-more-button,
-.search-load-more .player-load-more-button,
-.leaderboard-load-more .player-load-more-button,
-.artist-songs-pagination .player-load-more-button,
-.artist-albums-pagination .player-load-more-button {
+.songlist-load-more-button {
     display: none;
 }
 
-.songlist-load-more.has-error .songlist-load-more-button,
-.search-load-more.has-error .player-load-more-button {
+.songlist-load-more.has-error .songlist-load-more-button {
     display: inline-flex;
 }
 
-.songlist-load-more-status,
-.search-load-more .player-load-more-status,
-.leaderboard-load-more .player-load-more-status,
-.artist-songs-pagination .player-load-more-status,
-.artist-albums-pagination .player-load-more-status {
+.songlist-load-more-status {
     color: color-mix(in srgb, var(--text-muted) 86%, transparent);
     font-size: 0.6875rem;
     line-height: 1.25rem;
@@ -7856,228 +7019,6 @@ textarea:focus-visible {
     font-weight: 800;
     letter-spacing: 0.11em;
     text-transform: uppercase;
-}
-
-.react-home-shortcuts {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1rem;
-}
-
-.react-home-shortcut {
-    --react-home-shortcut-color-a: color-mix(in srgb, var(--app-accent) 72%, #17131f);
-    --react-home-shortcut-color-b: color-mix(in srgb, var(--app-accent) 28%, var(--app-surface-solid));
-    --react-home-shortcut-color-c: color-mix(in srgb, var(--app-accent) 48%, #17131f);
-    --react-home-shortcut-duration: 18s;
-    --react-home-shortcut-delay: 0s;
-    --react-home-shortcut-drift-from: translate3d(-18%, -8%, 0) rotate(-8deg) scale(1.03);
-    --react-home-shortcut-drift-to: translate3d(18%, 8%, 0) rotate(8deg) scale(1.16);
-    --react-home-shortcut-drift-opacity-from: .7;
-    --react-home-shortcut-drift-opacity-to: 1;
-    --react-home-shortcut-glow-transform: translate3d(0, 0, 0) rotate(0deg) scale(1.08);
-    --react-home-shortcut-glow-opacity: .42;
-    --react-home-shortcut-glow-size: 9rem;
-    --react-home-shortcut-glow-right: -3rem;
-    --react-home-shortcut-glow-top: -3rem;
-    position: relative;
-    display: flex;
-    align-items: flex-end;
-    gap: 0.85rem;
-    min-height: 9rem;
-    padding: 1.1rem;
-    overflow: hidden;
-    border: 0;
-    border-radius: var(--app-radius-lg);
-    isolation: isolate;
-    background: linear-gradient(135deg, var(--react-home-shortcut-color-a), var(--react-home-shortcut-color-b));
-    color: white;
-    cursor: pointer;
-    text-align: left;
-    box-shadow: none;
-    transition: filter var(--app-motion) ease;
-}
-
-.react-home-shortcut-surface {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    border-radius: inherit;
-    contain: paint;
-    pointer-events: none;
-}
-
-.react-home-shortcut-surface::before,
-.react-home-shortcut-surface::after {
-    content: "";
-    position: absolute;
-    inset: -32%;
-    border-radius: 50%;
-    pointer-events: none;
-}
-
-.react-home-shortcut-surface::before {
-    background: radial-gradient(ellipse 42% 34% at 18% 24%, var(--react-home-shortcut-color-b) 0 30%, transparent 78%), radial-gradient(ellipse 48% 40% at 82% 76%, var(--react-home-shortcut-color-c) 0 30%, transparent 80%), linear-gradient(135deg, var(--react-home-shortcut-color-a), var(--react-home-shortcut-color-b) 48%, var(--react-home-shortcut-color-c));
-    opacity: var(--react-home-shortcut-drift-opacity-from);
-    transform: var(--react-home-shortcut-drift-from);
-}
-
-.react-home-shortcut-surface::after {
-    background: radial-gradient(ellipse 46% 34% at 78% 18%, color-mix(in oklab, var(--react-home-shortcut-color-b) 70%, white 30%) 0 28%, transparent 78%), radial-gradient(ellipse 48% 44% at 22% 82%, color-mix(in oklab, var(--react-home-shortcut-color-c) 88%, black 12%) 0 28%, transparent 80%);
-    opacity: var(--react-home-shortcut-glow-opacity);
-    transform: var(--react-home-shortcut-glow-transform);
-}
-
-@keyframes react-home-shortcut-drift {
-    from {
-        opacity: var(--react-home-shortcut-drift-opacity-from);
-        transform: var(--react-home-shortcut-drift-from);
-    }
-
-    to {
-        opacity: var(--react-home-shortcut-drift-opacity-to);
-        transform: var(--react-home-shortcut-drift-to);
-    }
-}
-
-.react-home-shortcut::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    background: linear-gradient(135deg, rgb(255 255 255 / 10%), transparent 48%, rgb(0 0 0 / 14%));
-    pointer-events: none;
-}
-
-.react-home-shortcut::after {
-    content: "";
-    position: absolute;
-    z-index: 1;
-    width: var(--react-home-shortcut-glow-size);
-    height: var(--react-home-shortcut-glow-size);
-    right: var(--react-home-shortcut-glow-right);
-    top: var(--react-home-shortcut-glow-top);
-    border-radius: 50%;
-    background: rgb(255 255 255 / 13%);
-    pointer-events: none;
-    transform: translate3d(0, 0, 0) scale(1);
-    transition: transform var(--app-motion) cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.react-home-shortcut:hover {
-    filter: brightness(1.08);
-}
-
-.react-home-shortcut:hover::after,
-.react-home-shortcut:focus-visible::after {
-    transform: translate3d(-0.25rem, 0.2rem, 0) scale(1.05);
-}
-
-.react-home-shortcut.is-love {
-    --react-home-shortcut-color-a: #f05a3d;
-    --react-home-shortcut-color-b: #ff9f2f;
-    --react-home-shortcut-color-c: #c53557;
-    --react-home-shortcut-duration: 14s;
-    --react-home-shortcut-delay: -2s;
-    --react-home-shortcut-drift-from: translate3d(-28%, 2%, 0) rotate(-12deg) scale(1.02);
-    --react-home-shortcut-drift-to: translate3d(27%, -4%, 0) rotate(12deg) scale(1.18);
-    --react-home-shortcut-glow-transform: translate3d(10%, -8%, 0) rotate(-9deg) scale(1.12);
-    --react-home-shortcut-glow-size: 10rem;
-    --react-home-shortcut-glow-right: -3.6rem;
-    --react-home-shortcut-glow-top: -3.7rem;
-}
-
-.react-home-shortcut.is-recent {
-    --react-home-shortcut-color-a: #2d7a4e;
-    --react-home-shortcut-color-b: #6fbd89;
-    --react-home-shortcut-color-c: #143e32;
-    --react-home-shortcut-duration: 17s;
-    --react-home-shortcut-delay: -7s;
-    --react-home-shortcut-drift-from: translate3d(24%, -25%, 0) rotate(14deg) scale(1.02);
-    --react-home-shortcut-drift-to: translate3d(-24%, 24%, 0) rotate(-13deg) scale(1.2);
-    --react-home-shortcut-glow-transform: translate3d(-10%, 9%, 0) rotate(12deg) scale(1.16);
-    --react-home-shortcut-glow-size: 8.25rem;
-    --react-home-shortcut-glow-right: -2.8rem;
-    --react-home-shortcut-glow-top: -2.2rem;
-}
-
-.react-home-shortcut.is-library {
-    --react-home-shortcut-color-a: #4f66c9;
-    --react-home-shortcut-color-b: #9c97f3;
-    --react-home-shortcut-color-c: #29387f;
-    --react-home-shortcut-duration: 21s;
-    --react-home-shortcut-delay: -13s;
-    --react-home-shortcut-drift-from: translate3d(-23%, 18%, 0) rotate(-7deg) scale(1.02);
-    --react-home-shortcut-drift-to: translate3d(25%, -18%, 0) rotate(8deg) scale(1.22);
-    --react-home-shortcut-glow-transform: translate3d(7%, 5%, 0) rotate(-5deg) scale(1.17);
-    --react-home-shortcut-glow-size: 9.5rem;
-    --react-home-shortcut-glow-right: -4.1rem;
-    --react-home-shortcut-glow-top: -3.2rem;
-}
-
-.react-home-shortcut.is-playlist {
-    --react-home-shortcut-color-a: #765795;
-    --react-home-shortcut-color-b: #c8a5d0;
-    --react-home-shortcut-color-c: #45335f;
-    --react-home-shortcut-duration: 24s;
-    --react-home-shortcut-delay: -18s;
-    --react-home-shortcut-drift-from: translate3d(30%, 24%, 0) rotate(17deg) scale(1.03);
-    --react-home-shortcut-drift-to: translate3d(-29%, -24%, 0) rotate(-16deg) scale(1.21);
-    --react-home-shortcut-glow-transform: translate3d(-11%, -7%, 0) rotate(14deg) scale(1.18);
-    --react-home-shortcut-glow-size: 10.5rem;
-    --react-home-shortcut-glow-right: -4.2rem;
-    --react-home-shortcut-glow-top: -4rem;
-}
-
-.react-home-shortcut-icon {
-    position: relative;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    width: 2.8rem;
-    height: 2.8rem;
-    border-radius: 50%;
-    background: rgb(255 255 255 / 18%);
-    font-size: 1.2rem;
-}
-
-.react-home-shortcut-copy {
-    position: relative;
-    z-index: 2;
-    display: grid;
-    gap: 0.25rem;
-    min-width: 0;
-}
-
-.react-home-shortcut strong {
-    font-size: 1rem;
-}
-
-.react-home-shortcut small {
-    color: rgb(255 255 255 / 74%);
-}
-
-.react-home-shortcut-arrow {
-    position: relative;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    width: 1.1rem;
-    min-width: 1.1rem;
-    margin-left: auto;
-    align-self: center;
-    opacity: 0;
-    pointer-events: none;
-    transform: translateX(-0.3rem);
-    transition:
-        opacity var(--app-motion-fast) ease,
-        transform var(--app-motion-fast) cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.react-home-shortcut:hover .react-home-shortcut-arrow,
-.react-home-shortcut:focus-visible .react-home-shortcut-arrow {
-    opacity: 0.92;
-    transform: translateX(0);
 }
 
 .react-home-section {
@@ -8760,10 +7701,6 @@ textarea:focus-visible {
         flex: 1;
     }
 
-    .react-home-shortcuts {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .react-home-rail {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -8820,15 +7757,8 @@ textarea:focus-visible {
         width: 100%;
         justify-content: flex-start;
     }
-
-    .react-home-shortcuts,
     .react-home-rail {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .react-home-shortcut {
-        min-height: 7.5rem;
-        padding: 0.85rem;
     }
 
     .react-content-card {
@@ -8867,7 +7797,6 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .react-home-shortcut,
     .react-artwork-button img,
     .react-sidebar,
     .react-sidebar-backdrop {
@@ -10252,10 +9181,6 @@ textarea:focus-visible {
     filter: saturate(1.04);
 }
 
-.react-home-shortcut:hover {
-    filter: brightness(1.045);
-}
-
 .react-detail-tabs > button,
 .react-detail-tabs > span button,
 .react-text-button,
@@ -10289,11 +9214,8 @@ textarea:focus-visible {
 
     .react-entity-card button,
     .react-playlist-card button,
-    .react-home-shortcut,
     .react-home-playlist,
     .react-home-playlist-arrow,
-    .react-home-shortcut-arrow,
-    .react-home-shortcut::after,
     .react-playlist-icon-option,
     .react-playlist-icon-option-visual,
     .react-playlist-card img,
@@ -10322,23 +9244,11 @@ textarea:focus-visible {
     .react-home-playlist:hover,
     .react-home-playlist:focus-visible,
     .react-home-playlist-arrow,
-    .react-home-shortcut-arrow,
-    .react-home-shortcut::after,
     .react-playlist-icon-option-visual,
     .react-entity-card button:active,
     .react-playlist-card button:active,
     .react-home-playlist:active {
         transform: none;
-    }
-
-    .react-home-shortcut-surface::before,
-    .react-home-shortcut-surface::after {
-        animation: none;
-        transform: none;
-    }
-
-    .react-home-shortcut-surface::before {
-        will-change: auto;
     }
 
     .react-home-playlist-surface::before {
@@ -11385,8 +10295,6 @@ textarea:focus-visible {
    on every scroll or audio-progress update. */
 .react-player-topbar,
 .react-player-toast,
-#comment-modal,
-.player-floating-capsule,
 .lyric-detail-actions,
 .react-immersive-lyrics-header,
 .react-immersive-nav-button,
@@ -11398,13 +10306,8 @@ textarea:focus-visible {
     backdrop-filter: none !important;
 }
 
-.react-player-toast,
-#comment-modal {
+.react-player-toast {
     background: color-mix(in srgb, var(--bg-panel) 88%, var(--bg-main)) !important;
-}
-
-.player-floating-capsule {
-    background: color-mix(in srgb, var(--bg-panel) 92%, var(--bg-main));
 }
 
 .lyric-detail-actions {
@@ -13803,20 +12706,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-page {
         gap: 1.55rem;
     }
-    .react-home-shortcuts {
-        gap: 0.5rem;
-    }
-    .react-home-shortcut {
-        min-height: 5.5rem;
-        padding: 0.75rem;
-        border-radius: 0.9rem;
-    }
-    .react-home-shortcut-copy strong {
-        font-size: 0.84rem;
-    }
-    .react-home-shortcut-copy small {
-        font-size: 0.7rem;
-    }
     .react-home-section {
         min-width: 0;
     }
@@ -14674,86 +13563,12 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-home-page {
         gap: 2.35rem;
     }
-    .react-home-feature {
-        position: relative;
-        display: grid;
-        min-height: clamp(14rem, 26vw, 23rem);
-        grid-template-columns: minmax(13rem, 0.82fr) minmax(18rem, 1fr);
-        align-items: center;
-        gap: clamp(1.5rem, 4vw, 4.5rem);
-        overflow: hidden;
-        padding: clamp(1.2rem, 3vw, 2.75rem);
-        border: 1px solid var(--app-border);
-        border-radius: 1.45rem;
-        background: var(--app-surface-soft);
-        color: var(--app-text);
-        text-align: start;
-        cursor: pointer;
-        isolation: isolate;
-    }
-    .react-home-feature::before {
-        position: absolute;
-        z-index: -1;
-        inset: 0;
-        content: "";
-        background: radial-gradient(ellipse at 82% 22%, var(--app-accent-soft), transparent 55%);
-        opacity: 0.9;
-    }
-    .react-home-feature-art {
-        display: block;
-        width: min(100%, 21rem);
-        aspect-ratio: 1;
-        justify-self: end;
-        overflow: hidden;
-        border-radius: 1.1rem;
-        box-shadow: var(--app-shadow-soft);
-        transform: rotate(-2deg);
-    }
-    .react-home-feature-art img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    .react-home-feature-copy {
-        display: grid;
-        justify-items: start;
-        gap: 0.62rem;
-        min-width: 0;
-    }
-    .react-home-feature-copy > small,
     .react-home-welcome .react-eyebrow {
         color: var(--app-accent);
         font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
-    }
-    .react-home-feature-copy > strong {
-        max-width: 18ch;
-        font-size: clamp(1.7rem, 3.5vw, 3.25rem);
-        line-height: 1.06;
-        letter-spacing: -0.045em;
-    }
-    .react-home-feature-copy > span {
-        color: var(--app-text-muted);
-        font-size: 1.08rem;
-    }
-    .react-home-feature-copy > em {
-        display: inline-flex;
-        min-height: 2.8rem;
-        align-items: center;
-        gap: 0.55rem;
-        margin-top: 0.5rem;
-        padding: 0.65rem 1.15rem;
-        border-radius: 99px;
-        background: var(--app-accent);
-        color: var(--app-text-on-accent, #fff);
-        font-style: normal;
-        font-weight: 650;
-    }
-    .react-home-feature:hover .react-home-feature-art {
-        transform: rotate(0) scale(1.01);
     }
     .react-home-welcome {
         display: grid;
@@ -14775,14 +13590,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         margin: 0 0 0.6rem;
         color: var(--app-text-muted);
     }
-    .react-home-shortcuts {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0.8rem;
-    }
-    .react-home-shortcut {
-        min-height: 6.6rem;
-        border-radius: 1rem;
-    }
     .react-home-section-heading h2 {
         font-size: 1.45rem;
         letter-spacing: -0.025em;
@@ -14796,9 +13603,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
-
-.react-home-feature,
-.react-home-feature-art,
 .react-sidebar-nav > .netease-nav-item {
     transition:
         background-color var(--app-motion-fast),
@@ -14808,67 +13612,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 }
 
 @media (max-width: 720px) {
-    .react-home-feature {
-        position: relative;
-        display: grid;
-        min-height: 9.5rem;
-        grid-template-columns: 6.7rem minmax(0, 1fr);
-        align-items: center;
-        gap: 0.9rem;
-        overflow: hidden;
-        padding: 0.75rem;
-        border: 1px solid var(--app-border);
-        border-radius: 1rem;
-        background: var(--app-surface-solid);
-        color: var(--app-text);
-        text-align: start;
-    }
-    .react-home-feature-art {
-        display: block;
-        width: 6.7rem;
-        aspect-ratio: 1;
-        overflow: hidden;
-        border-radius: 0.7rem;
-    }
-    .react-home-feature-art img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    .react-home-feature-copy {
-        display: grid;
-        justify-items: start;
-        min-width: 0;
-        gap: 0.25rem;
-    }
-    .react-home-feature-copy > small {
-        color: var(--app-accent);
-        font-size: 0.66rem;
-        font-weight: 700;
-    }
-    .react-home-feature-copy > strong {
-        display: -webkit-box;
-        overflow: hidden;
-        font-size: 0.95rem;
-        line-height: 1.2;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-    }
-    .react-home-feature-copy > span {
-        color: var(--app-text-muted);
-        font-size: 0.75rem;
-    }
-    .react-home-feature-copy > em {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        margin-top: 0.22rem;
-        color: var(--app-accent);
-        font-size: 0.75rem;
-        font-style: normal;
-        font-weight: 650;
-    }
     .react-home-welcome {
         display: grid;
         justify-items: start;
@@ -14895,22 +13638,14 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         font-weight: 700;
         letter-spacing: 0.1em;
     }
-    .react-home-shortcuts {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .react-home-feature,
-    .react-home-feature-art,
     .react-sidebar-nav > .netease-nav-item,
     .react-player-drawer.react-glass-drawer,
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) {
         transition-duration: 0.01ms !important;
-    }
-    .react-home-feature:hover .react-home-feature-art {
-        transform: none;
     }
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) {
@@ -14923,62 +13658,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     gap: 1.7rem;
     padding-block-end: 7rem;
 }
-.react-home-feature {
-    min-height: 8rem;
-    grid-template-columns: 6.5rem minmax(0, 1fr) 2.8rem;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
-    border-radius: 1rem;
-    background: var(--app-surface-soft);
-    box-shadow: none;
-}
-.react-home-feature::before {
-    background: radial-gradient(ellipse at 100% 0, var(--app-accent-soft), transparent 48%);
-    opacity: 0.45;
-}
-.react-home-feature-art {
-    width: 6.5rem;
-    justify-self: start;
-    border-radius: 0.75rem;
-    box-shadow: none;
-    transform: none;
-}
-.react-home-feature-copy {
-    gap: 0.28rem;
-}
-.react-home-feature-copy > small {
-    color: var(--app-accent);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.025em;
-    text-transform: none;
-}
-.react-home-feature-copy > strong {
-    display: -webkit-box;
-    overflow: hidden;
-    max-width: none;
-    font-size: clamp(1.05rem, 1.65vw, 1.45rem);
-    line-height: 1.24;
-    letter-spacing: -0.025em;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-}
-.react-home-feature-copy > span {
-    font-size: 0.88rem;
-}
-.react-home-feature-play {
-    display: grid;
-    width: 2.8rem;
-    height: 2.8rem;
-    place-items: center;
-    border-radius: 50%;
-    background: var(--app-accent);
-    color: var(--app-on-accent, #fff);
-    font-size: 0.95rem;
-}
-.react-home-feature:hover .react-home-feature-art {
-    transform: none;
-}
 .react-home-welcome {
     min-height: 12rem;
     padding: clamp(1.1rem, 2.5vw, 2rem);
@@ -14990,63 +13669,14 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         gap: 1.25rem;
         padding-block-end: 0;
     }
-    .react-home-feature {
-        min-height: 0;
-        grid-template-columns: 4.5rem minmax(0, 1fr) 2.5rem;
-        gap: 0.7rem;
-        padding: 0.6rem;
-        border-radius: 0.9rem;
-    }
-    .react-home-feature-art {
-        width: 4.5rem;
-        border-radius: 0.62rem;
-    }
-    .react-home-feature-copy {
-        gap: 0.2rem;
-    }
-    .react-home-feature-copy > small {
-        font-size: 0.63rem;
-    }
-    .react-home-feature-copy > strong {
-        font-size: 0.92rem;
-        line-height: 1.2;
-    }
-    .react-home-feature-copy > span {
-        overflow: hidden;
-        font-size: 0.73rem;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .react-home-feature-play {
-        width: 2.45rem;
-        height: 2.45rem;
-        font-size: 0.82rem;
-    }
-}
-@media (max-width: 360px) {
-    .react-home-feature {
-        grid-template-columns: 3.8rem minmax(0, 1fr) 2.3rem;
-        gap: 0.55rem;
-        padding: 0.5rem;
-    }
-    .react-home-feature-art {
-        width: 3.8rem;
-    }
-    .react-home-feature-play {
-        width: 2.25rem;
-        height: 2.25rem;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .react-home-feature,
-    .react-home-feature-art,
     .react-player-drawer.react-glass-drawer,
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) {
         transition: none;
     }
-    .react-home-feature:hover .react-home-feature-art,
     .react-player-drawer.react-glass-drawer.is-open,
     .react-player-drawer.react-glass-drawer:not(.is-open) {
         transform: none;

@@ -34,7 +34,6 @@ export const SPLIT_CHAR = {
   DISLIKE_NAME: '@',
   DISLIKE_NAME_ALIAS: '#',
 } as const
-
 export const LIST_IDS = {
   DEFAULT: 'default',
   LOVE: 'love',
@@ -55,5 +54,3 @@ export const File = {
   dislikeSnapshotDir: 'snapshot',
   dislikeSnapshotInfoJSON: 'snapshotInfo.json',
 } as const
-
-export const FeaturesList = ['list', 'dislike'] as const

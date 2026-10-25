@@ -535,7 +535,6 @@ describe('React player navigation and state restoration', () => {
     expect(views).toContain('createList(name.trim(), icon)')
     expect(shell).toContain('playlistIcon(list.icon)')
     expect(css).toContain('border: 0;')
-    expect(css).toContain('grid-template-columns: 6.5rem minmax(0, 1fr) 2.8rem;')
     expect(css).toMatch(/margin-top:\s*0?\.45rem;/)
     expect(css).toContain(
       'background: linear-gradient(90deg, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 20%, transparent) var(--volume, 0%) 100%);',
@@ -566,7 +565,8 @@ describe('React player navigation and state restoration', () => {
     expect(favicon.readUInt32BE(16)).toBe(256)
     expect(favicon.readUInt32BE(20)).toBe(256)
     expect(css).toContain('@keyframes react-home-playlist-drift')
-    expect(css).toContain('.react-home-shortcut:hover .react-home-shortcut-arrow')
+    expect(css).not.toContain('.react-home-shortcut')
+    expect(css).not.toContain('.react-home-feature')
     expect(css).toMatch(/\.react-home-playlists\s*\{\s*display: block;\s*grid-template-columns: none;\s*gap: 0;\s*\}/)
     expect(css).toMatch(
       /\.react-playlist-catalog-row::after\s*\{\s*content: "";\s*position: absolute;\s*inset-inline: 4\.65rem 0;\s*bottom: 0;\s*height: 1px;\s*background: var\(--app-border\);\s*\}/,
