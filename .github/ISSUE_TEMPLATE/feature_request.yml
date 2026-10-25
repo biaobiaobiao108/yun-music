@@ -1,7 +1,7 @@
 name: 功能建议 (Feature suggestions)
 description: 建议添加新功能改进用户体验
-title: "[Feature] "
-labels: ["enhancement"]
+title: '[Feature] '
+labels: ['enhancement']
 assignees:
   - XCQ0607
 body:
@@ -43,7 +43,7 @@ body:
         ### 新音源支持 (New Music Source Support)
         ⚠️ **注意**：
         本项目仅维护自定义源/插件逻辑。如果你希望 LX Music 软件本身支持新的平台或核心功能，请直接向 [LX Music 官方仓库](https://github.com/lyswhut/lx-music-desktop/issues) 提交 Issue。
-        
+
         如果你确定这是仅针对本项目（自定义源脚本）的建议，请在下方填写源的名称和网址：
   - type: input
     id: new_source_name
@@ -63,7 +63,7 @@ body:
     attributes:
       label: 部署版本Hash (Deploy Hash)
       description: 可以从关于中查看 (Viewable in the About section)
-      placeholder: "例如: a1b2c3d"
+      placeholder: '例如: a1b2c3d'
   - type: textarea
     id: additional
     attributes:

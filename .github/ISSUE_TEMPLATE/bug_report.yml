@@ -1,7 +1,7 @@
 name: Bug 反馈 (Bug feedback)
 description: 反馈播放失败、解析错误或软件崩溃等问题
-title: "[Bug] "
-labels: ["bug"]
+title: '[Bug] '
+labels: ['bug']
 assignees:
   - XCQ0607
 body:
@@ -55,7 +55,7 @@ body:
     attributes:
       label: 部署版本Hash (Deploy Hash)
       description: 可以从关于中查看 (Viewable in the About section)
-      placeholder: "例如: a1b2c3d"
+      placeholder: '例如: a1b2c3d'
   - type: markdown
     attributes:
       value: |
@@ -65,7 +65,7 @@ body:
     id: source
     attributes:
       label: 涉及的音源
-      placeholder: "例如: 网易云 / QQ音乐"
+      placeholder: '例如: 网易云 / QQ音乐'
   - type: input
     id: song
     attributes:
@@ -75,8 +75,8 @@ body:
     attributes:
       label: 是否在原平台可用
       options:
-        - "是"
-        - "否"
+        - '是'
+        - '否'
   - type: input
     id: error_msg
     attributes:
@@ -85,14 +85,14 @@ body:
     id: os
     attributes:
       label: 操作系统 (OS)
-      placeholder: "例如: Windows 11 / macOS 13 / Android 12"
+      placeholder: '例如: Windows 11 / macOS 13 / Android 12'
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: 项目版本 (Version)
-      placeholder: "例如: v1.2.0"
+      placeholder: '例如: v1.2.0'
     validations:
       required: true
   - type: input

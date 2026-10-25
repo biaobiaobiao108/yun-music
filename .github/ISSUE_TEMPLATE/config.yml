@@ -1,4 +1,4 @@
-blank_issues_enabled: false  # 这里是关键，设置为 false 禁止空白 issue
+blank_issues_enabled: false # 这里是关键，设置为 false 禁止空白 issue
 contact_links:
   - name: 💬 加入讨论区 (Discussions)
     url: https://github.com/biaobiaobiao108/yun-music/discussions

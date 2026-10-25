@@ -1,7 +1,7 @@
 name: 提问与求助 (Question / Support)
 description: 关于配置、安装或使用上的疑问（非代码故障）
-title: "[help] "
-labels: ["help wanted", "question"]
+title: '[help] '
+labels: ['help wanted', 'question']
 body:
   - type: textarea
     id: question
