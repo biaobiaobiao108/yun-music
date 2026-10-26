@@ -163,7 +163,7 @@ export function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
             {error}
           </p>
         ) : (
-          <SongList songs={songs} empty="歌单暂无歌曲" showHeader={false} />
+          <SongList songs={songs} empty="歌单暂无歌曲" />
         )}
         <div className="react-pagination react-pagination-bottom">
           <button
@@ -782,16 +782,6 @@ export function LocalMusicView() {
           )
         ) : visibleCacheItems.length ? (
           <div className="react-song-table react-local-song-table">
-            <div className="react-song-head is-selectable" aria-hidden="true">
-              <span />
-              <span>#</span>
-              <span>歌曲 / 歌手</span>
-              <span>专辑</span>
-              <span>时长</span>
-              <span>大小</span>
-              <span>格式</span>
-              <span />
-            </div>
             <ul className="react-song-list">
               {pageItems.map((item, offset) => {
                 const index = pageIndex * LOCAL_MUSIC_PAGE_SIZE + offset

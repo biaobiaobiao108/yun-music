@@ -224,8 +224,8 @@ describe('React player navigation and state restoration', () => {
     expect(css).toContain(
       '.react-immersive-lyrics-list {\n        order: 1;\n        display: block;\n        flex: 1 1 0;',
     )
-    expect(library).toContain('favoriteSongs.slice(0, 24)')
-    expect(library).toContain('recentSongs.slice(0, 24)')
+    expect(library).toContain('favoriteSongs.slice(0, 18)')
+    expect(library).toContain('const recentSongs = recent.slice(0, 18)')
     expect(library).toContain('artists.slice(0, 12)')
     expect(library).toContain('export function MobileLibraryView()')
     expect(library).toContain("title: '账户登录'")
@@ -239,20 +239,15 @@ describe('React player navigation and state restoration', () => {
     expect(css).toMatch(/\.react-home-fixed-grid > \.react-artwork-card:nth-child\(n \+ 7\)\s*\{\s*display: none;\s*\}/)
     expect(css).toContain('.react-artwork-grid.react-home-songs-grid {')
     expect(css).toMatch(
-      /@media \(max-width: 720px\) \{\s*\.react-artwork-grid\.react-home-songs-grid\s*\{\s*grid-template-columns: none;\s*grid-template-rows: auto;\s*grid-auto-flow: column;\s*grid-auto-columns: calc\(\(100% - 0?\.55rem\) \/ 2\);/,
+      /@media \(max-width: 720px\) \{\s*\.react-artwork-grid\.react-home-songs-grid\s*\{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);\s*grid-template-rows: repeat\(3, minmax\(0, auto\)\);/,
     )
-    expect(css).toContain(
-      'overflow-x: auto;\n        overflow-y: hidden;\n        overscroll-behavior-inline: contain;\n        scroll-snap-type: x proximity;',
-    )
-    expect(css).toMatch(
-      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card\s*\{\s*scroll-snap-align: start;\s*\}/,
-    )
+    expect(css).toContain('grid-template-rows: repeat(3, minmax(0, auto));')
     expect(css).toContain('grid-template-columns: repeat(6, minmax(0, 1fr));')
     expect(css).toMatch(
-      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card:nth-child\(n \+ 7\)\s*\{\s*display: block;\s*\}/,
+      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card:nth-child\(n \+ 13\)\s*\{\s*display: block;\s*\}/,
     )
     expect(css).toMatch(
-      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card:nth-child\(n \+ 13\)\s*\{\s*display: none;\s*\}/,
+      /\.react-artwork-grid\.react-home-songs-grid > \.react-artwork-card:nth-child\(n \+ 19\)\s*\{\s*display: none;\s*\}/,
     )
     expect(css).toContain('.react-artwork-grid.react-home-artist-row {')
     expect(css).toContain('grid-auto-columns: clamp(6.25rem, 7.5vw, 8rem);')
@@ -623,7 +618,10 @@ describe('React player navigation and state restoration', () => {
     expect(views).toContain('react-header-selection-count')
     expect(views).toContain('showFileMetadata={false}')
     expect(components).toContain('react-song-table--without-file-metadata')
-    expect(css).toContain('.react-song-table--without-file-metadata .react-song-head')
+    expect(components).not.toContain('react-song-head')
+    expect(read('frontend/player/src/react/heavy_views.tsx')).not.toContain('react-song-head')
+    expect(css).not.toContain('react-song-head')
+    expect(css).toContain('.react-song-table--without-file-metadata .react-song-row')
     expect(views).not.toContain("listId === 'love' ? '我喜欢的音乐' : '歌单歌曲'")
   })
 

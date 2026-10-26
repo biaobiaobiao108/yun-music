@@ -75,7 +75,7 @@ export function HomeView() {
   const artists = useMediaLibraryStore(state => state.artists)
   const userLists = useLibraryStore(selectUserLists)
   const playSong = usePlaybackStore(state => state.playSong)
-  const recentSongs = recent.slice(0, 24)
+  const recentSongs = recent.slice(0, 18)
   const visibleUserLists = userLists.slice(0, 6)
   const visibleArtists = artists.slice(0, 12)
   const recentQueueIndex = (song: Song) => recent.findIndex(candidate => songKey(candidate) === songKey(song))
@@ -94,7 +94,7 @@ export function HomeView() {
           </div>
           {recentSongs.length ? (
             <div className="react-artwork-grid react-home-rail react-home-songs-grid">
-              {recentSongs.slice(0, 24).map(song => (
+              {recentSongs.map(song => (
                 <ArtworkCard
                   key={songKey(song)}
                   song={song}
@@ -124,7 +124,7 @@ export function HomeView() {
           </div>
           {favoriteSongs.length ? (
             <div className="react-artwork-grid react-home-fixed-grid react-home-songs-grid">
-              {favoriteSongs.slice(0, 24).map(song => (
+              {favoriteSongs.slice(0, 18).map(song => (
                 <ArtworkCard
                   key={songKey(song)}
                   song={song}

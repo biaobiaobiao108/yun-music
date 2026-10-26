@@ -7815,7 +7815,6 @@ textarea:focus-visible {
     overflow: hidden;
 }
 
-.react-song-head,
 .react-song-row {
     display: grid !important;
     grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem 5.5rem 4.2rem 3.5rem;
@@ -7823,27 +7822,15 @@ textarea:focus-visible {
     column-gap: 0.8rem;
 }
 
-.react-song-head {
-    min-height: 2.7rem;
-    padding: 0 0.1rem;
-    border-bottom: 1px solid var(--app-border);
-    color: var(--app-text-muted);
-    font-size: 0.75rem;
-    font-weight: 800;
-}
-
-.react-song-head.is-selectable,
 .react-song-row.is-selectable {
     grid-template-columns: 1.75rem 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem 5.5rem 4.2rem 3.5rem;
 }
 
 /* 收藏与自建歌单不展示文件属性，保留更宽的歌曲与专辑信息列。 */
-.react-song-table--without-file-metadata .react-song-head,
 .react-song-table--without-file-metadata .react-song-row {
     grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem minmax(3.5rem, max-content);
 }
 
-.react-song-table--without-file-metadata .react-song-head.is-selectable,
 .react-song-table--without-file-metadata .react-song-row.is-selectable {
     grid-template-columns: 1.75rem 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem minmax(3.5rem, max-content);
 }
@@ -8024,10 +8011,6 @@ textarea:focus-visible {
 @media (max-width: 760px) {
     .react-song-list {
         --react-song-row-height: 3.85rem;
-    }
-
-    .react-song-head {
-        display: none !important;
     }
 
     .react-song-row,
@@ -11161,7 +11144,6 @@ textarea:focus-visible {
 
 /* The server library does not expose a favorite action. Keep the table at
    eight tracks so the remaining metadata has room to breathe. */
-.react-local-song-table .react-song-head.is-selectable,
 .react-local-song-table .react-local-cache-row {
     grid-template-columns: 1.75rem 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 4.5rem 5.5rem 4.2rem 3.5rem;
 }
@@ -11209,10 +11191,6 @@ textarea:focus-visible {
 /* Batch selection uses the row highlight as its visible state. Keep the
    native checkbox in the accessibility tree for keyboard and assistive
    technology users, but remove its visual column from playlist rows. */
-.react-playlist-page .react-song-head.is-selectable > span:first-child {
-    display: none;
-}
-
 .react-playlist-page .react-song-row.is-selectable > .react-song-select {
     display: contents;
 }
@@ -11229,12 +11207,10 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
-.react-playlist-page .react-song-head.is-selectable,
 .react-playlist-page .react-song-row.is-selectable {
     grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem 5.5rem 4.2rem 3.5rem;
 }
 
-.react-playlist-page .react-song-table--without-file-metadata .react-song-head.is-selectable,
 .react-playlist-page .react-song-table--without-file-metadata .react-song-row.is-selectable {
     grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 3rem 4.5rem minmax(3.5rem, max-content);
 }
@@ -13426,33 +13402,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     }
 }
 
-@media (max-width: 720px) {
-    .react-artwork-grid.react-home-songs-grid {
-        grid-template-columns: none;
-        grid-template-rows: auto;
-        grid-auto-flow: column;
-        grid-auto-columns: calc((100% - 0.55rem) / 2);
-        grid-auto-rows: auto;
-        gap: 0.75rem 0.55rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        overscroll-behavior-inline: contain;
-        scroll-snap-type: x proximity;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .react-artwork-grid.react-home-songs-grid::-webkit-scrollbar {
-        display: none;
-    }
-    .react-artwork-grid.react-home-songs-grid > .react-artwork-card {
-        scroll-snap-align: start;
-    }
-    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 5) {
-        display: block;
-    }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .react-mobile-navigation-item,
     .react-mobile-discover-links > button,
@@ -13468,20 +13417,20 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     }
 }
 
-/* Desktop recent and favorite art uses the same six-column, two-row grid. */
+/* Keep recent and favorite cards in a compact grid with at most three rows. */
 @media (min-width: 721px) {
     .react-artwork-grid.react-home-songs-grid {
         grid-template-columns: repeat(6, minmax(0, 1fr));
-        grid-template-rows: repeat(2, minmax(0, auto));
+        grid-template-rows: repeat(3, minmax(0, auto));
         grid-auto-rows: 0;
         gap: 1rem 0.8rem;
         overflow: hidden;
     }
 
-    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 7) {
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 13) {
         display: block;
     }
-    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 13) {
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 19) {
         display: none;
     }
 
@@ -13898,9 +13847,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
 @media (max-width: 760px) {
     .react-song-table {
         overflow: visible;
-    }
-    .react-song-head {
-        display: none !important;
     }
     .react-song-list {
         --react-song-row-height: 4.55rem;
@@ -14744,24 +14690,6 @@ body,
         grid-template-columns: 4.25rem minmax(0, 1fr);
         padding: 0.65rem;
     }
-
-    .react-artwork-grid.react-home-songs-grid {
-        grid-template-columns: none;
-        grid-template-rows: auto;
-        grid-auto-flow: column;
-        grid-auto-columns: calc((100% - 0.7rem) / 2);
-        grid-auto-rows: auto;
-        gap: 0.75rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        overscroll-behavior-inline: contain;
-        scroll-snap-type: x proximity;
-        scrollbar-width: none;
-    }
-
-    .react-artwork-grid.react-home-songs-grid::-webkit-scrollbar {
-        display: none;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -14879,7 +14807,7 @@ body,
         box-sizing: border-box;
         width: auto;
         height: auto;
-        padding: clamp(2rem, 3vw, 3.5rem) clamp(1.4rem, 2.8vw, 3.5rem) calc(6rem + 1.5rem);
+        padding: clamp(3.25rem, 4vw, 4rem) clamp(1.4rem, 2.8vw, 3.5rem) calc(6rem + 1.5rem);
         overflow: auto;
         scroll-padding-block: 1rem calc(6rem + 1.5rem);
     }
@@ -14908,5 +14836,64 @@ body,
 @media (max-width: 720px) {
     .react-floating-menu-button {
         display: none;
+    }
+}
+
+:root {
+    --player-paper: #f7f7f6;
+}
+
+.react-player-shell {
+    --app-bg: var(--player-paper);
+    --app-sidebar-width: clamp(14rem, 15vw, 18rem);
+    grid-template-columns: minmax(14rem, var(--app-sidebar-width)) minmax(0, 1fr) !important;
+    background: var(--player-paper) !important;
+}
+
+.react-player-main,
+.react-player-content {
+    background: var(--player-paper) !important;
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+    .react-artwork-grid.react-home-songs-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-rows: repeat(3, minmax(0, auto));
+        grid-auto-flow: row;
+        grid-auto-rows: 0;
+        overflow: hidden;
+    }
+
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n) {
+        display: block;
+    }
+
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 13) {
+        display: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .react-artwork-grid.react-home-songs-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(3, minmax(0, auto));
+        grid-auto-flow: row;
+        grid-auto-rows: 0;
+        gap: 0.75rem 0.55rem;
+        overflow: hidden;
+    }
+
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n) {
+        display: block;
+    }
+
+    .react-artwork-grid.react-home-songs-grid > .react-artwork-card:nth-child(n + 7) {
+        display: none;
+    }
+}
+
+@media (max-width: 900px) {
+    .react-player-shell {
+        --app-sidebar-width: min(17rem, calc(100vw - 1rem));
     }
 }
