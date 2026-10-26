@@ -218,7 +218,7 @@ export function CustomSourcesView() {
             <div className="admin-custom-source-input-row">
               <label className="admin-react-file-picker">
                 <Icon name="file-code" />
-                <span title={file?.name}>{file?.name ?? '选择脚本文件'}</span>
+                <span>{file?.name ?? '选择脚本文件'}</span>
                 <input
                   className="admin-react-file-input"
                   type="file"
@@ -285,8 +285,7 @@ export function CustomSourcesView() {
                             type="button"
                             className="admin-custom-source-drag-handle"
                             draggable={!action}
-                            aria-label={`拖动排序 ${sourceName(source)}`}
-                            title="拖动排序，也可按 Alt+上/下箭头移动"
+                            aria-label={`拖动排序 ${sourceName(source)}，也可按 Alt+上/下箭头移动`}
                             onDragStart={event => {
                               if (action) {
                                 event.preventDefault()
@@ -314,7 +313,7 @@ export function CustomSourcesView() {
                             <Icon name="plug" />
                           </span>
                           <span>
-                            <strong title={sourceName(source)}>{sourceName(source)}</strong>
+                            <strong>{sourceName(source)}</strong>
                             <small>
                               {source.author || '未知作者'}
                               {source.version ? ` · v${source.version}` : ''}
@@ -342,7 +341,6 @@ export function CustomSourcesView() {
                               setUpdateUrl('')
                             }}
                             disabled={Boolean(action)}
-                            title="更新音源脚本"
                           >
                             <Icon name="rotate" />
                             更新

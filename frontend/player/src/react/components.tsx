@@ -334,13 +334,10 @@ export const SongRow = memo(function SongRow({
           <small>{songArtist(song)}</small>
         </span>
       </button>
-      <span className="react-song-album" title={songAlbum(song)}>
-        {songAlbum(song)}
-      </span>
+      <span className="react-song-album">{songAlbum(song)}</span>
       <button
         type="button"
         className={`react-song-favorite ${isLoved ? 'is-loved' : ''}`}
-        title={isLoved ? '取消收藏' : '收藏'}
         aria-label={`${isLoved ? '取消收藏' : '收藏'} ${songTitle(song)}`}
         aria-pressed={isLoved}
         onClick={toggleFavorite}
@@ -356,18 +353,12 @@ export const SongRow = memo(function SongRow({
       )}
       <span className="react-song-actions">
         {listId !== 'love' && (
-          <button
-            type="button"
-            title="从当前歌单移除"
-            aria-label={`从当前歌单移除 ${songTitle(song)}`}
-            onClick={removeFromPlaylist}
-          >
+          <button type="button" aria-label={`从当前歌单移除 ${songTitle(song)}`} onClick={removeFromPlaylist}>
             <Icon name="trash" />
           </button>
         )}
         <button
           type="button"
-          title="加入队列"
           aria-label={`将 ${songTitle(song)} 加入队列`}
           onClick={() => {
             enqueue([song])

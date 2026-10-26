@@ -529,7 +529,6 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
             className={`react-icon-button react-queue-mode-button ${mode === 'single' ? 'is-single' : ''}`}
             aria-label={'播放模式：' + modeLabel}
             aria-pressed={mode !== 'list'}
-            title={modeLabel}
             onClick={cycleMode}
           >
             <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
@@ -543,7 +542,6 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
             type="button"
             className="react-icon-button"
             aria-label="清空播放列表"
-            title="清空播放列表"
             disabled={!queue.length}
             onClick={clearQueue}
           >
@@ -600,11 +598,9 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                       )}
                     </span>
                     <span className="react-queue-meta">
-                      <strong title={songTitle(song)}>{songTitle(song)}</strong>
+                      <strong>{songTitle(song)}</strong>
                       <small>
-                        <span className="react-queue-artist" title={songArtist(song)}>
-                          {songArtist(song)}
-                        </span>
+                        <span className="react-queue-artist">{songArtist(song)}</span>
                       </small>
                     </span>
                   </button>
@@ -614,7 +610,6 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                       type="button"
                       className="react-queue-action react-queue-play-next"
                       aria-label={`将 ${songTitle(song)} 设为下一首播放`}
-                      title="下一首播放"
                       disabled={isCurrent}
                       onClick={() => {
                         animateQueuePositions(song)
@@ -627,7 +622,6 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                       type="button"
                       className="react-queue-action react-queue-remove"
                       aria-label={'移除 ' + songTitle(song)}
-                      title="从播放列表移除"
                       onClick={() => remove(index)}
                     >
                       <Icon name="trash" />
@@ -750,7 +744,6 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
             type="button"
             className="react-icon-button"
             aria-label="刷新缓存与下载"
-            title="刷新"
             onClick={() => void load({ force: true })}
           >
             <Icon name="rotate" />
@@ -759,7 +752,6 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
             type="button"
             className="react-icon-button"
             aria-label="清理已完成任务"
-            title="清理已完成任务"
             disabled={!completedCount || pendingBatchAction !== null || Object.keys(pendingTaskActions).length > 0}
             onClick={() => void clearCompleted()}
           >
@@ -770,7 +762,6 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
               type="button"
               className="react-icon-button"
               aria-label={visibleBatchAction === 'pause' ? '暂停全部下载' : '继续全部下载'}
-              title={visibleBatchAction === 'pause' ? '暂停全部' : '继续全部'}
               disabled={pendingBatchAction !== null || Object.keys(pendingTaskActions).length > 0}
               onClick={() => {
                 if (visibleBatchAction === 'pause') void pauseAll()
@@ -847,16 +838,12 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                   />
                 </span>
                 <span className="react-cache-meta">
-                  <strong title={name}>{name}</strong>
-                  <small title={taskError || artist || status}>
+                  <strong>{name}</strong>
+                  <small>
                     {artist ? `${artist} · ${status}` : status}
                     {progress === null ? '' : ` · ${progress}%`}
                   </small>
-                  {taskError && (
-                    <small className="react-cache-error-detail" title={taskError}>
-                      {taskError}
-                    </small>
-                  )}
+                  {taskError && <small className="react-cache-error-detail">{taskError}</small>}
                   {progress !== null && (
                     <progress className="react-task-progress" max="100" value={progress} aria-label={`${name}下载进度`}>
                       {progress}%
@@ -870,7 +857,6 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                       className="react-cache-task-action"
                       disabled={!taskId || pending !== undefined || pendingBatchAction !== null}
                       aria-label={`${taskActionLabel} ${name}`}
-                      title={`${taskActionLabel}任务`}
                       onClick={() => {
                         if (!taskId) return
                         void (canPause ? pauseTask(taskId) : resumeTask(taskId))
@@ -887,7 +873,6 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                       if (taskId) void remove(taskId)
                     }}
                     aria-label={`移除${name}`}
-                    title="移除任务"
                   >
                     <Icon name={pending === 'remove' ? 'spinner' : 'xmark'} />
                   </button>

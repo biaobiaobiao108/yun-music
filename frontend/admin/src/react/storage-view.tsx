@@ -57,8 +57,8 @@ function StorageSongRow({
         <div className="admin-data-song-content">
           <img src={storageCover(item)} width="44" height="44" loading="lazy" decoding="async" alt="" />
           <span>
-            <strong title={name}>{name}</strong>
-            <small title={String(item.singer ?? '未知歌手')}>{String(item.singer ?? '未知歌手')}</small>
+            <strong>{name}</strong>
+            <small>{String(item.singer ?? '未知歌手')}</small>
           </span>
         </div>
       </th>
@@ -71,26 +71,18 @@ function StorageSongRow({
           <Button
             className="admin-react-button-compact"
             aria-label={playing ? `暂停试听${name}` : `试听${name}`}
-            title={playing ? '暂停试听' : '试听'}
             onClick={onPreview}
           >
             <Icon name={playing ? 'pause' : 'play'} />
           </Button>
           <Button
             className="admin-react-button-compact"
-            aria-label="移动文件"
-            title={item.folder === 'cache' ? '转为下载音乐' : '转为缓存音乐'}
+            aria-label={item.folder === 'cache' ? '转为下载音乐' : '转为缓存音乐'}
             onClick={onMove}
           >
             <Icon name="right-left" />
           </Button>
-          <Button
-            className="admin-react-button-compact"
-            variant="danger"
-            aria-label={`删除${name}`}
-            title="删除"
-            onClick={onDelete}
-          >
+          <Button className="admin-react-button-compact" variant="danger" aria-label={`删除${name}`} onClick={onDelete}>
             <Icon name="trash" />
           </Button>
         </div>

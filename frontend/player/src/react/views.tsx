@@ -796,7 +796,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
         variant="primary"
         className="react-icon-only-button"
         aria-label="随机漫游"
-        title="随机漫游"
         onClick={playRandom}
         disabled={!songs.length}
       >
@@ -806,7 +805,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
         <Button
           className="react-icon-only-button"
           aria-label="重命名歌单"
-          title="重命名歌单"
           onClick={() => {
             setRenameValue(name)
             setRenameOpen(true)
@@ -820,7 +818,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
           variant="danger"
           className="react-icon-only-button"
           aria-label="删除歌单"
-          title="删除歌单"
           onClick={() => setDeleteOpen(true)}
         >
           <Icon name="trash" />
@@ -836,7 +833,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
       <Button
         className="react-icon-only-button"
         aria-label={hasSelection ? '取消选择' : '全选'}
-        title={hasSelection ? '取消选择' : '全选'}
         onClick={() => (hasSelection ? setSelectedSongs(new Set()) : selectAll())}
         disabled={!songs.length}
       >
@@ -846,7 +842,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
         variant="primary"
         className="react-icon-only-button"
         aria-label={downloadBusy ? '正在加入下载队列' : '批量下载'}
-        title={downloadBusy ? '正在加入下载队列' : '批量下载'}
         onClick={() => void downloadBatch()}
         disabled={!selectedSongs.size || downloadBusy}
       >
@@ -856,7 +851,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
         variant="danger"
         className="react-icon-only-button"
         aria-label="批量移除"
-        title="批量移除"
         onClick={() => setConfirmOpen(true)}
         disabled={!selectedSongs.size || downloadBusy}
       >
@@ -865,7 +859,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
       <Button
         className="react-icon-only-button"
         aria-label="退出多选"
-        title="退出多选"
         onClick={() => {
           setBatchMode(false)
           setSelectedSongs(new Set())
@@ -881,7 +874,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
       <Button
         className="react-icon-only-button"
         aria-label="多选操作"
-        title="多选操作"
         onClick={() => {
           setBatchMode(true)
           setSelectedSongs(new Set())

@@ -3204,97 +3204,6 @@ body > .flex.flex-1.overflow-hidden.relative {
     }
 }
 
-/* Setting Tooltip Styles */
-.setting-tooltip-trigger {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-left: 0.375rem;
-    color: #9ca3af;
-    cursor: pointer;
-    transition: color 0.2s;
-    vertical-align: middle;
-}
-
-.setting-tooltip-trigger:hover {
-    color: var(--c-500);
-}
-
-.setting-tooltip-content {
-    position: absolute;
-    bottom: 125%;
-    left: 50%;
-    transform: translateX(-50%) translateY(10px);
-    width: 16rem;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border: 1px solid var(--c-100);
-    border-radius: 0.75rem;
-    box-shadow:
-        0 10px 15px -3px rgba(0, 0, 0, 0.1),
-        0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    font-size: 0.75rem;
-    font-weight: normal;
-    line-height: 1.4;
-    color: #4b5563;
-    z-index: 100;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition:
-        color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        filter 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.dark .setting-tooltip-content {
-    background: rgba(31, 41, 55, 0.95);
-    border-color: rgba(75, 85, 99, 0.3);
-    color: #d1d5db;
-}
-
-/* Triangle notch */
-.setting-tooltip-content::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border-width: 6px;
-    border-style: solid;
-    border-color: rgba(255, 255, 255, 0.95) transparent transparent transparent;
-}
-
-.dark .setting-tooltip-content::after {
-    border-color: rgba(31, 41, 55, 0.95) transparent transparent transparent;
-}
-
-/* Show on hover (Desktop) */
-@media (hover: hover) {
-    .setting-tooltip-trigger:hover .setting-tooltip-content {
-        opacity: 1;
-        visibility: visible;
-        transform: translateX(-50%) translateY(0);
-    }
-}
-
-/* Active state for mobile click */
-.setting-tooltip-trigger.is-active .setting-tooltip-content {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
-    pointer-events: auto;
-}
-
 .lyric-line {
     font-family: var(--lyric-font-family, inherit);
     font-size: var(--lyric-font-size, 1.25rem);
@@ -14297,6 +14206,26 @@ body,
 .react-player-content::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background: rgba(70, 60, 55, 0.28);
+}
+
+/* Keep content beneath the translucent player while shortening only the track. */
+@supports selector(::-webkit-scrollbar) {
+    @media (min-width: 721px) {
+        #player-main-content.react-player-content {
+            scrollbar-width: auto;
+            scrollbar-color: auto;
+        }
+
+        #player-main-content.react-player-content::-webkit-scrollbar-track {
+            margin-bottom: 7.5rem;
+        }
+    }
+
+    @media (min-width: 901px) {
+        #player-main-content.react-player-content::-webkit-scrollbar-track {
+            margin-bottom: 6rem;
+        }
+    }
 }
 
 .react-view {

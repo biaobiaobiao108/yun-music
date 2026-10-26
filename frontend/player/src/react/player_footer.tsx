@@ -470,7 +470,6 @@ export function PlayerFooterBar({
                 className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`}
                 aria-label={isLiked ? '取消喜欢' : '喜欢'}
                 aria-pressed={isLiked}
-                title={isLiked ? '取消喜欢' : '喜欢'}
                 onClick={() => void toggleLike()}
               >
                 <Icon name="heart" />
@@ -497,24 +496,16 @@ export function PlayerFooterBar({
                     disabled={!currentSong}
                   >
                     <div className="react-footer-title-row">
-                      <strong title={currentSong ? songTitle(currentSong) : undefined}>
-                        {currentSong ? songTitle(currentSong) : '云鹿音乐'}
-                      </strong>
+                      <strong>{currentSong ? songTitle(currentSong) : '云鹿音乐'}</strong>
                     </div>
-                    <small title={currentSong ? songArtist(currentSong) : undefined}>
-                      {currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}
-                    </small>
+                    <small>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
                   </button>
                 ) : (
                   <div className="react-footer-song-meta">
                     <div className="react-footer-title-row">
-                      <strong title={currentSong ? songTitle(currentSong) : undefined}>
-                        {currentSong ? songTitle(currentSong) : '云鹿音乐'}
-                      </strong>
+                      <strong>{currentSong ? songTitle(currentSong) : '云鹿音乐'}</strong>
                     </div>
-                    <small title={currentSong ? songArtist(currentSong) : undefined}>
-                      {currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}
-                    </small>
+                    <small>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
                   </div>
                 )}
               </div>

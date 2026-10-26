@@ -591,7 +591,7 @@ export function SnapshotsView() {
             <form onSubmit={upload} className="admin-react-upload-form admin-snapshot-upload">
               <label className="admin-react-file-picker">
                 <Icon name="file-lines" />
-                <span title={snapshotFile?.name}>{snapshotFile?.name ?? '选择快照'}</span>
+                <span>{snapshotFile?.name ?? '选择快照'}</span>
                 <input
                   className="admin-react-file-input"
                   type="file"
@@ -611,7 +611,7 @@ export function SnapshotsView() {
             <form onSubmit={requestRestoreBackup} className="admin-react-upload-form admin-snapshot-upload">
               <label className="admin-react-file-picker">
                 <Icon name="file-zipper" />
-                <span title={backupFile?.name}>{backupFile?.name ?? '选择备份 ZIP'}</span>
+                <span>{backupFile?.name ?? '选择备份 ZIP'}</span>
                 <input
                   className="admin-react-file-input"
                   type="file"

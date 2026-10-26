@@ -148,21 +148,20 @@ export function createPlayerHistoryController(
     return currentState !== null && currentIndex < maxIndex
   }
 
-  function setButtonState(button: HTMLButtonElement | null, available: boolean, label: string): void {
+  function setButtonState(button: HTMLButtonElement | null, available: boolean): void {
     if (!button) return
     const disabled = !available || pendingDirection !== null
     button.disabled = disabled
     button.setAttribute('aria-disabled', disabled ? 'true' : 'false')
     button.dataset.historyAvailable = available ? 'true' : 'false'
     button.dataset.historyPending = pendingDirection !== null ? 'true' : 'false'
-    button.title = disabled && pendingDirection === null ? label : button.dataset.historyLabel || button.title
   }
 
   function syncControls(): void {
     const backButton = documentRef.getElementById('player-history-back') as HTMLButtonElement | null
     const forwardButton = documentRef.getElementById('player-history-forward') as HTMLButtonElement | null
-    setButtonState(backButton, getCanGoBack(), '没有可返回的播放器页面')
-    setButtonState(forwardButton, getCanGoForward(), '没有可前进的播放器页面')
+    setButtonState(backButton, getCanGoBack())
+    setButtonState(forwardButton, getCanGoForward())
   }
 
   function bindPressFeedback(): void {
@@ -172,7 +171,6 @@ export function createPlayerHistoryController(
     for (const id of ['player-history-back', 'player-history-forward']) {
       const button = documentRef.getElementById(id) as HTMLButtonElement | null
       if (!button) continue
-      button.dataset.historyLabel = button.title
       const clearPressing = () => button.removeAttribute('data-pressing')
       button.addEventListener('pointerdown', () => {
         if (!button.disabled) button.setAttribute('data-pressing', 'true')

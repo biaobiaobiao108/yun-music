@@ -820,9 +820,7 @@ export function LocalMusicView() {
                         <small>{songArtist(song)}</small>
                       </span>
                     </button>
-                    <span className="react-song-album" title={album}>
-                      {album}
-                    </span>
+                    <span className="react-song-album">{album}</span>
                     <span className="react-song-duration">{cacheDuration(item, song)}</span>
                     <span className="react-song-size">{sizeBytes === undefined ? '—' : formatBytes(sizeBytes)}</span>
                     <span className="react-song-quality">

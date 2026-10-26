@@ -45,7 +45,7 @@ function ArtworkCard({
         <span className={`react-artwork-cover ${kind === 'artist' ? 'is-artist' : ''}`}>
           <SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} />
         </span>
-        <strong title={title}>{title}</strong>
+        <strong>{title}</strong>
         {subtitle != null && subtitle !== '' && <small>{subtitle}</small>}
       </button>
       {onPlay && (
@@ -343,7 +343,7 @@ function HomeDiscovery() {
                 <article className="react-home-playlist-card" key={`${discoveryId(item, index)}-${index}`}>
                   <button type="button" onClick={() => openPlaylist(item, index)}>
                     <SafeImage src={songImage(item)} width="220" height="220" loading="lazy" alt={`${title}封面`} />
-                    <strong title={title}>{title}</strong>
+                    <strong>{title}</strong>
                     <small>
                       {String(item.creator ?? item.author ?? '精选歌单')} ·{' '}
                       {String(item.songCount ?? item.trackCount ?? item.total ?? '歌单')}
@@ -395,8 +395,8 @@ function HomeDiscovery() {
                     {chart.songs.map((song, index) => (
                       <li key={songKey(song) || index}>
                         <span>{index + 1}</span>
-                        <span title={songTitle(song)}>{songTitle(song)}</span>
-                        <small title={songArtist(song)}>{songArtist(song)}</small>
+                        <span>{songTitle(song)}</span>
+                        <small>{songArtist(song)}</small>
                       </li>
                     ))}
                   </ol>
