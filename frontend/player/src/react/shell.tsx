@@ -190,10 +190,6 @@ function Sidebar() {
         aria-hidden="true"
       />
       <aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航">
-        <button type="button" className="react-sidebar-search" onClick={() => setTab('search')}>
-          <Icon name="search" />
-          <span>搜索歌曲、歌手</span>
-        </button>
         <div className="react-sidebar-scroll-region">
           <nav className="react-sidebar-nav">
             {SIDEBAR_HOME_ITEMS.map(item => {
@@ -374,14 +370,11 @@ function MobileNavigation() {
   )
 }
 
-function TopBar() {
+function FloatingNavigation() {
   const tab = usePlayerUiStore(state => state.tab)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
-  const setDialog = usePlayerUiStore(state => state.setDialog)
-  const setTab = usePlayerUiStore(state => state.setTab)
   const sidebarOpen = usePlayerUiStore(state => state.sidebarOpen)
   const toggleSidebar = usePlayerUiStore(state => state.toggleSidebar)
-  const userName = useAuthStore(state => state.userName)
   const userLists = useLibraryStore(selectUserLists)
   const currentPlaylist = favoriteListId === 'love' ? null : userLists.find(list => String(list.id) === favoriteListId)
   const title =
@@ -392,8 +385,8 @@ function TopBar() {
     document.title = `${title} - 云鹿音乐`
   }, [title])
   return (
-    <header className="react-player-topbar">
-      <div className="react-sidebar-history react-history-controls" role="group" aria-label="页面历史">
+    <nav className="react-floating-navigation" aria-label="页面导航">
+      <div className="react-floating-history" role="group" aria-label="页面历史">
         <button type="button" id="player-history-back" aria-label="后退" onClick={goBack}>
           <Icon name="chevron-left" />
           <span>后退</span>
@@ -405,7 +398,7 @@ function TopBar() {
       </div>
       <button
         type="button"
-        className="react-player-button react-menu-button"
+        className="react-floating-menu-button"
         aria-label={sidebarOpen ? '关闭主导航' : '打开主导航'}
         aria-controls="main-sidebar"
         aria-expanded={sidebarOpen}
@@ -413,26 +406,7 @@ function TopBar() {
       >
         <Icon name={sidebarOpen ? 'xmark' : 'bars'} />
       </button>
-      <div className="react-topbar-actions">
-        <button
-          type="button"
-          className="player-secondary-action react-mobile-settings-button"
-          aria-label="设置"
-          onClick={() => setTab('settings')}
-        >
-          <Icon name="gear" />
-        </button>
-        {userName ? (
-          <span className="react-user-chip" aria-label="已登录账户" role="img" title="已登录账户">
-            <Icon name="circle-user" />
-          </span>
-        ) : (
-          <button type="button" className="react-secondary-button" onClick={() => setDialog('userLogin')}>
-            登录
-          </button>
-        )}
-      </div>
-    </header>
+    </nav>
   )
 }
 
@@ -1208,8 +1182,8 @@ export function PlayerShell() {
     <div className="react-player-shell">
       <AudioRuntime />
       <Sidebar />
+      <FloatingNavigation />
       <div className="react-player-main">
-        <TopBar />
         <main id="player-main-content" className="react-player-content" tabIndex={-1}>
           <PlayerErrorBoundary>
             <PlayerView tab={tab} detail={detail} />

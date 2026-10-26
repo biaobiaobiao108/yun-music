@@ -82,7 +82,6 @@ export function HomeView() {
   return (
     <ViewFrame title="为你推荐" hideHeader viewId="view-首页">
       <section className="react-home-page">
-        <HomeDiscovery />
         <section className="react-home-section">
           <div className="react-home-section-heading">
             <div>
@@ -233,6 +232,7 @@ export function HomeView() {
             </div>
           )}
         </section>
+        <HomeDiscovery />
       </section>
     </ViewFrame>
   )
@@ -281,7 +281,7 @@ function HomeDiscovery() {
       ])
       if (controller.signal.aborted) return
       if (playlistResult.status === 'fulfilled') {
-        setPlaylists(discoveryItems(playlistResult.value, ['list', 'playlists', 'data', 'result']).slice(0, 8))
+        setPlaylists(discoveryItems(playlistResult.value, ['list', 'playlists', 'data', 'result']).slice(0, 6))
       }
 
       if (boardResult.status === 'fulfilled') {

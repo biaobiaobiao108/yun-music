@@ -14151,45 +14151,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     background: color-mix(in srgb, var(--app-accent) 3%, transparent);
 }
 
-.react-sidebar-history {
-    position: absolute;
-    top: 0.25rem;
-    right: 0.65rem;
-    display: flex;
-    align-items: center;
-    gap: 0.15rem;
-}
-.react-sidebar-history button {
-    display: grid;
-    place-items: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: var(--app-text-muted);
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition:
-        background var(--app-motion-fast),
-        color var(--app-motion-fast);
-}
-.react-sidebar-history button span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-}
-.react-sidebar-history button:hover {
-    color: var(--app-accent);
-}
-.react-sidebar-history button:focus-visible {
-    outline: 1px solid var(--app-accent);
-    outline-offset: -1px;
-}
 .react-home-playlists {
     display: block;
     grid-template-columns: none;
@@ -14221,12 +14182,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         pointer-events: auto;
     }
 }
-@media (prefers-reduced-motion: reduce) {
-    .react-sidebar-history button {
-        transition: none;
-    }
-}
-
 #main-sidebar.react-sidebar .react-sidebar-scroll-region {
     position: relative;
     flex: 1 1 auto;
@@ -14284,48 +14239,6 @@ body,
         background: var(--app-sidebar) !important;
         box-shadow: none !important;
     }
-}
-
-.react-sidebar-history {
-    top: 0.8rem;
-    right: 0.8rem;
-}
-
-.react-sidebar-history button {
-    width: 1.65rem;
-    height: 1.65rem;
-    color: #77716e;
-}
-
-.react-sidebar-search {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-height: 2.75rem;
-    margin: 0.3rem 1rem 0.85rem;
-    padding: 0 0.85rem;
-    border: 1px solid rgba(45, 35, 30, 0.08);
-    border-radius: 0.8rem;
-    background: rgba(70, 52, 40, 0.045);
-    color: #817a76;
-    font: inherit;
-    font-size: 0.84rem;
-    text-align: start;
-    cursor: pointer;
-    transition:
-        background-color var(--app-motion-fast),
-        color var(--app-motion-fast);
-}
-
-.react-sidebar-search:hover,
-.react-sidebar-search:focus-visible {
-    background: rgba(70, 52, 40, 0.08);
-    color: var(--app-text);
-}
-
-.react-sidebar-search i {
-    color: #8d8580;
-    font-size: 0.8rem;
 }
 
 .react-sidebar-nav {
@@ -14728,11 +14641,19 @@ body,
     .react-home-playlist-rail {
         grid-template-columns: repeat(5, minmax(0, 1fr));
     }
+
+    .react-home-playlist-card:nth-child(n + 6) {
+        display: none;
+    }
 }
 
 @media (max-width: 1200px) {
     .react-home-playlist-rail {
         grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .react-home-playlist-card:nth-child(n + 5) {
+        display: none;
     }
 
     .react-home-charts-grid {
@@ -14759,6 +14680,10 @@ body,
 
     .react-artwork-grid.react-home-songs-grid {
         grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .react-home-playlist-card:nth-child(n + 4) {
+        display: none;
     }
 
     .react-player-footer#player-footer,
@@ -14806,6 +14731,10 @@ body,
         gap: 1rem 0.75rem;
     }
 
+    .react-home-playlist-card:nth-child(n + 3) {
+        display: none;
+    }
+
     .react-home-charts-grid {
         grid-template-columns: minmax(0, 1fr);
         gap: 0.6rem;
@@ -14837,8 +14766,7 @@ body,
 
 @media (prefers-reduced-motion: reduce) {
     .react-home-playlist-card img,
-    .react-home-chart-card,
-    .react-sidebar-search {
+    .react-home-chart-card {
         transition: none;
     }
 }
@@ -14859,54 +14787,90 @@ body,
     }
 }
 
+.react-player-main::before {
+    content: "";
+    position: absolute;
+    z-index: 45;
+    inset: 0 0 auto;
+    height: 1.65rem;
+    pointer-events: none;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--app-bg) 78%, transparent), transparent);
+}
+
+.react-floating-navigation {
+    position: fixed;
+    z-index: 55;
+    inset-block-start: 0.8rem;
+    inset-inline-start: calc(var(--app-sidebar-width) + clamp(1rem, 2.8vw, 3.5rem));
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    pointer-events: none;
+}
+
+.react-floating-history {
+    display: flex;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.18rem;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 64%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent);
+    box-shadow: 0 0.25rem 0.8rem rgb(25 20 17 / 7%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    backdrop-filter: blur(14px) saturate(1.1);
+    pointer-events: auto;
+}
+
+.react-floating-history button,
+.react-floating-menu-button {
+    position: relative;
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+}
+
+.react-floating-history button:hover,
+.react-floating-menu-button:hover {
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+}
+
+.react-floating-history button:focus-visible,
+.react-floating-menu-button:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 1px;
+}
+
+.react-floating-history button > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+.react-floating-menu-button {
+    display: none;
+    border: 1px solid var(--app-border);
+    background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    backdrop-filter: blur(14px) saturate(1.1);
+    pointer-events: auto;
+}
+
 @media (min-width: 901px) {
     .react-player-main {
         display: block !important;
         position: relative;
-    }
-
-    .react-player-topbar {
-        position: absolute !important;
-        z-index: 70;
-        inset: 0 0 auto;
-        display: flex !important;
-        align-items: center;
-        justify-content: space-between;
-        box-sizing: border-box;
-        height: var(--app-topbar-height) !important;
-        min-height: var(--app-topbar-height) !important;
-        padding: 0 clamp(1rem, 2.8vw, 3.5rem) !important;
-        overflow: visible !important;
-        border-bottom: 1px solid rgba(35, 30, 27, 0.07) !important;
-        background: rgba(255, 255, 255, 0.72) !important;
-        -webkit-backdrop-filter: blur(24px) saturate(1.35) !important;
-        backdrop-filter: blur(24px) saturate(1.35) !important;
-        box-shadow: none !important;
-    }
-
-    .react-player-topbar .react-history-controls {
-        min-height: 0;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        box-shadow: none;
-    }
-
-    .react-player-topbar .react-topbar-actions {
-        position: static;
-        inset: auto;
-        margin: 0;
-    }
-
-    .react-player-topbar .react-menu-button {
-        display: none !important;
-    }
-
-    .react-sidebar-history {
-        position: static;
-        inset: auto;
-        flex: 0 0 auto;
-        margin-inline-end: 0.35rem;
     }
 
     #player-main-content.react-player-content {
@@ -14915,14 +14879,34 @@ body,
         box-sizing: border-box;
         width: auto;
         height: auto;
-        padding: calc(var(--app-topbar-height) + clamp(2rem, 3vw, 3.5rem)) clamp(1.4rem, 2.8vw, 3.5rem) calc(7.5rem + 1.5rem);
+        padding: clamp(2rem, 3vw, 3.5rem) clamp(1.4rem, 2.8vw, 3.5rem) calc(6rem + 1.5rem);
         overflow: auto;
-        scroll-padding-block: calc(var(--app-topbar-height) + 1rem) calc(7.5rem + 1.5rem);
+        scroll-padding-block: 1rem calc(6rem + 1.5rem);
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
         box-sizing: border-box;
-        height: 7.5rem;
-        min-height: 7.5rem;
+        height: 6rem !important;
+        min-height: 6rem !important;
+        padding: 0.45rem clamp(0.8rem, 1.5vw, 1.5rem) !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .react-floating-navigation {
+        inset-block-start: max(0.65rem, env(safe-area-inset-top, 0px));
+        inset-inline-start: 0.75rem;
+    }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+    .react-floating-menu-button {
+        display: grid;
+    }
+}
+
+@media (max-width: 720px) {
+    .react-floating-menu-button {
+        display: none;
     }
 }

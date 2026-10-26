@@ -7709,6 +7709,21 @@ body:has(.admin-react-login) {
     border-bottom-color: transparent;
 }
 
+@media (min-width: 901px) {
+    .admin-react-shell > .sidebar {
+        gap: 0.35rem;
+    }
+
+    .admin-react-shell .sidebar-header {
+        min-height: 3.2rem;
+        padding-block-end: 0.35rem;
+    }
+
+    .admin-react-shell .sidebar-nav {
+        padding-block-start: 0;
+    }
+}
+
 .admin-react-shell .sidebar-brand .logo-icon {
     border-radius: 0.55rem;
 }
