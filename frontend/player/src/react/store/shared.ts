@@ -6,7 +6,7 @@ export function browserStorage(): Storage | null {
 }
 
 export const DEFAULT_SETTINGS = {
-  appearance: 'system',
+  appearance: 'light',
   themeColor: 'netease',
   defaultEntry: 'favorites',
   preferredQuality: 'flac',
@@ -50,7 +50,7 @@ export type PlayerSettings = {
 
 export function applyAppearance(settings: Record<string, unknown>): void {
   applyThemePreferences({
-    appearance: String(settings.appearance || settings.theme || 'system') as 'system' | 'light' | 'dark',
+    appearance: 'light',
     themeColor: String(settings.themeColor || settings.colorTheme || 'netease'),
   })
 }

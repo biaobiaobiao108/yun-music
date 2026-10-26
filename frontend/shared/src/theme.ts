@@ -11,7 +11,7 @@ export type ThemePreferences = {
 }
 
 const SETTINGS_KEY = 'lx_settings'
-const TITLE_BAR_COLORS = { light: '#ffffff', dark: '#1c1c1e' } as const
+const TITLE_BAR_COLOR = '#ffffff'
 
 function root(): HTMLElement | null {
   return typeof document === 'undefined' ? null : document.documentElement
@@ -25,24 +25,16 @@ export function readThemePreferences(): ThemePreferences {
 export function applyThemePreferences(preferences: ThemePreferences): void {
   const element = root()
   if (!element) return
-  const appearance = preferences.appearance || 'system'
-  if (appearance === 'light' || appearance === 'dark') element.dataset.appearance = appearance
-  else delete element.dataset.appearance
+  element.dataset.appearance = 'light'
   // Keep the historic data attribute stable while the shared design system
   // now uses one fixed red accent. Old custom accent preferences are retained
   // in storage, but intentionally no longer affect the UI.
   element.dataset.theme = 'netease'
-  element.style.colorScheme = appearance === 'system' ? 'light dark' : appearance
-  // The manifest color is only a fallback. Keep the installed app's title bar
-  // aligned with the selected appearance, including a later return to system.
+  element.style.colorScheme = 'light'
+  // The manifest color is only a fallback. Keep installed apps aligned with
+  // the fixed light appearance.
   for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
-    const color =
-      appearance === 'system'
-        ? meta.media.includes('dark')
-          ? TITLE_BAR_COLORS.dark
-          : TITLE_BAR_COLORS.light
-        : TITLE_BAR_COLORS[appearance]
-    meta.content = color
+    meta.content = TITLE_BAR_COLOR
   }
 }
 

@@ -1065,21 +1065,8 @@ export function SettingsView() {
     <ViewFrame title="设置">
       <section className="react-settings-grid">
         <section className="react-content-card t-bg-panel">
-          <h2>外观与播放</h2>
+          <h2>播放设置</h2>
           <div className="react-settings-form">
-            <div className="react-setting-field">
-              <span>主题</span>
-              <SelectMenu
-                label="主题"
-                value={String(settings.appearance ?? 'system')}
-                options={[
-                  { value: 'system', label: '跟随系统' },
-                  { value: 'light', label: '浅色' },
-                  { value: 'dark', label: '深色' },
-                ]}
-                onChange={value => setSetting('appearance', value)}
-              />
-            </div>
             <div className="react-setting-field">
               <span>默认音质</span>
               <SelectMenu

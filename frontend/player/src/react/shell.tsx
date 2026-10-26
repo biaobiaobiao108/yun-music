@@ -214,8 +214,6 @@ function Sidebar() {
   const userLists = useLibraryStore(selectUserLists)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const userName = useAuthStore(state => state.userName)
-  const appearance = useSettingsStore(state => state.settings.appearance)
-  const setSetting = useSettingsStore(state => state.setSetting)
   useLayoutEffect(() => {
     const nav = sidebarNavRef.current
     const scrollRegion = nav?.parentElement
@@ -246,6 +244,10 @@ function Sidebar() {
             </button>
           </div>
         </div>
+        <button type="button" className="react-sidebar-search" onClick={() => setTab('search')}>
+          <Icon name="search" />
+          <span>搜索歌曲、歌手</span>
+        </button>
         <div className="react-sidebar-scroll-region">
           <nav ref={sidebarNavRef} className="react-sidebar-nav">
             {SIDEBAR_HOME_ITEMS.map(item => {
@@ -302,7 +304,19 @@ function Sidebar() {
                     key={`${id}-${index}`}
                     onClick={() => openFavoriteList(id)}
                   >
-                    <Icon name={playlistIcon(list.icon)} />
+                    <span className="react-sidebar-playlist-art">
+                      {list.img || list.pic || list.picUrl || list.image ? (
+                        <SafeImage
+                          src={String(list.img || list.pic || list.picUrl || list.image)}
+                          width="36"
+                          height="36"
+                          loading="lazy"
+                          alt=""
+                        />
+                      ) : (
+                        <Icon name={playlistIcon(list.icon)} />
+                      )}
+                    </span>
                     <span>{list.name}</span>
                     <small>{list.list?.length ?? 0}</small>
                   </button>
@@ -369,14 +383,6 @@ function Sidebar() {
             >
               <Icon name="circle-user" />
               <span>{userName || '登录账户'}</span>
-            </button>
-            <button
-              type="button"
-              className="netease-nav-item"
-              onClick={() => setSetting('appearance', appearance === 'dark' ? 'light' : 'dark')}
-            >
-              <Icon name={appearance === 'dark' ? 'sun' : 'moon'} />
-              <span>切换主题</span>
             </button>
           </nav>
         </div>

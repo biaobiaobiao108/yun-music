@@ -7678,3 +7678,197 @@ body:has(.admin-react-login) {
         padding-inline: 0.9rem;
     }
 }
+
+/* Music player visual system: warm navigation rail, white work canvas and
+   quiet, compact surfaces for operational data. */
+body:has(.admin-react-shell),
+body:has(.admin-react-login) {
+    background: var(--app-bg, #fff);
+    color: var(--app-text, #1d1d1f);
+}
+
+.admin-react-shell {
+    grid-template-columns: minmax(15rem, var(--app-sidebar-width, 16.5rem)) minmax(0, 1fr);
+    gap: 0;
+    padding: 0;
+    background: var(--app-bg, #fff);
+}
+
+.admin-react-shell > .sidebar {
+    height: 100dvh;
+    border: 0 !important;
+    border-right: 1px solid var(--app-border, rgb(0 0 0 / 7%)) !important;
+    border-radius: 0 !important;
+    background: var(--app-sidebar, #f7f2ee) !important;
+    box-shadow: none;
+}
+
+.admin-react-shell .sidebar-header {
+    min-height: 3.6rem;
+    padding: 0.2rem 0.65rem 0.9rem;
+    border-bottom-color: transparent;
+}
+
+.admin-react-shell .sidebar-brand .logo-icon {
+    border-radius: 0.55rem;
+}
+
+.admin-react-shell .sidebar-nav {
+    gap: 0.72rem;
+    scrollbar-width: none;
+}
+
+.admin-react-shell .sidebar-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.admin-react-nav-label {
+    margin: 0.18rem 0.65rem 0.25rem;
+    color: var(--app-text-dim, #86868b);
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.admin-react-shell .sidebar-nav .nav-item {
+    min-height: 2.45rem;
+    padding: 0.45rem 0.68rem !important;
+    border-radius: 0.65rem !important;
+    color: var(--app-text, #1d1d1f) !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.admin-react-shell .sidebar-nav .nav-item:hover {
+    transform: none;
+    background: color-mix(in srgb, var(--app-text) 5%, transparent) !important;
+}
+
+.admin-react-shell .sidebar-nav .nav-item.active {
+    background: color-mix(in srgb, var(--app-text) 7%, transparent) !important;
+    color: var(--app-text, #1d1d1f) !important;
+    font-weight: 650;
+}
+
+.admin-react-shell .nav-item.active .admin-react-nav-icon {
+    color: var(--app-accent, #fa243c);
+}
+
+.admin-react-shell .sidebar-footer {
+    margin-top: 0.4rem;
+    border-top-color: var(--app-border, rgb(0 0 0 / 7%));
+}
+
+.admin-react-main {
+    gap: 0;
+}
+
+.admin-react-shell .admin-react-topbar {
+    min-height: 4.1rem;
+    padding: 0.55rem clamp(1rem, 2vw, 1.8rem);
+    border: 0;
+    border-bottom: 1px solid var(--app-border, rgb(0 0 0 / 7%));
+    border-radius: 0;
+    background: var(--app-surface-glass, rgb(255 255 255 / 88%));
+}
+
+.admin-react-shell .admin-react-topbar > div:nth-child(2) {
+    margin: 0;
+}
+
+.admin-react-shell .admin-react-topbar .admin-react-eyebrow {
+    color: var(--app-text-dim, #86868b);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.admin-react-shell .admin-react-topbar h1 {
+    font-size: 1.18rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+}
+
+.admin-react-content {
+    padding: 0.6rem clamp(1rem, 2vw, 1.8rem) 2rem;
+}
+
+.admin-react-view {
+    max-width: 96rem;
+}
+
+.admin-react-view > .view-header {
+    padding-top: 1rem;
+}
+
+.admin-react-shell .admin-react-panel,
+.admin-react-shell .admin-react-stat,
+.admin-react-shell .glass {
+    border-color: var(--app-border, rgb(0 0 0 / 7%)) !important;
+    border-radius: 0.85rem !important;
+    box-shadow: none;
+}
+
+.admin-react-shell .admin-react-panel {
+    background: var(--app-surface-solid, #fff);
+}
+
+.admin-react-shell .admin-react-stat {
+    background: var(--app-bg-raised, #f5f5f7);
+}
+
+.admin-react-shell .admin-react-stat-icon {
+    border-radius: 0.65rem;
+}
+
+.admin-react-shell .admin-react-table-wrap {
+    border-radius: 0.75rem;
+    box-shadow: none;
+}
+
+.admin-react-login.overlay {
+    background: var(--app-bg, #fff);
+}
+
+.admin-react-login .login-box {
+    border: 1px solid var(--app-border, rgb(0 0 0 / 7%));
+    border-radius: 1rem;
+    background: var(--app-surface-solid, #fff);
+    box-shadow: 0 1rem 3rem rgb(0 0 0 / 8%);
+}
+
+@media (max-width: 900px) {
+    .admin-react-shell {
+        gap: 0;
+        padding: 0;
+    }
+
+    .admin-react-shell > .sidebar {
+        height: auto;
+        border: 1px solid var(--app-border, rgb(0 0 0 / 7%)) !important;
+        border-radius: 0.9rem !important;
+        box-shadow: 0 1rem 3rem rgb(0 0 0 / 14%);
+    }
+
+    .admin-react-main {
+        gap: 0;
+    }
+
+    .admin-react-shell .admin-react-topbar {
+        min-height: 3.9rem;
+        padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+        border-radius: 0;
+    }
+
+    .admin-react-content {
+        padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-react-shell .sidebar-nav .nav-item:hover {
+        transform: none;
+    }
+}

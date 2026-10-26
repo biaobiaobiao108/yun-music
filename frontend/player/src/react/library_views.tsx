@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { playlistIcon } from './api'
+import { playerApi, playlistIcon } from './api'
 import { Icon, Loading, SafeImage, SelectMenu, SongList } from './components'
 import { filterPlaylistCatalog, type PlaylistSort } from './playlist_catalog'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
@@ -15,6 +15,7 @@ import {
 } from './store'
 import type { Song } from './types'
 import { songAlbum, songArtist, songImage, songKey, songTitle } from './types'
+import { safeImageUrl } from '../../../shared/src/runtime'
 import { ViewFrame } from './view_frame'
 
 function ArtworkCard({
@@ -79,18 +80,9 @@ export function HomeView() {
   const visibleArtists = artists.slice(0, 12)
   const recentQueueIndex = (song: Song) => recent.findIndex(candidate => songKey(candidate) === songKey(song))
   return (
-    <ViewFrame title="云鹿音乐" titleIconSrc="/music/assets/yun-yin.png" viewId="view-首页">
+    <ViewFrame title="为你推荐" hideHeader viewId="view-首页">
       <section className="react-home-page">
-        {!recent.length && (
-          <div className="react-home-welcome">
-            <p className="react-eyebrow">MUSIC FOR EVERY MOMENT</p>
-            <h2>今天想听些什么？</h2>
-            <p>搜索一首歌，开启你的音乐时刻。</p>
-            <button type="button" className="react-player-button" onClick={() => setTab('search')}>
-              <Icon name="search" /> 搜索音乐
-            </button>
-          </div>
-        )}
+        <HomeDiscovery />
         <section className="react-home-section">
           <div className="react-home-section-heading">
             <div>
@@ -243,6 +235,185 @@ export function HomeView() {
         </section>
       </section>
     </ViewFrame>
+  )
+}
+
+type HomeChart = { id: string; name: string; songs: Song[] }
+
+function discoveryItems(payload: unknown, keys: string[]): Song[] {
+  if (Array.isArray(payload)) return payload as Song[]
+  if (!payload || typeof payload !== 'object') return []
+  const record = payload as Record<string, unknown>
+  for (const key of keys) {
+    const value = record[key]
+    if (Array.isArray(value)) return value as Song[]
+    if (value && typeof value === 'object') {
+      const nested = discoveryItems(value, keys)
+      if (nested.length) return nested
+    }
+  }
+  return []
+}
+
+function discoveryId(item: Song, index: number): string {
+  return String(item.id ?? item.listId ?? item.dissid ?? item.uid ?? index)
+}
+
+function HomeDiscovery() {
+  const setTab = usePlayerUiStore(state => state.setTab)
+  const setDetail = usePlayerUiStore(state => state.setDetail)
+  const [playlists, setPlaylists] = useState<Song[]>([])
+  const [charts, setCharts] = useState<HomeChart[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const load = async () => {
+      const [playlistResult, boardResult] = await Promise.allSettled([
+        playerApi.songList('wy', '', 'hot', 1, controller.signal, {
+          cacheKey: 'home:playlists:wy',
+          cacheTtlMs: 300_000,
+        }),
+        playerApi.leaderboardBoards('wy', controller.signal, {
+          cacheKey: 'home:boards:wy',
+          cacheTtlMs: 300_000,
+        }),
+      ])
+      if (controller.signal.aborted) return
+      if (playlistResult.status === 'fulfilled') {
+        setPlaylists(discoveryItems(playlistResult.value, ['list', 'playlists', 'data', 'result']).slice(0, 8))
+      }
+
+      if (boardResult.status === 'fulfilled') {
+        const boards = boardResult.value.slice(0, 4).map((value, index) => {
+          const item = value && typeof value === 'object' ? (value as Song) : { name: String(value) }
+          return {
+            id: String(item.bangid ?? item.id ?? item.value ?? index),
+            name: String(item.name ?? item.title ?? `排行榜 ${index + 1}`),
+          }
+        })
+        const results = await Promise.all(
+          boards.map(async board => {
+            try {
+              const payload = await playerApi.leaderboard('wy', board.id, 1, controller.signal, {
+                cacheKey: `home:board:${board.id}:wy`,
+                cacheTtlMs: 60_000,
+              })
+              return { ...board, songs: discoveryItems(payload, ['list', 'songs', 'data', 'result']).slice(0, 3) }
+            } catch {
+              return { ...board, songs: [] }
+            }
+          }),
+        )
+        if (!controller.signal.aborted) setCharts(results)
+      }
+      if (!controller.signal.aborted) setLoading(false)
+    }
+    void load()
+    return () => controller.abort()
+  }, [])
+
+  const openPlaylist = (item: Song, index: number) => {
+    const id = discoveryId(item, index)
+    setTab('songlist')
+    setDetail({
+      page: 'songlist-detail',
+      kind: 'playlist',
+      id,
+      source: String(item.source || 'wy'),
+      name: String(item.name ?? item.title ?? item.dissname ?? '歌单'),
+      image: safeImageUrl(songImage(item), ''),
+    })
+  }
+
+  return (
+    <>
+      <section className="react-home-section react-home-playlists-discovery">
+        <div className="react-home-section-heading">
+          <h2>今日为你推荐</h2>
+          <button type="button" className="react-text-button" onClick={() => setTab('songlist')}>
+            更多歌单 <Icon name="arrow-right" />
+          </button>
+        </div>
+        {playlists.length ? (
+          <div className="react-home-playlist-rail">
+            {playlists.map((item, index) => {
+              const title = String(item.name ?? item.title ?? item.dissname ?? '未命名歌单')
+              return (
+                <article className="react-home-playlist-card" key={`${discoveryId(item, index)}-${index}`}>
+                  <button type="button" onClick={() => openPlaylist(item, index)}>
+                    <SafeImage src={songImage(item)} width="220" height="220" loading="lazy" alt={`${title}封面`} />
+                    <strong title={title}>{title}</strong>
+                    <small>
+                      {String(item.creator ?? item.author ?? '精选歌单')} ·{' '}
+                      {String(item.songCount ?? item.trackCount ?? item.total ?? '歌单')}
+                    </small>
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+        ) : loading ? (
+          <Loading label="正在加载推荐歌单…" />
+        ) : (
+          <div className="react-home-empty">
+            <Icon name="list" />
+            <p>暂时没有推荐歌单</p>
+            <button type="button" className="react-text-button" onClick={() => setTab('songlist')}>
+              打开歌单广场
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section className="react-home-section react-home-charts-section">
+        <div className="react-home-section-heading">
+          <h2>排行榜</h2>
+          <button type="button" className="react-text-button" onClick={() => setTab('leaderboard')}>
+            查看全部 <Icon name="arrow-right" />
+          </button>
+        </div>
+        {charts.length ? (
+          <div className="react-home-charts-grid">
+            {charts.map(chart => (
+              <button
+                type="button"
+                className="react-home-chart-card"
+                key={chart.id}
+                onClick={() => setTab('leaderboard')}
+              >
+                <span className="react-home-chart-art">
+                  {chart.songs[0] ? (
+                    <SafeImage src={songImage(chart.songs[0])} width="108" height="108" loading="lazy" alt="" />
+                  ) : (
+                    <Icon name="chart-line" />
+                  )}
+                </span>
+                <span className="react-home-chart-copy">
+                  <strong>{chart.name}</strong>
+                  <ol>
+                    {chart.songs.map((song, index) => (
+                      <li key={songKey(song) || index}>
+                        <span>{index + 1}</span>
+                        <span title={songTitle(song)}>{songTitle(song)}</span>
+                        <small title={songArtist(song)}>{songArtist(song)}</small>
+                      </li>
+                    ))}
+                  </ol>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : loading ? (
+          <Loading label="正在加载排行榜…" />
+        ) : (
+          <div className="react-home-empty">
+            <Icon name="chart-line" />
+            <p>暂时无法加载排行榜</p>
+          </div>
+        )}
+      </section>
+    </>
   )
 }
 

@@ -40,46 +40,6 @@
     --logo-filter: none;
 }
 
-/* Dark Mode Overrides */
-:root[data-appearance="dark"] {
-    color-scheme: dark;
-    --bg-main: #1c1c1e;
-    --bg-panel: #2c2c2e;
-    --bg-item-hover: #343436;
-    --bg-header: rgba(36, 36, 38, 0.94);
-    --bg-glass: rgba(44, 44, 46, 0.82);
-
-    --text-main: #f5f5f7;
-    --text-muted: #a1a1a6;
-    --text-dim: #737378;
-
-    --border-main: #3a3a3c;
-    --border-dim: #48484a;
-
-    --shadow-main: 0 12px 34px 0 rgb(0 0 0 / 0.3), 0 2px 5px -2px rgb(0 0 0 / 0.2);
-}
-
-/* System Preference (Default if no data-appearance is set) */
-@media (prefers-color-scheme: dark) {
-    :root:not([data-appearance="light"]) {
-        color-scheme: dark;
-        --bg-main: #1c1c1e;
-        --bg-panel: #2c2c2e;
-        --bg-item-hover: #343436;
-        --bg-header: rgba(36, 36, 38, 0.94);
-        --bg-glass: rgba(44, 44, 46, 0.82);
-
-        --text-main: #f5f5f7;
-        --text-muted: #a1a1a6;
-        --text-dim: #737378;
-
-        --border-main: #3a3a3c;
-        --border-dim: #48484a;
-
-        --shadow-main: 0 12px 34px 0 rgb(0 0 0 / 0.3), 0 2px 5px -2px rgb(0 0 0 / 0.2);
-    }
-}
-
 /* Fixed Apple Music-inspired red palette; stored legacy accent values are ignored. */
 :root {
     --c-50: #fff1f2;

@@ -1,12 +1,7 @@
 import { lazy, StrictMode, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { runtimeConfig } from '../../../shared/src/runtime'
-import {
-  applyThemePreferences,
-  readThemePreferences,
-  updateThemePreferences,
-  type Appearance,
-} from '../../../shared/src/theme'
+import { applyThemePreferences } from '../../../shared/src/theme'
 import { Button, Icon, Loading } from './components'
 import { useAdminStore, type AdminView } from './store'
 
@@ -139,9 +134,6 @@ function AdminShell() {
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [signingOut, setSigningOut] = useState(false)
-  const [appearance, setAppearance] = useState<Appearance>(
-    () => (readThemePreferences().appearance || 'system') as Appearance,
-  )
   const config = runtimeConfig()
   const title = NAV_GROUPS.flatMap(group => group.items).find(item => item.id === view)?.label ?? '管理控制台'
 
@@ -199,11 +191,6 @@ function AdminShell() {
   const selectView = (next: AdminView) => {
     setView(next)
     closeMobile()
-  }
-  const toggleTheme = () => {
-    const next: Appearance = appearance === 'dark' ? 'light' : 'dark'
-    setAppearance(next)
-    updateThemePreferences({ appearance: next })
   }
   return (
     <div className="admin-react-shell">
@@ -281,15 +268,6 @@ function AdminShell() {
             <h1 id="page-title">{title}</h1>
           </div>
           <div className="admin-react-top-actions">
-            <button
-              type="button"
-              className="admin-react-icon-button"
-              aria-label="切换主题"
-              title="切换深浅色"
-              onClick={toggleTheme}
-            >
-              <Icon name={appearance === 'dark' ? 'sun' : 'moon'} />
-            </button>
             {installPrompt && (
               <Button onClick={() => void install()}>
                 <Icon name="download" />
@@ -326,7 +304,7 @@ function App() {
   const checking = useAdminStore(state => state.checking)
   const hydrate = useAdminStore(state => state.hydrate)
   useEffect(() => {
-    applyThemePreferences(readThemePreferences())
+    applyThemePreferences({ appearance: 'light' })
   }, [])
   useEffect(() => {
     void hydrate()
