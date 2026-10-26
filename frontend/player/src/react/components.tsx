@@ -516,6 +516,7 @@ export function SongList({
   selected,
   onSelect,
   showFileMetadata = false,
+  showHeader = true,
 }: {
   songs: Song[]
   empty?: string
@@ -524,6 +525,7 @@ export function SongList({
   selected?: Set<string>
   onSelect?: (song: Song) => void
   showFileMetadata?: boolean
+  showHeader?: boolean
 }) {
   if (!songs.length)
     return (
@@ -534,21 +536,23 @@ export function SongList({
     )
   return (
     <div className={`react-song-table ${showFileMetadata ? '' : 'react-song-table--without-file-metadata'}`}>
-      <div className={`react-song-head ${onSelect ? 'is-selectable' : ''}`} aria-hidden="true">
-        {onSelect && <span />}
-        <span>#</span>
-        <span>歌曲 / 歌手</span>
-        <span>专辑</span>
-        <span>收藏</span>
-        <span>时长</span>
-        {showFileMetadata && (
-          <>
-            <span>大小</span>
-            <span>格式</span>
-          </>
-        )}
-        <span />
-      </div>
+      {showHeader && (
+        <div className={`react-song-head ${onSelect ? 'is-selectable' : ''}`} aria-hidden="true">
+          {onSelect && <span />}
+          <span>#</span>
+          <span>歌曲 / 歌手</span>
+          <span>专辑</span>
+          <span>收藏</span>
+          <span>时长</span>
+          {showFileMetadata && (
+            <>
+              <span>大小</span>
+              <span>格式</span>
+            </>
+          )}
+          <span />
+        </div>
+      )}
       {songs.length > VIRTUAL_LIST_THRESHOLD ? (
         <VirtualSongRows
           songs={songs}

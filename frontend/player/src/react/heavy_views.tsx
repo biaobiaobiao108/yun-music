@@ -163,7 +163,7 @@ export function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
             {error}
           </p>
         ) : (
-          <SongList songs={songs} empty="歌单暂无歌曲" />
+          <SongList songs={songs} empty="歌单暂无歌曲" showHeader={false} />
         )}
         <div className="react-pagination react-pagination-bottom">
           <button

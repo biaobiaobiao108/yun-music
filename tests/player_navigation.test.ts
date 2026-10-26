@@ -22,10 +22,8 @@ describe('React player navigation and state restoration', () => {
   it('keeps the complete sidebar reachable between mobile and desktop breakpoints', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
     const css = read('frontend/styles/player.css')
-    const sidebar = shell.slice(
-      shell.indexOf('<nav ref={sidebarNavRef}'),
-      shell.indexOf('</nav>', shell.indexOf('<nav ref={sidebarNavRef}')),
-    )
+    const sidebarStart = shell.indexOf('<nav className="react-sidebar-nav">')
+    const sidebar = shell.slice(sidebarStart, shell.indexOf('</nav>', sidebarStart))
     expect(shell).toContain('className="react-player-button react-menu-button"')
     expect(shell).toContain('aria-controls="main-sidebar"')
     expect(shell).toContain('aria-expanded={sidebarOpen}')
@@ -191,7 +189,7 @@ describe('React player navigation and state restoration', () => {
     expect(shell).toContain('isActive={!hidden}')
     expect(footer).not.toContain('react-immersive-utility-actions')
     expect(views).not.toContain('react-immersive-header-label')
-    expect(shell).toContain('react-sidebar-brand-row')
+    expect(shell).not.toContain('react-sidebar-brand-row')
     expect(shell).not.toContain('react-sidebar-user')
     expect(css).toContain('width: 0 !important')
     expect(css).toContain('.react-immersive-lyrics-list::-webkit-scrollbar')
@@ -571,10 +569,8 @@ describe('React player navigation and state restoration', () => {
     expect(css).toMatch(
       /\.react-playlist-catalog-row::after\s*\{\s*content: "";\s*position: absolute;\s*inset-inline: 4\.65rem 0;\s*bottom: 0;\s*height: 1px;\s*background: var\(--app-border\);\s*\}/,
     )
-    const sidebar = shell.slice(
-      shell.indexOf('<nav ref={sidebarNavRef}'),
-      shell.indexOf('</nav>', shell.indexOf('<nav ref={sidebarNavRef}')),
-    )
+    const sidebarStart = shell.indexOf('<nav className="react-sidebar-nav">')
+    const sidebar = shell.slice(sidebarStart, shell.indexOf('</nav>', sidebarStart))
     expect(sidebar.indexOf('SIDEBAR_HOME_ITEMS.map')).toBeLessThan(sidebar.indexOf('我的音乐'))
     expect(sidebar.indexOf('我的音乐')).toBeLessThan(sidebar.indexOf('我的歌单'))
     expect(sidebar.indexOf('我的歌单')).toBeLessThan(sidebar.indexOf('资料库'))
@@ -584,7 +580,7 @@ describe('React player navigation and state restoration', () => {
     expect(shell).toContain("{ id: 'favorites', label: '我的收藏', icon: 'heart' }")
     expect(shell).toContain("{ id: 'localmusic', label: '本地音乐', icon: 'folder-open' }")
     expect(shell).toContain("{ id: 'leaderboard', label: '排行榜', icon: 'chart-line' }")
-    expect(shell).toContain('className="react-sidebar-history"')
+    expect(shell).toContain('className="react-sidebar-history react-history-controls"')
     expect(shell).toContain('id="player-history-back"')
     expect(shell).toContain('id="player-history-forward"')
     expect(css).toContain('.react-player-topbar .react-topbar-actions')
@@ -775,7 +771,7 @@ describe('React player navigation and state restoration', () => {
     expect(source).not.toMatch(/window\.(?:toggle|play|pause|selected|current)\w*\s*=/)
   })
 
-  it('keeps history and transfer controls in the sidebar instead of the top bar', () => {
+  it('keeps page history controls in the top bar and transfer controls in the sidebar', () => {
     const shellSource = read('frontend/player/src/react/shell.tsx')
     const sidebar = shellSource.slice(
       shellSource.indexOf('function Sidebar()'),
@@ -784,13 +780,13 @@ describe('React player navigation and state restoration', () => {
     const topbarStart = shellSource.indexOf('function TopBar()')
     const topbarEnd = shellSource.indexOf('\nfunction ', topbarStart + 1)
     const topbar = shellSource.slice(topbarStart, topbarEnd)
-    expect(sidebar).toContain('id="player-history-back"')
-    expect(sidebar).toContain('id="player-history-forward"')
-    expect(sidebar).toContain('onClick={goBack}')
-    expect(sidebar).toContain('onClick={goForward}')
+    expect(sidebar).not.toContain('player-history-')
     expect(sidebar).toContain("setDrawer('cache')")
     expect(sidebar).toContain('<span>缓存与下载</span>')
-    expect(topbar).not.toContain('player-history-')
+    expect(topbar).toContain('id="player-history-back"')
+    expect(topbar).toContain('id="player-history-forward"')
+    expect(topbar).toContain('onClick={goBack}')
+    expect(topbar).toContain('onClick={goForward}')
     expect(topbar).not.toContain('setDrawer')
   })
 })

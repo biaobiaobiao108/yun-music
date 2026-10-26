@@ -13702,53 +13702,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     gap: 0.2rem;
 }
 
-/* Fade the scroll edges only when content continues in that direction. */
-.react-player-main {
-    position: relative;
-}
-
-.react-player-main::before,
-.react-player-main::after {
-    opacity: 0;
-    transition: opacity var(--app-motion-fast, 140ms) ease;
-}
-
-.react-player-main::before {
-    content: "";
-    position: absolute;
-    z-index: 55;
-    inset: 0 0 auto;
-    height: 5.5rem;
-    pointer-events: none;
-    background: linear-gradient(to bottom, color-mix(in srgb, var(--app-bg) 68%, transparent) 0%, color-mix(in srgb, var(--app-bg) 38%, transparent) 56%, transparent 100%);
-}
-
-.react-player-main[data-has-content-above]::before {
-    opacity: 1;
-}
-
-.react-player-main::after {
-    content: "";
-    position: absolute;
-    z-index: 55;
-    inset-inline: 0;
-    inset-block-end: 0;
-    height: 7rem;
-    pointer-events: none;
-    background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--app-bg) 68%, transparent) 68%, color-mix(in srgb, var(--app-bg) 92%, transparent) 100%);
-}
-
-.react-player-main[data-has-content-below]::after {
-    opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .react-player-main::before,
-    .react-player-main::after {
-        transition: none;
-    }
-}
-
 @media (max-width: 720px) {
     .react-player-topbar .react-topbar-actions {
         display: none !important;
@@ -14198,29 +14151,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     background: color-mix(in srgb, var(--app-accent) 3%, transparent);
 }
 
-.react-sidebar-tools {
-    position: relative;
-    flex: 0 0 auto;
-    min-height: 2.8rem;
-    padding: 0.2rem 0.65rem 0.55rem;
-    border-bottom: 1px solid var(--app-border);
-    margin-bottom: 0.5rem;
-}
-.react-sidebar-brand-row {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    min-height: 2rem;
-    padding-right: 4.2rem;
-    color: var(--app-text);
-}
-.react-sidebar-brand-row img {
-    border-radius: 0.55rem;
-}
-.react-sidebar-brand-row strong {
-    font-size: 1rem;
-    font-weight: 700;
-}
 .react-sidebar-history {
     position: absolute;
     top: 0.25rem;
@@ -14311,33 +14241,6 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     min-height: 0;
 }
 
-#main-sidebar.react-sidebar .react-sidebar-scroll-region::before,
-#main-sidebar.react-sidebar .react-sidebar-scroll-region::after {
-    content: "";
-    position: absolute;
-    z-index: 3;
-    inset-inline: 0;
-    height: 2.75rem;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity var(--app-motion-fast, 140ms) ease;
-}
-
-#main-sidebar.react-sidebar .react-sidebar-scroll-region::before {
-    inset-block-start: 0;
-    background: linear-gradient(to bottom, color-mix(in srgb, var(--app-surface-solid) 84%, transparent), transparent);
-}
-
-#main-sidebar.react-sidebar .react-sidebar-scroll-region::after {
-    inset-block-end: 0;
-    background: linear-gradient(to top, color-mix(in srgb, var(--app-surface-solid) 84%, transparent), transparent);
-}
-
-#main-sidebar.react-sidebar .react-sidebar-scroll-region[data-has-content-above]::before,
-#main-sidebar.react-sidebar .react-sidebar-scroll-region[data-has-content-below]::after {
-    opacity: 1;
-}
-
 /* Reference-led light desktop shell */
 :root,
 body,
@@ -14381,31 +14284,6 @@ body,
         background: var(--app-sidebar) !important;
         box-shadow: none !important;
     }
-}
-
-.react-sidebar-tools {
-    min-height: auto;
-    padding: 0.5rem 1rem 0.7rem;
-    margin: 0;
-    border: 0;
-}
-
-.react-sidebar-brand-row {
-    min-height: 2.4rem;
-    padding-right: 4.2rem;
-}
-
-.react-sidebar-brand-row img {
-    width: 1.85rem;
-    height: 1.85rem;
-    border-radius: 0.5rem;
-    box-shadow: none;
-}
-
-.react-sidebar-brand-row strong {
-    color: #252322;
-    font-size: 0.95rem;
-    font-weight: 650;
 }
 
 .react-sidebar-history {
@@ -14979,8 +14857,72 @@ body,
         animation: none !important;
         transform: none !important;
     }
-    #main-sidebar.react-sidebar .react-sidebar-scroll-region::before,
-    #main-sidebar.react-sidebar .react-sidebar-scroll-region::after {
-        transition: none !important;
+}
+
+@media (min-width: 901px) {
+    .react-player-main {
+        display: block !important;
+        position: relative;
+    }
+
+    .react-player-topbar {
+        position: absolute !important;
+        z-index: 70;
+        inset: 0 0 auto;
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        box-sizing: border-box;
+        height: var(--app-topbar-height) !important;
+        min-height: var(--app-topbar-height) !important;
+        padding: 0 clamp(1rem, 2.8vw, 3.5rem) !important;
+        overflow: visible !important;
+        border-bottom: 1px solid rgba(35, 30, 27, 0.07) !important;
+        background: rgba(255, 255, 255, 0.72) !important;
+        -webkit-backdrop-filter: blur(24px) saturate(1.35) !important;
+        backdrop-filter: blur(24px) saturate(1.35) !important;
+        box-shadow: none !important;
+    }
+
+    .react-player-topbar .react-history-controls {
+        min-height: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .react-player-topbar .react-topbar-actions {
+        position: static;
+        inset: auto;
+        margin: 0;
+    }
+
+    .react-player-topbar .react-menu-button {
+        display: none !important;
+    }
+
+    .react-sidebar-history {
+        position: static;
+        inset: auto;
+        flex: 0 0 auto;
+        margin-inline-end: 0.35rem;
+    }
+
+    #player-main-content.react-player-content {
+        position: absolute;
+        inset: 0;
+        box-sizing: border-box;
+        width: auto;
+        height: auto;
+        padding: calc(var(--app-topbar-height) + clamp(2rem, 3vw, 3.5rem)) clamp(1.4rem, 2.8vw, 3.5rem) calc(7.5rem + 1.5rem);
+        overflow: auto;
+        scroll-padding-block: calc(var(--app-topbar-height) + 1rem) calc(7.5rem + 1.5rem);
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
+        box-sizing: border-box;
+        height: 7.5rem;
+        min-height: 7.5rem;
     }
 }

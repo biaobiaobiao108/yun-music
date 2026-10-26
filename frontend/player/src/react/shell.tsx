@@ -170,39 +170,7 @@ class PlayerErrorBoundary extends Component<{ children: ReactNode }, { error: Er
   }
 }
 
-function observeScrollEdges(scrollContainer: HTMLElement, indicator: HTMLElement) {
-  const updateScrollEdges = () => {
-    const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
-    indicator.toggleAttribute('data-has-content-above', scrollContainer.scrollTop > 1)
-    indicator.toggleAttribute('data-has-content-below', scrollContainer.scrollTop < maxScrollTop - 1)
-  }
-
-  const resizeObserver = new ResizeObserver(updateScrollEdges)
-  const observeContent = () => {
-    for (const child of scrollContainer.children) resizeObserver.observe(child)
-  }
-  resizeObserver.observe(scrollContainer)
-  observeContent()
-
-  const mutationObserver = new MutationObserver(() => {
-    observeContent()
-    updateScrollEdges()
-  })
-  mutationObserver.observe(scrollContainer, { childList: true, subtree: true })
-  scrollContainer.addEventListener('scroll', updateScrollEdges, { passive: true })
-  updateScrollEdges()
-
-  return () => {
-    mutationObserver.disconnect()
-    resizeObserver.disconnect()
-    scrollContainer.removeEventListener('scroll', updateScrollEdges)
-    indicator.removeAttribute('data-has-content-above')
-    indicator.removeAttribute('data-has-content-below')
-  }
-}
-
 function Sidebar() {
-  const sidebarNavRef = useRef<HTMLElement>(null)
   const tab = usePlayerUiStore(state => state.tab)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const activeTab = getSidebarActiveTab(tab, favoriteListId)
@@ -214,12 +182,6 @@ function Sidebar() {
   const userLists = useLibraryStore(selectUserLists)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const userName = useAuthStore(state => state.userName)
-  useLayoutEffect(() => {
-    const nav = sidebarNavRef.current
-    const scrollRegion = nav?.parentElement
-    if (!nav || !scrollRegion) return
-    return observeScrollEdges(nav, scrollRegion)
-  }, [])
   return (
     <>
       <div
@@ -228,28 +190,12 @@ function Sidebar() {
         aria-hidden="true"
       />
       <aside id="main-sidebar" className={`react-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="主导航">
-        <div className="react-sidebar-tools">
-          <div className="react-sidebar-brand-row">
-            <img src="/music/assets/yun-yin.png" width="32" height="32" alt="" />
-            <strong>云鹿音乐</strong>
-          </div>
-          <div className="react-sidebar-history" role="group" aria-label="页面历史">
-            <button type="button" id="player-history-back" aria-label="后退" onClick={goBack}>
-              <Icon name="chevron-left" />
-              <span>后退</span>
-            </button>
-            <button type="button" id="player-history-forward" aria-label="前进" onClick={goForward}>
-              <span>前进</span>
-              <Icon name="chevron-right" />
-            </button>
-          </div>
-        </div>
         <button type="button" className="react-sidebar-search" onClick={() => setTab('search')}>
           <Icon name="search" />
           <span>搜索歌曲、歌手</span>
         </button>
         <div className="react-sidebar-scroll-region">
-          <nav ref={sidebarNavRef} className="react-sidebar-nav">
+          <nav className="react-sidebar-nav">
             {SIDEBAR_HOME_ITEMS.map(item => {
               const isActive = activeTab === item.id
               return (
@@ -429,7 +375,6 @@ function MobileNavigation() {
 }
 
 function TopBar() {
-  const topbarRef = useRef<HTMLElement>(null)
   const tab = usePlayerUiStore(state => state.tab)
   const favoriteListId = usePlayerUiStore(state => state.favoriteListId)
   const setDialog = usePlayerUiStore(state => state.setDialog)
@@ -446,16 +391,18 @@ function TopBar() {
   useEffect(() => {
     document.title = `${title} - 云鹿音乐`
   }, [title])
-  useLayoutEffect(() => {
-    const topbar = topbarRef.current
-    const scrollContainer = document.getElementById('player-main-content')
-    const shell = topbar?.parentElement
-    if (!topbar || !scrollContainer || !shell) return
-    return observeScrollEdges(scrollContainer, shell)
-  }, [])
-
   return (
-    <header ref={topbarRef} className="react-player-topbar">
+    <header className="react-player-topbar">
+      <div className="react-sidebar-history react-history-controls" role="group" aria-label="页面历史">
+        <button type="button" id="player-history-back" aria-label="后退" onClick={goBack}>
+          <Icon name="chevron-left" />
+          <span>后退</span>
+        </button>
+        <button type="button" id="player-history-forward" aria-label="前进" onClick={goForward}>
+          <span>前进</span>
+          <Icon name="chevron-right" />
+        </button>
+      </div>
       <button
         type="button"
         className="react-player-button react-menu-button"
