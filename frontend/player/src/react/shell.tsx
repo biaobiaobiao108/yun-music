@@ -207,7 +207,6 @@ function Sidebar() {
                 </button>
               )
             })}
-            <p className="react-sidebar-label">我的音乐</p>
             {SIDEBAR_MY_MUSIC_ITEMS.map(item => {
               const isActive = activeTab === item.id
               return (
@@ -223,6 +222,30 @@ function Sidebar() {
                 </button>
               )
             })}
+            {SIDEBAR_LIBRARY_ITEMS.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`}
+                aria-current={activeTab === item.id ? 'page' : undefined}
+                onClick={() => setTab(item.id)}
+              >
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+            {SIDEBAR_DISCOVERY_ITEMS.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`}
+                aria-current={activeTab === item.id ? 'page' : undefined}
+                onClick={() => setTab(item.id)}
+              >
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+              </button>
+            ))}
             <div className="react-sidebar-playlists-heading">
               <p className="react-sidebar-label">我的歌单</p>
               <button
@@ -275,32 +298,6 @@ function Sidebar() {
                 </button>
               )}
             </div>
-            <p className="react-sidebar-label react-sidebar-more-label">资料库</p>
-            {SIDEBAR_LIBRARY_ITEMS.map(item => (
-              <button
-                type="button"
-                key={item.id}
-                className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`}
-                aria-current={activeTab === item.id ? 'page' : undefined}
-                onClick={() => setTab(item.id)}
-              >
-                <Icon name={item.icon} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-            <p className="react-sidebar-label react-sidebar-more-label">发现</p>
-            {SIDEBAR_DISCOVERY_ITEMS.map(item => (
-              <button
-                type="button"
-                key={item.id}
-                className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`}
-                aria-current={activeTab === item.id ? 'page' : undefined}
-                onClick={() => setTab(item.id)}
-              >
-                <Icon name={item.icon} />
-                <span>{item.label}</span>
-              </button>
-            ))}
             <p className="react-sidebar-label react-sidebar-more-label">工具与设置</p>
             <button type="button" className="netease-nav-item" onClick={() => setDrawer('cache')}>
               <Icon name="cloud-arrow-down" />
