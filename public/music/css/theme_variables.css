@@ -40,6 +40,21 @@
     --logo-filter: none;
 }
 
+:root[data-appearance="dark"] {
+    color-scheme: dark;
+    --bg-main: var(--app-bg, #171719);
+    --bg-panel: var(--app-surface-solid, #232326);
+    --bg-item-hover: var(--app-surface-soft, #29292d);
+    --bg-header: rgba(28, 28, 31, .92);
+    --bg-glass: rgba(35, 35, 38, .82);
+    --text-main: var(--app-text, #f2f2f4);
+    --text-muted: var(--app-text-muted, #b0b0b7);
+    --text-dim: var(--app-text-dim, #888890);
+    --border-main: #39393e;
+    --border-dim: #4a4a50;
+    --shadow-main: 0 10px 30px 0 rgb(0 0 0 / .3), 0 2px 5px 0 rgb(0 0 0 / .2);
+}
+
 /* Fixed Apple Music-inspired red palette; stored legacy accent values are ignored. */
 :root {
     --c-50: #fff1f2;
