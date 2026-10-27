@@ -1489,6 +1489,86 @@ function RhythmLyrics({
   )
 }
 
+function ScrollingLyrics({
+  lines,
+  loading,
+  error,
+  showTranslation,
+  showRoma,
+  seek,
+}: {
+  lines: LyricLine[]
+  loading: boolean
+  error: string
+  showTranslation: boolean
+  showRoma: boolean
+  seek: (time: number) => void
+}) {
+  const currentTime = usePlaybackStore(state => state.currentTime)
+  const activeIndex = findActiveLyricIndex(lines, currentTime)
+  const listRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const list = listRef.current
+    const active = list?.querySelector<HTMLElement>('[aria-current="true"]')
+    if (!list || !active) return
+    const center = (smooth: boolean) => {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      list.scrollTo({
+        top: active.offsetTop - list.offsetTop - (list.clientHeight - active.offsetHeight) / 2,
+        behavior: smooth && !reduced ? 'smooth' : 'auto',
+      })
+    }
+    center(true)
+    let width = list.clientWidth
+    let height = list.clientHeight
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            if (width === list.clientWidth && height === list.clientHeight) return
+            width = list.clientWidth
+            height = list.clientHeight
+            center(false)
+          })
+    observer?.observe(list)
+    return () => observer?.disconnect()
+  }, [activeIndex, lines])
+
+  return (
+    <div className="react-immersive-lyrics-grid">
+      <section ref={listRef} className="react-immersive-lyrics-list react-scrolling-lyrics" aria-label="滚动歌词">
+        {loading ? (
+          <Loading label="正在加载歌词…" />
+        ) : error ? (
+          <p className="react-error" role="alert">
+            {error}
+          </p>
+        ) : lines.length ? (
+          lines.map((line, index) => (
+            <button
+              key={`${line.time}-${index}`}
+              type="button"
+              className={index === activeIndex ? 'is-active' : ''}
+              aria-current={index === activeIndex ? 'true' : undefined}
+              onClick={() => seek(line.time)}
+            >
+              <span>{line.text}</span>
+              {showTranslation && line.translation && <small>{line.translation}</small>}
+              {showRoma && line.roma && <small>{line.roma}</small>}
+            </button>
+          ))
+        ) : (
+          <div className="react-empty">
+            <Icon name="file-lines" />
+            <p>暂无歌词</p>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
 export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose, onClosed }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
   const seek = usePlaybackStore(state => state.seek)
@@ -1501,6 +1581,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const lastFocus = useRef<HTMLElement | null>(null)
   const closeTimer = useRef<number | null>(null)
   const [isClosing, setIsClosing] = useState(false)
+  const [lyricMode, setLyricMode] = useState<'rhythm' | 'scroll'>('rhythm')
   useEffect(() => {
     if (open) void load(song)
   }, [load, open, song])
@@ -1623,16 +1704,35 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
           >
             <Icon name="chevron-down" />
           </button>
+          <div className="react-lyrics-mode" role="group" aria-label="歌词显示模式">
+            <button type="button" aria-pressed={lyricMode === 'rhythm'} onClick={() => setLyricMode('rhythm')}>
+              律动
+            </button>
+            <button type="button" aria-pressed={lyricMode === 'scroll'} onClick={() => setLyricMode('scroll')}>
+              滚动
+            </button>
+          </div>
         </header>
-        <RhythmLyrics
-          open={open}
-          lines={lines}
-          loading={loading}
-          error={error}
-          showTranslation={Boolean(settings.showLyricTranslation)}
-          showRoma={Boolean(settings.showLyricRoma)}
-          seek={seek}
-        />
+        {lyricMode === 'rhythm' ? (
+          <RhythmLyrics
+            open={open}
+            lines={lines}
+            loading={loading}
+            error={error}
+            showTranslation={Boolean(settings.showLyricTranslation)}
+            showRoma={Boolean(settings.showLyricRoma)}
+            seek={seek}
+          />
+        ) : (
+          <ScrollingLyrics
+            lines={lines}
+            loading={loading}
+            error={error}
+            showTranslation={Boolean(settings.showLyricTranslation)}
+            showRoma={Boolean(settings.showLyricRoma)}
+            seek={seek}
+          />
+        )}
         <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
       </div>
     </dialog>

@@ -16467,6 +16467,67 @@ body,
     color: rgb(255 255 255 / 75%);
 }
 
+.react-lyrics-mode {
+    position: absolute;
+    inset: 0 0 auto auto;
+    display: flex;
+    gap: 0.2rem;
+    pointer-events: auto;
+}
+
+.react-lyrics-mode button {
+    padding: 0.5rem 0.8rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: rgb(255 255 255 / 65%);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.react-lyrics-mode button:hover,
+.react-lyrics-mode button[aria-pressed="true"] {
+    background: rgb(255 255 255 / 16%);
+    color: white;
+}
+
+.react-immersive-lyrics .react-immersive-lyrics-grid > .react-scrolling-lyrics {
+    display: block !important;
+    padding: 45vh 1rem !important;
+    overflow-y: auto !important;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+}
+
+.react-immersive-lyrics-grid > .react-scrolling-lyrics > button,
+.react-immersive-lyrics-grid > .react-scrolling-lyrics > button.is-active,
+.react-immersive-lyrics-grid > .react-scrolling-lyrics > button.is-active + button {
+    padding: 0.9rem 0.5rem;
+    color: rgb(255 255 255 / 48%) !important;
+    font-size: clamp(1.1rem, 1.6vw, 1.5rem);
+    font-weight: 500;
+    letter-spacing: normal;
+    line-height: 1.5;
+    opacity: 1;
+    transform: none;
+    overflow-wrap: anywhere;
+}
+
+.react-immersive-lyrics-grid > .react-scrolling-lyrics > button.is-active {
+    color: white !important;
+    font-weight: 700;
+}
+
+.react-immersive-lyrics-grid > .react-scrolling-lyrics > button small,
+.react-immersive-lyrics-grid > .react-scrolling-lyrics > button.is-active small {
+    color: rgb(255 255 255 / 55%) !important;
+    font-size: 0.7em;
+}
+
+.react-immersive-lyrics-grid > .react-scrolling-lyrics > button:hover {
+    color: white !important;
+}
+
 .react-immersive-lyrics-grid > .react-immersive-lyrics-list {
     display: flex !important;
     flex-direction: column;
