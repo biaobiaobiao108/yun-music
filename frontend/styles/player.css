@@ -8504,7 +8504,9 @@ textarea:focus-visible {
     position: fixed;
     z-index: 240;
     display: block;
+    width: 13.5rem;
     max-width: calc(100vw - 1.25rem);
+    box-sizing: border-box;
     padding: 0.42rem;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--app-border-strong) 84%, transparent);

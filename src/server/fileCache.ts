@@ -1442,337 +1442,345 @@ const sanitize = (str: any) => String(str || '').replace(/[\\/:*?"<>|]/g, '_')
  */
 export const syncCacheIndex = async (username?: string, roots: Array<'cache' | 'music'> = ['cache', 'music']) => {
   const normalizedUsername = normalizeCacheUsername(username)
-  const location = currentCacheLocation
   const extensions = ['.mp3', '.flac', '.m4a', '.ogg', '.wav']
 
-  for (const folder of roots) {
-    const index = indexManager.load(normalizedUsername, folder, location)
+  for (const location of getCacheLocations()) {
+    for (const folder of roots) {
+      const index = indexManager.load(normalizedUsername, folder, location)
 
-    const existingKeysInIndex = new Set(index.keys())
+      const existingKeysInIndex = new Set(index.keys())
 
-    // Pre-build a filename to Item map within this folder for fast lookup
-    const filenameToItemMap = new Map<string, { key: string; item: CacheItem }>()
-    for (const [key, item] of index.entries()) {
-      filenameToItemMap.set(item.filename, { key, item })
-    }
-    const dir = getCacheDir(normalizedUsername, folder === 'music', location)
-    if (!fs.existsSync(dir)) continue
+      // Pre-build a filename to Item map within this folder for fast lookup
+      const filenameToItemMap = new Map<string, { key: string; item: CacheItem }>()
+      for (const [key, item] of index.entries()) {
+        filenameToItemMap.set(item.filename, { key, item })
+      }
+      const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+      if (!fs.existsSync(dir)) continue
 
-    for await (const discoveredPath of walkCacheFilesAsync(dir)) {
-      const file = path.relative(dir, discoveredPath).replace(/\\/g, '/')
-      if (file === 'cache_index.json' || file === 'music_index.json') continue
-      const ext = path.extname(file).toLowerCase()
-      if (!extensions.includes(ext)) continue
+      for await (const discoveredPath of walkCacheFilesAsync(dir)) {
+        const file = path.relative(dir, discoveredPath).replace(/\\/g, '/')
+        if (file === 'cache_index.json' || file === 'music_index.json') continue
+        const ext = path.extname(file).toLowerCase()
+        if (!extensions.includes(ext)) continue
 
-      const filePath = resolveCacheRelativePath(dir, file)
-      if (!filePath) continue
-      const stats = await fs.promises.lstat(filePath)
-      if (stats.isSymbolicLink() || !stats.isFile()) continue
+        const filePath = resolveCacheRelativePath(dir, file)
+        if (!filePath) continue
+        const stats = await fs.promises.lstat(filePath)
+        if (stats.isSymbolicLink() || !stats.isFile()) continue
 
-      // Try to find if this file is already known in index by its filename
-      let existingEntry = filenameToItemMap.get(file)
-      let existing = existingEntry?.item
-      let oldKey = existingEntry?.key
-      const originalItemId = existing?.id
-      const originalItemQuality = existing?.quality
-      let itemChanged = false
+        // Try to find if this file is already known in index by its filename
+        let existingEntry = filenameToItemMap.get(file)
+        let existing = existingEntry?.item
+        let oldKey = existingEntry?.key
+        const originalItemId = existing?.id
+        const originalItemQuality = existing?.quality
+        let itemChanged = false
 
-      let songId = existing?.id || ''
-      let songName = existing?.name || ''
-      let singer = existing?.singer || ''
-      let source = existing?.source || ''
-      let quality = existing?.quality || ''
-      let albumName = existing?.albumName || ''
-      let hasCover = existing?.hasCover || false
+        let songId = existing?.id || ''
+        let songName = existing?.name || ''
+        let singer = existing?.singer || ''
+        let source = existing?.source || ''
+        let quality = existing?.quality || ''
+        let albumName = existing?.albumName || ''
+        let hasCover = existing?.hasCover || false
 
-      // subPath calculation: the directory part of the relative path
-      const subPath = path.dirname(file) === '.' ? '' : path.dirname(file).replace(/\\/g, '/')
-      const fileNameOnly = path.basename(file)
+        // subPath calculation: the directory part of the relative path
+        const subPath = path.dirname(file) === '.' ? '' : path.dirname(file).replace(/\\/g, '/')
+        const fileNameOnly = path.basename(file)
 
-      const nameWithoutExt = path.basename(fileNameOnly, ext)
+        const nameWithoutExt = path.basename(fileNameOnly, ext)
 
-      if (!existing) {
-        // Not found by filename, try to parse from standard format
-        const segments = nameWithoutExt.split('_-_')
-        if (segments.length >= 5) {
-          songName = segments[0]
-          singer = segments[1]
-          source = segments[2]
-          songId = segments[3]
-          quality = segments[4]
-        } else {
-          // Try simple pattern: Name - Singer - Quality - Album
-          const segmentsShort = nameWithoutExt.split(' - ')
-          if (segmentsShort.length >= 2) {
-            songName = segmentsShort[0]
-            singer = segmentsShort[1]
-            quality = segmentsShort[2] || 'unknown'
-            albumName = segmentsShort.slice(3).join(' - ')
-            songId = nameWithoutExt // Fallback ID for unknown files
+        if (!existing) {
+          // Not found by filename, try to parse from standard format
+          const segments = nameWithoutExt.split('_-_')
+          if (segments.length >= 5) {
+            songName = segments[0]
+            singer = segments[1]
+            source = segments[2]
+            songId = segments[3]
+            quality = segments[4]
           } else {
-            // Fallback for completely unknown filenames (e.g. download_4.mp3)
-            songId = nameWithoutExt
-            source = 'unknown'
-            quality = 'unknown'
-          }
-        }
-      }
-
-      if (!songId) continue
-      // Normalize ID
-      const normalizedId = songId.includes('_') ? songId : `${source || 'unknown'}_${songId}`
-
-      // Always check for a companion lyric file. Use the actual filename
-      // so legacy `.LRC` files and nested download folders are repaired too.
-      const companionLyric = findCompanionLyricFile(dir, file)
-      const lrcFile = companionLyric?.filename
-      const hasLyricOnDisk = !!companionLyric
-      let lyricSize = 0
-      if (companionLyric) {
-        try {
-          const lyricStats = await fs.promises.stat(companionLyric.path)
-          if (lyricStats.isFile()) lyricSize = lyricStats.size
-        } catch {}
-      }
-
-      let finalQuality = quality || 'unknown'
-
-      const needsCoverCheck =
-        !existing ||
-        existing.coverCheckedVersion !== COVER_CHECK_VERSION ||
-        existing.coverCheckedMtime !== stats.mtimeMs ||
-        existing.coverCheckedSize !== stats.size ||
-        existing.hasCover === undefined ||
-        (existing.coverType === 'cached' && !hasCachedCover(file, normalizedUsername, stats))
-      const currentAudioContainer = existing?.audioContainer || detectAudioContainer(filePath)
-      const qualityCorrectionNeeded = !!existing && needsQualityCorrection(existing.quality, currentAudioContainer)
-
-      // Update or add to index if anything changed (size, mtime, lyric status, or cover status)
-      if (
-        !existing ||
-        existing.size !== stats.size ||
-        existing.hasLyric !== hasLyricOnDisk ||
-        existing.lyricFilename !== lrcFile ||
-        existing.lyricSize !== lyricSize ||
-        existing.subPath !== subPath ||
-        needsCoverCheck ||
-        !existing.interval ||
-        existing.quality === 'unknown' ||
-        !existing.bitrate ||
-        qualityCorrectionNeeded
-      ) {
-        itemChanged = true
-        if (existing) {
-          existing.size = stats.size
-          existing.mtime = stats.mtimeMs
-          existing.hasLyric = hasLyricOnDisk
-          existing.lyricFilename = lrcFile
-          existing.lyricSize = lyricSize
-
-          if (existing.subPath !== subPath) {
-            existing.subPath = subPath
-          }
-
-          if (needsCoverCheck) {
-            const hasEmbeddedCover = readEmbeddedCoverState(filePath)
-            const hasExternalCover = !hasEmbeddedCover && hasCachedCover(file, normalizedUsername, stats)
-            const coverType: CacheItem['coverType'] = hasEmbeddedCover
-              ? 'embedded'
-              : hasExternalCover
-                ? 'cached'
-                : hasUsableRemoteCover(existing.img)
-                  ? 'remote'
-                  : 'none'
-            const actualHasCover = coverType !== 'none'
-            existing.hasCover = actualHasCover
-            existing.coverType = coverType
-            existing.coverCheckedVersion = COVER_CHECK_VERSION
-            existing.coverCheckedMtime = stats.mtimeMs
-            existing.coverCheckedSize = stats.size
-          }
-
-          // If interval or quality/bitrate is missing/unknown, or hasEmbedLyric not yet detected, try to extract it
-          if (
-            !existing.interval ||
-            existing.quality === 'unknown' ||
-            !existing.bitrate ||
-            existing.hasEmbedLyric === undefined ||
-            existing.metadataWritable === undefined ||
-            qualityCorrectionNeeded
-          ) {
-            let tagger: any
-            try {
-              tagger = new (getMusicTagNative().MusicTagger)()
-              tagger.loadPath(filePath)
-              const dur = tagger.duration
-              if (dur && !existing.interval) existing.interval = formatPlayTime(dur / 1000)
-              existing.bitrate = tagger.bitRate
-              existing.sampleRate = tagger.sampleRate
-              existing.bitDepth = tagger.bitDepth
-              if (!existing.quality || existing.quality === 'unknown' || qualityCorrectionNeeded) {
-                const detectedQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
-                existing.quality = resolveInspectedQuality(
-                  existing.quality,
-                  detectedQuality,
-                  currentAudioContainer,
-                  tagger,
-                )
-              }
-              // [新增] 检测是否已嵌入歌词 USLT 标签
-              if (existing.hasEmbedLyric === undefined) {
-                const lyricsInTag = tagger.lyrics
-                existing.hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
-              }
-              existing.audioContainer = currentAudioContainer
-              existing.metadataWritable = true
-              existing.metadataError = undefined
-            } catch (e: any) {
-              existing.audioContainer = currentAudioContainer
-              existing.metadataWritable = false
-              existing.metadataError = getMetadataUnsupportedMessage(existing.audioContainer)
-              existing.hasEmbedLyric = false
-            } finally {
-              try {
-                if (tagger) tagger.dispose()
-              } catch (e) {}
+            // Try simple pattern: Name - Singer - Quality - Album
+            const segmentsShort = nameWithoutExt.split(' - ')
+            if (segmentsShort.length >= 2) {
+              songName = segmentsShort[0]
+              singer = segmentsShort[1]
+              quality = segmentsShort[2] || 'unknown'
+              albumName = segmentsShort.slice(3).join(' - ')
+              songId = nameWithoutExt // Fallback ID for unknown files
+            } else {
+              // Fallback for completely unknown filenames (e.g. download_4.mp3)
+              songId = nameWithoutExt
+              source = 'unknown'
+              quality = 'unknown'
             }
           }
-          finalQuality = existing.quality
-        } else {
-          // (New file logic remains same but uses hasLyricOnDisk)
-          let interval = ''
-          let bitrate: number | undefined
-          let sampleRate: number | undefined
-          let bitDepth: number | undefined
-          let hasEmbedLyric = false
-          let metadataWritable = false
-          let metadataError: string | undefined
-          const audioContainer = detectAudioContainer(filePath)
+        }
 
+        if (!songId) continue
+        // Normalize ID
+        const normalizedId = songId.includes('_') ? songId : `${source || 'unknown'}_${songId}`
+
+        // Always check for a companion lyric file. Use the actual filename
+        // so legacy `.LRC` files and nested download folders are repaired too.
+        const companionLyric = findCompanionLyricFile(dir, file)
+        const lrcFile = companionLyric?.filename
+        const hasLyricOnDisk = !!companionLyric
+        let lyricSize = 0
+        if (companionLyric) {
           try {
-            const tagger = new (getMusicTagNative().MusicTagger)()
-            tagger.loadPath(filePath)
-            if (tagger.title && !songName) songName = tagger.title
-            if (tagger.artist && !singer) singer = tagger.artist
-            if (tagger.album && !albumName) albumName = tagger.album
-            if (hasValidEmbeddedCover(tagger.pictures)) hasCover = true
-
-            const dur = tagger.duration
-            interval = dur ? formatPlayTime(dur / 1000) : ''
-
-            bitrate = tagger.bitRate
-            sampleRate = tagger.sampleRate
-            bitDepth = tagger.bitDepth
-            finalQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
-
-            // [新增] 检测是否已嵌入歌词 USLT 标签
-            const lyricsInTag = tagger.lyrics
-            hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
-            metadataWritable = true
-
-            tagger.dispose()
-          } catch (e: any) {
-            metadataError = getMetadataUnsupportedMessage(audioContainer)
-          }
-          const hasExternalCover = !hasCover && hasCachedCover(file, normalizedUsername, stats)
-          if (hasExternalCover) hasCover = true
-          const coverType: CacheItem['coverType'] =
-            hasCover && !hasExternalCover ? 'embedded' : hasExternalCover ? 'cached' : 'none'
-          hasCover = coverType !== 'none'
-
-          const item: CacheItem = {
-            id: normalizedId,
-            songmid: normalizedId,
-            name: songName || nameWithoutExt || 'Unknown',
-            singer: singer || 'Unknown',
-            albumName: albumName || '',
-            albumId: '',
-            img: '',
-            interval: interval,
-            source: source || 'unknown',
-            quality: finalQuality as any,
-            filename: file,
-            folder: folder as any,
-            subPath,
-            mtime: stats.mtimeMs,
-            size: stats.size,
-            lyricFilename: lrcFile,
-            lyricSize,
-            ext: ext.replace('.', ''),
-            hasCover: hasCover,
-            coverType,
-            hasLyric: hasLyricOnDisk,
-            hasEmbedLyric,
-            audioContainer,
-            metadataWritable,
-            metadataError,
-            coverCheckedVersion: COVER_CHECK_VERSION,
-            coverCheckedMtime: stats.mtimeMs,
-            coverCheckedSize: stats.size,
-            bitrate: bitrate,
-            sampleRate: sampleRate,
-            bitDepth: bitDepth,
-          }
-          existing = item
+            const lyricStats = await fs.promises.stat(companionLyric.path)
+            if (lyricStats.isFile()) lyricSize = lyricStats.size
+          } catch {}
         }
-      }
 
-      const compositeKey = `${normalizedId}_${finalQuality || 'unknown'}`
-      if (oldKey) existingKeysInIndex.delete(oldKey)
+        let finalQuality = quality || 'unknown'
 
-      if (oldKey && oldKey !== compositeKey) {
-        index.delete(oldKey)
-        index.set(compositeKey, existing!)
-      } else if (!oldKey) {
-        index.set(compositeKey, existing!)
-      }
+        const needsCoverCheck =
+          !existing ||
+          existing.coverCheckedVersion !== COVER_CHECK_VERSION ||
+          existing.coverCheckedMtime !== stats.mtimeMs ||
+          existing.coverCheckedSize !== stats.size ||
+          existing.hasCover === undefined ||
+          (existing.coverType === 'cached' && !hasCachedCover(file, normalizedUsername, stats))
+        const currentAudioContainer = existing?.audioContainer || detectAudioContainer(filePath)
+        const qualityCorrectionNeeded = !!existing && needsQualityCorrection(existing.quality, currentAudioContainer)
 
-      // The SQLite-backed index does not persist the in-memory Map from
-      // `load()`. Write each changed item explicitly so disk discovery
-      // repairs lyric/cover flags in the actual database.
-      if (itemChanged && existing) {
-        if (oldKey && oldKey !== compositeKey && originalItemId && originalItemQuality) {
-          indexManager.remove(normalizedUsername, originalItemId, folder, originalItemQuality, location)
+        // Update or add to index if anything changed (size, mtime, lyric status, or cover status)
+        if (
+          !existing ||
+          existing.size !== stats.size ||
+          existing.hasLyric !== hasLyricOnDisk ||
+          existing.lyricFilename !== lrcFile ||
+          existing.lyricSize !== lyricSize ||
+          existing.subPath !== subPath ||
+          needsCoverCheck ||
+          !existing.interval ||
+          existing.quality === 'unknown' ||
+          !existing.bitrate ||
+          qualityCorrectionNeeded
+        ) {
+          itemChanged = true
+          if (existing) {
+            existing.size = stats.size
+            existing.mtime = stats.mtimeMs
+            existing.hasLyric = hasLyricOnDisk
+            existing.lyricFilename = lrcFile
+            existing.lyricSize = lyricSize
+
+            if (existing.subPath !== subPath) {
+              existing.subPath = subPath
+            }
+
+            if (needsCoverCheck) {
+              const hasEmbeddedCover = readEmbeddedCoverState(filePath)
+              const hasExternalCover = !hasEmbeddedCover && hasCachedCover(file, normalizedUsername, stats)
+              const coverType: CacheItem['coverType'] = hasEmbeddedCover
+                ? 'embedded'
+                : hasExternalCover
+                  ? 'cached'
+                  : hasUsableRemoteCover(existing.img)
+                    ? 'remote'
+                    : 'none'
+              const actualHasCover = coverType !== 'none'
+              existing.hasCover = actualHasCover
+              existing.coverType = coverType
+              existing.coverCheckedVersion = COVER_CHECK_VERSION
+              existing.coverCheckedMtime = stats.mtimeMs
+              existing.coverCheckedSize = stats.size
+            }
+
+            // If interval or quality/bitrate is missing/unknown, or hasEmbedLyric not yet detected, try to extract it
+            if (
+              !existing.interval ||
+              existing.quality === 'unknown' ||
+              !existing.bitrate ||
+              existing.hasEmbedLyric === undefined ||
+              existing.metadataWritable === undefined ||
+              qualityCorrectionNeeded
+            ) {
+              let tagger: any
+              try {
+                tagger = new (getMusicTagNative().MusicTagger)()
+                tagger.loadPath(filePath)
+                const dur = tagger.duration
+                if (dur && !existing.interval) existing.interval = formatPlayTime(dur / 1000)
+                existing.bitrate = tagger.bitRate
+                existing.sampleRate = tagger.sampleRate
+                existing.bitDepth = tagger.bitDepth
+                if (!existing.quality || existing.quality === 'unknown' || qualityCorrectionNeeded) {
+                  const detectedQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
+                  existing.quality = resolveInspectedQuality(
+                    existing.quality,
+                    detectedQuality,
+                    currentAudioContainer,
+                    tagger,
+                  )
+                }
+                // [新增] 检测是否已嵌入歌词 USLT 标签
+                if (existing.hasEmbedLyric === undefined) {
+                  const lyricsInTag = tagger.lyrics
+                  existing.hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
+                }
+                existing.audioContainer = currentAudioContainer
+                existing.metadataWritable = true
+                existing.metadataError = undefined
+              } catch (e: any) {
+                existing.audioContainer = currentAudioContainer
+                existing.metadataWritable = false
+                existing.metadataError = getMetadataUnsupportedMessage(existing.audioContainer)
+                existing.hasEmbedLyric = false
+              } finally {
+                try {
+                  if (tagger) tagger.dispose()
+                } catch (e) {}
+              }
+            }
+            finalQuality = existing.quality
+          } else {
+            // (New file logic remains same but uses hasLyricOnDisk)
+            let interval = ''
+            let bitrate: number | undefined
+            let sampleRate: number | undefined
+            let bitDepth: number | undefined
+            let hasEmbedLyric = false
+            let metadataWritable = false
+            let metadataError: string | undefined
+            const audioContainer = detectAudioContainer(filePath)
+
+            try {
+              const tagger = new (getMusicTagNative().MusicTagger)()
+              tagger.loadPath(filePath)
+              if (tagger.title && !songName) songName = tagger.title
+              if (tagger.artist && !singer) singer = tagger.artist
+              if (tagger.album && !albumName) albumName = tagger.album
+              if (hasValidEmbeddedCover(tagger.pictures)) hasCover = true
+
+              const dur = tagger.duration
+              interval = dur ? formatPlayTime(dur / 1000) : ''
+
+              bitrate = tagger.bitRate
+              sampleRate = tagger.sampleRate
+              bitDepth = tagger.bitDepth
+              finalQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
+
+              // [新增] 检测是否已嵌入歌词 USLT 标签
+              const lyricsInTag = tagger.lyrics
+              hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
+              metadataWritable = true
+
+              tagger.dispose()
+            } catch (e: any) {
+              metadataError = getMetadataUnsupportedMessage(audioContainer)
+            }
+            const hasExternalCover = !hasCover && hasCachedCover(file, normalizedUsername, stats)
+            if (hasExternalCover) hasCover = true
+            const coverType: CacheItem['coverType'] =
+              hasCover && !hasExternalCover ? 'embedded' : hasExternalCover ? 'cached' : 'none'
+            hasCover = coverType !== 'none'
+
+            const item: CacheItem = {
+              id: normalizedId,
+              songmid: normalizedId,
+              name: songName || nameWithoutExt || 'Unknown',
+              singer: singer || 'Unknown',
+              albumName: albumName || '',
+              albumId: '',
+              img: '',
+              interval: interval,
+              source: source || 'unknown',
+              quality: finalQuality as any,
+              filename: file,
+              folder: folder as any,
+              subPath,
+              mtime: stats.mtimeMs,
+              size: stats.size,
+              lyricFilename: lrcFile,
+              lyricSize,
+              ext: ext.replace('.', ''),
+              hasCover: hasCover,
+              coverType,
+              hasLyric: hasLyricOnDisk,
+              hasEmbedLyric,
+              audioContainer,
+              metadataWritable,
+              metadataError,
+              coverCheckedVersion: COVER_CHECK_VERSION,
+              coverCheckedMtime: stats.mtimeMs,
+              coverCheckedSize: stats.size,
+              bitrate: bitrate,
+              sampleRate: sampleRate,
+              bitDepth: bitDepth,
+            }
+            existing = item
+          }
         }
-        indexManager.update(normalizedUsername, existing, folder, location)
+
+        const compositeKey = `${normalizedId}_${finalQuality || 'unknown'}`
+        if (oldKey) existingKeysInIndex.delete(oldKey)
+
+        if (oldKey && oldKey !== compositeKey) {
+          index.delete(oldKey)
+          index.set(compositeKey, existing!)
+        } else if (!oldKey) {
+          index.set(compositeKey, existing!)
+        }
+
+        // The SQLite-backed index does not persist the in-memory Map from
+        // `load()`. Write each changed item explicitly so disk discovery
+        // repairs lyric/cover flags in the actual database.
+        if (itemChanged && existing) {
+          if (oldKey && oldKey !== compositeKey && originalItemId && originalItemQuality) {
+            indexManager.remove(normalizedUsername, originalItemId, folder, originalItemQuality, location)
+          }
+          indexManager.update(normalizedUsername, existing, folder, location)
+        }
+
+        // Yield control back to Node.js event loop
+        await new Promise(resolve => setImmediate(resolve))
       }
 
-      // Yield control back to Node.js event loop
-      await new Promise(resolve => setImmediate(resolve))
+      // Remove deleted files from index
+      for (const key of existingKeysInIndex) {
+        const staleItem = index.get(key)
+        if (staleItem) {
+          // A download can install this key after the disk walk took its
+          // snapshot. Re-read the index and keep the new row when its file is
+          // already present; otherwise this stale pass can erase a fresh item.
+          const latestItem = indexManager.get(
+            normalizedUsername,
+            staleItem.id,
+            folder,
+            staleItem.quality,
+            true,
+            location,
+          )
+          const latestPath = latestItem ? resolveCacheRelativePath(dir, latestItem.filename) : null
+          let latestFileExists = false
+          if (latestPath) {
+            try {
+              const latestStats = await fs.promises.stat(latestPath)
+              latestFileExists = latestStats.isFile() && latestStats.size > 0
+            } catch {
+              latestFileExists = false
+            }
+          }
+          if (latestItem && latestFileExists) {
+            index.set(key, latestItem)
+            continue
+          }
+          indexManager.remove(normalizedUsername, staleItem.id, folder, staleItem.quality, location)
+        }
+        index.delete(key)
+      }
     }
 
-    // Remove deleted files from index
-    for (const key of existingKeysInIndex) {
-      const staleItem = index.get(key)
-      if (staleItem) {
-        // A download can install this key after the disk walk took its
-        // snapshot. Re-read the index and keep the new row when its file is
-        // already present; otherwise this stale pass can erase a fresh item.
-        const latestItem = indexManager.get(normalizedUsername, staleItem.id, folder, staleItem.quality, true, location)
-        const latestPath = latestItem ? resolveCacheRelativePath(dir, latestItem.filename) : null
-        let latestFileExists = false
-        if (latestPath) {
-          try {
-            const latestStats = await fs.promises.stat(latestPath)
-            latestFileExists = latestStats.isFile() && latestStats.size > 0
-          } catch {
-            latestFileExists = false
-          }
-        }
-        if (latestItem && latestFileExists) {
-          index.set(key, latestItem)
-          continue
-        }
-        indexManager.remove(normalizedUsername, staleItem.id, folder, staleItem.quality, location)
-      }
-      index.delete(key)
-    }
+    const syncKey = `${location}:${normalizedUsername}`
+    const syncState = cacheListSyncState.get(syncKey) || { lastSync: 0 }
+    syncState.lastSync = Date.now()
+    cacheListSyncState.set(syncKey, syncState)
   }
-
-  const syncKey = `${location}:${normalizedUsername}`
-  const syncState = cacheListSyncState.get(syncKey) || { lastSync: 0 }
-  syncState.lastSync = Date.now()
-  cacheListSyncState.set(syncKey, syncState)
 }
 
 /**
@@ -4352,7 +4360,17 @@ export const checkAndCleanupCache = async (username?: string) => {
     }
 
     // 没有索引的历史文件也要纳入清理，并按从未播放处理。
+    // 同时清理已超时的孤儿临时文件 (.tmp)。
     for (const filePath of getCacheFilesRecursively(dir)) {
+      if (filePath.endsWith('.tmp')) {
+        try {
+          const fileStat = fs.statSync(filePath)
+          if (Date.now() - fileStat.mtime.getTime() > 3600_000) {
+            fs.unlinkSync(filePath)
+          }
+        } catch {}
+        continue
+      }
       if (indexedFiles.has(filePath)) continue
       if (!CACHE_SIZE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue
       try {

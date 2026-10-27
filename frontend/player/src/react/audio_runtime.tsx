@@ -374,12 +374,9 @@ export function AudioRuntime() {
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
     const duration = state.duration
-    const currentUrl = typeof state.currentSong?.url === 'string' ? state.currentSong.url : ''
-    const hasServerCacheUrl = Boolean(currentUrl && parseCachePlaybackUrl(currentUrl))
     if (
       !settings.enablePreloader ||
       !state.currentSong ||
-      hasServerCacheUrl ||
       !Number.isFinite(duration) ||
       duration <= 0 ||
       state.currentTime / duration < 0.8
@@ -456,6 +453,19 @@ export function AudioRuntime() {
     let retryCancelled = false
     let retryController: AbortController | null = null
     connectAudioCommands({
+      prime: () => {
+        try {
+          if (!audio.src) {
+            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+          }
+          const p = audio.play()
+          if (p !== undefined) {
+            p.then(() => {
+              if (audio.src.startsWith('data:')) audio.pause()
+            }).catch(() => {})
+          }
+        } catch {}
+      },
       play: () => {
         const requestedSource = audio.currentSrc || audio.src
         if (!requestedSource || !currentSong) {
@@ -1009,14 +1019,25 @@ export function AudioRuntime() {
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
     const mediaSession = navigator.mediaSession
-    const setActionHandler = (action: MediaSessionAction, handler: (() => void) | null) => {
+    const setActionHandler = (
+      action: MediaSessionAction,
+      handler: ((details: MediaSessionActionDetails) => void) | null,
+    ) => {
       try {
         mediaSession.setActionHandler?.(action, handler)
       } catch {
         /* action is not supported by this browser */
       }
     }
-    const actions: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack']
+    const actions: MediaSessionAction[] = [
+      'play',
+      'pause',
+      'previoustrack',
+      'nexttrack',
+      'seekto',
+      'seekbackward',
+      'seekforward',
+    ]
     setActionHandler('play', () => {
       const state = usePlaybackStore.getState()
       if (!state.isPlaying) state.toggle()
@@ -1027,6 +1048,21 @@ export function AudioRuntime() {
     })
     setActionHandler('previoustrack', () => usePlaybackStore.getState().previous())
     setActionHandler('nexttrack', () => usePlaybackStore.getState().next())
+    setActionHandler('seekto', (details: any) => {
+      if (typeof details?.seekTime === 'number' && Number.isFinite(details.seekTime)) {
+        usePlaybackStore.getState().seek(details.seekTime)
+      }
+    })
+    setActionHandler('seekbackward', (details: any) => {
+      const offset = typeof details?.seekOffset === 'number' && details.seekOffset > 0 ? details.seekOffset : 10
+      const cur = audioRef.current?.currentTime || 0
+      usePlaybackStore.getState().seek(Math.max(0, cur - offset))
+    })
+    setActionHandler('seekforward', (details: any) => {
+      const offset = typeof details?.seekOffset === 'number' && details.seekOffset > 0 ? details.seekOffset : 10
+      const cur = audioRef.current?.currentTime || 0
+      usePlaybackStore.getState().seek(cur + offset)
+    })
     return () => actions.forEach(action => setActionHandler(action, null))
   }, [])
   useEffect(() => {

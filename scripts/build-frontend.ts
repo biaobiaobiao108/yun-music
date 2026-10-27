@@ -4,7 +4,7 @@ import fs from 'fs'
 const isWatch = process.argv.includes('--watch')
 const publicRoot = path.join(import.meta.dir, '../public')
 const publicMusicRoot = path.join(publicRoot, 'music')
-const STALE_ASSET_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+const STALE_ASSET_RETENTION_MS = 24 * 60 * 60 * 1000
 
 function isPastAssetRetention(filePath: string, now = Date.now()): boolean {
   try {
@@ -25,7 +25,7 @@ function cleanupStaleEntryBundles(directory: string, pattern: RegExp, keepName: 
   if (!fs.existsSync(directory)) return
   for (const filename of fs.readdirSync(directory)) {
     const filePath = path.join(directory, filename)
-    if (pattern.test(filename) && filename !== keepName && isPastAssetRetention(filePath)) {
+    if (pattern.test(filename) && filename !== keepName) {
       fs.rmSync(filePath, { force: true })
     }
   }

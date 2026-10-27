@@ -60,16 +60,20 @@ type PlaybackPersistHandle = number | ReturnType<typeof setTimeout>
 let pendingPlaybackState: PersistedPlaybackState | null = null
 let playbackPersistHandle: PlaybackPersistHandle | null = null
 
+let primeCommand: (() => void) | null = null
+
 export function connectAudioCommands(commands: {
   play: () => void
   pause: () => void
   seek: (time: number) => void
   volume: (volume: number) => void
+  prime?: () => void
 }): void {
   playCommand = commands.play
   pauseCommand = commands.pause
   seekCommand = commands.seek
   volumeCommand = commands.volume
+  primeCommand = commands.prime ?? null
 }
 
 export function pausePlaybackCommand(): void {
@@ -173,6 +177,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       queue.findIndex(item => songKey(item) === songKey(song)),
     ),
   ) => {
+    primeCommand?.()
     const nextQueue = queue.length ? queue : [song]
     const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song))
     const state = get()

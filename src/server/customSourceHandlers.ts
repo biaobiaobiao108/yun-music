@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { extractMetadata, loadUserApi, initUserApis, getApiStatus } from './userApi'
 import type { HttpContext } from './core'
+import { toUserMessage } from './core/context'
 import { verifyAdminAuth } from './auth'
 import { verifyUserAuth } from './routes/auth'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
@@ -286,7 +287,7 @@ export async function handleUpload(ctx: HttpContext): Promise<Response> {
     return ctx.json({ success: true, id, metadata, supportedSources, owner: targetOwner })
   } catch (err: any) {
     console.error('[CustomSource] Upload error:', err)
-    return ctx.json({ success: false, error: err.message }, 500)
+    return ctx.json({ success: false, error: toUserMessage(err, '上传音源失败，请稍后重试') }, 500)
   }
 }
 
@@ -661,7 +662,7 @@ export async function handleToggle(ctx: HttpContext): Promise<Response> {
     })
   } catch (err: any) {
     console.error('[CustomSource] Toggle error:', err)
-    return ctx.text(err.message, 500)
+    return ctx.fail(500, toUserMessage(err, '切换音源状态失败，请稍后重试'))
   }
 }
 
@@ -726,7 +727,7 @@ export async function handleReorder(ctx: HttpContext): Promise<Response> {
     })
   } catch (err: any) {
     console.error('[CustomSource] Reorder error:', err)
-    return ctx.text(err.message, 500)
+    return ctx.fail(500, toUserMessage(err, '音源排序保存失败，请稍后重试'))
   }
 }
 
@@ -841,7 +842,7 @@ export async function handleDelete(ctx: HttpContext): Promise<Response> {
     })
   } catch (err: any) {
     console.error('[CustomSource] Delete error:', err)
-    return ctx.text(err.message, 500)
+    return ctx.fail(500, toUserMessage(err, '删除音源失败，请稍后重试'))
   }
 }
 
@@ -962,6 +963,6 @@ export async function handleAssign(ctx: HttpContext): Promise<Response> {
     })
   } catch (err: any) {
     console.error('[CustomSource] Assign error:', err)
-    return ctx.text(err.message, 500)
+    return ctx.fail(500, toUserMessage(err, '转移音源归属失败，请稍后重试'))
   }
 }

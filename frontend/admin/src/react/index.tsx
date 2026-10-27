@@ -7,11 +7,11 @@ import { useAdminStore, type AdminView } from './store'
 
 applyThemePreferences(readThemePreferences())
 
-const ConfigView = lazy(() => import('./views').then(module => ({ default: module.ConfigView })))
+const ConfigView = lazy(() => import('./config-view').then(module => ({ default: module.ConfigView })))
 const DashboardView = lazy(() => import('./views').then(module => ({ default: module.DashboardView })))
 const LogsView = lazy(() => import('./views').then(module => ({ default: module.LogsView })))
 const SnapshotsView = lazy(() => import('./views').then(module => ({ default: module.SnapshotsView })))
-const StorageView = lazy(() => import('./views').then(module => ({ default: module.StorageView })))
+const StorageView = lazy(() => import('./storage-view').then(module => ({ default: module.StorageView })))
 const UsersView = lazy(() => import('./views').then(module => ({ default: module.UsersView })))
 const CustomSourcesView = lazy(() =>
   import('./custom-sources-view').then(module => ({ default: module.CustomSourcesView })),

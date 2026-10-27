@@ -34,8 +34,9 @@ export function SongActionsPopover({
     const panel = panelRef.current
     if (!anchor || !panel) return
     const anchorRect = anchor.getBoundingClientRect()
-    const width = panel.offsetWidth || 240
-    const height = panel.offsetHeight || 280
+    const rect = panel.getBoundingClientRect()
+    const width = rect.width || 216
+    const height = rect.height || 280
     const edge = 10
     const gap = 8
     let top = anchorRect.bottom + gap
@@ -45,7 +46,6 @@ export function SongActionsPopover({
     setPosition({
       top: Math.round(top),
       left: Math.round(left),
-      width: Math.min(width, window.innerWidth - edge * 2),
       visibility: 'visible',
     })
   }, [anchorRef])
@@ -55,6 +55,7 @@ export function SongActionsPopover({
       setPosition(null)
       return
     }
+    updatePosition()
     const frame = window.requestAnimationFrame(updatePosition)
     return () => window.cancelAnimationFrame(frame)
   }, [open, updatePosition])

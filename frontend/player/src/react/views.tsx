@@ -1216,9 +1216,11 @@ function lyricFocusClass(index: number, active: number): string {
 
 export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose, onClosed }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
-  const time = usePlaybackStore(state => (open ? state.currentTime : 0))
   const seek = usePlaybackStore(state => state.seek)
   const lines = useLyricStore(state => state.lines)
+  const active = usePlaybackStore(
+    useCallback(state => (open ? findActiveLyricIndex(lines, state.currentTime) : -1), [lines, open]),
+  )
   const loading = useLyricStore(state => state.loading)
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
@@ -1237,7 +1239,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   useEffect(() => {
     if (open) void load(song)
   }, [load, open, song])
-  const active = useMemo(() => (open ? findActiveLyricIndex(lines, time) : -1), [lines, open, time])
   const finishClose = useCallback(() => {
     const dialog = dialogRef.current
     if (!dialog) return

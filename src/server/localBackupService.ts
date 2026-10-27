@@ -5,6 +5,7 @@ import path from 'node:path'
 import { Transform } from 'node:stream'
 import { createDatabaseSnapshot, getDb, restoreDatabaseSnapshot } from '@/database'
 import { releaseDataOperation, tryAcquireDataOperation } from './dataOperationLock'
+import { releaseAll, suspendAll } from './serverDownloadQueue'
 
 const safeBackupName = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 let backupInProgress = false
@@ -363,6 +364,7 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
     throw new Error('备份压缩文件上限参数无效')
   }
   if (backupInProgress || !tryAcquireDataOperation('backup')) throw new Error('备份或账户变更正在进行，请稍后重试')
+  await suspendAll()
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
   let tempDir: string
   try {
@@ -436,6 +438,7 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
     try {
       fs.rmSync(tempDir, { recursive: true, force: true })
     } finally {
+      releaseAll()
       backupInProgress = false
       releaseDataOperation('backup')
     }
@@ -472,6 +475,7 @@ export const restoreLocalBackup = async (
   }
 
   if (backupInProgress || !tryAcquireDataOperation('backup')) throw new Error('备份或账户变更正在进行，请稍后重试')
+  await suspendAll()
   backupInProgress = true
   let tempDir = ''
   let previousDbPath = ''
@@ -561,6 +565,7 @@ export const restoreLocalBackup = async (
     try {
       if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true })
     } finally {
+      releaseAll()
       backupInProgress = false
       releaseDataOperation('backup')
     }

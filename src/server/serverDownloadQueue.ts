@@ -1199,6 +1199,20 @@ export const releaseUser = (username: string) => {
   void processQueue()
 }
 
+/** Block new work and drain all workers across all users (for instance-wide backups/restores). */
+export const suspendAll = async () => {
+  const users = new Set<string>()
+  for (const task of tasks.values()) users.add(task.username)
+  for (const task of activeTasks.values()) users.add(task.username)
+  users.add('_open')
+  await Promise.all(Array.from(users).map(u => suspendUser(u)))
+}
+
+export const releaseAll = () => {
+  suspendedUsers.clear()
+  void processQueue()
+}
+
 /** Only called after workers settle; pending work remains paused for explicit resume. */
 export const renameUser = async (username: string, newName: string) => {
   if (!Array.from(tasks.values()).some(task => task.username === username) && !concurrencyByUser.has(username)) return

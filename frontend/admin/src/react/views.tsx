@@ -373,10 +373,6 @@ function UserDialog({
   )
 }
 
-export { StorageView } from './storage-view'
-
-export { ConfigView } from './config-view'
-
 export function LogsView() {
   const logs = useAdminStore(state => state.logs)
   const logType = useAdminStore(state => state.logType)
