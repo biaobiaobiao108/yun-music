@@ -195,6 +195,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       queue: nextQueue,
       currentIndex: nextIndex,
       currentTime: 0,
+      duration: 0,
       isPlaying: true,
       resolvedUrl: null,
       error: '',

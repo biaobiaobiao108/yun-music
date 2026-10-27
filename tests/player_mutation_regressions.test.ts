@@ -18,6 +18,14 @@ afterEach(() => {
   setSessionScope(null)
 })
 
+test('switching songs clears the previous playback duration', () => {
+  usePlaybackStore.getState().playSong(first, [first, second], 0)
+  usePlaybackStore.setState({ currentTime: 30, duration: 180 })
+  usePlaybackStore.getState().playSong(second, [first, second], 1)
+  expect(usePlaybackStore.getState().currentTime).toBe(0)
+  expect(usePlaybackStore.getState().duration).toBe(0)
+})
+
 test('a completed download updates its original queue item after switching songs', () => {
   const generation = getSessionGeneration()
   const playback = usePlaybackStore.getState()

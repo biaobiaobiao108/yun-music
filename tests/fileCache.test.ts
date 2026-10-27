@@ -644,6 +644,246 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('preserves lyric files and rolls audio back when switching cache roots fails', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-root-switch-'))
+    const previousCwd = process.cwd()
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const username = 'root-switch-user'
+    try {
+      process.chdir(root)
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(path.join(root, 'yun-yin.db'))
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const sourceDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.DATA)
+      const targetDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.ROOT)
+      fs.mkdirSync(path.join(sourceDir, 'album'), { recursive: true })
+      fs.mkdirSync(path.join(targetDir, 'album'), { recursive: true })
+
+      const cases: Array<{ id: string; filename: string; lyricFilename: string; targetLyric?: string }> = [
+        {
+          id: 'wy_root-switch-conflict',
+          filename: 'album/conflict.flac',
+          lyricFilename: 'album/conflict.lrc',
+        },
+        {
+          id: 'wy_root-switch-failure',
+          filename: 'album/failure.flac',
+          lyricFilename: 'lyrics/failure.lrc',
+        },
+      ]
+      for (const item of cases) {
+        const sourceAudio = path.join(sourceDir, item.filename)
+        const sourceLyric = path.join(sourceDir, item.lyricFilename)
+        fs.writeFileSync(sourceAudio, `audio:${item.id}`)
+        fs.mkdirSync(path.dirname(sourceLyric), { recursive: true })
+        fs.writeFileSync(sourceLyric, `lyrics:${item.id}`)
+        const stats = fs.statSync(sourceAudio)
+        fileCache.indexManager.update(
+          username,
+          {
+            id: item.id,
+            songmid: item.id,
+            name: item.id,
+            singer: 'Test Singer',
+            albumName: 'Test Album',
+            source: 'wy',
+            quality: 'flac',
+            filename: item.filename,
+            folder: 'cache',
+            lyricFilename: item.lyricFilename,
+            hasLyric: true,
+            lyricSize: fs.statSync(sourceLyric).size,
+            mtime: stats.mtimeMs,
+            size: stats.size,
+            ext: 'flac',
+          },
+          'cache',
+          fileCache.CACHE_ROOTS.DATA,
+        )
+      }
+
+      const conflictLyric = path.join(targetDir, cases[0].lyricFilename)
+      fs.mkdirSync(path.dirname(conflictLyric), { recursive: true })
+      const existingTargetLyric = 'existing destination lyric'
+      fs.writeFileSync(conflictLyric, existingTargetLyric)
+
+      // A file where the destination lyric directory should be makes the
+      // sidecar move fail after the audio move has started.
+      fs.writeFileSync(path.join(targetDir, 'lyrics'), 'blocks directory creation')
+
+      const result = await fileCache.switchBaseLocation(
+        cases.map(item => item.filename),
+        username,
+      )
+      expect(result.successCount).toBe(0)
+      expect(result.failCount).toBe(2)
+
+      for (const item of cases) {
+        expect(fs.existsSync(path.join(sourceDir, item.filename))).toBe(true)
+        expect(fs.existsSync(path.join(sourceDir, item.lyricFilename))).toBe(true)
+        expect(fs.existsSync(path.join(targetDir, item.filename))).toBe(false)
+        expect(
+          fileCache.indexManager.get(username, item.id, 'cache', 'flac', true, fileCache.CACHE_ROOTS.DATA),
+        ).toBeDefined()
+        expect(
+          fileCache.indexManager.get(username, item.id, 'cache', 'flac', true, fileCache.CACHE_ROOTS.ROOT),
+        ).toBeUndefined()
+      }
+      expect(fs.readFileSync(conflictLyric, 'utf8')).toBe(existingTargetLyric)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      process.chdir(previousCwd)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('leaves the destination index untouched when a base move fails before moving audio', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-root-switch-before-audio-'))
+    const previousCwd = process.cwd()
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const username = 'root-switch-before-audio-user'
+    try {
+      process.chdir(root)
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(path.join(root, 'yun-yin.db'))
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const sourceDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.DATA)
+      const targetDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.ROOT)
+      const filename = 'blocked/song.flac'
+      fs.mkdirSync(path.join(sourceDir, 'blocked'), { recursive: true })
+      fs.writeFileSync(path.join(sourceDir, filename), 'source audio')
+      fs.writeFileSync(path.join(targetDir, 'blocked'), 'prevents target directory creation')
+      const sourceItem = {
+        id: 'wy_root-switch-before-audio',
+        songmid: 'root-switch-before-audio',
+        name: 'Source record',
+        singer: 'Test Singer',
+        albumName: 'Test Album',
+        source: 'wy',
+        quality: 'flac',
+        filename,
+        folder: 'cache' as const,
+        mtime: Date.now(),
+        size: 12,
+        ext: 'flac',
+      }
+      fileCache.indexManager.update(username, sourceItem, 'cache', fileCache.CACHE_ROOTS.DATA)
+      fileCache.indexManager.update(
+        username,
+        { ...sourceItem, name: 'Existing destination record' },
+        'cache',
+        fileCache.CACHE_ROOTS.ROOT,
+      )
+
+      const result = await fileCache.switchBaseLocation([filename], username)
+      expect(result.successCount).toBe(0)
+      expect(result.failCount).toBe(1)
+      expect(fs.existsSync(path.join(sourceDir, filename))).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, filename))).toBe(false)
+      expect(
+        fileCache.indexManager.get(username, sourceItem.id, 'cache', 'flac', true, fileCache.CACHE_ROOTS.ROOT)?.name,
+      ).toBe('Existing destination record')
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      process.chdir(previousCwd)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('clears lyric metadata when audio rollback succeeds after lyric rollback fails', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-root-switch-lyric-rollback-'))
+    const previousCwd = process.cwd()
+    const previousLx = (global as any).lx
+    const originalRemove = fileCache.indexManager.remove
+    const dataPath = path.join(root, 'data')
+    const username = 'root-switch-lyric-rollback-user'
+    try {
+      process.chdir(root)
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(path.join(root, 'yun-yin.db'))
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const sourceDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.DATA)
+      const targetDir = fileCache.getCacheDir(username, false, fileCache.CACHE_ROOTS.ROOT)
+      const filename = 'album/song.flac'
+      const lyricFilename = 'album/song.lrc'
+      const sourceAudio = path.join(sourceDir, filename)
+      const sourceLyric = path.join(sourceDir, lyricFilename)
+      const targetLyric = path.join(targetDir, lyricFilename)
+      fs.mkdirSync(path.dirname(sourceAudio), { recursive: true })
+      fs.mkdirSync(path.dirname(targetLyric), { recursive: true })
+      fs.writeFileSync(sourceAudio, 'source audio')
+      fs.writeFileSync(sourceLyric, 'source lyric')
+      const stats = fs.statSync(sourceAudio)
+      const item = {
+        id: 'wy_root-switch-lyric-rollback',
+        songmid: 'root-switch-lyric-rollback',
+        name: 'Lyric rollback song',
+        singer: 'Test Singer',
+        albumName: 'Test Album',
+        source: 'wy',
+        quality: 'flac',
+        filename,
+        folder: 'cache' as const,
+        lyricFilename,
+        hasLyric: true,
+        lyricSize: fs.statSync(sourceLyric).size,
+        mtime: stats.mtimeMs,
+        size: stats.size,
+        ext: 'flac',
+      }
+      fileCache.indexManager.update(username, item, 'cache', fileCache.CACHE_ROOTS.DATA)
+
+      let injectedFailure = false
+      fileCache.indexManager.remove = function (user, id, folder, quality, location) {
+        if (!injectedFailure && location === fileCache.CACHE_ROOTS.DATA) {
+          injectedFailure = true
+          // Simulate the companion file disappearing after the move, so its
+          // rollback fails while the audio can still be returned to source.
+          fs.unlinkSync(targetLyric)
+          throw new Error('injected index failure after lyric move')
+        }
+        return originalRemove.call(this, user, id, folder, quality, location)
+      }
+
+      const result = await fileCache.switchBaseLocation([filename], username)
+      expect(result.successCount).toBe(0)
+      expect(result.failCount).toBe(1)
+      expect(injectedFailure).toBe(true)
+      expect(fs.existsSync(sourceAudio)).toBe(true)
+      expect(fs.existsSync(path.join(targetDir, filename))).toBe(false)
+      expect(fs.existsSync(sourceLyric)).toBe(false)
+      const sourceRecord = fileCache.indexManager.get(
+        username,
+        item.id,
+        'cache',
+        'flac',
+        true,
+        fileCache.CACHE_ROOTS.DATA,
+      )
+      expect(sourceRecord?.hasLyric).toBe(false)
+      expect(sourceRecord?.lyricFilename).toBeUndefined()
+    } finally {
+      fileCache.indexManager.remove = originalRemove
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      process.chdir(previousCwd)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should ignore an empty indexed cache file during playback lookup', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-empty-cache-'))
     const previousLx = (global as any).lx

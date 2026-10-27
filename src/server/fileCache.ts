@@ -4836,6 +4836,26 @@ export const switchBaseLocation = async (filenames: string[], username: string |
       continue
     }
 
+    let sourceLrcPath: string | null = null
+    let targetLrcPath: string | null = null
+    let shouldMoveLyric = false
+    if (item.lyricFilename) {
+      sourceLrcPath = resolveCacheRelativePath(sourceDir, item.lyricFilename)
+      targetLrcPath = resolveCacheRelativePath(targetDir, item.lyricFilename)
+      if (!sourceLrcPath || !targetLrcPath) {
+        failCount++
+        continue
+      }
+      shouldMoveLyric = fs.existsSync(sourceLrcPath)
+      if (shouldMoveLyric && fs.existsSync(targetLrcPath)) {
+        // Keep both lyric files intact and leave the audio/index at source.
+        failCount++
+        continue
+      }
+    }
+
+    let movedAudio = false
+    let movedLyric = false
     try {
       if (fs.existsSync(sourcePath)) {
         const targetPathDir = path.dirname(targetPath)
@@ -4850,17 +4870,14 @@ export const switchBaseLocation = async (filenames: string[], username: string |
 
         // Move audio file
         safeRenameSync(sourcePath, targetPath)
+        movedAudio = true
 
         // Move lyrics
-        if (item.lyricFilename) {
-          const sourceLrcPath = resolveCacheRelativePath(sourceDir, item.lyricFilename)
-          const targetLrcPath = resolveCacheRelativePath(targetDir, item.lyricFilename)
-          if (sourceLrcPath && targetLrcPath && fs.existsSync(sourceLrcPath)) {
-            const targetLrcDir = path.dirname(targetLrcPath)
-            if (!fs.existsSync(targetLrcDir)) fs.mkdirSync(targetLrcDir, { recursive: true, mode: 0o700 })
-            if (fs.existsSync(targetLrcPath)) fs.unlinkSync(targetLrcPath)
-            safeRenameSync(sourceLrcPath, targetLrcPath)
-          }
+        if (shouldMoveLyric && sourceLrcPath && targetLrcPath) {
+          const targetLrcDir = path.dirname(targetLrcPath)
+          if (!fs.existsSync(targetLrcDir)) fs.mkdirSync(targetLrcDir, { recursive: true, mode: 0o700 })
+          moveFileNoOverwriteSync(sourceLrcPath, targetLrcPath)
+          movedLyric = true
         }
 
         // Update Indices
@@ -4874,6 +4891,54 @@ export const switchBaseLocation = async (filenames: string[], username: string |
       }
     } catch (e) {
       console.error(`[FileCache] Failed to move ${filename} from ${sourceLoc} to ${targetLoc}:`, e)
+      if (movedLyric && sourceLrcPath && targetLrcPath) {
+        try {
+          moveFileNoOverwriteSync(targetLrcPath, sourceLrcPath)
+        } catch (rollbackError) {
+          console.error(`[FileCache] Failed to roll back lyric ${filename}:`, rollbackError)
+        }
+      }
+      if (movedAudio) {
+        try {
+          moveFileNoOverwriteSync(targetPath, sourcePath)
+        } catch (rollbackError) {
+          console.error(`[FileCache] Failed to roll back audio ${filename}:`, rollbackError)
+        }
+      }
+
+      // Keep the index aligned with whichever copy actually remains after a
+      // failed move or rollback. In particular, do not leave it pointing at
+      // the source after the audio was stranded at the destination.
+      const sourceAudioExists = fs.existsSync(sourcePath)
+      const targetAudioExists = fs.existsSync(targetPath)
+      if (movedAudio) {
+        try {
+          if (sourceAudioExists) {
+            indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, targetLoc)
+            const sourceRecord = { ...item }
+            sourceRecord.hasLyric = !!(sourceLrcPath && fs.existsSync(sourceLrcPath))
+            if (!sourceRecord.hasLyric) {
+              sourceRecord.lyricFilename = undefined
+              sourceRecord.lyricSize = 0
+            }
+            indexManager.update(normalizedUsername, sourceRecord, sourceFolder, sourceLoc)
+          } else if (targetAudioExists) {
+            const targetRecord = { ...item }
+            targetRecord.hasLyric = !!(targetLrcPath && fs.existsSync(targetLrcPath))
+            if (!targetRecord.hasLyric) {
+              targetRecord.lyricFilename = undefined
+              targetRecord.lyricSize = 0
+            }
+            indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLoc)
+            indexManager.update(normalizedUsername, targetRecord, sourceFolder, targetLoc)
+          } else {
+            indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLoc)
+            indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, targetLoc)
+          }
+        } catch (indexError) {
+          console.error(`[FileCache] Failed to reconcile index for ${filename}:`, indexError)
+        }
+      }
       failCount++
     }
   }
