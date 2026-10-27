@@ -7011,6 +7011,21 @@ textarea:focus-visible {
     font-size: 0.76rem;
 }
 
+@media (min-width: 721px) {
+    .react-library-grid.react-artist-grid {
+        grid-template-columns: repeat(auto-fill, minmax(8.5rem, 10rem));
+    }
+
+    .react-library-grid.react-artist-grid .react-artwork-button {
+        text-align: center;
+    }
+
+    .react-library-grid.react-artist-grid .react-artwork-cover {
+        width: min(100%, 9rem);
+        margin-inline: auto;
+    }
+}
+
 .react-home-playlists {
     grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
 }
