@@ -1,9 +1,11 @@
 import { lazy, StrictMode, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { runtimeConfig } from '../../../shared/src/runtime'
-import { applyThemePreferences } from '../../../shared/src/theme'
-import { Button, Icon, Loading } from './components'
+import { applyThemePreferences, readThemePreferences, updateThemePreferences } from '../../../shared/src/theme'
+import { Button, Icon, Loading, SelectMenu } from './components'
 import { useAdminStore, type AdminView } from './store'
+
+applyThemePreferences(readThemePreferences())
 
 const ConfigView = lazy(() => import('./views').then(module => ({ default: module.ConfigView })))
 const DashboardView = lazy(() => import('./views').then(module => ({ default: module.DashboardView })))
@@ -134,6 +136,7 @@ function AdminShell() {
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [appearance, setAppearance] = useState(() => readThemePreferences().appearance || 'system')
   const config = runtimeConfig()
   const title = NAV_GROUPS.flatMap(group => group.items).find(item => item.id === view)?.label ?? '管理控制台'
 
@@ -150,6 +153,13 @@ function AdminShell() {
       window.clearTimeout(clearTimer)
     }
   }, [clearToast, title, toast])
+  useEffect(() => {
+    const syncAppearance = (event: StorageEvent) => {
+      if (event.key === 'lx_settings') setAppearance(readThemePreferences().appearance || 'system')
+    }
+    window.addEventListener('storage', syncAppearance)
+    return () => window.removeEventListener('storage', syncAppearance)
+  }, [])
   useEffect(() => {
     const handle = (event: Event) => {
       event.preventDefault()
@@ -268,6 +278,19 @@ function AdminShell() {
             <h1 id="page-title">{title}</h1>
           </div>
           <div className="admin-react-top-actions">
+            <SelectMenu
+              label="外观模式"
+              value={appearance}
+              options={[
+                { value: 'light', label: '浅色' },
+                { value: 'dark', label: '深色' },
+                { value: 'system', label: '跟随系统' },
+              ]}
+              onChange={value => {
+                setAppearance(value as 'system' | 'light' | 'dark')
+                updateThemePreferences({ appearance: value as 'system' | 'light' | 'dark' })
+              }}
+            />
             {installPrompt && (
               <Button onClick={() => void install()}>
                 <Icon name="download" />
@@ -303,9 +326,6 @@ function App() {
   const authenticated = useAdminStore(state => state.authenticated)
   const checking = useAdminStore(state => state.checking)
   const hydrate = useAdminStore(state => state.hydrate)
-  useEffect(() => {
-    applyThemePreferences({ appearance: 'light' })
-  }, [])
   useEffect(() => {
     void hydrate()
   }, [hydrate])

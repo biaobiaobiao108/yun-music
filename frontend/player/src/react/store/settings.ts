@@ -3,6 +3,7 @@ import { playerApi, persistLegacySettings, readLegacySettings } from '../api'
 import { getSessionGeneration, getSessionScope } from '../session'
 import { usePlaybackStore } from './playback'
 import { applyAppearance, DEFAULT_SETTINGS, type PlayerSettings } from './shared'
+import { readThemePreferences, updateThemePreferences } from '../../../../shared/src/theme'
 
 let settingsRevision = 0
 let settingsHydrationId = 0
@@ -27,14 +28,21 @@ function sanitizeSettings(value: Record<string, unknown>): PlayerSettings {
   return next as PlayerSettings
 }
 
+function withSharedAppearance(settings: PlayerSettings): PlayerSettings {
+  const sharedAppearance = readThemePreferences().appearance
+  return { ...settings, appearance: sharedAppearance || settings.appearance || 'system' }
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  settings: sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS)),
+  settings: withSharedAppearance(sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS))),
   setSetting: (key, value) => {
     if (REMOVED_SETTING_KEYS.includes(key as (typeof REMOVED_SETTING_KEYS)[number])) return
     settingsRevision += 1
     const settings = sanitizeSettings({ ...get().settings, [key]: value })
     set({ settings })
     persistLegacySettings(settings)
+    if (key === 'appearance')
+      updateThemePreferences({ appearance: value === 'dark' || value === 'light' ? value : 'system' })
     applyAppearance(settings)
     if (key === 'preferredQuality') usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
     void playerApi.saveSettings({ [key]: value }).catch(() => undefined)
@@ -43,7 +51,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const hydrationId = ++settingsHydrationId
     const sessionScope = getSessionScope()
     const sessionGeneration = getSessionGeneration()
-    const local = sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS))
+    const local = withSharedAppearance(sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS)))
     set({ settings: local })
     applyAppearance(local)
     usePlaybackStore.getState().setQuality(String(local.preferredQuality || 'flac'))
@@ -58,7 +66,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         sessionGeneration === getSessionGeneration() &&
         localRevision === settingsRevision
       ) {
-        const settings = sanitizeSettings({ ...local, ...remote })
+        const settings = withSharedAppearance(sanitizeSettings({ ...local, ...remote }))
         set({ settings })
         persistLegacySettings(settings)
         applyAppearance(settings)
@@ -71,12 +79,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   reset: () => {
     settingsRevision += 1
     settingsHydrationId += 1
-    const settings = sanitizeSettings(DEFAULT_SETTINGS)
+    const settings = withSharedAppearance(sanitizeSettings(DEFAULT_SETTINGS))
     set({ settings })
     applyAppearance(settings)
     // Session reset happens before playback hydration; preserve the saved queue.
     usePlaybackStore.setState({ quality: String(settings.preferredQuality || 'flac') })
   },
 }))
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', event => {
+    if (event.key !== 'lx_settings') return
+    const settings = {
+      ...useSettingsStore.getState().settings,
+      appearance: readThemePreferences().appearance || 'system',
+    }
+    useSettingsStore.setState({ settings })
+    applyAppearance(settings)
+  })
+}
 
 export { DEFAULT_SETTINGS, type PlayerSettings }

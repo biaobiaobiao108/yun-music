@@ -11765,8 +11765,11 @@ textarea:focus-visible {
     font-size: 0.74rem;
 }
 
-.react-cache-error-detail {
+.react-cache-meta .react-cache-error-detail {
     color: var(--danger, #c0392b) !important;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .react-cache-task .react-task-progress {
@@ -14063,7 +14066,7 @@ body,
 .react-player-main,
 .react-player-content {
     color: var(--app-text);
-    background: #fff;
+    background: var(--app-bg);
 }
 
 .react-player-shell {
@@ -14072,7 +14075,7 @@ body,
     grid-template-columns: minmax(16rem, var(--app-sidebar-width)) minmax(0, 1fr) !important;
     gap: 0 !important;
     padding: 0 !important;
-    background: #fff !important;
+    background: var(--app-bg) !important;
 }
 
 .react-sidebar {
@@ -14206,6 +14209,55 @@ body,
 .react-player-content::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background: rgba(70, 60, 55, 0.28);
+}
+
+.react-firefox-scrollbar {
+    display: none;
+}
+
+/* Firefox cannot shorten a native scrollbar track. Keep the native scroll
+   surface full-height so its content can still move beneath the glass footer,
+   and draw a small synchronized scrollbar that ends at the footer edge. */
+@supports not selector(::-webkit-scrollbar) {
+    @media (min-width: 721px) {
+        #player-main-content.react-player-content {
+            scrollbar-width: none;
+            scrollbar-gutter: auto;
+        }
+
+        .react-firefox-scrollbar {
+            position: absolute;
+            display: block;
+            z-index: 20;
+            inset-block: 0 6rem;
+            inset-inline-end: 0.1rem;
+            width: 0.7rem;
+            cursor: pointer;
+        }
+
+        .react-firefox-scrollbar[hidden] {
+            display: none;
+        }
+
+        .react-firefox-scrollbar-thumb {
+            position: absolute;
+            inset-block-start: 0;
+            inset-inline: 0.12rem;
+            min-height: 1.5rem;
+            border-radius: 999px;
+            background: rgba(70, 60, 55, 0.32);
+            cursor: grab;
+        }
+
+        .react-firefox-scrollbar-thumb:active {
+            cursor: grabbing;
+        }
+
+        .react-firefox-scrollbar:focus-visible .react-firefox-scrollbar-thumb {
+            outline: 2px solid var(--accent-color, #f43f5e);
+            outline-offset: 1px;
+        }
+    }
 }
 
 /* Keep content beneath the translucent player while shortening only the track. */
@@ -14547,7 +14599,7 @@ body,
         display: block !important;
         grid-template-columns: none !important;
         padding: 0.55rem !important;
-        background: #fff !important;
+        background: var(--app-bg) !important;
     }
 
     .react-player-content {
@@ -14775,6 +14827,10 @@ body,
 
 :root {
     --player-paper: #f7f7f6;
+}
+
+:root[data-appearance="dark"] {
+    --player-paper: #171719;
 }
 
 .react-player-shell {

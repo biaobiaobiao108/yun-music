@@ -16,6 +16,7 @@ export type UiState = {
   tab: PlayerTab
   detail: PlayerDetail | null
   favoriteListId: string
+  leaderboardBoardId: string
   sidebarOpen: boolean
   drawer: DrawerName
   dialog: DialogName
@@ -23,6 +24,7 @@ export type UiState = {
   immersiveLyrics: boolean
   notice: PlayerNotice | null
   setTab: (tab: PlayerTab) => void
+  openLeaderboard: (boardId?: string) => void
   setDetail: (detail: PlayerDetail | null) => void
   openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void
   setFavoriteListId: (listId: string) => void
@@ -51,6 +53,7 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
   tab: 'home',
   detail: null,
   favoriteListId: 'love',
+  leaderboardBoardId: '',
   sidebarOpen: false,
   drawer: null,
   dialog: null,
@@ -61,8 +64,18 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
     const state = get()
     const listId = tab === 'favorites' ? 'love' : undefined
     if (state.tab === tab && !state.detail && (tab !== 'favorites' || state.favoriteListId === 'love')) return
-    set({ tab, detail: null, favoriteListId: tab === 'favorites' ? 'love' : state.favoriteListId, sidebarOpen: false })
+    set({
+      tab,
+      detail: null,
+      favoriteListId: tab === 'favorites' ? 'love' : state.favoriteListId,
+      leaderboardBoardId: tab === 'leaderboard' ? '' : state.leaderboardBoardId,
+      sidebarOpen: false,
+    })
     emitPlayerNavigation({ tab, detail: null, listId })
+  },
+  openLeaderboard: boardId => {
+    set({ tab: 'leaderboard', detail: null, leaderboardBoardId: boardId ?? '', sidebarOpen: false })
+    emitPlayerNavigation({ tab: 'leaderboard', detail: null })
   },
   setDetail: detail => {
     set({ detail })

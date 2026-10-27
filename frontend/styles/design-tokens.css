@@ -34,6 +34,25 @@
     --app-motion: 220ms;
 }
 
+:root[data-appearance="dark"] {
+    color-scheme: dark;
+    --app-bg: #171719;
+    --app-bg-raised: #202023;
+    --app-sidebar: #1d1b1a;
+    --app-surface: rgba(35, 35, 38, .9);
+    --app-surface-solid: #232326;
+    --app-surface-glass: rgba(35, 35, 38, .82);
+    --app-surface-soft: #29292d;
+    --app-border: rgba(255, 255, 255, .09);
+    --app-border-strong: rgba(255, 255, 255, .15);
+    --app-text: #f2f2f4;
+    --app-text-muted: #b0b0b7;
+    --app-text-dim: #888890;
+    --app-on-accent: #ffffff;
+    --app-shadow: 0 1.25rem 3.5rem rgba(0, 0, 0, .32);
+    --app-shadow-soft: 0 .45rem 1.5rem rgba(0, 0, 0, .22);
+}
+
 @media (prefers-reduced-motion: reduce) {
     :root {
         --app-motion-fast: 0ms;

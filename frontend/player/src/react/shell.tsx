@@ -10,6 +10,7 @@ import {
   type ErrorInfo,
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
   type ReactNode,
 } from 'react'
 import { AudioRuntime } from './audio_runtime'
@@ -73,6 +74,134 @@ const SearchDetailView = lazy(() => import('./views').then(module => ({ default:
 const SearchView = lazy(() => import('./views').then(module => ({ default: module.SearchView })))
 const SettingsView = lazy(() => import('./views').then(module => ({ default: module.SettingsView })))
 const UserLoginDialog = lazy(() => import('./views').then(module => ({ default: module.UserLoginDialog })))
+
+function FirefoxContentScrollbar({ scrollRef }: { scrollRef: RefObject<HTMLElement | null> }) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const thumbRef = useRef<HTMLDivElement>(null)
+  const [metrics, setMetrics] = useState({ visible: false, now: 0, max: 0 })
+
+  useEffect(() => {
+    if (CSS.supports('selector(::-webkit-scrollbar)')) return
+    const scrollElement = scrollRef.current
+    const track = trackRef.current
+    const thumb = thumbRef.current
+    if (!scrollElement || !track || !thumb) return
+
+    let frame = 0
+    let dragging = false
+    let dragStartY = 0
+    let dragStartTop = 0
+    const update = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const trackHeight = track.clientHeight
+        const maxScroll = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight)
+        const thumbHeight =
+          maxScroll > 0
+            ? Math.min(
+                trackHeight,
+                Math.max(24, (trackHeight * scrollElement.clientHeight) / scrollElement.scrollHeight),
+              )
+            : trackHeight
+        const maxThumbTop = Math.max(0, trackHeight - thumbHeight)
+        const top = maxScroll > 0 ? (scrollElement.scrollTop / maxScroll) * maxThumbTop : 0
+        thumb.style.height = `${thumbHeight}px`
+        thumb.style.transform = `translateY(${top}px)`
+        setMetrics({ visible: maxScroll > 0, now: Math.round(scrollElement.scrollTop), max: maxScroll })
+      })
+    }
+    const handleTrackPointerDown = (event: PointerEvent) => {
+      if (event.target === thumb || thumb.contains(event.target as Node)) {
+        dragging = true
+        dragStartY = event.clientY
+        dragStartTop = scrollElement.scrollTop
+        thumb.setPointerCapture(event.pointerId)
+        event.preventDefault()
+        return
+      }
+      const bounds = track.getBoundingClientRect()
+      const maxScroll = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight)
+      const thumbHeight = thumb.clientHeight
+      const maxThumbTop = Math.max(1, bounds.height - thumbHeight)
+      const targetThumbTop = Math.max(0, Math.min(maxThumbTop, event.clientY - bounds.top - thumbHeight / 2))
+      scrollElement.scrollTop = (targetThumbTop / maxThumbTop) * maxScroll
+    }
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!dragging) return
+      const maxScroll = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight)
+      const maxThumbDelta = Math.max(1, track.clientHeight - thumb.clientHeight)
+      scrollElement.scrollTop = dragStartTop + ((event.clientY - dragStartY) / maxThumbDelta) * maxScroll
+    }
+    const handlePointerUp = () => {
+      dragging = false
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const page = Math.max(1, scrollElement.clientHeight - 48)
+      const delta =
+        event.key === 'ArrowDown'
+          ? 48
+          : event.key === 'ArrowUp'
+            ? -48
+            : event.key === 'PageDown'
+              ? page
+              : event.key === 'PageUp'
+                ? -page
+                : event.key === 'Home'
+                  ? -Infinity
+                  : event.key === 'End'
+                    ? Infinity
+                    : 0
+      if (!delta) return
+      event.preventDefault()
+      scrollElement.scrollTop =
+        event.key === 'Home' ? 0 : event.key === 'End' ? scrollElement.scrollHeight : scrollElement.scrollTop + delta
+    }
+    const resizeObserver = new ResizeObserver(update)
+    resizeObserver.observe(scrollElement)
+    resizeObserver.observe(track)
+    if (scrollElement.firstElementChild) resizeObserver.observe(scrollElement.firstElementChild)
+    const mutationObserver = new MutationObserver(update)
+    mutationObserver.observe(scrollElement, { childList: true, subtree: true, attributes: true, characterData: true })
+    scrollElement.addEventListener('scroll', update, { passive: true })
+    track.addEventListener('pointerdown', handleTrackPointerDown)
+    thumb.addEventListener('pointermove', handlePointerMove)
+    thumb.addEventListener('pointerup', handlePointerUp)
+    thumb.addEventListener('pointercancel', handlePointerUp)
+    track.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('resize', update)
+    update()
+    return () => {
+      cancelAnimationFrame(frame)
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+      scrollElement.removeEventListener('scroll', update)
+      track.removeEventListener('pointerdown', handleTrackPointerDown)
+      thumb.removeEventListener('pointermove', handlePointerMove)
+      thumb.removeEventListener('pointerup', handlePointerUp)
+      thumb.removeEventListener('pointercancel', handlePointerUp)
+      track.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('resize', update)
+    }
+  }, [scrollRef])
+
+  return (
+    <div
+      ref={trackRef}
+      className="react-firefox-scrollbar"
+      role="scrollbar"
+      aria-label="页面滚动条"
+      aria-controls="player-main-content"
+      aria-orientation="vertical"
+      aria-valuemin={0}
+      aria-valuemax={metrics.max}
+      aria-valuenow={metrics.now}
+      tabIndex={metrics.visible ? 0 : -1}
+      hidden={!metrics.visible}
+    >
+      <div ref={thumbRef} className="react-firefox-scrollbar-thumb" />
+    </div>
+  )
+}
 
 const SIDEBAR_HOME_ITEMS: { id: PlayerTab; label: string; icon: string }[] = [
   { id: 'home', label: '首页', icon: 'home' },
@@ -969,6 +1098,7 @@ function SleepTimerDialog({ open, onClose }: { open: boolean; onClose: () => voi
 }
 
 export function PlayerShell() {
+  const mainContentRef = useRef<HTMLElement>(null)
   const tab = usePlayerUiStore(state => state.tab)
   const detail = usePlayerUiStore(state => state.detail)
   const drawer = usePlayerUiStore(state => state.drawer)
@@ -1166,11 +1296,12 @@ export function PlayerShell() {
       <Sidebar />
       <FloatingNavigation />
       <div className="react-player-main">
-        <main id="player-main-content" className="react-player-content" tabIndex={-1}>
+        <main ref={mainContentRef} id="player-main-content" className="react-player-content" tabIndex={-1}>
           <PlayerErrorBoundary>
             <PlayerView tab={tab} detail={detail} />
           </PlayerErrorBoundary>
         </main>
+        <FirefoxContentScrollbar scrollRef={mainContentRef} />
         <PlayerFooter hidden={immersiveFooterHost !== 'normal'} />
       </div>
       <MobileNavigation />

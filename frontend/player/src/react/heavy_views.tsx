@@ -31,6 +31,17 @@ function extractSongs(payload: unknown): Song[] {
   return []
 }
 
+function leaderboardBoardId(board: unknown, index: number): string {
+  return String(
+    typeof board === 'object' && board
+      ? ((board as Record<string, unknown>).bangid ??
+          (board as Record<string, unknown>).id ??
+          (board as Record<string, unknown>).value ??
+          index)
+      : (board ?? index),
+  )
+}
+
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
 }
@@ -372,6 +383,7 @@ export function SongListView({ detail = null }: { detail?: PlayerDetail | null }
 }
 
 export function LeaderboardView() {
+  const [preferredBoardId] = useState(() => usePlayerUiStore.getState().leaderboardBoardId)
   const [source, setSource] = useState('wy')
   const [boards, setBoards] = useState<unknown[]>([])
   const [selected, setSelected] = useState('')
@@ -392,17 +404,9 @@ export function LeaderboardView() {
       .then(result => {
         if (!active) return
         setBoards(result)
-        const first = result[0]
-        setSelected(
-          String(
-            typeof first === 'object' && first
-              ? ((first as Record<string, unknown>).bangid ??
-                  (first as Record<string, unknown>).id ??
-                  (first as Record<string, unknown>).value ??
-                  '')
-              : (first ?? ''),
-          ),
-        )
+        const requested = result.findIndex((board, index) => leaderboardBoardId(board, index) === preferredBoardId)
+        const selectedIndex = requested >= 0 ? requested : 0
+        setSelected(result.length ? leaderboardBoardId(result[selectedIndex], selectedIndex) : '')
       })
       .catch(cause => {
         if (active) {
@@ -414,7 +418,7 @@ export function LeaderboardView() {
       active = false
       controller.abort()
     }
-  }, [source])
+  }, [preferredBoardId, source])
   useEffect(() => {
     if (!selected) {
       setLoading(false)
@@ -443,15 +447,7 @@ export function LeaderboardView() {
     return () => controller.abort()
   }, [page, selected, source])
   const boardOptions = boards.map((board, index) => {
-    const value =
-      typeof board === 'object' && board
-        ? String(
-            (board as Record<string, unknown>).bangid ??
-              (board as Record<string, unknown>).id ??
-              (board as Record<string, unknown>).value ??
-              index,
-          )
-        : String(board)
+    const value = leaderboardBoardId(board, index)
     const label =
       typeof board === 'object' && board
         ? String((board as Record<string, unknown>).name ?? (board as Record<string, unknown>).title ?? value)

@@ -531,13 +531,13 @@ describe('React player module boundaries', () => {
     expect(mediaLibrary).toContain('libraryArtists')
     expect(adminCss).toContain('.admin-react-shell .admin-react-topbar {')
     expect(adminCss).toContain('backdrop-filter: none;')
-    expect(admin).toContain("applyThemePreferences({ appearance: 'light' })")
+    expect(admin).toContain('applyThemePreferences(readThemePreferences())')
     expect(admin).not.toContain('切换主题')
     expect(tokens).toContain('--app-sidebar-width')
     expect(tokens).toContain('--app-accent: #fa243c')
     expect(tokens).not.toContain('[data-theme="violet"]')
     expect(sharedTheme).toContain("element.dataset.theme = 'netease'")
-    expect(sharedTheme).toContain("element.dataset.appearance = 'light'")
+    expect(sharedTheme).toContain('element.dataset.appearance = appearance')
   })
 
   it('keeps the React-only build free of retired player bridges and jumpy artwork motion', () => {

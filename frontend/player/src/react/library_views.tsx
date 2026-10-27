@@ -261,31 +261,39 @@ function discoveryId(item: Song, index: number): string {
 
 function HomeDiscovery() {
   const setTab = usePlayerUiStore(state => state.setTab)
+  const openLeaderboard = usePlayerUiStore(state => state.openLeaderboard)
   const setDetail = usePlayerUiStore(state => state.setDetail)
   const [playlists, setPlaylists] = useState<Song[]>([])
   const [charts, setCharts] = useState<HomeChart[]>([])
-  const [loading, setLoading] = useState(true)
+  const [playlistsLoading, setPlaylistsLoading] = useState(true)
+  const [chartsLoading, setChartsLoading] = useState(true)
 
   useEffect(() => {
     const controller = new AbortController()
-    const load = async () => {
-      const [playlistResult, boardResult] = await Promise.allSettled([
-        playerApi.songList('wy', '', 'hot', 1, controller.signal, {
+    const loadPlaylists = async () => {
+      try {
+        const payload = await playerApi.songList('wy', '', 'hot', 1, controller.signal, {
           cacheKey: 'home:playlists:wy',
           cacheTtlMs: 300_000,
-        }),
-        playerApi.leaderboardBoards('wy', controller.signal, {
+        })
+        if (!controller.signal.aborted) {
+          setPlaylists(discoveryItems(payload, ['list', 'playlists', 'data', 'result']).slice(0, 6))
+        }
+      } catch {
+        if (!controller.signal.aborted) setPlaylists([])
+      } finally {
+        if (!controller.signal.aborted) setPlaylistsLoading(false)
+      }
+    }
+
+    const loadCharts = async () => {
+      try {
+        const boardResult = await playerApi.leaderboardBoards('wy', controller.signal, {
           cacheKey: 'home:boards:wy',
           cacheTtlMs: 300_000,
-        }),
-      ])
-      if (controller.signal.aborted) return
-      if (playlistResult.status === 'fulfilled') {
-        setPlaylists(discoveryItems(playlistResult.value, ['list', 'playlists', 'data', 'result']).slice(0, 6))
-      }
-
-      if (boardResult.status === 'fulfilled') {
-        const boards = boardResult.value.slice(0, 4).map((value, index) => {
+        })
+        if (controller.signal.aborted) return
+        const boards = boardResult.slice(0, 4).map((value, index) => {
           const item = value && typeof value === 'object' ? (value as Song) : { name: String(value) }
           return {
             id: String(item.bangid ?? item.id ?? item.value ?? index),
@@ -306,10 +314,14 @@ function HomeDiscovery() {
           }),
         )
         if (!controller.signal.aborted) setCharts(results)
+      } catch {
+        if (!controller.signal.aborted) setCharts([])
+      } finally {
+        if (!controller.signal.aborted) setChartsLoading(false)
       }
-      if (!controller.signal.aborted) setLoading(false)
     }
-    void load()
+    void loadPlaylists()
+    void loadCharts()
     return () => controller.abort()
   }, [])
 
@@ -353,7 +365,7 @@ function HomeDiscovery() {
               )
             })}
           </div>
-        ) : loading ? (
+        ) : playlistsLoading ? (
           <Loading label="正在加载推荐歌单…" />
         ) : (
           <div className="react-home-empty">
@@ -380,7 +392,7 @@ function HomeDiscovery() {
                 type="button"
                 className="react-home-chart-card"
                 key={chart.id}
-                onClick={() => setTab('leaderboard')}
+                onClick={() => openLeaderboard(chart.id)}
               >
                 <span className="react-home-chart-art">
                   {chart.songs[0] ? (
@@ -404,7 +416,7 @@ function HomeDiscovery() {
               </button>
             ))}
           </div>
-        ) : loading ? (
+        ) : chartsLoading ? (
           <Loading label="正在加载排行榜…" />
         ) : (
           <div className="react-home-empty">
