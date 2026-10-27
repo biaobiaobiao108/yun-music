@@ -1421,7 +1421,7 @@ function RhythmLyrics({
           const finalSpark = word.dataset.final === 'true'
           word.querySelectorAll<HTMLElement>('.react-rhythm-spark-star').forEach(star => {
             const angle = Number(star.dataset.angle)
-            const distance = 0.08 + spark.spread * (finalSpark ? 0.9 : 0.68)
+            const distance = 0.12 + spark.spread * (finalSpark ? 1.3 : 1.05)
             const size = Number(star.dataset.size ?? 1)
             star.style.opacity = spark.opacity.toFixed(3)
             star.style.transform = `translate(-50%, -50%) rotate(${(angle + spark.rotation).toFixed(1)}deg) translateY(-${distance.toFixed(2)}em) rotate(${-angle}deg) scale(${(spark.scale * size).toFixed(2)})`

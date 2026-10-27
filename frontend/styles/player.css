@@ -16635,17 +16635,17 @@ body,
     position: absolute;
     top: 0;
     left: 0;
-    width: 0.22em;
-    height: 0.22em;
-    background: color-mix(in srgb, var(--app-accent, #f42f4c) 55%, white);
+    width: 0.32em;
+    height: 0.32em;
+    background: color-mix(in srgb, var(--app-accent, #f42f4c) 40%, white);
     clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
     opacity: 0;
     pointer-events: none;
 }
 
 .react-rhythm-word[data-final="true"] .react-rhythm-spark-star {
-    width: 0.26em;
-    height: 0.26em;
+    width: 0.38em;
+    height: 0.38em;
 }
 
 .react-rhythm-word:last-child {
