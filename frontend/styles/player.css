@@ -15007,6 +15007,139 @@ body,
     color: var(--app-text);
 }
 
+.react-sidebar-account {
+    position: relative;
+    flex: 0 0 auto;
+    margin: 0.55rem 0.3rem 0;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--app-border);
+}
+
+.react-sidebar-account-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    min-width: 0;
+    min-height: 3.1rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 0.8rem;
+    background: transparent;
+    color: var(--app-text);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--app-motion-fast) ease;
+}
+
+.react-sidebar-account-trigger:is(:hover, .is-open) {
+    background: color-mix(in srgb, var(--app-text) 5%, transparent);
+}
+
+.react-sidebar-account-trigger:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 1px;
+}
+
+.react-sidebar-account-avatar {
+    display: grid;
+    flex: 0 0 2.35rem;
+    width: 2.35rem;
+    height: 2.35rem;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--app-surface-soft);
+    color: var(--app-text-muted);
+    font-size: 1.25rem;
+}
+
+.react-sidebar-account-trigger strong {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    font-size: 0.91rem;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-sidebar-account-chevron {
+    flex: 0 0 auto;
+    color: var(--app-text-dim);
+    transition: transform var(--app-motion-fast) ease;
+}
+
+.react-sidebar-account-trigger.is-open .react-sidebar-account-chevron {
+    transform: rotate(180deg);
+}
+
+.react-account-menu {
+    position: absolute;
+    z-index: 100;
+    inset: auto 0 calc(100% - 0.25rem);
+    display: grid;
+    gap: 0.12rem;
+    padding: 0.45rem;
+    border: 1px solid var(--app-border-strong);
+    border-radius: 1rem;
+    background: var(--app-surface-solid);
+    box-shadow: var(--app-shadow);
+}
+
+.react-account-menu[hidden] {
+    display: none;
+}
+
+.react-account-menu > button {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.65rem;
+    padding: 0.5rem 0.65rem;
+    border: 0;
+    border-radius: 0.65rem;
+    background: transparent;
+    color: var(--app-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.react-account-menu > button:hover,
+.react-account-menu > button:focus-visible {
+    background: var(--app-surface-soft);
+}
+
+.react-account-menu > button:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+}
+
+.react-account-menu > button > .fas {
+    flex: 0 0 1.25rem;
+    color: var(--app-text-muted);
+    text-align: center;
+}
+
+.react-account-menu-divider {
+    height: 1px;
+    margin: 0.25rem 0.4rem;
+    background: var(--app-border);
+}
+
+.react-account-menu > .react-account-menu-logout:hover,
+.react-account-menu > .react-account-menu-logout:focus-visible {
+    color: var(--app-accent);
+}
+
+.react-account-menu > .react-account-menu-logout:hover > .fas,
+.react-account-menu > .react-account-menu-logout:focus-visible > .fas {
+    color: var(--app-accent);
+}
+
 .react-search-page {
     min-width: 0;
     padding: 1.15rem 0.15rem 2rem;

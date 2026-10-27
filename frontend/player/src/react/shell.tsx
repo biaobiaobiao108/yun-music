@@ -311,6 +311,44 @@ function Sidebar() {
   const userLists = useLibraryStore(selectUserLists)
   const setDrawer = usePlayerUiStore(state => state.setDrawer)
   const userName = useAuthStore(state => state.userName)
+  const userLogout = useAuthStore(state => state.userLogout)
+  const notify = usePlayerUiStore(state => state.notify)
+  const accountRef = useRef<HTMLDivElement>(null)
+  const accountTriggerRef = useRef<HTMLButtonElement>(null)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!accountMenuOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setAccountMenuOpen(false)
+      accountTriggerRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [accountMenuOpen])
+
+  const selectAccountAction = (action: 'home' | 'settings') => {
+    setAccountMenuOpen(false)
+    setTab(action)
+  }
+
+  const logoutAccount = async () => {
+    setAccountMenuOpen(false)
+    try {
+      await userLogout()
+    } catch (error) {
+      notify(error instanceof Error ? error.message : '退出登录失败，请稍后重试')
+    }
+  }
+
   return (
     <>
       <div
@@ -444,15 +482,57 @@ function Sidebar() {
                 <span>{item.label}</span>
               </button>
             ))}
-            <button
-              type="button"
-              className="netease-nav-item"
-              onClick={() => (userName ? setTab('settings') : setDialog('userLogin'))}
-            >
-              <Icon name="circle-user" />
-              <span>{userName || '登录账户'}</span>
-            </button>
           </nav>
+        </div>
+        <div
+          ref={accountRef}
+          className="react-sidebar-account"
+          onBlur={event => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAccountMenuOpen(false)
+          }}
+        >
+          {userName && (
+            <div
+              id="react-sidebar-account-menu"
+              className="react-account-menu"
+              role="group"
+              aria-label="账户菜单"
+              hidden={!accountMenuOpen}
+            >
+              <button type="button" onClick={() => selectAccountAction('home')}>
+                <Icon name="user" />
+                <span>我的主页</span>
+              </button>
+              <button type="button" onClick={() => selectAccountAction('settings')}>
+                <Icon name="gear" />
+                <span>设置</span>
+              </button>
+              <div className="react-account-menu-divider" role="separator" />
+              <button type="button" className="react-account-menu-logout" onClick={() => void logoutAccount()}>
+                <Icon name="right-from-bracket" />
+                <span>退出登录</span>
+              </button>
+            </div>
+          )}
+          <button
+            ref={accountTriggerRef}
+            type="button"
+            className={`react-sidebar-account-trigger ${accountMenuOpen ? 'is-open' : ''}`}
+            aria-label={userName ? `账户菜单：${userName}` : '登录账户'}
+            aria-expanded={userName ? accountMenuOpen : undefined}
+            aria-controls={userName ? 'react-sidebar-account-menu' : undefined}
+            onClick={() => (userName ? setAccountMenuOpen(value => !value) : setDialog('userLogin'))}
+          >
+            <span className="react-sidebar-account-avatar">
+              <Icon name="circle-user" />
+            </span>
+            <strong>{userName || '登录账户'}</strong>
+            {userName && (
+              <span className="react-sidebar-account-chevron">
+                <Icon name="chevron-down" />
+              </span>
+            )}
+          </button>
         </div>
       </aside>
     </>
