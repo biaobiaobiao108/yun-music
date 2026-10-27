@@ -45,7 +45,7 @@
     transform: translateY(0);
 }
 
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+:where(a, button, input, select, textarea, [tabindex]):where(:not(#player-main-content)):focus-visible {
     outline: 1px solid color-mix(in srgb, var(--c-500, #fa243c) 72%, white);
     outline-offset: -1px;
 }
@@ -9284,7 +9284,7 @@ textarea:focus-visible {
     box-shadow: none !important;
 }
 
-:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+:where(button, a, input, select, textarea, [tabindex]):where(:not(#player-main-content)):focus-visible {
     outline: 1px solid var(--app-accent) !important;
     outline-offset: -1px !important;
     border-color: var(--app-border) !important;
@@ -9297,7 +9297,7 @@ textarea:focus-visible {
 }
 
 @media (forced-colors: active) {
-    :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    :where(button, a, input, select, textarea, [tabindex]):where(:not(#player-main-content)):focus-visible {
         outline: 1px solid Highlight !important;
         box-shadow: none !important;
     }
@@ -9343,7 +9343,7 @@ textarea:focus-visible {
 }
 
 @media (forced-colors: active) {
-    :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    :where(button, a, input, select, textarea, [tabindex]):where(:not(#player-main-content)):focus-visible {
         outline: 1px solid Highlight !important;
         outline-offset: -1px !important;
         box-shadow: none !important;
