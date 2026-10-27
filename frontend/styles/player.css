@@ -10994,6 +10994,24 @@ textarea:focus-visible {
     min-height: 2.7rem;
     flex: 0 0 auto;
     padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--app-text-muted);
+    transition:
+        background-color var(--app-motion-fast) ease,
+        color var(--app-motion-fast) ease;
+}
+
+.react-playlist-header-actions > .react-icon-only-button:hover:not(:disabled) {
+    border: 0;
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+}
+
+.react-playlist-header-actions > .react-icon-only-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--app-accent) 42%, transparent);
+    outline-offset: 1px;
 }
 
 .react-playlist-header-actions .react-header-selection-count {
