@@ -16619,7 +16619,7 @@ body,
     font: inherit;
     font-size: clamp(2rem, 4vw, 5rem);
     font-weight: 650;
-    letter-spacing: 0.12em;
+    letter-spacing: normal;
     line-height: 1.2;
     opacity: 0;
     text-align: left;
@@ -16643,17 +16643,28 @@ body,
     border-radius: 0.2rem;
 }
 
-.react-rhythm-glyph {
+.react-rhythm-word {
     position: relative;
-    display: inline-block;
-    margin-inline-end: 0.14em;
+    display: inline-flex;
+    align-items: baseline;
+    margin-inline-end: 0.075em;
     color: rgb(255 255 255 / 44%);
     white-space: pre;
     transform-origin: 50% 85%;
     opacity: 0;
 }
 
-.react-rhythm-glyph::after {
+.react-rhythm-word[data-word-boundary="true"] {
+    margin-inline-end: 0;
+}
+
+.react-rhythm-glyph {
+    display: inline-block;
+    color: inherit;
+    white-space: pre;
+}
+
+.react-rhythm-word::after {
     position: absolute;
     z-index: 1;
     inset: -0.75em;
@@ -16664,13 +16675,13 @@ body,
     content: none;
 }
 
-.react-rhythm-glyph[data-spark-active="true"]::after {
+.react-rhythm-word[data-spark-active="true"]::after {
     content: "";
     opacity: var(--spark-opacity, 0);
     transform: rotate(var(--spark-rotation, 0deg)) scale(var(--spark-scale, 0.45));
 }
 
-.react-rhythm-glyph:last-child {
+.react-rhythm-word:last-child {
     margin-inline-end: 0;
 }
 
@@ -16705,7 +16716,7 @@ body,
     .react-rhythm-phrase {
         max-width: 90%;
         font-size: clamp(1.6rem, 6vw, 2.8rem);
-        letter-spacing: 0.08em;
+        letter-spacing: normal;
     }
 
     .react-immersive-lyrics-track-meta {
@@ -16743,6 +16754,7 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .react-rhythm-word,
     .react-rhythm-glyph,
     .react-rhythm-phrase {
         transition: none;
@@ -16751,7 +16763,7 @@ body,
         text-shadow: none !important;
     }
 
-    .react-rhythm-glyph::after {
+    .react-rhythm-word::after {
         display: none;
     }
 }

@@ -41,6 +41,7 @@ import {
   rhythmRowFrame,
   rhythmRowShape,
   rhythmSparkFrame,
+  type RhythmGlyph,
 } from './lyric_rhythm'
 import { readPlaybackPosition } from './store/playback'
 import type { LyricLine } from './types'
@@ -1307,56 +1308,61 @@ function RhythmLyrics({
           ? 'none'
           : `translate(${(Number(phrase.dataset.offset) + frame.x).toFixed(2)}px, ${Number(phrase.dataset.y).toFixed(2)}px) scale(${(Number(phrase.dataset.scale) * frame.scale).toFixed(3)})`
       })
-      const glyphs = listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-glyph')
+      const words = listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-word')
       let activeSparks = 0
-      for (let index = (glyphs?.length ?? 0) - 1; index >= 0; index -= 1) {
-        const glyph = glyphs![index]!
-        if (previousHidden && previous?.contains(glyph)) continue
+      for (let index = (words?.length ?? 0) - 1; index >= 0; index -= 1) {
+        const word = words![index]!
+        if (previousHidden && previous?.contains(word)) continue
+        const start = Number(word.dataset.start)
+        const length = Number(word.dataset.duration)
+        const lyricWord = {
+          text: word.textContent ?? '',
+          time: start,
+          duration: length,
+          spark: word.dataset.spark === 'true',
+        }
+        const seed = Number(word.dataset.seed)
+        const wordIndex = Number(word.dataset.index)
+        const settledAt = Math.max(start + length, start + 0.15) + 5
+        const settledKey = `${start}:${length}:${seed}:${wordIndex}:${viewport.width}:${reduced}`
+        if (time < start - 0.08 && word.style.opacity === '0' && !word.dataset.sparkActive) continue
+        if (time >= settledAt && word.dataset.rhythmSettled === settledKey) continue
+        if (time >= settledAt) word.dataset.rhythmSettled = settledKey
+        else delete word.dataset.rhythmSettled
+        if (reduced) {
+          word.style.opacity = time >= start ? '0.8' : '0'
+          word.style.transform = 'none'
+          word.style.filter = 'none'
+          word.style.textShadow = 'none'
+          delete word.dataset.sparkActive
+          continue
+        }
+        const frame = rhythmGlyphFrame(lyricWord, time, seed, wordIndex)
+        word.style.opacity = String(frame.opacity)
+        const motionScale = Math.min(1, viewport.width / 600)
+        word.style.transform = `translate(${(frame.x * motionScale).toFixed(2)}px, ${(frame.y * motionScale).toFixed(2)}px) rotate(${frame.rotation.toFixed(2)}deg) scale(${frame.scale.toFixed(3)})`
+        word.style.filter = frame.blur > 0.3 ? `blur(${frame.blur.toFixed(2)}px)` : 'none'
+        word.style.textShadow = frame.glow > 0.01 ? `0 0 0.3em rgb(255 255 255 / ${frame.glow * 0.28})` : 'none'
+        const spark =
+          activeSparks < 4 ? rhythmSparkFrame(lyricWord, time, seed, wordIndex, word.dataset.final === 'true') : null
+        if (spark) {
+          activeSparks += 1
+          word.dataset.sparkActive = 'true'
+          word.style.setProperty('--spark-opacity', spark.opacity.toFixed(3))
+          word.style.setProperty('--spark-scale', spark.scale.toFixed(3))
+          word.style.setProperty('--spark-rotation', `${spark.rotation.toFixed(1)}deg`)
+        } else if (word.dataset.sparkActive) {
+          delete word.dataset.sparkActive
+        }
+      }
+      listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-glyph').forEach(glyph => {
+        if (previousHidden && previous?.contains(glyph)) return
         const start = Number(glyph.dataset.start)
         const length = Number(glyph.dataset.duration)
         const progress = length > 0 ? Math.min(1, Math.max(0, (time - start) / length)) : time >= start ? 1 : 0
         const state = time < start ? 'upcoming' : progress >= 1 ? 'sung' : 'current'
         if (glyph.dataset.rhythmState !== state) glyph.dataset.rhythmState = state
-        const word = {
-          text: glyph.textContent ?? '',
-          time: start,
-          duration: length,
-          spark: glyph.dataset.spark === 'true',
-        }
-        const seed = Number(glyph.dataset.seed)
-        const glyphIndex = Number(glyph.dataset.index)
-        const settledAt = Math.max(start + length, start + 0.15) + 5
-        const settledKey = `${start}:${length}:${seed}:${glyphIndex}:${viewport.width}:${reduced}`
-        if (time < start - 0.08 && glyph.style.opacity === '0' && !glyph.dataset.sparkActive) continue
-        if (time >= settledAt && glyph.dataset.rhythmSettled === settledKey) continue
-        if (time >= settledAt) glyph.dataset.rhythmSettled = settledKey
-        else delete glyph.dataset.rhythmSettled
-        if (reduced) {
-          glyph.style.opacity = time >= start ? '0.8' : '0'
-          glyph.style.transform = 'none'
-          glyph.style.filter = 'none'
-          glyph.style.textShadow = 'none'
-          delete glyph.dataset.sparkActive
-          continue
-        }
-        const frame = rhythmGlyphFrame(word, time, seed, glyphIndex)
-        glyph.style.opacity = String(frame.opacity)
-        const motionScale = Math.min(1, viewport.width / 600)
-        glyph.style.transform = `translate(${(frame.x * motionScale).toFixed(2)}px, ${(frame.y * motionScale).toFixed(2)}px) rotate(${frame.rotation.toFixed(2)}deg) scale(${frame.scale.toFixed(3)})`
-        glyph.style.filter = frame.blur > 0.3 ? `blur(${frame.blur.toFixed(2)}px)` : 'none'
-        glyph.style.textShadow = frame.glow > 0.01 ? `0 0 0.3em rgb(255 255 255 / ${frame.glow * 0.35})` : 'none'
-        const spark =
-          activeSparks < 4 ? rhythmSparkFrame(word, time, seed, glyphIndex, glyph.dataset.final === 'true') : null
-        if (spark) {
-          activeSparks += 1
-          glyph.dataset.sparkActive = 'true'
-          glyph.style.setProperty('--spark-opacity', spark.opacity.toFixed(3))
-          glyph.style.setProperty('--spark-scale', spark.scale.toFixed(3))
-          glyph.style.setProperty('--spark-rotation', `${spark.rotation.toFixed(1)}deg`)
-        } else if (glyph.dataset.sparkActive) {
-          delete glyph.dataset.sparkActive
-        }
-      }
+      })
     },
     [duration, layouts, lines, reducedMotion, viewport.width],
   )
@@ -1440,22 +1446,43 @@ function RhythmLyrics({
           style={{ fontSize: `${fontSize}px` }}
           onClick={() => seek(phrase.time)}
         >
-          {phrase.glyphs.map((glyph, glyphIndex) => (
-            <span
-              className="react-rhythm-glyph"
-              key={`${glyph.time}-${glyphIndex}`}
-              data-start={glyph.time}
-              data-duration={glyph.duration}
-              data-seed={lines[lineIndex]?.time ?? 0}
-              data-index={phraseIndex * 100 + glyphIndex}
-              data-spark={glyph.spark ? 'true' : undefined}
-              data-final={glyph === lastSpark ? 'true' : undefined}
-              data-rhythm-state="upcoming"
-              aria-hidden="true"
-            >
-              {glyph.text}
-            </span>
-          ))}
+          {phrase.glyphs
+            .reduce<RhythmGlyph[][]>((groups, glyph) => {
+              const previousGroup = groups.at(-1)
+              if (glyph.group !== undefined && previousGroup?.[0]?.group === glyph.group) previousGroup.push(glyph)
+              else groups.push([glyph])
+              return groups
+            }, [])
+            .map((group, groupIndex) => {
+              const first = group[0]!
+              const groupId = first.group ?? groupIndex
+              return (
+                <span
+                  className="react-rhythm-word"
+                  key={`${first.groupTime ?? first.time}-${groupId}`}
+                  data-start={first.groupTime ?? first.time}
+                  data-duration={first.groupDuration ?? first.duration}
+                  data-seed={lines[lineIndex]?.time ?? 0}
+                  data-index={groupId}
+                  data-spark={first.groupSpark ? 'true' : undefined}
+                  data-final={lastSpark && group.includes(lastSpark) ? 'true' : undefined}
+                  data-word-boundary={/^\s+$/u.test(group.at(-1)?.text ?? '') ? 'true' : undefined}
+                >
+                  {group.map((glyph, glyphIndex) => (
+                    <span
+                      className="react-rhythm-glyph"
+                      key={`${glyph.time}-${glyphIndex}`}
+                      data-start={glyph.time}
+                      data-duration={glyph.duration}
+                      data-rhythm-state="upcoming"
+                      aria-hidden="true"
+                    >
+                      {glyph.text}
+                    </span>
+                  ))}
+                </span>
+              )
+            })}
         </button>
       )
     })

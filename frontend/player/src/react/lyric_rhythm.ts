@@ -1,6 +1,15 @@
 import type { LyricLine, LyricWord } from './types'
 
-export type RhythmGlyph = { text: string; time: number; duration: number; spark?: boolean }
+export type RhythmGlyph = {
+  text: string
+  time: number
+  duration: number
+  spark?: boolean
+  group?: number
+  groupTime?: number
+  groupDuration?: number
+  groupSpark?: boolean
+}
 export type RhythmPhrase = { glyphs: RhythmGlyph[]; time: number }
 
 export function isRhythmInterlude(
@@ -27,6 +36,89 @@ const graphemeSegmenter =
 
 function graphemes(text: string): string[] {
   return graphemeSegmenter ? Array.from(graphemeSegmenter.segment(text), item => item.segment) : Array.from(text)
+}
+
+const cjkCharacter = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+const lyricWordCharacter = /[\p{L}\p{N}]/u
+const lyricPunctuation = /^[\p{P}\p{S}]+$/u
+
+function groupWordGlyphs(glyphs: RhythmGlyph[]): RhythmGlyph[] {
+  const groups: { start: number; end: number; time: number; finish: number; spark: boolean }[] = []
+  const ids: number[] = []
+  let active = -1
+  let activeKind: 'word' | 'cjk' | 'other' | null = null
+  let breakBeforeWord = false
+
+  const startGroup = (glyph: RhythmGlyph, kind: 'word' | 'cjk' | 'other') => {
+    active = groups.length
+    const singing = !/^\s+$/u.test(glyph.text) && !lyricPunctuation.test(glyph.text)
+    const time = singing ? glyph.time : Number.POSITIVE_INFINITY
+    const finish = singing ? glyph.time + glyph.duration : Number.NEGATIVE_INFINITY
+    groups.push({ start: ids.length, end: ids.length + 1, time, finish, spark: Boolean(singing && glyph.spark) })
+    activeKind = kind
+    return active
+  }
+
+  for (let index = 0; index < glyphs.length; index += 1) {
+    const glyph = glyphs[index]!
+    const text = glyph.text
+    const previous = glyphs[index - 1]?.text ?? ''
+    const next = glyphs[index + 1]?.text ?? ''
+    const connector = /^[’'\-‐‑]$/u.test(text) && activeKind === 'word' && lyricWordCharacter.test(next)
+    let group: number
+
+    if (/^\s+$/u.test(text)) {
+      group = active >= 0 ? active : startGroup(glyph, 'other')
+      breakBeforeWord = true
+    } else if (connector) {
+      group = active
+      breakBeforeWord = false
+    } else if (lyricPunctuation.test(text)) {
+      group = active >= 0 ? active : startGroup(glyph, 'other')
+      breakBeforeWord = true
+    } else if (cjkCharacter.test(text)) {
+      group = startGroup(glyph, 'cjk')
+      breakBeforeWord = false
+    } else if (lyricWordCharacter.test(text)) {
+      group = activeKind === 'word' && !breakBeforeWord ? active : startGroup(glyph, 'word')
+      activeKind = 'word'
+      breakBeforeWord = false
+    } else {
+      group = startGroup(glyph, 'other')
+      breakBeforeWord = true
+    }
+
+    ids.push(group)
+    const entry = groups[group]!
+    entry.end = index + 1
+    if (!/^\s+$/u.test(text) && !lyricPunctuation.test(text)) {
+      entry.time = Math.min(entry.time, glyph.time)
+      entry.finish = Math.max(entry.finish, glyph.time + glyph.duration)
+      entry.spark ||= Boolean(glyph.spark)
+    }
+
+    if (
+      lyricPunctuation.test(text) &&
+      activeKind === 'word' &&
+      /^[’'\-]$/u.test(text) &&
+      lyricWordCharacter.test(previous)
+    ) {
+      breakBeforeWord = false
+    }
+  }
+
+  return glyphs.map((glyph, index) => {
+    const group = ids[index]!
+    const metadata = groups[group]!
+    const first = metadata.start === index
+    return {
+      ...glyph,
+      group,
+      groupTime: Number.isFinite(metadata.time) ? metadata.time : glyph.time,
+      groupDuration: Number.isFinite(metadata.finish) ? Math.max(0, metadata.finish - metadata.time) : 0,
+      groupSpark: first && metadata.spark,
+    }
+  })
 }
 
 function expandWords(words: LyricWord[]): RhythmGlyph[] {
@@ -79,6 +171,7 @@ export function buildRhythmPhrases(line: LyricLine, endTime: number, maxRows = 4
     return { text, time, duration: estimatedDuration, spark }
   })
 
+  const wordGlyphs = groupWordGlyphs(glyphs)
   const units: RhythmGlyph[][] = []
   let run: RhythmGlyph[] = []
   const flushRun = () => {
@@ -90,7 +183,7 @@ export function buildRhythmPhrases(line: LyricLine, endTime: number, maxRows = 4
     }
     run = []
   }
-  for (const glyph of glyphs) {
+  for (const glyph of wordGlyphs) {
     const breaks = /[\s\p{P}]/u.test(glyph.text) && !/[’'\-]/u.test(glyph.text)
     if (breaks && !run.length && units.length) {
       units[units.length - 1]!.push(glyph)
@@ -152,29 +245,33 @@ export function rhythmRowShape(lineTime: number, index: number) {
 
 /** Playback position alone determines the frame, so pause and seek stay exact. */
 export function rhythmGlyphFrame(glyph: RhythmGlyph, position: number, seed: number, index: number) {
-  const baseX = (random(seed + index * 7.13, 1) - 0.5) * 8
-  const baseY = (random(seed + index * 7.13, 2) - 0.5) * 8
-  const baseRotation = (random(seed + index * 7.13, 3) - 0.5) * 5
-  const targetScale = 1.04 + random(seed + index * 7.13, 4) * 0.08
+  const motionSeed = seed + index * 7.13
+  const baseX = (random(motionSeed, 1) - 0.5) * 3
+  const baseY = (random(motionSeed, 2) - 0.5) * 3
+  const baseRotation = (random(motionSeed, 3) - 0.5) * 2
+  const originX = (random(motionSeed, 4) - 0.5) * 24
+  const originY = (random(motionSeed, 5) - 0.5) * 12
+  const originRotation = (random(motionSeed, 6) - 0.5) * 5
+  const targetScale = 1 + random(motionSeed, 7) * 0.025
   const since = position - glyph.time + 0.08
   const after = position - Math.max(glyph.time + glyph.duration, glyph.time + 0.15)
   const spring = since > 0 ? 1 - Math.exp(-10 * since) * (Math.cos(10 * since) + Math.sin(10 * since)) : 0
-  let x = baseX + Math.sin(baseY) * 25 * (1 - spring)
-  let y = baseY + Math.cos(baseX) * 18 * (1 - spring)
-  let rotation = baseRotation + 12 * (1 - spring)
-  let scale = 0.55 + (targetScale * 1.28 - 0.55) * spring
-  let opacity = clamp01(since / 0.1)
-  let blur = 6 * (1 - clamp01(since / 0.2))
-  let glow = clamp01(since / 0.18)
+  let x = baseX + (originX - baseX) * (1 - spring)
+  let y = baseY + (originY - baseY) * (1 - spring)
+  let rotation = baseRotation + originRotation * (1 - spring)
+  let scale = 0.84 + (targetScale * 1.07 - 0.84) * spring
+  let opacity = clamp01(since / 0.14)
+  let blur = 4 * (1 - clamp01(since / 0.24))
+  let glow = 0.72 * clamp01(since / 0.22)
   if (after > 0) {
-    const settled = easeOut(after / 0.5)
-    x = baseX
-    y = baseY
-    rotation = baseRotation + (random(seed + index * 7.13, 5) - 0.5) * 6 * clamp01(after / 5)
-    scale = targetScale * (1.28 - 0.28 * settled)
-    opacity = 1 - 0.25 * settled
+    const settled = easeOut(after / 0.42)
+    x = baseX + (random(motionSeed, 8) - 0.5) * 2 * clamp01(after / 5)
+    y = baseY + (random(motionSeed, 9) - 0.5) * 2 * clamp01(after / 5)
+    rotation = baseRotation + (random(motionSeed, 10) - 0.5) * 2 * clamp01(after / 5)
+    scale = targetScale * (1.07 - 0.07 * settled)
+    opacity = 1 - 0.2 * easeOut(after / 0.7)
     blur = 0
-    glow = 1 - clamp01(after / 0.9)
+    glow = 0.55 * (1 - clamp01(after / 0.8))
   }
   return { x, y, rotation, scale, opacity, blur, glow }
 }
