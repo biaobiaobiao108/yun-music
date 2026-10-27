@@ -465,23 +465,6 @@ function Sidebar() {
                 </button>
               )}
             </div>
-            <p className="react-sidebar-label react-sidebar-more-label">工具与设置</p>
-            <button type="button" className="netease-nav-item" onClick={() => setDrawer('cache')}>
-              <Icon name="cloud-arrow-down" />
-              <span>缓存与下载</span>
-            </button>
-            {SIDEBAR_SETTINGS_ITEMS.map(item => (
-              <button
-                type="button"
-                key={item.id}
-                className={`netease-nav-item ${activeTab === item.id ? 'active-tab' : ''}`}
-                aria-current={activeTab === item.id ? 'page' : undefined}
-                onClick={() => setTab(item.id)}
-              >
-                <Icon name={item.icon} />
-                <span>{item.label}</span>
-              </button>
-            ))}
           </nav>
         </div>
         <div
@@ -491,47 +474,67 @@ function Sidebar() {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAccountMenuOpen(false)
           }}
         >
-          {userName && (
-            <div
-              id="react-sidebar-account-menu"
-              className="react-account-menu"
-              role="group"
-              aria-label="账户菜单"
-              hidden={!accountMenuOpen}
-            >
+          <div
+            id="react-sidebar-account-menu"
+            className="react-account-menu"
+            role="group"
+            aria-label="账户菜单"
+            hidden={!accountMenuOpen}
+          >
+            {userName ? (
               <button type="button" onClick={() => selectAccountAction('home')}>
                 <Icon name="user" />
                 <span>我的主页</span>
               </button>
-              <button type="button" onClick={() => selectAccountAction('settings')}>
-                <Icon name="gear" />
-                <span>设置</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountMenuOpen(false)
+                  setDialog('userLogin')
+                }}
+              >
+                <Icon name="circle-user" />
+                <span>登录账户</span>
               </button>
-              <div className="react-account-menu-divider" role="separator" />
-              <button type="button" className="react-account-menu-logout" onClick={() => void logoutAccount()}>
-                <Icon name="right-from-bracket" />
-                <span>退出登录</span>
-              </button>
-            </div>
-          )}
+            )}
+            <button type="button" onClick={() => selectAccountAction('settings')}>
+              <Icon name="gear" />
+              <span>设置</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountMenuOpen(false)
+                setDrawer('cache')
+              }}
+            >
+              <Icon name="cloud-arrow-down" />
+              <span>缓存与下载</span>
+            </button>
+            {userName && (
+              <>
+                <div className="react-account-menu-divider" role="separator" />
+                <button type="button" className="react-account-menu-logout" onClick={() => void logoutAccount()}>
+                  <Icon name="right-from-bracket" />
+                  <span>退出登录</span>
+                </button>
+              </>
+            )}
+          </div>
           <button
             ref={accountTriggerRef}
             type="button"
             className={`react-sidebar-account-trigger ${accountMenuOpen ? 'is-open' : ''}`}
-            aria-label={userName ? `账户菜单：${userName}` : '登录账户'}
-            aria-expanded={userName ? accountMenuOpen : undefined}
-            aria-controls={userName ? 'react-sidebar-account-menu' : undefined}
-            onClick={() => (userName ? setAccountMenuOpen(value => !value) : setDialog('userLogin'))}
+            aria-label={userName ? `账户菜单：${userName}` : '账户与工具菜单'}
+            aria-expanded={accountMenuOpen}
+            aria-controls="react-sidebar-account-menu"
+            onClick={() => setAccountMenuOpen(value => !value)}
           >
-            <span className="react-sidebar-account-avatar">
-              <Icon name="circle-user" />
-            </span>
             <strong>{userName || '登录账户'}</strong>
-            {userName && (
-              <span className="react-sidebar-account-chevron">
-                <Icon name="chevron-down" />
-              </span>
-            )}
+            <span className="react-sidebar-account-chevron">
+              <Icon name="chevron-down" />
+            </span>
           </button>
         </div>
       </aside>

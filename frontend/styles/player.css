@@ -550,15 +550,15 @@ body {
 
 .react-select-menu-trigger:hover,
 .react-select-menu.is-open .react-select-menu-trigger {
-    border-color: var(--app-accent);
+    border-color: var(--app-border-strong);
     background: var(--app-surface);
 }
 
 .react-select-menu-trigger:focus-visible {
-    border-color: var(--app-accent);
+    border-color: var(--app-border-strong);
     background: var(--app-surface);
-    outline: 1px solid var(--app-accent);
-    outline-offset: -1px;
+    outline: 2px solid color-mix(in srgb, var(--app-accent) 40%, transparent);
+    outline-offset: 1px;
 }
 
 .react-select-menu-trigger > span {
@@ -577,6 +577,8 @@ body {
 .react-select-menu-list {
     position: absolute;
     z-index: 260;
+    display: grid;
+    gap: 0.12rem;
     top: calc(100% + 0.4rem);
     left: 0;
     width: max-content;
@@ -584,11 +586,11 @@ body {
     max-width: min(19rem, calc(100vw - 1.5rem));
     max-height: min(18rem, 48vh);
     overflow: auto;
-    padding: 0.35rem;
+    padding: 0.45rem;
     border: 1px solid var(--app-border-strong);
-    border-radius: 0.8rem;
+    border-radius: 1rem;
     background: var(--app-surface-solid);
-    box-shadow: 0 1rem 2.6rem rgb(0 0 0 / 22%);
+    box-shadow: var(--app-shadow);
     animation: react-panel-enter var(--app-motion-fast) ease both;
 }
 
@@ -598,12 +600,12 @@ body {
     justify-content: space-between;
     gap: 1rem;
     width: 100%;
-    min-height: 2.25rem;
-    padding: 0.5rem 0.62rem;
+    min-height: 2.65rem;
+    padding: 0.5rem 0.65rem;
     border: 0;
-    border-radius: 0.55rem;
+    border-radius: 0.65rem;
     background: transparent;
-    color: var(--app-text-muted);
+    color: var(--app-text);
     cursor: pointer;
     font: inherit;
     text-align: left;
@@ -613,13 +615,16 @@ body {
 .react-select-menu-option:hover,
 .react-select-menu-option.is-highlighted,
 .react-select-menu-option.is-selected {
-    background: var(--app-accent-soft);
+    background: var(--app-surface-soft);
     color: var(--app-text);
 }
 
 .react-select-menu-option.is-selected {
+    font-weight: 600;
+}
+
+.react-select-menu-option.is-selected > .fas {
     color: var(--app-accent);
-    font-weight: 650;
 }
 
 .react-select-menu-option:disabled {
@@ -6674,10 +6679,6 @@ textarea:focus-visible {
 
 .react-sidebar-playlist-empty {
     color: var(--app-text-dim);
-}
-
-.react-sidebar-more-label {
-    margin-top: 0.9rem;
 }
 
 .react-sidebar-user {
@@ -15010,9 +15011,8 @@ body,
 .react-sidebar-account {
     position: relative;
     flex: 0 0 auto;
-    margin: 0.55rem 0.3rem 0;
-    padding-top: 0.55rem;
-    border-top: 1px solid var(--app-border);
+    margin: 0.4rem 0.3rem 0;
+    padding-top: 0.25rem;
 }
 
 .react-sidebar-account-trigger {
@@ -15039,19 +15039,6 @@ body,
 .react-sidebar-account-trigger:focus-visible {
     outline: 2px solid var(--app-accent);
     outline-offset: 1px;
-}
-
-.react-sidebar-account-avatar {
-    display: grid;
-    flex: 0 0 2.35rem;
-    width: 2.35rem;
-    height: 2.35rem;
-    place-items: center;
-    overflow: hidden;
-    border-radius: 50%;
-    background: var(--app-surface-soft);
-    color: var(--app-text-muted);
-    font-size: 1.25rem;
 }
 
 .react-sidebar-account-trigger strong {
