@@ -41,10 +41,13 @@ import {
   rhythmGlyphFrame,
   rhythmGlyphLayoutScale,
   rhythmGlyphWidth,
+  rhythmNeedsSmoothFrame,
+  rhythmLyricEnd,
   rhythmRowFrame,
   rhythmRowShape,
   rhythmSparkFrame,
   type RhythmGlyph,
+  type RhythmPhrase,
 } from './lyric_rhythm'
 import { readPlaybackPosition } from './store/playback'
 import type { LyricLine } from './types'
@@ -1242,6 +1245,8 @@ function RhythmLyrics({
   const listRef = useRef<HTMLElement | null>(null)
   const focusRef = useRef(-1)
   const interludeRef = useRef(false)
+  const lastPlaybackTimeRef = useRef(Number.NaN)
+  const [interludeStart, setInterludeStart] = useState<number | null>(null)
   const [focus, setFocus] = useState(-1)
   const [interlude, setInterlude] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -1280,15 +1285,31 @@ function RhythmLyrics({
       ),
     [duration, lines, maxPhraseWidth],
   )
+  const lineEnds = useMemo(
+    () => lines.map((line, index) => rhythmLyricEnd(line, layouts[index] ?? [])),
+    [layouts, lines],
+  )
+
+  const interludeLine = useMemo<LyricLine | null>(
+    () => (interludeStart === null ? null : { time: interludeStart, text: 'Shh... the melody is doing the talking.' }),
+    [interludeStart],
+  )
+  const interludeLayouts = useMemo(
+    () => (interludeLine ? buildRhythmPhrases(interludeLine, interludeLine.time + 3, 4, maxPhraseWidth) : []),
+    [interludeLine, maxPhraseWidth],
+  )
 
   const updateAt = useCallback(
     (time: number) => {
       const index = findActiveLyricIndex(lines, time)
-      const nextInterlude = isRhythmInterlude(lines, layouts, index, time, duration)
+      const nextInterlude = isRhythmInterlude(lines, lineEnds, index, time, duration)
+      const rewound = Number.isFinite(lastPlaybackTimeRef.current) && time < lastPlaybackTimeRef.current - 0.25
       if (interludeRef.current !== nextInterlude) {
         interludeRef.current = nextInterlude
         setInterlude(nextInterlude)
-      }
+        setInterludeStart(nextInterlude ? time : null)
+      } else if (nextInterlude && rewound) setInterludeStart(time)
+      lastPlaybackTimeRef.current = time
       if (focusRef.current !== index) {
         focusRef.current = index
         setFocus(index)
@@ -1420,7 +1441,7 @@ function RhythmLyrics({
         character.style.transform = reduced ? 'none' : `scale(${(1 + pulse * 0.15).toFixed(3)})`
       })
     },
-    [duration, layouts, lines, reducedMotion, viewport.height, viewport.width],
+    [duration, layouts, lineEnds, lines, reducedMotion, viewport.height, viewport.width],
   )
 
   useEffect(() => {
@@ -1434,23 +1455,28 @@ function RhythmLyrics({
   useEffect(() => {
     if (!open) return
     let previousTime = Number.NaN
-    const sync = () => {
+    let frame = 0
+    let timer = 0
+    const tick = () => {
+      frame = 0
+      timer = 0
       const time = readPlaybackPosition() ?? usePlaybackStore.getState().currentTime
       if (time !== previousTime) {
         previousTime = time
         updateAt(time)
       }
+      const index = findActiveLyricIndex(lines, time)
+      const activePhrases = interludeRef.current ? interludeLayouts : (layouts[index] ?? [])
+      if (rhythmNeedsSmoothFrame(activePhrases, time)) frame = window.requestAnimationFrame(tick)
+      else timer = window.setTimeout(tick, 100)
     }
-    sync()
-    if (!isPlaying || reducedMotion) return
-    let frame = 0
-    const tick = () => {
-      sync()
-      frame = window.requestAnimationFrame(tick)
+    if (!isPlaying || reducedMotion || !lines.length) return
+    tick()
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      if (timer) window.clearTimeout(timer)
     }
-    frame = window.requestAnimationFrame(tick)
-    return () => window.cancelAnimationFrame(frame)
-  }, [isPlaying, open, reducedMotion, updateAt])
+  }, [interludeLayouts, isPlaying, layouts, lines, open, reducedMotion, updateAt])
 
   useEffect(() => {
     if (open && (!isPlaying || reducedMotion)) updateAt(currentTime)
@@ -1458,14 +1484,20 @@ function RhythmLyrics({
 
   useEffect(() => {
     if (open) updateAt(readPlaybackPosition() ?? usePlaybackStore.getState().currentTime)
-  }, [focus, interlude, layouts, open, updateAt, viewport])
+  }, [focus, interlude, interludeLayouts, layouts, open, updateAt, viewport])
 
   const displayIndex = Math.max(0, focus)
-  const renderPhrases = (lineIndex: number, previous = false) => {
-    const rows = layouts[lineIndex] ?? []
-    const lastSpark = rows
-      .flatMap(phrase => phrase.glyphs)
-      .findLast(glyph => glyph.spark && /[\p{L}\p{N}]/u.test(glyph.text))
+  const renderPhrases = (
+    rows: RhythmPhrase[],
+    lineTime: number,
+    keyPrefix: string,
+    previous = false,
+    seekable = true,
+    sparks = true,
+  ) => {
+    const lastSpark = sparks
+      ? rows.flatMap(phrase => phrase.glyphs).findLast(glyph => glyph.spark && /[\p{L}\p{N}]/u.test(glyph.text))
+      : undefined
     const widest = Math.max(
       1,
       ...rows.map(phrase => phrase.glyphs.reduce((sum, glyph) => sum + rhythmGlyphWidth(glyph.text), 0)),
@@ -1479,12 +1511,12 @@ function RhythmLyrics({
       ),
     )
     return rows.map((phrase, phraseIndex) => {
-      const shape = rhythmRowShape(lines[lineIndex]?.time ?? 0, phraseIndex)
+      const shape = rhythmRowShape(lineTime, phraseIndex)
       return (
         <button
           type="button"
           className="react-rhythm-phrase"
-          key={`${phrase.time}-${phraseIndex}`}
+          key={`${keyPrefix}-${phrase.time}-${phraseIndex}`}
           data-start={phrase.time}
           data-side={shape.side}
           data-offset={shape.offset * Math.min(1, viewport.width / 600)}
@@ -1492,9 +1524,9 @@ function RhythmLyrics({
           data-scale={shape.scale}
           aria-label={phrase.glyphs.map(glyph => glyph.text).join('')}
           aria-hidden={previous || undefined}
-          disabled={previous}
+          disabled={previous || !seekable}
           style={{ fontSize: `${fontSize}px` }}
-          onClick={() => seek(phrase.time)}
+          onClick={seekable ? () => seek(phrase.time) : undefined}
         >
           {phrase.glyphs
             .reduce<RhythmGlyph[][]>((groups, glyph) => {
@@ -1512,11 +1544,11 @@ function RhythmLyrics({
                   key={`${first.groupTime ?? first.time}-${groupId}`}
                   data-start={first.groupTime ?? first.time}
                   data-duration={first.groupDuration ?? first.duration}
-                  data-seed={lines[lineIndex]?.time ?? 0}
+                  data-seed={lineTime}
                   data-index={groupId}
-                  data-spark={first.groupSpark ? 'true' : undefined}
-                  data-final={lastSpark && group.includes(lastSpark) ? 'true' : undefined}
-                  data-layout-scale={rhythmGlyphLayoutScale(lines[lineIndex]?.time ?? 0, groupId)}
+                  data-spark={sparks && first.groupSpark ? 'true' : undefined}
+                  data-final={sparks && lastSpark && group.includes(lastSpark) ? 'true' : undefined}
+                  data-layout-scale={rhythmGlyphLayoutScale(lineTime, groupId)}
                   data-font-size={fontSize}
                 >
                   {isRhythmCjkCharacter(first.text) ? (
@@ -1553,8 +1585,12 @@ function RhythmLyrics({
               {error}
             </p>
           ) : lines.length && interlude ? (
-            <div className={`react-rhythm-interlude${isPlaying ? ' is-playing' : ''}`} role="img" aria-label="间奏">
-              <span>Shh... the melody is doing the talking.</span>
+            <div
+              className="react-rhythm-phrases react-rhythm-current react-rhythm-interlude"
+              role="group"
+              aria-label="间奏"
+            >
+              {renderPhrases(interludeLayouts, interludeStart ?? 0, 'interlude', false, false, false)}
             </div>
           ) : lines.length ? (
             <>
@@ -1564,10 +1600,12 @@ function RhythmLyrics({
                   data-line-start={lines[focus]?.time}
                   aria-hidden="true"
                 >
-                  {renderPhrases(focus - 1, true)}
+                  {renderPhrases(layouts[focus - 1] ?? [], lines[focus - 1]?.time ?? 0, `line-${focus - 1}`, true)}
                 </div>
               )}
-              <div className="react-rhythm-phrases react-rhythm-current">{renderPhrases(displayIndex)}</div>
+              <div className="react-rhythm-phrases react-rhythm-current">
+                {renderPhrases(layouts[displayIndex] ?? [], lines[displayIndex]?.time ?? 0, `line-${displayIndex}`)}
+              </div>
             </>
           ) : (
             <div className="react-empty">

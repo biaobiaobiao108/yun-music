@@ -12,9 +12,23 @@ export type RhythmGlyph = {
 }
 export type RhythmPhrase = { glyphs: RhythmGlyph[]; time: number }
 
+export function rhythmLyricEnd(line: LyricLine, phrases: RhythmPhrase[]): number {
+  let renderedEnd = line.time
+  for (const phrase of phrases) {
+    for (const glyph of phrase.glyphs) renderedEnd = Math.max(renderedEnd, glyph.time + glyph.duration)
+  }
+  if (line.timedWords?.length) return renderedEnd
+  let textLength = 0
+  for (const text of graphemes(line.text)) {
+    if (!/^\s+$/u.test(text) && !lyricPunctuation.test(text)) textLength += 1
+  }
+  const estimatedEnd = line.time + Math.max(1, Math.min(5.5, textLength * 0.2))
+  return Math.min(renderedEnd, estimatedEnd)
+}
+
 export function isRhythmInterlude(
   lines: LyricLine[],
-  layouts: RhythmPhrase[][],
+  lineEnds: number[],
   index: number,
   time: number,
   duration: number,
@@ -24,11 +38,9 @@ export function isRhythmInterlude(
   const line = lines[index]
   if (!line) return false
   const next = lines[index + 1]?.time ?? (duration > time ? duration : 0)
-  if (!next) return false
-  const glyphs = layouts[index]?.flatMap(phrase => phrase.glyphs) ?? []
-  const end = glyphs.reduce((latest, glyph) => Math.max(latest, glyph.time + glyph.duration), line.time)
-  const minimumGap = line.timedWords?.length ? 4 : 12
-  return next - end >= minimumGap && time >= end + 1 && time < next
+  if (!next || next <= time) return false
+  const end = lineEnds[index] ?? line.time
+  return next - end >= 1 && time >= end + 0.15 && time < next
 }
 
 const graphemeSegmenter =
@@ -254,6 +266,28 @@ export function rhythmRowShape(lineTime: number, index: number) {
   return { side, offset: 0, scale: 0.98 + random(seed, 7) * 0.04 }
 }
 
+export function rhythmNeedsSmoothFrame(phrases: RhythmPhrase[], position: number) {
+  let previousGroup: number | undefined
+  for (const phrase of phrases) {
+    const rowEnd = phrase.time + 1.5
+    if (position >= phrase.time - 0.18 && position <= rowEnd) return true
+    for (const glyph of phrase.glyphs) {
+      if (glyph.group !== undefined) {
+        if (previousGroup === glyph.group) continue
+        previousGroup = glyph.group
+      } else previousGroup = undefined
+      const start = glyph.groupTime ?? glyph.time
+      const duration = glyph.groupDuration ?? glyph.duration
+      const end = Math.max(start + duration, start + 0.15)
+      const charPulseEnd = isRhythmCjkCharacter(glyph.text)
+        ? start + Math.max(0.2, Math.min(0.9, glyph.duration)) * 2.2
+        : start
+      if (position >= start - 0.18 && position <= Math.max(end + 0.9, charPulseEnd)) return true
+    }
+  }
+  return false
+}
+
 export function rhythmGlyphLayoutScale(seed: number, index: number) {
   return 1.06 + random(seed + index * 7.13, 4) * 0.14
 }
@@ -298,12 +332,12 @@ export function rhythmGlyphFrame(glyph: RhythmGlyph, position: number, seed: num
 export function rhythmSparkFrame(glyph: RhythmGlyph, position: number, seed: number, index: number, final = false) {
   if (!glyph.spark || !glyph.text.trim() || /^[\s\p{P}\p{S}]+$/u.test(glyph.text)) return null
   const age = position - glyph.time
-  const lifetime = final ? 0.7 : 0.55
+  const lifetime = final ? 0.5 : 0.4
   if (age < 0 || age >= lifetime) return null
   const progress = clamp01(age / lifetime)
   return {
-    opacity: (1 - progress) ** 2 * (final ? 0.9 : 0.75),
-    scale: 0.45 + easeOut(progress) * (final ? 0.95 : 0.7),
+    opacity: (1 - progress) ** 2 * (final ? 0.68 : 0.55),
+    scale: 0.4 + easeOut(progress) * (final ? 0.62 : 0.42),
     rotation: (random(seed + index * 7.13, 8) - 0.5) * 60,
   }
 }

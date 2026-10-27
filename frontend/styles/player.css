@@ -16553,50 +16553,13 @@ body,
     min-height: 0;
 }
 
-.react-rhythm-interlude {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 3.5rem;
-    color: rgb(255 248 245 / 68%);
-}
-
-.react-rhythm-interlude span {
-    max-width: min(90%, 40rem);
-    font-size: clamp(1.25rem, 2.4vw, 1.9rem);
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    line-height: 1.4;
-    text-align: center;
-    animation: react-interlude-pulse 3s ease-in-out infinite alternate;
-    animation-play-state: paused;
-}
-
-.react-rhythm-interlude.is-playing span {
-    animation-play-state: running;
-}
-
-@keyframes react-interlude-pulse {
-    from {
-        transform: translateY(0.12rem);
-        opacity: 0.65;
-    }
-    to {
-        transform: translateY(-0.12rem);
-        opacity: 1;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .react-rhythm-interlude span {
-        animation: none;
-        transform: none;
-    }
-}
-
 .react-rhythm-current {
     position: relative;
     z-index: 1;
+}
+
+.react-rhythm-interlude .react-rhythm-phrase {
+    cursor: default;
 }
 
 .react-rhythm-previous {
@@ -16656,12 +16619,15 @@ body,
 .react-rhythm-word::after {
     position: absolute;
     z-index: 0;
-    inset: -0.65em -0.75em;
+    top: 50%;
+    left: 0;
+    width: 1.2em;
+    height: 1.2em;
+    margin: -0.6em 0 0 -0.6em;
     border-radius: 50%;
-    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 38%, white) 0deg 1deg, transparent 1.5deg 40deg);
-    -webkit-mask-image: radial-gradient(ellipse at center, transparent 26%, black 40% 68%, transparent 78%);
-    mask-image: radial-gradient(ellipse at center, transparent 26%, black 40% 68%, transparent 78%);
-    filter: drop-shadow(0 0 0.12em var(--app-accent, #f42f4c));
+    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 38%, white) 0deg 1.2deg, transparent 2deg 45deg);
+    -webkit-mask-image: radial-gradient(circle at center, transparent 20%, black 34% 60%, transparent 74%);
+    mask-image: radial-gradient(circle at center, transparent 20%, black 34% 60%, transparent 74%);
     opacity: 0;
     pointer-events: none;
     transform: rotate(var(--spark-rotation, 0deg)) scale(var(--spark-scale, 0.45));
@@ -16674,8 +16640,10 @@ body,
 }
 
 .react-rhythm-word[data-final="true"][data-spark-active="true"]::after {
-    inset: -0.9em -1em;
-    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 34%, white) 0deg 0.8deg, transparent 1.2deg 24deg);
+    width: 1.5em;
+    height: 1.5em;
+    margin: -0.75em 0 0 -0.75em;
+    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 34%, white) 0deg 0.9deg, transparent 1.5deg 30deg);
 }
 
 .react-rhythm-word:last-child {
