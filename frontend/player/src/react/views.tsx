@@ -1291,7 +1291,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
       syncFooterPosition()
       dialog.showModal()
       onFooterHostChange('immersive')
-      dialog.querySelector<HTMLButtonElement>('[data-immersive-close]')?.focus()
+      surface?.focus({ preventScroll: true })
     } else if (open) {
       syncFooterPosition()
       onFooterHostChange('immersive')
@@ -1361,6 +1361,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     }
     list.scrollTo({ top: targetTop, behavior: 'smooth' })
   }, [active, lines, lyricsViewportSize, open])
+  const activeLine = active >= 0 ? lines[active] : null
   const lyricStyle = {
     '--react-lyric-size': `${Math.max(0.9, Number(settings.lyricFontSize || 1.25))}rem`,
   } as CSSProperties
@@ -1384,7 +1385,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
         onClose()
       }}
     >
-      <div className="react-immersive-lyrics" style={immersiveStyle}>
+      <div className="react-immersive-lyrics" style={immersiveStyle} tabIndex={-1}>
         <header className="react-immersive-lyrics-header">
           <button
             type="button"
@@ -1445,6 +1446,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
               </div>
             )}
           </section>
+        </div>
+        <div className="react-immersive-lyrics-track-meta">
+          <strong>{song ? title : '选择一首歌曲开始播放'}</strong>
+          <small>{activeLine?.translation || activeLine?.roma || (song ? songArtist(song) : '沉浸式歌词')}</small>
         </div>
         <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
       </div>

@@ -135,6 +135,17 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
   )
 }
 
+function ImmersivePlaybackTime() {
+  const currentTime = usePlaybackStore(state => state.currentTime)
+  const duration = usePlaybackStore(state => state.duration)
+
+  return (
+    <div className="react-immersive-footer-time" aria-label="播放时间">
+      <Time value={currentTime} /> / <Time value={duration} />
+    </div>
+  )
+}
+
 export type PlayerFooterVariant = 'normal' | 'immersive'
 
 export function PlayerFooterBar({
@@ -464,23 +475,7 @@ export function PlayerFooterBar({
                 )}
               </button>
             </div>
-            <div className="react-immersive-footer-tools">
-              <button
-                type="button"
-                className="player-secondary-action react-queue-button"
-                aria-label="打开播放队列"
-                onClick={openQueue}
-              >
-                <Icon name="list" />
-              </button>
-              <VolumeControl
-                volume={volume}
-                muted={muted}
-                active={isActive}
-                popoverId={volumePopoverId}
-                onVolumeChange={setVolume}
-              />
-            </div>
+            <ImmersivePlaybackTime />
           </>
         ) : (
           <>
