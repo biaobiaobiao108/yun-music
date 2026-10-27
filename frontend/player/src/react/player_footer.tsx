@@ -378,27 +378,61 @@ export function PlayerFooterBar({
         aria-label={immersive ? '歌词播放控制' : '播放器'}
         aria-hidden={isActive ? undefined : true}
         inert={isActive ? undefined : true}
-        className={`react-player-footer${immersive ? ' react-immersive-shared-footer react-immersive-detail-controls' : ''}${isActive ? '' : ' is-inactive'}`}
+        className={`react-player-footer${immersive ? ' react-immersive-shared-footer react-immersive-detail-controls react-immersive-designed-footer' : ''}${isActive ? '' : ' is-inactive'}`}
       >
         {immersive ? (
           <>
             <div className="react-immersive-detail-progress">
               <PlayerProgressRow seek={seek} />
             </div>
+            <div className="react-immersive-footer-song">
+              <SafeImage
+                className="react-immersive-footer-art"
+                src={songImage(currentSong)}
+                width="48"
+                height="48"
+                alt=""
+              />
+              <div className="react-immersive-footer-meta">
+                <strong id={isActive ? 'immersive-lyrics-title' : undefined}>
+                  {currentSong ? songTitle(currentSong) : '云鹿音乐'}
+                </strong>
+                <small>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
+              </div>
+              <button
+                type="button"
+                id={isActive ? 'player-like-btn' : undefined}
+                className={`react-immersive-footer-like ${isLiked ? 'is-active' : ''}`}
+                aria-label={isLiked ? '取消喜欢' : '喜欢'}
+                aria-pressed={isLiked}
+                onClick={() => void toggleLike()}
+                disabled={!currentSong}
+              >
+                <Icon name="heart" />
+              </button>
+              <button
+                ref={songMenuButtonRef}
+                type="button"
+                className="react-footer-song-menu-trigger"
+                aria-label="打开歌曲更多操作"
+                aria-expanded={songMenuOpen}
+                aria-controls="song-actions-popover"
+                onClick={toggleSongMenu}
+                disabled={!isActive || !currentSong}
+                tabIndex={!isActive ? -1 : undefined}
+              >
+                <Icon name="ellipsis" />
+              </button>
+            </div>
             <div className="react-immersive-detail-transport" aria-label="歌词播放操作">
               <button
                 type="button"
-                className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
-                aria-label={`播放模式：${modeLabel}`}
-                aria-pressed={mode !== 'list'}
-                onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}
+                className={`player-secondary-action react-mode-button ${mode === 'random' ? 'is-active' : ''}`}
+                aria-label={mode === 'random' ? '关闭随机播放' : '开启随机播放'}
+                aria-pressed={mode === 'random'}
+                onClick={() => setMode(mode === 'random' ? 'list' : 'random')}
               >
-                <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
-                {mode === 'single' && (
-                  <span className="react-mode-one" aria-hidden="true">
-                    1
-                  </span>
-                )}
+                <Icon name="shuffle" />
               </button>
               <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}>
                 <Icon name="backward-step" />
@@ -415,40 +449,37 @@ export function PlayerFooterBar({
               <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}>
                 <Icon name="forward-step" />
               </button>
-              {mobileViewport ? (
-                <button
-                  type="button"
-                  className="player-secondary-action react-queue-button"
-                  aria-label="打开播放队列"
-                  onClick={openQueue}
-                >
-                  <Icon name="list" />
-                </button>
-              ) : (
-                <VolumeControl
-                  volume={volume}
-                  muted={muted}
-                  active={isActive}
-                  popoverId={volumePopoverId}
-                  onVolumeChange={setVolume}
-                />
-              )}
+              <button
+                type="button"
+                className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
+                aria-label={mode === 'single' ? '关闭单曲循环' : '开启单曲循环'}
+                aria-pressed={mode === 'single'}
+                onClick={() => setMode(mode === 'single' ? 'list' : 'single')}
+              >
+                <Icon name="repeat" />
+                {mode === 'single' && (
+                  <span className="react-mode-one" aria-hidden="true">
+                    1
+                  </span>
+                )}
+              </button>
             </div>
-            <div
-              className="react-immersive-volume-row"
-              style={{ '--volume': `${Math.round((muted ? 0 : volume) * 100)}%` } as CSSProperties}
-            >
-              <Icon name={muted || volume <= 0 ? 'volume-xmark' : 'volume-low'} />
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={muted ? 0 : volume}
-                onChange={event => setVolume(Number(event.target.value))}
-                aria-label="音量"
+            <div className="react-immersive-footer-tools">
+              <button
+                type="button"
+                className="player-secondary-action react-queue-button"
+                aria-label="打开播放队列"
+                onClick={openQueue}
+              >
+                <Icon name="list" />
+              </button>
+              <VolumeControl
+                volume={volume}
+                muted={muted}
+                active={isActive}
+                popoverId={volumePopoverId}
+                onVolumeChange={setVolume}
               />
-              <Icon name="volume-high" />
             </div>
           </>
         ) : (
@@ -576,18 +607,16 @@ export function PlayerFooterBar({
           </>
         )}
       </footer>
-      {!immersive && (
-        <SongActionsPopover
-          song={currentSong}
-          open={isActive && songMenuOpen}
-          anchorRef={songMenuButtonRef}
-          onClose={closeSongMenu}
-          onAddToList={openAddToListAction}
-          onComment={openComments}
-          onDownload={() => void download()}
-          onSleep={openSleepTimer}
-        />
-      )}
+      <SongActionsPopover
+        song={currentSong}
+        open={isActive && songMenuOpen}
+        anchorRef={songMenuButtonRef}
+        onClose={closeSongMenu}
+        onAddToList={openAddToListAction}
+        onComment={openComments}
+        onDownload={() => void download()}
+        onSleep={openSleepTimer}
+      />
     </>
   )
 }

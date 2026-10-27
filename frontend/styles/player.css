@@ -15602,6 +15602,556 @@ body,
     }
 }
 
+/* Immersive lyrics: let the artwork become a subdued canvas and keep the
+   timed lyric line and transport readable above it. */
+.react-immersive-lyrics-dialog {
+    background: #321c19 !important;
+    color: #f4ece9;
+}
+
+.react-immersive-lyrics-dialog::backdrop {
+    background: #321c19;
+}
+
+.react-immersive-lyrics {
+    --react-immersive-footer-reserve: 7.5rem;
+    position: relative;
+    display: block;
+    block-size: 100%;
+    min-block-size: 0;
+    overflow: hidden;
+    isolation: isolate;
+    background: #321c19 !important;
+    color: #f4ece9;
+}
+
+.react-immersive-lyrics::before,
+.react-immersive-lyrics::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    pointer-events: none;
+}
+
+.react-immersive-lyrics::before {
+    z-index: -2;
+    inset: -8%;
+    background: var(--react-immersive-art) center / cover no-repeat;
+    filter: blur(46px) saturate(0.82) brightness(0.68);
+    opacity: 0.72;
+    transform: scale(1.08);
+}
+
+.react-immersive-lyrics::after {
+    z-index: -1;
+    background: linear-gradient(180deg, rgb(71 43 39 / 72%) 0%, rgb(53 31 28 / 69%) 46%, rgb(34 20 18 / 92%) 100%);
+}
+
+.react-immersive-lyrics > * {
+    position: relative;
+    z-index: 1;
+}
+
+.react-immersive-lyrics-header {
+    position: absolute;
+    z-index: 4;
+    inset: max(0.65rem, env(safe-area-inset-top, 0px)) 1.25rem auto;
+    display: flex;
+    justify-content: space-between;
+    min-height: 2.75rem;
+    padding: 0;
+    border: 0 !important;
+    background: transparent !important;
+    pointer-events: none;
+}
+
+.react-immersive-nav-button {
+    width: 2.45rem;
+    height: 2.45rem;
+    border: 0;
+    background: rgb(19 11 10 / 12%);
+    color: rgb(255 248 245 / 72%);
+    opacity: 0.76;
+    pointer-events: auto;
+    transition:
+        background-color var(--app-motion-fast) ease,
+        color var(--app-motion-fast) ease,
+        opacity var(--app-motion-fast) ease;
+}
+
+.react-immersive-nav-button:hover,
+.react-immersive-nav-button:focus-visible {
+    border: 0;
+    background: rgb(19 11 10 / 30%);
+    color: #fff8f5;
+    opacity: 1;
+}
+
+.react-immersive-lyrics-grid {
+    position: absolute;
+    inset: 4rem 0 var(--react-immersive-footer-reserve);
+    display: grid;
+    place-items: center;
+    width: 100%;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0 clamp(1rem, 5vw, 5rem);
+    overflow: hidden;
+}
+
+.react-immersive-lyrics > .react-immersive-lyrics-grid {
+    display: grid !important;
+    flex: none !important;
+    block-size: auto;
+    max-block-size: none;
+    overflow: hidden !important;
+    padding: 0 clamp(1rem, 5vw, 5rem) !important;
+}
+
+.react-immersive-lyrics-list {
+    align-self: stretch;
+    width: min(100%, 72rem);
+    height: 100%;
+    padding: max(7rem, calc(50dvh - 3rem)) 0.75rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-block: 50%;
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+    text-align: center;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+}
+
+.react-immersive-lyrics-list > button {
+    display: grid;
+    justify-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    margin: 0;
+    padding: 0.72rem 0.5rem;
+    color: rgb(255 246 242 / 42%) !important;
+    font-size: var(--react-lyric-size, 1.25rem);
+    line-height: 1.48;
+    text-align: center;
+    opacity: 0.44;
+    transition:
+        color 300ms ease,
+        opacity 400ms ease,
+        transform 400ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.react-immersive-lyrics-list > button.is-idle {
+    color: rgb(255 246 242 / 52%) !important;
+    opacity: 0.56;
+}
+
+.react-immersive-lyrics-list > button.is-distant {
+    color: rgb(255 246 242 / 30%) !important;
+    opacity: 0.28;
+}
+
+.react-immersive-lyrics-list > button.is-near {
+    color: rgb(255 246 242 / 48%) !important;
+    opacity: 0.48;
+}
+
+.react-immersive-lyrics-list > button.is-adjacent {
+    color: rgb(255 246 242 / 68%) !important;
+    opacity: 0.72;
+}
+
+.react-immersive-lyrics-list > button.is-active {
+    color: #fff8f5 !important;
+    font-size: clamp(2.15rem, calc(var(--react-lyric-size, 1.25rem) + 1.45vw), 3.8rem);
+    font-weight: 650;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    opacity: 1;
+    transform: translateY(-0.12rem);
+}
+
+.react-immersive-lyric-text {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    padding-block-end: 0.12em;
+}
+
+.react-immersive-lyrics-list > button.is-active .react-immersive-lyric-text::after {
+    position: absolute;
+    inset: auto 0 0;
+    height: 1px;
+    background: currentColor;
+    content: "";
+    opacity: 0.44;
+}
+
+.react-immersive-lyrics-list > button.is-active .react-immersive-lyric-text {
+    animation:
+        react-immersive-lyric-enter 620ms cubic-bezier(0.16, 0.7, 0.26, 1) both,
+        react-immersive-lyric-breathe 2.8s ease-in-out 620ms infinite alternate;
+}
+
+.react-immersive-lyrics-list > button small {
+    color: rgb(255 239 234 / 58%) !important;
+    font-size: 0.48em;
+    font-weight: 450;
+    letter-spacing: 0.015em;
+}
+
+.react-immersive-lyrics-list > button.is-active small {
+    color: rgb(255 239 234 / 72%) !important;
+}
+
+.react-immersive-lyrics-list > button:hover,
+.react-immersive-lyrics-list > button:focus-visible {
+    color: #fff8f5 !important;
+    opacity: 0.92;
+}
+
+.react-immersive-lyrics footer.react-player-footer.react-immersive-designed-footer#player-footer {
+    position: absolute !important;
+    inset: auto auto max(1rem, env(safe-area-inset-bottom, 0px)) 50% !important;
+    z-index: 3 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 0.35rem 1.5rem;
+    width: calc(100% - clamp(2rem, 8vw, 8rem)) !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0.35rem 0 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    transform: translateX(-50%) !important;
+}
+
+.react-immersive-designed-footer .react-immersive-detail-progress {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.react-immersive-designed-footer .react-progress-row {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0.4rem;
+}
+
+.react-immersive-designed-footer .react-progress-time {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.react-immersive-designed-footer .react-progress-row input[type="range"] {
+    height: 0.24rem;
+    background: linear-gradient(90deg, rgb(255 248 245 / 94%) 0 var(--progress, 0%), rgb(255 248 245 / 22%) var(--progress, 0%) 100%);
+}
+
+.react-immersive-designed-footer .react-progress-row input[type="range"]::-moz-range-track {
+    background: rgb(255 248 245 / 22%);
+}
+
+.react-immersive-designed-footer .react-progress-row input[type="range"]::-moz-range-progress {
+    background: rgb(255 248 245 / 94%);
+}
+
+.react-immersive-designed-footer .react-progress-row input[type="range"]::-webkit-slider-thumb {
+    background: #fff8f5;
+}
+
+.react-immersive-footer-song {
+    display: grid;
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: 3.2rem minmax(0, 1fr) 2rem 2rem;
+    align-items: center;
+    gap: 0.72rem;
+    min-width: 0;
+}
+
+.react-immersive-footer-art {
+    display: block;
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 0.5rem;
+    object-fit: cover;
+    box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 22%);
+}
+
+.react-immersive-footer-meta {
+    display: grid;
+    min-width: 0;
+    gap: 0.2rem;
+}
+
+.react-immersive-footer-meta strong,
+.react-immersive-footer-meta small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-immersive-footer-meta strong {
+    color: #fff8f5;
+    font-size: 0.88rem;
+    font-weight: 650;
+}
+
+.react-immersive-footer-meta small {
+    color: rgb(255 239 234 / 66%);
+    font-size: 0.75rem;
+}
+
+.react-immersive-footer-like,
+.react-immersive-footer-tools > button,
+.react-immersive-footer-song .react-footer-song-menu-trigger {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgb(255 248 245 / 68%);
+    cursor: pointer;
+}
+
+.react-immersive-footer-like:hover,
+.react-immersive-footer-like:focus-visible,
+.react-immersive-footer-tools > button:hover,
+.react-immersive-footer-tools > button:focus-visible,
+.react-immersive-footer-song .react-footer-song-menu-trigger:hover,
+.react-immersive-footer-song .react-footer-song-menu-trigger:focus-visible,
+.react-immersive-footer-like.is-active {
+    background: rgb(255 248 245 / 10%);
+    color: #fff8f5;
+}
+
+.react-immersive-footer-like.is-active {
+    color: #ff6874;
+}
+
+.react-immersive-footer-song .react-footer-song-menu-trigger {
+    color: rgb(255 248 245 / 68%) !important;
+}
+
+.react-immersive-footer-song .react-footer-song-menu-trigger:hover,
+.react-immersive-footer-song .react-footer-song-menu-trigger:focus-visible {
+    color: #fff8f5 !important;
+}
+
+.react-immersive-detail-transport {
+    display: flex;
+    grid-column: 2;
+    grid-row: 2;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.5rem, 1.4vw, 1.3rem);
+    min-width: max-content;
+}
+
+.react-immersive-detail-transport .player-secondary-action,
+.react-immersive-detail-transport .react-volume-trigger {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 2.25rem;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent !important;
+    color: rgb(255 248 245 / 68%);
+}
+
+.react-immersive-detail-transport .player-secondary-action:hover,
+.react-immersive-detail-transport .player-secondary-action:focus-visible,
+.react-immersive-detail-transport .react-mode-button[aria-pressed="true"] {
+    background: rgb(255 248 245 / 10%) !important;
+    color: #fff8f5;
+}
+
+.react-immersive-detail-transport .react-play-button {
+    width: 2.9rem;
+    height: 2.9rem;
+    color: #fff8f5 !important;
+    font-size: 1.6rem;
+}
+
+.react-immersive-footer-tools {
+    display: flex;
+    grid-column: 3;
+    grid-row: 2;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.react-immersive-footer-tools .react-volume-control {
+    background: transparent;
+}
+
+.react-immersive-footer-tools .react-volume-trigger {
+    color: rgb(255 248 245 / 68%);
+}
+
+.react-immersive-footer-tools .react-volume-control.is-open .react-volume-trigger,
+.react-immersive-footer-tools .react-volume-trigger:hover,
+.react-immersive-footer-tools .react-volume-trigger:focus-visible {
+    background: rgb(255 248 245 / 10%);
+    color: #fff8f5;
+}
+
+.react-immersive-volume-row {
+    display: none !important;
+}
+
+@keyframes react-immersive-lyric-enter {
+    from {
+        filter: blur(0.28rem);
+        opacity: 0.35;
+        transform: translateY(0.42rem) scale(0.97);
+    }
+
+    to {
+        filter: blur(0);
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes react-immersive-lyric-breathe {
+    from {
+        transform: scale(1);
+    }
+
+    to {
+        transform: scale(1.014);
+    }
+}
+
+@media (max-width: 800px) {
+    .react-immersive-lyrics {
+        --react-immersive-footer-reserve: 11.5rem;
+    }
+
+    .react-immersive-lyrics-grid {
+        inset-block-start: 3.75rem;
+        padding-inline: 0.85rem;
+    }
+
+    .react-immersive-lyrics > .react-immersive-lyrics-grid {
+        padding-inline: 0.85rem !important;
+    }
+
+    .react-immersive-lyrics-list {
+        padding-block: max(5rem, calc(50dvh - 7rem));
+    }
+
+    .react-immersive-lyrics-list > button.is-active {
+        font-size: clamp(2rem, calc(var(--react-lyric-size, 1.25rem) + 3vw), 3rem);
+    }
+
+    .react-immersive-lyrics footer.react-player-footer.react-immersive-designed-footer#player-footer {
+        inset-inline-start: 50% !important;
+        inset-block-end: max(0.65rem, env(safe-area-inset-bottom, 0px)) !important;
+        width: calc(100% - 1.5rem) !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: auto auto auto;
+        gap: 0.35rem 0.5rem;
+        padding-block-start: 0.25rem !important;
+    }
+
+    .react-immersive-designed-footer .react-immersive-detail-progress {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    .react-immersive-footer-song {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        grid-template-columns: 2.65rem minmax(0, 1fr) 1.9rem 1.9rem;
+        gap: 0.5rem;
+    }
+
+    .react-immersive-footer-art {
+        width: 2.65rem;
+        height: 2.65rem;
+    }
+
+    .react-immersive-designed-footer .react-immersive-detail-transport {
+        display: flex;
+        grid-column: 1;
+        grid-row: 3;
+        justify-content: flex-start;
+        gap: clamp(0.2rem, 2vw, 0.75rem);
+        min-width: 0;
+    }
+
+    .react-immersive-designed-footer .react-immersive-detail-transport > .player-secondary-action {
+        width: 2rem;
+        min-width: 2rem;
+        height: 2rem;
+        min-height: 2rem;
+        font-size: 1rem;
+    }
+
+    .react-immersive-lyrics .react-immersive-designed-footer#player-footer .react-play-button {
+        width: 2.45rem;
+        height: 2.45rem;
+        font-size: 1.15rem;
+    }
+
+    .react-immersive-footer-tools {
+        grid-column: 2;
+        grid-row: 3;
+        gap: 0.1rem;
+    }
+
+    .react-immersive-footer-tools .react-volume-control {
+        width: 2.25rem;
+        min-width: 2.25rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .react-immersive-lyrics-list > button.is-active {
+        font-size: clamp(1.9rem, 8vw, 2.5rem);
+        letter-spacing: 0.06em;
+    }
+
+    .react-immersive-designed-footer .react-immersive-detail-transport {
+        gap: 0.08rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-immersive-lyrics-list > button,
+    .react-immersive-lyrics-list > button.is-active .react-immersive-lyric-text {
+        animation: none;
+        filter: none;
+        transition: none;
+        transform: none;
+    }
+}
+
 @media (max-width: 720px) {
     .react-player-main {
         overflow: visible !important;

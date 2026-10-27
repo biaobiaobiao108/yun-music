@@ -1223,9 +1223,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
   const settings = useSettingsStore(state => state.settings)
-  const addSong = useLibraryStore(state => state.addSong)
-  const removeSong = useLibraryStore(state => state.removeSong)
-  const notify = usePlayerUiStore(state => state.notify)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const lastFocus = useRef<HTMLElement | null>(null)
   const closeTimer = useRef<number | null>(null)
@@ -1377,26 +1374,11 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     if (document.fullscreenElement) void document.exitFullscreen()
     else void document.documentElement.requestFullscreen?.()
   }
-  const isLiked = useLibraryStore(state => isSongInLoveList(state, song))
-  const toggleLike = async () => {
-    if (!song) return
-    try {
-      if (isLiked) {
-        await removeSong('love', song)
-        notify('已取消喜欢')
-      } else {
-        await addSong('love', song)
-        notify('已添加到喜欢')
-      }
-    } catch (error) {
-      notify(error instanceof Error ? error.message : '喜欢操作失败')
-    }
-  }
   return (
     <dialog
       ref={dialogRef}
       className={`react-immersive-lyrics-dialog ${isClosing ? 'is-closing' : ''}`}
-      aria-labelledby="immersive-lyrics-title"
+      aria-label={song ? `${title} 歌词` : '沉浸式歌词'}
       onCancel={event => {
         event.preventDefault()
         onClose()
@@ -1418,38 +1400,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
           </button>
         </header>
         <div className="react-immersive-lyrics-grid">
-          <section className="react-immersive-cover-panel" aria-label={song ? `${title}封面` : '暂无歌曲'}>
-            <div className="react-immersive-cover-wrap">
-              <SafeImage
-                className="react-immersive-cover"
-                src={artwork}
-                width="560"
-                height="560"
-                alt={song ? `${title}封面` : ''}
-              />
-            </div>
-            <div className="react-immersive-meta">
-              <span className="react-immersive-meta-cover">
-                <SafeImage src={artwork} width="72" height="72" alt="" />
-              </span>
-              <div>
-                <h2 id="immersive-lyrics-title">{song ? title : '选择一首歌曲开始播放'}</h2>
-                <span>{song ? songArtist(song) : '沉浸式歌词'}</span>
-              </div>
-              <button
-                type="button"
-                className={`react-immersive-like ${isLiked ? 'is-active' : ''}`}
-                aria-label={isLiked ? '取消喜欢' : '喜欢'}
-                aria-pressed={isLiked}
-                onClick={() => void toggleLike()}
-              >
-                <Icon name="heart" />
-              </button>
-            </div>
-            {/* The normal footer is suppressed while this local transport stays
-              under the artwork, matching the reference lyrics composition. */}
-            <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
-          </section>
           <section
             ref={lyricsListRef}
             className="react-immersive-lyrics-list"
@@ -1482,7 +1432,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
                       if (event.detail > 0) event.currentTarget.blur()
                     }}
                   >
-                    <span>{line.text}</span>
+                    <span className="react-immersive-lyric-text">{line.text}</span>
                     {Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}
                     {Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}
                   </button>
@@ -1496,6 +1446,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
             )}
           </section>
         </div>
+        <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
       </div>
     </dialog>
   )
