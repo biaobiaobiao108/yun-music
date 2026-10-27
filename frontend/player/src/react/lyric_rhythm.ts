@@ -12,37 +12,6 @@ export type RhythmGlyph = {
 }
 export type RhythmPhrase = { glyphs: RhythmGlyph[]; time: number }
 
-export function rhythmLyricEnd(line: LyricLine, phrases: RhythmPhrase[]): number {
-  let renderedEnd = line.time
-  for (const phrase of phrases) {
-    for (const glyph of phrase.glyphs) renderedEnd = Math.max(renderedEnd, glyph.time + glyph.duration)
-  }
-  if (line.timedWords?.length) return renderedEnd
-  let textLength = 0
-  for (const text of graphemes(line.text)) {
-    if (!/^\s+$/u.test(text) && !lyricPunctuation.test(text)) textLength += 1
-  }
-  const estimatedEnd = line.time + Math.max(1, Math.min(5.5, textLength * 0.2))
-  return Math.min(renderedEnd, estimatedEnd)
-}
-
-export function isRhythmInterlude(
-  lines: LyricLine[],
-  lineEnds: number[],
-  index: number,
-  time: number,
-  duration: number,
-): boolean {
-  if (!lines.length) return false
-  if (index < 0) return true
-  const line = lines[index]
-  if (!line) return false
-  const next = lines[index + 1]?.time ?? (duration > time ? duration : 0)
-  if (!next || next <= time) return false
-  const end = lineEnds[index] ?? line.time
-  return next - end >= 1 && time >= end + 0.15 && time < next
-}
-
 const graphemeSegmenter =
   typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
 

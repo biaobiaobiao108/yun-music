@@ -16558,10 +16558,6 @@ body,
     z-index: 1;
 }
 
-.react-rhythm-interlude .react-rhythm-phrase {
-    cursor: default;
-}
-
 .react-rhythm-previous {
     position: absolute;
     inset: 0;

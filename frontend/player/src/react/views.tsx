@@ -37,12 +37,10 @@ import { getSessionGeneration } from './session'
 import {
   buildRhythmPhrases,
   isRhythmCjkCharacter,
-  isRhythmInterlude,
   rhythmGlyphFrame,
   rhythmGlyphLayoutScale,
   rhythmGlyphWidth,
   rhythmNeedsSmoothFrame,
-  rhythmLyricEnd,
   rhythmRowFrame,
   rhythmRowShape,
   rhythmSparkFrame,
@@ -1246,11 +1244,7 @@ function RhythmLyrics({
   const duration = usePlaybackStore(state => state.duration)
   const listRef = useRef<HTMLElement | null>(null)
   const focusRef = useRef(-1)
-  const interludeRef = useRef(false)
-  const lastPlaybackTimeRef = useRef(Number.NaN)
-  const [interludeStart, setInterludeStart] = useState<number | null>(null)
   const [focus, setFocus] = useState(-1)
-  const [interlude, setInterlude] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [viewport, setViewport] = useState({ width: 960, height: 600 })
   const availableWidth = Math.max(1, Math.min(viewport.width * 0.86, viewport.width - 32))
@@ -1287,31 +1281,9 @@ function RhythmLyrics({
       ),
     [duration, lines, maxPhraseWidth],
   )
-  const lineEnds = useMemo(
-    () => lines.map((line, index) => rhythmLyricEnd(line, layouts[index] ?? [])),
-    [layouts, lines],
-  )
-
-  const interludeLine = useMemo<LyricLine | null>(
-    () => (interludeStart === null ? null : { time: interludeStart, text: 'Shh... the melody is doing the talking.' }),
-    [interludeStart],
-  )
-  const interludeLayouts = useMemo(
-    () => (interludeLine ? buildRhythmPhrases(interludeLine, interludeLine.time + 3, 4, maxPhraseWidth) : []),
-    [interludeLine, maxPhraseWidth],
-  )
-
   const updateAt = useCallback(
     (time: number) => {
       const index = findActiveLyricIndex(lines, time)
-      const nextInterlude = isRhythmInterlude(lines, lineEnds, index, time, duration)
-      const rewound = Number.isFinite(lastPlaybackTimeRef.current) && time < lastPlaybackTimeRef.current - 0.25
-      if (interludeRef.current !== nextInterlude) {
-        interludeRef.current = nextInterlude
-        setInterlude(nextInterlude)
-        setInterludeStart(nextInterlude ? time : null)
-      } else if (nextInterlude && rewound) setInterludeStart(time)
-      lastPlaybackTimeRef.current = time
       if (focusRef.current !== index) {
         focusRef.current = index
         setFocus(index)
@@ -1448,7 +1420,7 @@ function RhythmLyrics({
         character.style.transform = reduced ? 'none' : `scale(${(1 + pulse * 0.15).toFixed(3)})`
       })
     },
-    [duration, layouts, lineEnds, lines, reducedMotion, viewport.height, viewport.width],
+    [lines, reducedMotion, viewport.height, viewport.width],
   )
 
   useEffect(() => {
@@ -1473,7 +1445,7 @@ function RhythmLyrics({
         updateAt(time)
       }
       const index = findActiveLyricIndex(lines, time)
-      const activePhrases = interludeRef.current ? interludeLayouts : (layouts[index] ?? [])
+      const activePhrases = layouts[index] ?? []
       if (rhythmNeedsSmoothFrame(activePhrases, time)) frame = window.requestAnimationFrame(tick)
       else timer = window.setTimeout(tick, 100)
     }
@@ -1483,7 +1455,7 @@ function RhythmLyrics({
       if (frame) window.cancelAnimationFrame(frame)
       if (timer) window.clearTimeout(timer)
     }
-  }, [interludeLayouts, isPlaying, layouts, lines, open, reducedMotion, updateAt])
+  }, [isPlaying, layouts, lines, open, reducedMotion, updateAt])
 
   useEffect(() => {
     if (open && (!isPlaying || reducedMotion)) updateAt(currentTime)
@@ -1491,7 +1463,7 @@ function RhythmLyrics({
 
   useEffect(() => {
     if (open) updateAt(readPlaybackPosition() ?? usePlaybackStore.getState().currentTime)
-  }, [focus, interlude, interludeLayouts, layouts, open, updateAt, viewport])
+  }, [focus, layouts, open, updateAt, viewport])
 
   const displayIndex = Math.max(0, focus)
   const renderPhrases = (
@@ -1589,7 +1561,7 @@ function RhythmLyrics({
       )
     })
   }
-  const activeLine = focus >= 0 && !interlude ? lines[focus] : undefined
+  const activeLine = focus >= 0 ? lines[focus] : undefined
   const translation = showTranslation ? activeLine?.translation : undefined
   const secondary = translation ? activeLine?.text : showRoma ? activeLine?.roma : undefined
 
@@ -1603,25 +1575,6 @@ function RhythmLyrics({
             <p className="react-error" role="alert">
               {error}
             </p>
-          ) : lines.length && interlude ? (
-            <>
-              {focus >= 0 && (
-                <div
-                  className="react-rhythm-phrases react-rhythm-previous"
-                  data-line-start={interludeStart ?? 0}
-                  aria-hidden="true"
-                >
-                  {renderPhrases(layouts[focus] ?? [], lines[focus]?.time ?? 0, `line-${focus}-leaving`, true)}
-                </div>
-              )}
-              <div
-                className="react-rhythm-phrases react-rhythm-current react-rhythm-interlude"
-                role="group"
-                aria-label="间奏"
-              >
-                {renderPhrases(interludeLayouts, interludeStart ?? 0, 'interlude', false, false, false)}
-              </div>
-            </>
           ) : lines.length ? (
             <>
               {focus > 0 && (
