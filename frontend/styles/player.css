@@ -11355,8 +11355,6 @@ textarea:focus-visible {
 .react-volume-control.is-open {
     inline-size: min(9.875rem, calc(100vw - 1rem));
     background: color-mix(in srgb, var(--app-text) 8%, transparent);
-    outline: 1px solid color-mix(in srgb, var(--app-text) 12%, transparent);
-    outline-offset: -1px;
 }
 
 .react-volume-control .react-volume-popover {
@@ -11401,6 +11399,12 @@ textarea:focus-visible {
 
 .react-volume-control.is-open .react-volume-trigger {
     color: var(--app-text);
+}
+
+.react-player-footer#player-footer .react-volume-trigger:focus-visible {
+    outline: 0 !important;
+    box-shadow: none !important;
+    color: var(--app-accent) !important;
 }
 
 .react-volume-value {
@@ -11450,7 +11454,7 @@ textarea:focus-visible {
 
 .react-volume-control.is-open .react-volume-popover--vertical .react-volume-range {
     position: absolute;
-    inset: 50% auto auto 50%;
+    inset: calc(50% + 0.45rem) auto auto 50%;
     display: block !important;
     flex: none;
     width: 5.8rem;
