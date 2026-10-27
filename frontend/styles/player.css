@@ -15041,6 +15041,40 @@ body,
     color: var(--app-text);
 }
 
+:root[data-appearance="dark"] .react-sidebar-nav .netease-nav-item.active-tab,
+:root[data-appearance="dark"] #main-sidebar.react-sidebar .react-sidebar-nav .netease-nav-item.active-tab {
+    background: color-mix(in srgb, var(--app-text) 8%, transparent) !important;
+    color: var(--app-text) !important;
+    font-weight: 650;
+}
+
+:root[data-appearance="dark"] .react-sidebar-nav .netease-nav-item.active-tab i {
+    color: var(--app-accent);
+}
+
+:root[data-appearance="dark"] .react-sidebar-nav .netease-nav-item:not(.active-tab):is(:hover, :focus-visible) {
+    background: color-mix(in srgb, var(--app-text) 5%, transparent) !important;
+    color: var(--app-text) !important;
+}
+
+:root[data-appearance="dark"] .react-sidebar-playlist {
+    color: var(--app-text-muted);
+}
+
+:root[data-appearance="dark"] .react-sidebar-playlist:is(:hover, :focus-visible, .is-active) {
+    background: color-mix(in srgb, var(--app-text) 7%, transparent);
+    color: var(--app-text);
+}
+
+:root[data-appearance="dark"] .react-sidebar-playlist.is-active {
+    font-weight: 650;
+}
+
+:root[data-appearance="dark"] .react-sidebar-playlist small,
+:root[data-appearance="dark"] .react-sidebar-nav > .react-sidebar-label {
+    color: var(--app-text-dim);
+}
+
 /* Wide player footer: song identity, transport and secondary actions read as
    three calm zones, with the progress control anchored beneath transport. */
 @media (min-width: 901px) {
