@@ -16557,18 +16557,18 @@ body,
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.55rem;
     height: 3.5rem;
-    color: rgb(255 248 245 / 62%);
+    color: rgb(255 248 245 / 68%);
 }
 
 .react-rhythm-interlude span {
-    width: 0.28rem;
-    height: 2.4rem;
-    border-radius: 999px;
-    background: currentColor;
-    transform: scaleY(0.2);
-    animation: react-interlude-pulse 1.4s ease-in-out infinite alternate;
+    max-width: min(90%, 40rem);
+    font-size: clamp(1.25rem, 2.4vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    line-height: 1.4;
+    text-align: center;
+    animation: react-interlude-pulse 3s ease-in-out infinite alternate;
     animation-play-state: paused;
 }
 
@@ -16576,34 +16576,21 @@ body,
     animation-play-state: running;
 }
 
-.react-rhythm-interlude span:nth-child(2),
-.react-rhythm-interlude span:nth-child(4) {
-    animation-delay: -0.5s;
-}
-
-.react-rhythm-interlude span:nth-child(3) {
-    animation-delay: -1s;
-}
-
-.react-rhythm-interlude span:nth-child(5) {
-    animation-delay: -0.8s;
-}
-
 @keyframes react-interlude-pulse {
     from {
-        transform: scaleY(0.2);
-        opacity: 0.45;
+        transform: translateY(0.12rem);
+        opacity: 0.65;
     }
     to {
-        transform: scaleY(0.8);
-        opacity: 0.9;
+        transform: translateY(-0.12rem);
+        opacity: 1;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .react-rhythm-interlude span {
         animation: none;
-        transform: scaleY(0.4);
+        transform: none;
     }
 }
 
@@ -16826,5 +16813,42 @@ body,
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-progress-row input[type="range"] {
         width: 100%;
+    }
+}
+
+/* Use a quiet neutral focus indicator throughout the player. */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 1px solid var(--app-text-dim) !important;
+    outline-offset: -1px !important;
+    border-color: var(--app-border) !important;
+    box-shadow: none !important;
+}
+
+:is(.react-global-search, .react-search-input, .react-playlist-catalog-search) input:focus-visible {
+    outline: 1px solid transparent !important;
+}
+
+:is(.react-global-search, .react-search-input, .react-playlist-catalog-search):has(input:focus-visible) {
+    outline: 1px solid var(--app-text-dim);
+}
+
+.react-playlist-page .react-song-row.is-selectable:has(.react-song-select > input:focus-visible) {
+    outline-color: var(--app-text-dim);
+}
+
+@media (forced-colors: active) {
+    button:focus-visible,
+    a:focus-visible,
+    [tabindex]:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    :is(.react-global-search, .react-search-input, .react-playlist-catalog-search) input:focus-visible {
+        outline: 1px solid Highlight !important;
     }
 }

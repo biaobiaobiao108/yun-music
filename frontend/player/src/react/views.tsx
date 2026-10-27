@@ -1476,11 +1476,7 @@ function RhythmLyrics({
             </p>
           ) : lines.length && interlude ? (
             <div className={`react-rhythm-interlude${isPlaying ? ' is-playing' : ''}`} role="img" aria-label="间奏">
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
+              <span>Shh... the melody is doing the talking.</span>
             </div>
           ) : lines.length ? (
             <>
