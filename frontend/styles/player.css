@@ -11353,7 +11353,6 @@ textarea:focus-visible {
 }
 
 .react-volume-control.is-open {
-    inline-size: min(9.875rem, calc(100vw - 1rem));
     background: color-mix(in srgb, var(--app-text) 8%, transparent);
 }
 
@@ -11392,6 +11391,9 @@ textarea:focus-visible {
     block-size: 2.5rem !important;
     min-block-size: 2.5rem !important;
     padding: 0;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
     border-radius: 999px;
     background: transparent !important;
     color: var(--app-text-muted);
@@ -11405,15 +11407,6 @@ textarea:focus-visible {
     outline: 0 !important;
     box-shadow: none !important;
     color: var(--app-accent) !important;
-}
-
-.react-volume-value {
-    color: currentColor;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    white-space: nowrap;
 }
 
 /* A compact vertical fader sits above the volume button, like a desktop mixer. */
@@ -11430,10 +11423,11 @@ textarea:focus-visible {
     align-items: center;
     justify-content: flex-start;
     gap: 0.45rem;
-    inline-size: 2.8rem;
+    box-sizing: border-box;
+    inline-size: 2.65rem;
     min-inline-size: 0;
-    block-size: 8.7rem;
-    padding: 0.5rem 0.3rem;
+    block-size: 7rem;
+    padding: 0.6rem 0.2rem;
     overflow: visible;
     border: 1px solid color-mix(in srgb, var(--app-border-strong) 82%, transparent);
     border-radius: 1.4rem;
@@ -11446,15 +11440,9 @@ textarea:focus-visible {
     transform: translateX(50%);
 }
 
-.react-volume-popover--vertical .react-volume-value {
-    color: var(--app-text-muted);
-    font-size: 0.82rem;
-    font-weight: 500;
-}
-
 .react-volume-control.is-open .react-volume-popover--vertical .react-volume-range {
     position: absolute;
-    inset: calc(50% + 0.45rem) auto auto 50%;
+    inset: 50% auto auto 50%;
     display: block !important;
     flex: none;
     width: 5.8rem;

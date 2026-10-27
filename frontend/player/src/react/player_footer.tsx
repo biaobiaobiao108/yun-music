@@ -77,9 +77,6 @@ function VolumeControl({
           role="dialog"
           aria-label="音量控制"
         >
-          <output className="react-volume-value" aria-live="polite">
-            {Math.round(displayedVolume * 100)}%
-          </output>
           <input
             className="react-volume-range"
             style={volumeStyle}
