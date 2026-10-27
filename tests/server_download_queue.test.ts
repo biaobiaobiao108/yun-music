@@ -9,6 +9,7 @@ import {
   deduplicateDownloadTasks,
   filterPersistedTasksForUsers,
   enqueue,
+  MAX_PENDING_TASKS_PER_USER,
   suspendUser,
   releaseUser,
   renameUser,
@@ -107,6 +108,118 @@ test('global download admission spans users and relay completion wakes queued wo
     fs.rmSync(root, { recursive: true, force: true })
   }
   expect(getResourceBudgetStats().downloads.active).toBe(0)
+})
+
+test('queue capacity allows duplicate requests without admitting extra tasks', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-queue-capacity-'))
+  const cache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+  let releaseResolver!: () => void
+  const resolverHold = new Promise<void>(resolve => {
+    releaseResolver = resolve
+  })
+  const username = 'queue-capacity-user'
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => {
+      await resolverHold
+      return { url: 'https://example.test/song' }
+    })
+    for (let offset = 0; offset < MAX_PENDING_TASKS_PER_USER; offset += 100) {
+      const count = Math.min(100, MAX_PENDING_TASKS_PER_USER - offset)
+      enqueue(
+        username,
+        Array.from({ length: count }, (_, index) => ({
+          songInfo: { source: 'wy', songmid: `capacity-${offset + index}` },
+          quality: '320k',
+        })),
+      )
+    }
+    expect(list(username)).toHaveLength(MAX_PENDING_TASKS_PER_USER)
+    expect(
+      enqueue(username, [
+        {
+          songInfo: { source: 'wy', songmid: 'capacity-0' },
+          quality: '320k',
+          background: true,
+        },
+        {
+          songInfo: { source: 'wy', songmid: 'capacity-0' },
+          quality: '320k',
+          enableOnlyDownloadMode: true,
+        },
+      ]),
+    ).toEqual([])
+    expect(list(username)).toHaveLength(MAX_PENDING_TASKS_PER_USER)
+    expect(list(username).find(task => task.songInfo.songmid === 'capacity-0')).toMatchObject({
+      enableOnlyDownloadMode: true,
+      background: false,
+    })
+  } finally {
+    releaseResolver()
+    await suspendUser(username)
+    await removeUser(username)
+    releaseUser(username)
+    await Bun.sleep(180)
+    cache.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('capacity preflight counts a reused explicit task ID once across different songs', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-queue-capacity-id-'))
+  const cache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+  let releaseResolver!: () => void
+  const resolverHold = new Promise<void>(resolve => {
+    releaseResolver = resolve
+  })
+  const username = 'queue-capacity-id-user'
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => {
+      await resolverHold
+      return { url: 'https://example.test/song' }
+    })
+    for (let offset = 0; offset < MAX_PENDING_TASKS_PER_USER - 2; offset += 100) {
+      const count = Math.min(100, MAX_PENDING_TASKS_PER_USER - 2 - offset)
+      enqueue(
+        username,
+        Array.from({ length: count }, (_, index) => ({
+          songInfo: { source: 'wy', songmid: `capacity-id-${offset + index}` },
+          quality: '320k',
+        })),
+      )
+    }
+    enqueue(username, [
+      { id: 'reused-id', songInfo: { source: 'wy', songmid: 'first-song' }, quality: '320k' },
+      { id: 'reused-id', songInfo: { source: 'wy', songmid: 'second-song' }, quality: '320k' },
+    ])
+    expect(list(username)).toHaveLength(MAX_PENDING_TASKS_PER_USER - 1)
+    enqueue(username, [
+      { songInfo: { source: 'wy', songmid: 'duplicate-no-id' }, quality: '320k', background: true },
+      {
+        songInfo: { source: 'wy', songmid: 'duplicate-no-id' },
+        quality: '320k',
+        enableOnlyDownloadMode: true,
+      },
+    ])
+    expect(list(username)).toHaveLength(MAX_PENDING_TASKS_PER_USER)
+    expect(list(username).find(task => task.id === 'reused-id')?.songInfo.songmid).toBe('first-song')
+    expect(list(username).find(task => task.songInfo.songmid === 'duplicate-no-id')).toMatchObject({
+      enableOnlyDownloadMode: true,
+    })
+  } finally {
+    releaseResolver()
+    await suspendUser(username)
+    await removeUser(username)
+    releaseUser(username)
+    await Bun.sleep(180)
+    cache.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })
 
 test('slow queue persistence coalesces updates and rename/delete await the latest snapshot', async () => {

@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { Router, type HttpContext } from '../core'
 import {
   DUMMY_PASSWORD_HASH,
+  AdminSessionPersistenceError,
   verifyAdminAuth,
   createAdminSession,
   removeAdminSession,
@@ -172,6 +173,7 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
     })
   } catch (error) {
     if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
+    if (error instanceof AdminSessionPersistenceError) return ctx.fail(503, '登录服务暂时不可用，请稍后重试')
     return ctx.fail(400, '请求格式错误，请刷新页面后重试')
   }
 }

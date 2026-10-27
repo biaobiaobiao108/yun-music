@@ -898,7 +898,40 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
   if (inputs.length > 100) throw new Error('Too many tasks in one request')
   deduplicateTasksInMemory()
   const pendingCount = pendingCountByUser.get(username) || 0
-  if (pendingCount + inputs.length > MAX_PENDING_TASKS_PER_USER) throw new Error('Too many pending download tasks')
+  const chargedTaskKeys = new Set<string>()
+  const chargedIdentities = new Set<string>()
+  let pendingAdds = 0
+  for (const input of inputs) {
+    if (!input?.songInfo) continue
+    const identity = getTaskIdentity({
+      username,
+      songInfo: input.songInfo,
+      quality: String(input.quality || '320k'),
+      requestedQuality: String(input.quality || '320k'),
+      songKey: '',
+      activeSongKey: undefined,
+    })
+    const id = sanitizeId(input.id)
+    const existingKey = taskIdentityIndex.get(identity)
+    const existing = tasks.get(taskMapKey(username, id)) || (existingKey ? tasks.get(existingKey) : undefined)
+    if (existing && resumableStatuses.has(existing.status)) continue
+    if (hasRequestedTarget(username, input, String(input.quality || '320k'))) continue
+
+    // A batch can create several transient records for one identity; saving
+    // the queue deduplicates those records, so they reserve only one slot.
+    if (chargedIdentities.has(identity)) continue
+    const hasExplicitId = /^[A-Za-z0-9_-]{1,160}$/.test(String(input.id || ''))
+    // Multiple inputs with the same explicit ID reuse one task record even
+    // when their song identities differ.
+    if (hasExplicitId) {
+      const taskKey = taskMapKey(username, id)
+      if (chargedTaskKeys.has(taskKey)) continue
+      chargedTaskKeys.add(taskKey)
+    }
+    chargedIdentities.add(identity)
+    pendingAdds++
+  }
+  if (pendingCount + pendingAdds > MAX_PENDING_TASKS_PER_USER) throw new Error('Too many pending download tasks')
   const added: ServerDownloadTask[] = []
   for (const input of inputs) {
     if (!input?.songInfo) continue

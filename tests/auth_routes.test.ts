@@ -112,6 +112,24 @@ describe('Web Cookie Authentication', () => {
     expect(player.headers.get('set-cookie')).toContain(`Max-Age=${PLAYER_SESSION_TTL / 1000}`)
   })
 
+  test('admin login fails when its session cannot be persisted', async () => {
+    const router = createAuthRouter()
+    const db = (await import('@/database')).getDb()
+    db.run('DROP TABLE admin_sessions')
+
+    const response = await router.handle(
+      new Request('http://localhost/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: 'admin123' }),
+      }),
+    )
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('Set-Cookie')).toBeNull()
+    expect(await response.json()).toMatchObject({ success: false })
+  })
+
   test('admin and player login verify persisted password hashes', async () => {
     const lxGlobal = (global as any).lx
     lxGlobal.config['frontend.passwordHash'] = await hashPassword('admin123')

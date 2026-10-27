@@ -148,6 +148,13 @@ const MAX_SESSIONS = 10_000
 export const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000
 const SESSION_PRUNE_INTERVAL_MS = 60 * 1000
 
+export class AdminSessionPersistenceError extends Error {
+  constructor(cause: unknown) {
+    super('管理员会话持久化失败', { cause })
+    this.name = 'AdminSessionPersistenceError'
+  }
+}
+
 const hashSession = (sessionId: string): string => new Bun.CryptoHasher('sha256').update(sessionId).digest('hex')
 
 const prunePersistedSessions = (now = Date.now()): void => {
@@ -248,7 +255,6 @@ export const createAdminSession = (): string => {
   pruneAdminSessions()
   const sessionId = crypto.randomBytes(32).toString('hex')
   const expiresAt = Date.now() + ADMIN_SESSION_TTL
-  adminSessions.set(sessionId, expiresAt)
   try {
     getDb().run('INSERT OR REPLACE INTO admin_sessions (session_hash, expires_at) VALUES (?, ?)', [
       hashSession(sessionId),
@@ -256,7 +262,9 @@ export const createAdminSession = (): string => {
     ])
   } catch (error) {
     console.error('[Auth] 管理员会话持久化失败:', error instanceof Error ? error.message : 'unknown error')
+    throw new AdminSessionPersistenceError(error)
   }
+  adminSessions.set(sessionId, expiresAt)
   return sessionId
 }
 
