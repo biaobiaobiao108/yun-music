@@ -1704,14 +1704,14 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
           >
             <Icon name="chevron-down" />
           </button>
-          <div className="react-lyrics-mode" role="group" aria-label="歌词显示模式">
-            <button type="button" aria-pressed={lyricMode === 'rhythm'} onClick={() => setLyricMode('rhythm')}>
-              律动
-            </button>
-            <button type="button" aria-pressed={lyricMode === 'scroll'} onClick={() => setLyricMode('scroll')}>
-              滚动
-            </button>
-          </div>
+          <button
+            type="button"
+            className="react-lyrics-mode"
+            aria-label={lyricMode === 'rhythm' ? '当前为律动歌词，切换到滚动歌词' : '当前为滚动歌词，切换到律动歌词'}
+            onClick={() => setLyricMode(mode => (mode === 'rhythm' ? 'scroll' : 'rhythm'))}
+          >
+            {lyricMode === 'rhythm' ? '律动' : '滚动'}
+          </button>
         </header>
         {lyricMode === 'rhythm' ? (
           <RhythmLyrics
