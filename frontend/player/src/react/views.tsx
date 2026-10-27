@@ -1604,13 +1604,24 @@ function RhythmLyrics({
               {error}
             </p>
           ) : lines.length && interlude ? (
-            <div
-              className="react-rhythm-phrases react-rhythm-current react-rhythm-interlude"
-              role="group"
-              aria-label="间奏"
-            >
-              {renderPhrases(interludeLayouts, interludeStart ?? 0, 'interlude', false, false, false)}
-            </div>
+            <>
+              {focus >= 0 && (
+                <div
+                  className="react-rhythm-phrases react-rhythm-previous"
+                  data-line-start={interludeStart ?? 0}
+                  aria-hidden="true"
+                >
+                  {renderPhrases(layouts[focus] ?? [], lines[focus]?.time ?? 0, `line-${focus}-leaving`, true)}
+                </div>
+              )}
+              <div
+                className="react-rhythm-phrases react-rhythm-current react-rhythm-interlude"
+                role="group"
+                aria-label="间奏"
+              >
+                {renderPhrases(interludeLayouts, interludeStart ?? 0, 'interlude', false, false, false)}
+              </div>
+            </>
           ) : lines.length ? (
             <>
               {focus > 0 && (
