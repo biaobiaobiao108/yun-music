@@ -382,6 +382,36 @@ export function PlayerFooterBar({
     }
   }
 
+  const likeButton = (
+    <button
+      type="button"
+      id={isActive ? 'player-like-btn' : undefined}
+      className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`}
+      aria-label={isLiked ? '取消喜欢' : '喜欢'}
+      aria-pressed={isLiked}
+      onClick={() => void toggleLike()}
+      disabled={!currentSong}
+    >
+      <Icon name="heart" />
+    </button>
+  )
+  const modeButton = (
+    <button
+      type="button"
+      className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
+      aria-label={`播放模式：${modeLabel}`}
+      aria-pressed={mode !== 'list'}
+      onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}
+    >
+      <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
+      {mode === 'single' && (
+        <span className="react-mode-one" aria-hidden="true">
+          1
+        </span>
+      )}
+    </button>
+  )
+
   return (
     <>
       <footer
@@ -410,41 +440,9 @@ export function PlayerFooterBar({
                 </strong>
                 <small>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
               </div>
-              <button
-                type="button"
-                id={isActive ? 'player-like-btn' : undefined}
-                className={`react-immersive-footer-like ${isLiked ? 'is-active' : ''}`}
-                aria-label={isLiked ? '取消喜欢' : '喜欢'}
-                aria-pressed={isLiked}
-                onClick={() => void toggleLike()}
-                disabled={!currentSong}
-              >
-                <Icon name="heart" />
-              </button>
-              <button
-                ref={songMenuButtonRef}
-                type="button"
-                className="react-footer-song-menu-trigger"
-                aria-label="打开歌曲更多操作"
-                aria-expanded={songMenuOpen}
-                aria-controls="song-actions-popover"
-                onClick={toggleSongMenu}
-                disabled={!isActive || !currentSong}
-                tabIndex={!isActive ? -1 : undefined}
-              >
-                <Icon name="ellipsis" />
-              </button>
             </div>
             <div className="react-immersive-detail-transport" aria-label="歌词播放操作">
-              <button
-                type="button"
-                className={`player-secondary-action react-mode-button ${mode === 'random' ? 'is-active' : ''}`}
-                aria-label={mode === 'random' ? '关闭随机播放' : '开启随机播放'}
-                aria-pressed={mode === 'random'}
-                onClick={() => setMode(mode === 'random' ? 'list' : 'random')}
-              >
-                <Icon name="shuffle" />
-              </button>
+              {likeButton}
               <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}>
                 <Icon name="backward-step" />
               </button>
@@ -460,20 +458,7 @@ export function PlayerFooterBar({
               <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}>
                 <Icon name="forward-step" />
               </button>
-              <button
-                type="button"
-                className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
-                aria-label={mode === 'single' ? '关闭单曲循环' : '开启单曲循环'}
-                aria-pressed={mode === 'single'}
-                onClick={() => setMode(mode === 'single' ? 'list' : 'single')}
-              >
-                <Icon name="repeat" />
-                {mode === 'single' && (
-                  <span className="react-mode-one" aria-hidden="true">
-                    1
-                  </span>
-                )}
-              </button>
+              {modeButton}
             </div>
             <ImmersivePlaybackTime />
           </>
@@ -511,36 +496,11 @@ export function PlayerFooterBar({
                     <small>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
                   </div>
                 )}
-                <button
-                  type="button"
-                  id={isActive ? 'player-like-btn' : undefined}
-                  className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`}
-                  aria-label={isLiked ? '取消喜欢' : '喜欢'}
-                  aria-pressed={isLiked}
-                  onClick={() => void toggleLike()}
-                  disabled={!currentSong}
-                >
-                  <Icon name="heart" />
-                  <span>喜欢</span>
-                </button>
               </div>
             </div>
             <div className="react-footer-center">
               <div className="react-footer-controls">
-                <button
-                  type="button"
-                  className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
-                  aria-label={`播放模式：${modeLabel}`}
-                  aria-pressed={mode !== 'list'}
-                  onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}
-                >
-                  <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
-                  {mode === 'single' && (
-                    <span className="react-mode-one" aria-hidden="true">
-                      1
-                    </span>
-                  )}
-                </button>
+                {likeButton}
                 <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}>
                   <Icon name="backward-step" />
                 </button>
@@ -556,6 +516,7 @@ export function PlayerFooterBar({
                 <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}>
                   <Icon name="forward-step" />
                 </button>
+                {modeButton}
               </div>
               <PlayerProgressRow seek={seek} />
             </div>
