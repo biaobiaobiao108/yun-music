@@ -1536,7 +1536,7 @@ function ScrollingLyrics({
   }, [activeIndex, lines])
 
   return (
-    <div className="react-immersive-lyrics-grid">
+    <div className="react-immersive-lyrics-grid react-scrolling-lyrics-grid">
       <section ref={listRef} className="react-immersive-lyrics-list react-scrolling-lyrics" aria-label="滚动歌词">
         {loading ? (
           <Loading label="正在加载歌词…" />
@@ -1710,7 +1710,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
             aria-label={lyricMode === 'rhythm' ? '当前为律动歌词，切换到滚动歌词' : '当前为滚动歌词，切换到律动歌词'}
             onClick={() => setLyricMode(mode => (mode === 'rhythm' ? 'scroll' : 'rhythm'))}
           >
-            {lyricMode === 'rhythm' ? '律动' : '滚动'}
+            {lyricMode === 'rhythm' ? <Icon name="music" /> : <Icon name="list" />}
           </button>
         </header>
         {lyricMode === 'rhythm' ? (

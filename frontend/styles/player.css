@@ -16475,8 +16475,7 @@ body,
     border: 0;
     background: transparent;
     color: rgb(255 255 255 / 65%);
-    font-size: 0.9rem;
-    font-weight: 600;
+    font-size: 1rem;
 }
 
 .react-lyrics-mode:hover,
@@ -16485,12 +16484,24 @@ body,
     color: white;
 }
 
+.react-immersive-lyrics > .react-scrolling-lyrics-grid {
+    inset-block-end: 10.5rem;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+}
+
 .react-immersive-lyrics .react-immersive-lyrics-grid > .react-scrolling-lyrics {
     display: block !important;
     padding: 45vh 1rem !important;
     overflow-y: auto !important;
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
-    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+@media (max-width: 800px) {
+    .react-immersive-lyrics > .react-scrolling-lyrics-grid {
+        inset-block-end: 9rem;
+    }
 }
 
 .react-immersive-lyrics-grid > .react-scrolling-lyrics > button,
