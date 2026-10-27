@@ -6468,10 +6468,6 @@ body,
     min-height: 100%;
 }
 
-html {
-    scrollbar-gutter: stable;
-}
-
 body {
     margin: 0;
     overflow: hidden;
@@ -11429,11 +11425,11 @@ textarea:focus-visible {
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 0.75rem;
-    inline-size: 3.85rem;
+    gap: 0.45rem;
+    inline-size: 2.8rem;
     min-inline-size: 0;
-    block-size: 12.5rem;
-    padding: 0.9rem 0.5rem 0.75rem;
+    block-size: 8.7rem;
+    padding: 0.5rem 0.3rem;
     overflow: visible;
     border: 1px solid color-mix(in srgb, var(--app-border-strong) 82%, transparent);
     border-radius: 1.4rem;
@@ -11455,18 +11451,18 @@ textarea:focus-visible {
 .react-volume-control.is-open .react-volume-popover--vertical .react-volume-range {
     position: absolute;
     inset: 50% auto auto 50%;
+    display: block !important;
     flex: none;
-    width: 9rem;
-    min-width: 9rem;
-    height: 1.5rem;
-    min-height: 1.5rem;
+    width: 5.8rem;
+    min-width: 5.8rem;
+    height: 1.2rem;
+    min-height: 1.2rem;
     margin: 0;
     padding: 0;
     appearance: none;
     -webkit-appearance: none;
     border: 0;
     background: transparent;
-    direction: rtl;
     transform: translate(-50%, -50%) rotate(-90deg);
     cursor: pointer;
     touch-action: pan-y;
@@ -11480,9 +11476,9 @@ textarea:focus-visible {
 }
 
 .react-volume-popover--vertical .react-volume-range::-webkit-slider-thumb {
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-top: -0.48rem;
+    width: 1rem;
+    height: 1rem;
+    margin-top: -0.36rem;
     appearance: none;
     -webkit-appearance: none;
     border: 1px solid color-mix(in srgb, var(--app-text) 14%, transparent);
@@ -11507,8 +11503,8 @@ textarea:focus-visible {
 }
 
 .react-volume-popover--vertical .react-volume-range::-moz-range-thumb {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1rem;
+    height: 1rem;
     border: 1px solid color-mix(in srgb, var(--app-text) 14%, transparent);
     border-radius: 50%;
     background: var(--app-surface-solid);
