@@ -14124,6 +14124,17 @@ body,
     color: #272321;
 }
 
+:root[data-appearance="light"] .react-sidebar-nav .netease-nav-item:not(.active-tab):hover,
+:root[data-appearance="light"] .react-sidebar-nav .netease-nav-item:not(.active-tab):focus-visible {
+    background: color-mix(in srgb, var(--app-accent) 7%, var(--app-sidebar)) !important;
+    color: var(--app-text) !important;
+}
+
+:root[data-appearance="light"] .react-sidebar-nav .netease-nav-item:not(.active-tab):hover i,
+:root[data-appearance="light"] .react-sidebar-nav .netease-nav-item:not(.active-tab):focus-visible i {
+    color: var(--app-accent);
+}
+
 .react-sidebar-nav .netease-nav-item.active-tab {
     background: #e9e1dc;
     color: #302a27;
