@@ -280,7 +280,6 @@ describe('React player navigation and state restoration', () => {
     expect(footer).toContain('react-immersive-footer-art')
     expect(views).not.toContain('react-immersive-more-button')
     expect(views).not.toContain('songActionsAnchorRef')
-    expect(views).toContain("list.scrollTo({ top: targetTop, behavior: 'smooth' })")
     expect(views).not.toContain('scrollFrameRef')
     expect(footer).toContain('react-immersive-footer-time')
     expect(footer).toContain('aria-label="播放时间"')

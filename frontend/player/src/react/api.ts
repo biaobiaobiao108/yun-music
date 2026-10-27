@@ -2,7 +2,7 @@ import { requestJson, type RequestPolicy, type RequestPriority } from './data/re
 import { scopedStorageKey } from './session'
 import { readJson, writeJson } from '../../../shared/src/storage'
 import type { RuntimeConfig } from '../../../shared/src/runtime'
-import type { LyricLine, Song } from './types'
+import type { LyricLine, LyricWord, Song } from './types'
 
 export type PlayerConfig = RuntimeConfig & {
   'player.enableAuth'?: boolean
@@ -351,10 +351,9 @@ export function parseLyric(payload: Record<string, unknown>): LyricLine[] {
   const source = pickLyricText(roots, ['lyric', 'lrc', 'content', 'text'])
   const translation = pickLyricText(roots, ['tlyric', 'translation', 'translatedLyric', 'tLrc'])
   const roma = pickLyricText(roots, ['rlyric', 'romalrc', 'roma', 'romanizedLyric'])
-  const wordLyric = pickLyricText(roots, ['klyric', 'lxlyric', 'wordLyric', 'yrc'])
   const translated = new Map<number, string>()
   const romanized = new Map<number, string>()
-  const wordLines = new Map<number, string>()
+  const wordLines = new Map<number, { text: string; rawText: string; words: LyricWord[] }>()
   const parse = (text: string, target = new Map<number, string>()) => {
     for (const line of text.split(/\r?\n/)) {
       const matches = [...line.matchAll(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)]
@@ -378,16 +377,146 @@ export function parseLyric(payload: Record<string, unknown>): LyricLine[] {
   }
   parse(translation, translated)
   parse(roma, romanized)
-  parse(wordLyric, wordLines)
-  return [...parse(source)]
+  const parseTimedWords = (raw: string) => {
+    const lines = new Map<number, { text: string; rawText: string; words: LyricWord[] }>()
+    for (const rawLine of raw.split(/\r?\n/)) {
+      const line = rawLine.trim()
+      if (!line) continue
+      const lrcTag = /^\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/.exec(line)
+      const yrcTag = /^\[(\d+),(\d+)\]/.exec(line)
+      const lx = Boolean(lrcTag)
+      if (!lx && !yrcTag) continue
+      const lineTime = lrcTag
+        ? Number(lrcTag[1]) * 60 + Number(lrcTag[2]) + Number(lrcTag[3] || 0) / 10 ** (lrcTag[3] || '').length
+        : Number(yrcTag![1]) / 1000
+      const body = line.slice((lrcTag || yrcTag)![0].length)
+      const tokenPattern = lx ? /<(\d+),(\d+)(?:,([^>]*))?>/g : /\((\d+),(\d+)(?:,([^)]*))?\)/g
+      const tokens = [...body.matchAll(tokenPattern)]
+      if (!tokens.length) continue
+      const words: LyricWord[] = []
+      for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index]
+        const text = body.slice(token.index! + token[0].length, tokens[index + 1]?.index ?? body.length)
+        if (!text) continue
+        const offsetOrTime = Number(token[1])
+        const duration = Number(token[2])
+        if (!Number.isFinite(offsetOrTime) || !Number.isFinite(duration) || duration < 0) continue
+        const time = (lx ? lineTime * 1000 + offsetOrTime : offsetOrTime) / 1000
+        words.push({ text, time, duration: duration / 1000 })
+      }
+      if (!words.length) continue
+      const timeMs = Math.round(lineTime * 1000)
+      lines.set(timeMs, {
+        text: words
+          .map(word => word.text)
+          .join('')
+          .trim(),
+        rawText: body,
+        words,
+      })
+    }
+    return lines
+  }
+  // Sources sometimes populate an ordinary but untimed `klyric` field before
+  // the useful `lxlyric` field. Try each alias and keep the first one that
+  // actually contains parseable timing tokens.
+  for (const candidate of ['lxlyric', 'klyric', 'wordLyric', 'yrc']) {
+    const timedLines = parseTimedWords(pickLyricText(roots, [candidate]))
+    if (timedLines.size) {
+      for (const [time, entry] of timedLines) wordLines.set(time, entry)
+      break
+    }
+  }
+  const sourceLines = parse(source)
+  // Word-timed formats can be the only lyric payload. Retain their line timing
+  // and derive display text from the parsed word segments in that case.
+  if (!sourceLines.size) {
+    for (const [time, entry] of wordLines) {
+      if (entry.text) sourceLines.set(time, entry.text)
+    }
+  }
+  const alignMetadata = (metadata: Map<number, string>) => {
+    const aligned = new Map<number, string>()
+    const usedMetadata = new Set<number>()
+    for (const time of sourceLines.keys()) {
+      if (metadata.has(time)) {
+        aligned.set(time, metadata.get(time)!)
+        usedMetadata.add(time)
+      }
+    }
+    const candidates: { lineTime: number; lyricTime: number; gap: number }[] = []
+    const metadataTimes = [...metadata.keys()].filter(time => !usedMetadata.has(time)).sort((a, b) => a - b)
+    let firstCandidate = 0
+    for (const lineTime of [...sourceLines.keys()].sort((a, b) => a - b)) {
+      if (aligned.has(lineTime)) continue
+      while (firstCandidate < metadataTimes.length && metadataTimes[firstCandidate]! < lineTime - 1500)
+        firstCandidate += 1
+      for (let i = firstCandidate; i < metadataTimes.length && metadataTimes[i]! <= lineTime + 1500; i += 1) {
+        const lyricTime = metadataTimes[i]!
+        const gap = Math.abs(lineTime - lyricTime)
+        if (gap <= 1500) candidates.push({ lineTime, lyricTime, gap })
+      }
+    }
+    candidates.sort((a, b) => a.gap - b.gap || a.lineTime - b.lineTime || a.lyricTime - b.lyricTime)
+    for (const { lineTime, lyricTime } of candidates) {
+      if (aligned.has(lineTime) || usedMetadata.has(lyricTime)) continue
+      aligned.set(lineTime, metadata.get(lyricTime)!)
+      usedMetadata.add(lyricTime)
+    }
+    return aligned
+  }
+  const translationsByLine = alignMetadata(translated)
+  const romaByLine = alignMetadata(romanized)
+  const timedEntries = [...wordLines.entries()].sort((a, b) => a[0] - b[0])
+  const normalizeLyricText = (text: string) =>
+    text
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[\s\p{P}\p{S}]/gu, '')
+  const timedByText = new Map<string, typeof timedEntries>()
+  for (const entry of timedEntries) {
+    const text = normalizeLyricText(entry[1].text)
+    const matches = timedByText.get(text) ?? []
+    matches.push(entry)
+    timedByText.set(text, matches)
+  }
+  const wordMatches: { lineTime: number; lyricTime: number; gap: number }[] = []
+  for (const [lineTime, text] of sourceLines) {
+    const normalized = normalizeLyricText(text)
+    if (!normalized) continue
+    for (const [lyricTime] of timedByText.get(normalized) ?? []) {
+      const gap = Math.abs(lineTime - lyricTime)
+      if (gap <= 1500) wordMatches.push({ lineTime, lyricTime, gap })
+    }
+  }
+  wordMatches.sort((a, b) => a.gap - b.gap || a.lineTime - b.lineTime || a.lyricTime - b.lyricTime)
+  const timedEntryByLine = new Map<number, (typeof timedEntries)[number][1]>()
+  const timedTimeByLine = new Map<number, number>()
+  const usedTimedLines = new Set<number>()
+  for (const { lineTime, lyricTime } of wordMatches) {
+    if (timedEntryByLine.has(lineTime) || usedTimedLines.has(lyricTime)) continue
+    timedEntryByLine.set(lineTime, wordLines.get(lyricTime)!)
+    timedTimeByLine.set(lineTime, lyricTime)
+    usedTimedLines.add(lyricTime)
+  }
+  return [...sourceLines]
     .map(([time, text]) => {
-      const line: LyricLine = { time: time / 1000, text, translation: translated.get(time) }
-      const translatedText = translated.get(time)
-      const romanizedText = romanized.get(time)
-      const wordText = wordLines.get(time)
+      const wordEntry = timedEntryByLine.get(time)
+      const line: LyricLine = {
+        time: (timedTimeByLine.get(time) ?? time) / 1000,
+        text,
+        translation: translationsByLine.get(time),
+      }
+      const translatedText = translationsByLine.get(time)
+      const romanizedText = romaByLine.get(time)
       if (translatedText) line.translation = translatedText
       if (romanizedText) line.roma = romanizedText
-      if (wordText) line.words = wordText
+      if (wordEntry) {
+        // Preserve the legacy raw payload in `words`; timed segments have
+        // their own normalized representation in `timedWords`.
+        line.words = wordEntry.rawText
+        line.timedWords = wordEntry.words
+      }
       return line
     })
     .filter(line => line.text)

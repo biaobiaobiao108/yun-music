@@ -51,6 +51,7 @@ let playCommand: () => void = () => undefined
 let pauseCommand: () => void = () => undefined
 let seekCommand: (time: number) => void = () => undefined
 let volumeCommand: (volume: number) => void = () => undefined
+let positionCommand: () => number | null = () => null
 let lastPlaybackPersistAt = 0
 type PersistedPlaybackState = Pick<
   PlaybackState,
@@ -68,12 +69,19 @@ export function connectAudioCommands(commands: {
   seek: (time: number) => void
   volume: (volume: number) => void
   prime?: () => void
+  position?: () => number | null
 }): void {
   playCommand = commands.play
   pauseCommand = commands.pause
   seekCommand = commands.seek
   volumeCommand = commands.volume
+  positionCommand = commands.position ?? (() => null)
   primeCommand = commands.prime ?? null
+}
+
+/** The immersive lyrics sample the audio clock without updating the playback store every frame. */
+export function readPlaybackPosition(): number | null {
+  return positionCommand()
 }
 
 export function pausePlaybackCommand(): void {

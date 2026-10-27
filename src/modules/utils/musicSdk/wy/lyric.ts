@@ -2,6 +2,26 @@ import { httpFetch } from '../../request'
 import { eapi } from './utils/crypto'
 // import { decodeName } from '../..'
 
+export function formatLyricTimestamp(value: number | string): string {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return ''
+  const timeMs = Math.trunc(parsed)
+  const minutes = Math.floor(timeMs / 60000)
+    .toString()
+    .padStart(2, '0')
+  const seconds = Math.floor((timeMs % 60000) / 1000)
+    .toString()
+    .padStart(2, '0')
+  const milliseconds = (timeMs % 1000).toString().padStart(3, '0')
+  return `[${minutes}:${seconds}.${milliseconds}]`
+}
+
+export function parseLyricTimestamp(value: string): number {
+  const match = /^(\d+):(\d{1,2})(?:[.:](\d{1,3}))?$/.exec(value)
+  if (!match) return 0
+  return Number(match[1]) * 60000 + Number(match[2]) * 1000 + Number((match[3] || '').padEnd(3, '0'))
+}
+
 // const parseLyric = (str: any, lrc: any) => {
 //   if (!str) return ''
 
@@ -55,24 +75,14 @@ const eapiRequest = (url: any, data: any) => {
   // return requestObj
 }
 
-const parseTools = {
+export const parseTools = {
   rxps: {
     info: /^{"/,
     lineTime: /^\[(\d+),\d+\]/,
     wordTime: /\(\d+,\d+,\d+\)/,
     wordTimeAll: /(\(\d+,\d+,\d+\))/g,
   },
-  msFormat(timeMs: any) {
-    if (Number.isNaN(timeMs)) return ''
-    let ms = timeMs % 1000
-    timeMs /= 1000
-    let m = Math.trunc(timeMs / 60)
-      .toString()
-      .padStart(2, '0')
-    timeMs %= 60
-    let s = parseInt(timeMs).toString().padStart(2, '0')
-    return `[${m}:${s}.${ms}]`
-  },
+  msFormat: formatLyricTimestamp,
   parseLyric(lines: any) {
     const lxlrcLines: any[] = []
     const lrcLines: any[] = []
@@ -130,43 +140,46 @@ const parseTools = {
     })
   },
   getIntv(interval: any) {
-    if (!interval) return 0
-    if (!interval.includes('.')) interval += '.0'
-    let arr = interval.split(/:|\./)
-    while (arr.length < 3) arr.unshift('0')
-    const [m, s, ms] = arr
-    return parseInt(m) * 3600000 + parseInt(s) * 1000 + parseInt(ms)
+    return parseLyricTimestamp(String(interval || ''))
   },
   fixTimeTag(lrc: any, targetlrc: any) {
-    let lrcLines = lrc.split('\n')
-    const targetlrcLines = targetlrc.split('\n')
     const timeRxp = /^\[([\d:.]+)\]/
-    let temp: any[] = []
-    let newLrc: any[] = []
-    targetlrcLines.forEach((line: any) => {
-      const result = timeRxp.exec(line)
-      if (!result) return
-      const words = line.replace(timeRxp, '')
-      if (!words.trim()) return
-      const t1 = this.getIntv(result[1])
-
-      while (lrcLines.length) {
-        const lrcLine = lrcLines.shift()
-        const lrcLineResult = timeRxp.exec(lrcLine)
-        if (!lrcLineResult) continue
-        const t2 = this.getIntv(lrcLineResult[1])
-        if (Math.abs(t1 - t2) < 100) {
-          const lrc = line.replace(timeRxp, lrcLineResult[0]).trim()
-          if (!lrc) continue
-          newLrc.push(lrc)
-          break
-        }
-        temp.push(lrcLine)
+    const readLines = (text: string) =>
+      text.split(/\r?\n/).flatMap((line, index) => {
+        const match = timeRxp.exec(line)
+        const content = match ? line.slice(match[0].length).trim() : ''
+        return match && content ? [{ index, time: this.getIntv(match[1]), tag: match[0], content }] : []
+      })
+    const source = readLines(String(lrc)).sort((a, b) => a.time - b.time)
+    const target = readLines(String(targetlrc)).sort((a, b) => a.time - b.time)
+    const candidates: { source: number; target: number; gap: number }[] = []
+    let first = 0
+    for (let targetIndex = 0; targetIndex < target.length; targetIndex += 1) {
+      const time = target[targetIndex]!.time
+      while (first < source.length && source[first]!.time < time - 1500) first += 1
+      for (
+        let sourceIndex = first;
+        sourceIndex < source.length && source[sourceIndex]!.time <= time + 1500;
+        sourceIndex += 1
+      ) {
+        candidates.push({ source: sourceIndex, target: targetIndex, gap: Math.abs(source[sourceIndex]!.time - time) })
       }
-      lrcLines = [...temp, ...lrcLines]
-      temp = []
-    })
-    return newLrc.join('\n')
+    }
+    candidates.sort((a, b) => a.gap - b.gap || a.source - b.source || a.target - b.target)
+    const usedSource = new Set<number>()
+    const usedTarget = new Set<number>()
+    const matched: { index: number; line: string }[] = []
+    for (const candidate of candidates) {
+      if (usedSource.has(candidate.source) || usedTarget.has(candidate.target)) continue
+      usedSource.add(candidate.source)
+      usedTarget.add(candidate.target)
+      const line = source[candidate.source]!
+      matched.push({ index: line.index, line: `${line.tag}${target[candidate.target]!.content}` })
+    }
+    return matched
+      .sort((a, b) => a.index - b.index)
+      .map(item => item.line)
+      .join('\n')
   },
   parse(ylrc: any, ytlrc: any, yrlrc: any, lrc: any, tlrc: any, rlrc: any) {
     const info = {
@@ -176,25 +189,21 @@ const parseTools = {
       lxlyric: '',
     }
     if (ylrc) {
-      let lines = this.parseHeaderInfo(ylrc)
-      if (lines) {
-        const result = this.parseLyric(lines)
-        if (ytlrc) {
-          const lines = this.parseHeaderInfo(ytlrc)
-          if (lines) {
-            // if (lines.length == result.lyricLines.length) {
-            info.tlyric = this.fixTimeTag(result.lyric, lines.join('\n'))
-            // } else info.tlyric = lines.join('\n')
+      const lines = this.parseHeaderInfo(ylrc)
+      const result = lines ? this.parseLyric(lines) : null
+      if (lines && result?.lyric) {
+        const align = (preferred: string, fallback: string) => {
+          for (const candidate of [preferred, fallback]) {
+            if (!candidate) continue
+            const translated = this.parseHeaderInfo(candidate)
+            if (!translated) continue
+            const aligned = this.fixTimeTag(result.lyric, translated.join('\n'))
+            if (aligned) return aligned
           }
+          return ''
         }
-        if (yrlrc) {
-          const lines = this.parseHeaderInfo(yrlrc)
-          if (lines) {
-            // if (lines.length == result.lyricLines.length) {
-            info.rlyric = this.fixTimeTag(result.lyric, lines.join('\n'))
-            // } else info.rlyric = lines.join('\n')
-          }
-        }
+        info.tlyric = align(ytlrc, tlrc)
+        info.rlyric = align(yrlrc, rlrc)
 
         const timeRxp = /^\[[\d:.]+\]/
         const headers = lines.filter((l: any) => timeRxp.test(l)).join('\n')
@@ -281,8 +290,9 @@ export default (songmid: any) => {
   })
   requestObj.promise = requestObj.promise.then(({ body }: any) => {
     // console.log(body)
-    if (body.code !== 200 || !body?.lrc?.lyric) return Promise.reject(new Error('Get lyric failed'))
-    const fixTimeLabelLrc = fixTimeLabel(body.lrc.lyric, body.tlyric?.lyric, body.romalrc?.lyric)
+    if (body.code !== 200 || (!body?.lrc?.lyric && !body?.yrc?.lyric))
+      return Promise.reject(new Error('Get lyric failed'))
+    const fixTimeLabelLrc = fixTimeLabel(body.lrc?.lyric || '', body.tlyric?.lyric, body.romalrc?.lyric)
     const info = parseTools.parse(
       body.yrc?.lyric,
       body.ytlrc?.lyric,

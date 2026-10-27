@@ -73,6 +73,121 @@ describe('React player module boundaries', () => {
     expect(parseLyric({ lyric: '[00:00.0]作词: Someone\n[00:01.0]真正的歌词' })).toEqual([
       { time: 1, text: '真正的歌词', translation: undefined },
     ])
+    expect(
+      parseLyric({
+        lyric: '[00:01.00]hello world',
+        lxlyric: '[00:01.00]<0,500,0>hello <500,750>world',
+      }),
+    ).toEqual([
+      {
+        time: 1,
+        text: 'hello world',
+        translation: undefined,
+        words: '<0,500,0>hello <500,750>world',
+        timedWords: [
+          { text: 'hello ', time: 1, duration: 0.5 },
+          { text: 'world', time: 1.5, duration: 0.75 },
+        ],
+      },
+    ])
+    expect(
+      parseLyric({
+        yrc: '[1000,1600](1000,600,0)你好(1600,1000,0)世界',
+      }),
+    ).toEqual([
+      {
+        time: 1,
+        text: '你好世界',
+        translation: undefined,
+        words: '(1000,600,0)你好(1600,1000,0)世界',
+        timedWords: [
+          { text: '你好', time: 1, duration: 0.6 },
+          { text: '世界', time: 1.6, duration: 1 },
+        ],
+      },
+    ])
+    expect(parseLyric({ lyric: '[00:02.0]普通歌词', lxlyric: '[00:01.0]<bad>broken' })).toEqual([
+      { time: 2, text: '普通歌词', translation: undefined },
+    ])
+    expect(
+      parseLyric({
+        lyric: '[00:01.00]第一行\n[00:01.20]第二行',
+        klyric: '[00:01.00]没有逐字时间',
+        lxlyric: '[00:01.05]<0,400>第一行\n[00:01.16]<0,400>第二行',
+      }),
+    ).toMatchObject([
+      { text: '第一行', timedWords: [{ text: '第一行', time: 1.05, duration: 0.4 }] },
+      { text: '第二行', timedWords: [{ text: '第二行', time: 1.16, duration: 0.4 }] },
+    ])
+    expect(
+      parseLyric({
+        lyric: '[00:01.00]第一句\n[00:03.00]第二句',
+        lxlyric: '[00:01.30]<0,400>错开的歌词',
+      }),
+    ).toEqual([
+      { time: 1, text: '第一句', translation: undefined },
+      { time: 3, text: '第二句', translation: undefined },
+    ])
+    expect(
+      parseLyric({
+        lyric: '[00:10.00]第一行\n[00:10.50]第二行',
+        lxlyric: '[00:10.08]<0,300>第一行\n[00:10.54]<0,300>第二行',
+        tlyric: '[00:10.12]第一行翻译\n[00:10.62]第二行翻译',
+        rlyric: '[00:10.14]first\n[00:10.64]second',
+      }),
+    ).toMatchObject([
+      { text: '第一行', translation: '第一行翻译', roma: 'first' },
+      { text: '第二行', translation: '第二行翻译', roma: 'second' },
+    ])
+    expect(
+      parseLyric({
+        lyric: '[00:20.00]准确行\n[00:20.20]近邻行',
+        tlyric: '[00:19.90]偏移翻译\n[00:20.20]精确翻译',
+      }),
+    ).toMatchObject([
+      { text: '准确行', translation: '偏移翻译' },
+      { text: '近邻行', translation: '精确翻译' },
+    ])
+    expect(
+      parseLyric({
+        lyric: '[00:30.00]近译行\n[00:30.60]远译行',
+        tlyric: '[00:30.20]唯一翻译',
+      }),
+    ).toMatchObject([
+      { text: '近译行', translation: '唯一翻译' },
+      { text: '远译行', translation: undefined },
+    ])
+    expect(
+      parseLyric({
+        lyric: '[00:40.00]超容差',
+        tlyric: '[00:41.51]不要匹配',
+      }),
+    ).toMatchObject([{ text: '超容差', translation: undefined }])
+    expect(
+      parseLyric({
+        lyric: '[00:10.00]Hello world\n[00:11.00]Next song',
+        lxlyric: '[00:10.30]<0,300>Hello, world!\n[00:11.25]<0,300>next song',
+        tlyric: '[00:10.00]第一句翻译\n[00:11.00]第二句翻译',
+      }),
+    ).toMatchObject([
+      {
+        time: 10.3,
+        text: 'Hello world',
+        translation: '第一句翻译',
+        timedWords: [{ text: 'Hello, world!', time: 10.3 }],
+      },
+      { time: 11.25, text: 'Next song', translation: '第二句翻译', timedWords: [{ text: 'next song', time: 11.25 }] },
+    ])
+    const nearbyLines = parseLyric({
+      lyric: '[00:30.00]相同歌词\n[00:30.80]相同歌词\n[00:31.60]相邻歌词',
+      lxlyric: '[00:30.70]<0,500>相同 歌词\n[00:31.55]<0,500>相邻歌词',
+    })
+    expect(nearbyLines).toMatchObject([
+      { time: 30, text: '相同歌词' },
+      { time: 30.7, text: '相同歌词', timedWords: [{ text: '相同 歌词', time: 30.7 }] },
+      { time: 31.55, text: '相邻歌词', timedWords: [{ text: '相邻歌词', time: 31.55 }] },
+    ])
+    expect(nearbyLines[0].timedWords).toBeUndefined()
   })
 
   it('resolves song action entities by their own ids and supports search fallback metadata', () => {

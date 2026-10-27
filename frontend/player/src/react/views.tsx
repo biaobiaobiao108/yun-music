@@ -34,6 +34,9 @@ import { goBack } from './route_state'
 import { ViewFrame } from './view_frame'
 import { PlaylistDetailView } from './heavy_views'
 import { getSessionGeneration } from './session'
+import { buildRhythmPhrases, rhythmGlyphFrame, rhythmRowFrame, rhythmRowShape, rhythmSparkFrame } from './lyric_rhythm'
+import { readPlaybackPosition } from './store/playback'
+import type { LyricLine } from './types'
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -1205,22 +1208,291 @@ export type ImmersiveLyricsProps = {
   onClosed?: () => void
 }
 
-function lyricFocusClass(index: number, active: number): string {
-  if (active < 0) return 'is-idle'
-  const distance = Math.abs(index - active)
-  if (distance === 0) return 'is-active'
-  if (distance === 1) return 'is-adjacent'
-  if (distance <= 3) return 'is-near'
-  return 'is-distant'
+function RhythmLyrics({
+  open,
+  lines,
+  loading,
+  error,
+  showTranslation,
+  showRoma,
+  seek,
+}: {
+  open: boolean
+  lines: LyricLine[]
+  loading: boolean
+  error: string
+  showTranslation: boolean
+  showRoma: boolean
+  seek: (time: number) => void
+}) {
+  const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const currentTime = usePlaybackStore(state => state.currentTime)
+  const duration = usePlaybackStore(state => state.duration)
+  const listRef = useRef<HTMLElement | null>(null)
+  const focusRef = useRef(-1)
+  const [focus, setFocus] = useState(-1)
+  const [reducedMotion, setReducedMotion] = useState(false)
+  const [viewport, setViewport] = useState({ width: 960, height: 600 })
+
+  useEffect(() => {
+    const list = listRef.current
+    if (!open || !list) return
+    const measure = () => {
+      const width = list.clientWidth
+      const height = list.clientHeight
+      setViewport(previous => (previous.width === width && previous.height === height ? previous : { width, height }))
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(list)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [open])
+
+  const layouts = useMemo(
+    () =>
+      lines.map((line, index) =>
+        buildRhythmPhrases(line, lines[index + 1]?.time ?? (duration > line.time ? duration : line.time + 4)),
+      ),
+    [duration, lines],
+  )
+
+  const updateAt = useCallback(
+    (time: number) => {
+      const index = findActiveLyricIndex(lines, time)
+      if (focusRef.current !== index) {
+        focusRef.current = index
+        setFocus(index)
+      }
+      const reduced = reducedMotion
+      const previous = listRef.current?.querySelector<HTMLElement>('.react-rhythm-previous')
+      if (previous) {
+        const elapsed = Math.min(1, Math.max(0, (time - Number(previous.dataset.lineStart)) / 0.4))
+        const opacity = reduced ? 0 : (1 - elapsed) ** 3
+        previous.style.opacity = String(opacity)
+        previous.style.transform = reduced ? 'none' : `translateY(${(-12 * (1 - opacity)).toFixed(2)}px)`
+      }
+      const previousHidden = previous && Number(previous.style.opacity) <= 0.001
+      listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-phrase').forEach(phrase => {
+        if (previousHidden && previous?.contains(phrase)) return
+        const start = Number(phrase.dataset.start)
+        const side = Number(phrase.dataset.side)
+        const frame = rhythmRowFrame(start, time, side)
+        const opacity = reduced ? (time >= start ? 1 : 0) : frame.opacity
+        phrase.style.opacity = String(opacity)
+        if (!phrase.closest('.react-rhythm-previous')) {
+          const visible = opacity > 0.01
+          if (phrase.tabIndex !== (visible ? 0 : -1)) phrase.tabIndex = visible ? 0 : -1
+          if (visible && phrase.hasAttribute('aria-hidden')) phrase.removeAttribute('aria-hidden')
+          else if (!visible && !phrase.hasAttribute('aria-hidden')) phrase.setAttribute('aria-hidden', 'true')
+        }
+        phrase.style.transform = reduced
+          ? 'none'
+          : `translate(${(Number(phrase.dataset.offset) + frame.x).toFixed(2)}px, ${Number(phrase.dataset.y).toFixed(2)}px) scale(${(Number(phrase.dataset.scale) * frame.scale).toFixed(3)})`
+      })
+      const glyphs = listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-glyph')
+      let activeSparks = 0
+      for (let index = (glyphs?.length ?? 0) - 1; index >= 0; index -= 1) {
+        const glyph = glyphs![index]!
+        if (previousHidden && previous?.contains(glyph)) continue
+        const start = Number(glyph.dataset.start)
+        const length = Number(glyph.dataset.duration)
+        const progress = length > 0 ? Math.min(1, Math.max(0, (time - start) / length)) : time >= start ? 1 : 0
+        const state = time < start ? 'upcoming' : progress >= 1 ? 'sung' : 'current'
+        if (glyph.dataset.rhythmState !== state) glyph.dataset.rhythmState = state
+        const word = {
+          text: glyph.textContent ?? '',
+          time: start,
+          duration: length,
+          spark: glyph.dataset.spark === 'true',
+        }
+        const seed = Number(glyph.dataset.seed)
+        const glyphIndex = Number(glyph.dataset.index)
+        const settledAt = Math.max(start + length, start + 0.15) + 5
+        const settledKey = `${start}:${length}:${seed}:${glyphIndex}:${viewport.width}:${reduced}`
+        if (time < start - 0.08 && glyph.style.opacity === '0' && !glyph.dataset.sparkActive) continue
+        if (time >= settledAt && glyph.dataset.rhythmSettled === settledKey) continue
+        if (time >= settledAt) glyph.dataset.rhythmSettled = settledKey
+        else delete glyph.dataset.rhythmSettled
+        if (reduced) {
+          glyph.style.opacity = time >= start ? '0.8' : '0'
+          glyph.style.transform = 'none'
+          glyph.style.filter = 'none'
+          glyph.style.textShadow = 'none'
+          delete glyph.dataset.sparkActive
+          continue
+        }
+        const frame = rhythmGlyphFrame(word, time, seed, glyphIndex)
+        glyph.style.opacity = String(frame.opacity)
+        const motionScale = Math.min(1, viewport.width / 600)
+        glyph.style.transform = `translate(${(frame.x * motionScale).toFixed(2)}px, ${(frame.y * motionScale).toFixed(2)}px) rotate(${frame.rotation.toFixed(2)}deg) scale(${frame.scale.toFixed(3)})`
+        glyph.style.filter = frame.blur > 0.3 ? `blur(${frame.blur.toFixed(2)}px)` : 'none'
+        glyph.style.textShadow = frame.glow > 0.01 ? `0 0 0.3em rgb(255 255 255 / ${frame.glow * 0.35})` : 'none'
+        const spark =
+          activeSparks < 4 ? rhythmSparkFrame(word, time, seed, glyphIndex, glyph.dataset.final === 'true') : null
+        if (spark) {
+          activeSparks += 1
+          glyph.dataset.sparkActive = 'true'
+          glyph.style.setProperty('--spark-opacity', spark.opacity.toFixed(3))
+          glyph.style.setProperty('--spark-scale', spark.scale.toFixed(3))
+          glyph.style.setProperty('--spark-rotation', `${spark.rotation.toFixed(1)}deg`)
+        } else if (glyph.dataset.sparkActive) {
+          delete glyph.dataset.sparkActive
+        }
+      }
+    },
+    [lines, reducedMotion, viewport.width],
+  )
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const refresh = () => setReducedMotion(media.matches)
+    media.addEventListener('change', refresh)
+    refresh()
+    return () => media.removeEventListener('change', refresh)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    let previousTime = Number.NaN
+    const sync = () => {
+      const time = readPlaybackPosition() ?? usePlaybackStore.getState().currentTime
+      if (time !== previousTime) {
+        previousTime = time
+        updateAt(time)
+      }
+    }
+    sync()
+    if (!isPlaying || reducedMotion) return
+    let frame = 0
+    let lastFrame = 0
+    const tick = (timestamp: number) => {
+      if (timestamp - lastFrame >= 25) {
+        sync()
+        lastFrame = timestamp
+      }
+      frame = window.requestAnimationFrame(tick)
+    }
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
+  }, [isPlaying, open, reducedMotion, updateAt])
+
+  useEffect(() => {
+    if (open && (!isPlaying || reducedMotion)) updateAt(currentTime)
+  }, [currentTime, isPlaying, open, reducedMotion, updateAt])
+
+  useEffect(() => {
+    if (open) updateAt(readPlaybackPosition() ?? usePlaybackStore.getState().currentTime)
+  }, [focus, layouts, open, updateAt, viewport])
+
+  const displayIndex = Math.max(0, focus)
+  const renderPhrases = (lineIndex: number, previous = false) => {
+    const rows = layouts[lineIndex] ?? []
+    const lastSpark = rows
+      .flatMap(phrase => phrase.glyphs)
+      .findLast(glyph => glyph.spark && /[\p{L}\p{N}]/u.test(glyph.text))
+    const widest = Math.max(
+      1,
+      ...rows.map(phrase => phrase.glyphs.reduce((sum, glyph) => sum + (/[^\x00-\xff]/u.test(glyph.text) ? 2 : 1), 0)),
+    )
+    const availableWidth = Math.max(1, Math.min(viewport.width * 0.74, 55 * 16 * 0.86))
+    const fontSize = Math.max(
+      10,
+      Math.min(
+        68,
+        Math.max(26, viewport.width * 0.07),
+        availableWidth / (widest * 0.825),
+        (viewport.height * 0.72) / (Math.max(1, rows.length) * 1.5),
+      ),
+    )
+    return rows.map((phrase, phraseIndex) => {
+      const shape = rhythmRowShape(lines[lineIndex]?.time ?? 0, phraseIndex)
+      return (
+        <button
+          type="button"
+          className="react-rhythm-phrase"
+          key={`${phrase.time}-${phraseIndex}`}
+          data-start={phrase.time}
+          data-side={shape.side}
+          data-offset={shape.offset * Math.min(1, viewport.width / 600)}
+          data-y={(phraseIndex - (rows.length - 1) / 2) * 2.5}
+          data-scale={shape.scale}
+          aria-label={phrase.glyphs.map(glyph => glyph.text).join('')}
+          aria-hidden={previous || undefined}
+          disabled={previous}
+          style={{ fontSize: `${fontSize}px` }}
+          onClick={() => seek(phrase.time)}
+        >
+          {phrase.glyphs.map((glyph, glyphIndex) => (
+            <span
+              className="react-rhythm-glyph"
+              key={`${glyph.time}-${glyphIndex}`}
+              data-start={glyph.time}
+              data-duration={glyph.duration}
+              data-seed={lines[lineIndex]?.time ?? 0}
+              data-index={phraseIndex * 100 + glyphIndex}
+              data-spark={glyph.spark ? 'true' : undefined}
+              data-final={glyph === lastSpark ? 'true' : undefined}
+              data-rhythm-state="upcoming"
+              aria-hidden="true"
+            >
+              {glyph.text}
+            </span>
+          ))}
+        </button>
+      )
+    })
+  }
+  const activeLine = focus >= 0 ? lines[focus] : undefined
+  const translation = showTranslation ? activeLine?.translation : undefined
+  const secondary = translation ? activeLine?.text : showRoma ? activeLine?.roma : undefined
+
+  return (
+    <>
+      <div className="react-immersive-lyrics-grid">
+        <section ref={listRef} className="react-immersive-lyrics-list" aria-label="歌词">
+          {loading ? (
+            <Loading label="正在加载歌词…" />
+          ) : error ? (
+            <p className="react-error" role="alert">
+              {error}
+            </p>
+          ) : lines.length ? (
+            <>
+              {focus > 0 && (
+                <div
+                  className="react-rhythm-phrases react-rhythm-previous"
+                  data-line-start={lines[focus]?.time}
+                  aria-hidden="true"
+                >
+                  {renderPhrases(focus - 1, true)}
+                </div>
+              )}
+              <div className="react-rhythm-phrases react-rhythm-current">{renderPhrases(displayIndex)}</div>
+            </>
+          ) : (
+            <div className="react-empty">
+              <Icon name="file-lines" />
+              <p>暂无歌词</p>
+            </div>
+          )}
+        </section>
+      </div>
+      <div className="react-immersive-lyrics-track-meta" aria-live="polite">
+        {activeLine && <strong>{translation || activeLine.text}</strong>}
+        {secondary && <small>{secondary}</small>}
+      </div>
+    </>
+  )
 }
 
 export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onClose, onClosed }: ImmersiveLyricsProps) {
   const song = usePlaybackStore(state => state.currentSong)
   const seek = usePlaybackStore(state => state.seek)
   const lines = useLyricStore(state => state.lines)
-  const active = usePlaybackStore(
-    useCallback(state => (open ? findActiveLyricIndex(lines, state.currentTime) : -1), [lines, open]),
-  )
   const loading = useLyricStore(state => state.loading)
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
@@ -1228,14 +1500,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const dialogRef = useRef<HTMLDialogElement>(null)
   const lastFocus = useRef<HTMLElement | null>(null)
   const closeTimer = useRef<number | null>(null)
-  const lineRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const lyricsListRef = useRef<HTMLElement | null>(null)
-  const userScrollUntilRef = useRef<number>(0)
-  const onUserScroll = useCallback(() => {
-    userScrollUntilRef.current = Date.now() + 3500
-  }, [])
   const [isClosing, setIsClosing] = useState(false)
-  const [lyricsViewportSize, setLyricsViewportSize] = useState('')
   useEffect(() => {
     if (open) void load(song)
   }, [load, open, song])
@@ -1328,41 +1593,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     },
     [onFooterHostChange],
   )
-  useEffect(() => {
-    const list = lyricsListRef.current
-    if (!open || !list) return
-    const measure = () => setLyricsViewportSize(`${list.clientWidth}:${list.clientHeight}`)
-    measure()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    observer?.observe(list)
-    window.addEventListener('resize', measure)
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', measure)
-    }
-  }, [open])
-  useEffect(() => {
-    if (!open) return
-    if (active < 0) return
-    if (Date.now() < userScrollUntilRef.current) return
-    const list = lyricsListRef.current
-    const line = lineRefs.current[active]
-    if (!list || !line) return
-    const listRect = list.getBoundingClientRect()
-    const lineRect = line.getBoundingClientRect()
-    const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight)
-    const targetTop = Math.min(
-      maxScrollTop,
-      Math.max(0, list.scrollTop + lineRect.top - listRect.top - (list.clientHeight - line.clientHeight) / 2),
-    )
-    if (Math.abs(targetTop - list.scrollTop) < 1) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      list.scrollTop = targetTop
-      return
-    }
-    list.scrollTo({ top: targetTop, behavior: 'smooth' })
-  }, [active, lines, lyricsViewportSize, open])
-  const activeLine = active >= 0 ? lines[active] : null
   const lyricStyle = {
     '--react-lyric-size': `${Math.max(0.9, Number(settings.lyricFontSize || 1.25))}rem`,
   } as CSSProperties
@@ -1372,10 +1602,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     ...lyricStyle,
     '--react-immersive-art': `url("${artwork.replaceAll('"', '\\"')}")`,
   } as CSSProperties
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void document.documentElement.requestFullscreen?.()
-  }
   return (
     <dialog
       ref={dialogRef}
@@ -1397,84 +1623,16 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
           >
             <Icon name="chevron-down" />
           </button>
-          <button type="button" className="react-immersive-nav-button" aria-label="切换全屏" onClick={toggleFullscreen}>
-            <Icon name="expand" />
-          </button>
         </header>
-        <div className="react-immersive-lyrics-grid">
-          <section
-            ref={lyricsListRef}
-            className="react-immersive-lyrics-list"
-            aria-label="歌词"
-            aria-live="polite"
-            onWheel={onUserScroll}
-            onTouchMove={onUserScroll}
-          >
-            {loading ? (
-              <Loading label="正在加载歌词…" />
-            ) : error ? (
-              <p className="react-error" role="alert">
-                {error}
-              </p>
-            ) : lines.length ? (
-              lines.map((line, index) => {
-                const focusClass = lyricFocusClass(index, active)
-                const characters = Array.from(line.text)
-                const lyricLength = characters.length
-                const accessibleLyric = [
-                  line.text,
-                  settings.showLyricTranslation ? line.translation : '',
-                  settings.showLyricRoma ? line.roma : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')
-                return (
-                  <button
-                    type="button"
-                    key={`${line.time}-${index}`}
-                    ref={element => {
-                      lineRefs.current[index] = element
-                    }}
-                    className={`${focusClass}${lyricLength > 8 ? ' is-long-line' : ''}`}
-                    data-lyric-focus={focusClass.replace('is-', '')}
-                    aria-current={index === active ? 'true' : undefined}
-                    aria-label={accessibleLyric}
-                    onClick={event => {
-                      seek(line.time)
-                      if (event.detail > 0) event.currentTarget.blur()
-                    }}
-                  >
-                    <span className="react-immersive-lyric-text">
-                      {index === active
-                        ? characters.map((character, characterIndex) => (
-                            <span
-                              className="react-immersive-lyric-char"
-                              key={characterIndex}
-                              aria-hidden="true"
-                              style={{ animationDelay: `${characterIndex * -90}ms` }}
-                            >
-                              {character}
-                            </span>
-                          ))
-                        : line.text}
-                    </span>
-                    {Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}
-                    {Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}
-                  </button>
-                )
-              })
-            ) : (
-              <div className="react-empty">
-                <Icon name="file-lines" />
-                <p>暂无歌词</p>
-              </div>
-            )}
-          </section>
-        </div>
-        <div className="react-immersive-lyrics-track-meta">
-          <strong>{song ? title : '选择一首歌曲开始播放'}</strong>
-          <small>{activeLine?.translation || activeLine?.roma || (song ? songArtist(song) : '沉浸式歌词')}</small>
-        </div>
+        <RhythmLyrics
+          open={open}
+          lines={lines}
+          loading={loading}
+          error={error}
+          showTranslation={Boolean(settings.showLyricTranslation)}
+          showRoma={Boolean(settings.showLyricRoma)}
+          seek={seek}
+        />
         <PlayerFooterBar variant="immersive" isActive={footerHost === 'immersive'} />
       </div>
     </dialog>

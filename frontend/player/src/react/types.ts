@@ -245,7 +245,15 @@ export type PlayerDetail = {
 }
 export type PlayMode = 'list' | 'single' | 'random'
 export type DrawerName = 'queue' | 'cache' | 'download' | null
-export type LyricLine = { time: number; text: string; translation?: string; roma?: string; words?: string }
+export type LyricWord = { text: string; time: number; duration: number }
+export type LyricLine = {
+  time: number
+  text: string
+  translation?: string
+  roma?: string
+  words?: string
+  timedWords?: LyricWord[]
+}
 
 export function songKey(song: Song): string {
   return `${String(song.source || 'unknown')}:${String(song.songmid ?? song.id ?? song.hash ?? song.name ?? '')}`
