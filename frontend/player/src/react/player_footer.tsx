@@ -71,7 +71,15 @@ function VolumeControl({
   return (
     <div ref={rootRef} className={`react-volume-control ${open ? 'is-open' : ''}`}>
       {open && (
-        <div id={popoverId} className="react-volume-popover" role="dialog" aria-label="音量控制">
+        <div
+          id={popoverId}
+          className="react-volume-popover react-volume-popover--vertical"
+          role="dialog"
+          aria-label="音量控制"
+        >
+          <output className="react-volume-value" aria-live="polite">
+            {Math.round(displayedVolume * 100)}%
+          </output>
           <input
             className="react-volume-range"
             style={volumeStyle}
@@ -94,7 +102,7 @@ function VolumeControl({
         aria-controls={popoverId}
         onClick={() => setOpen(value => !value)}
       >
-        {open ? <span className="react-volume-value">{Math.round(displayedVolume * 100)}%</span> : <Icon name={icon} />}
+        <Icon name={icon} />
       </button>
     </div>
   )
@@ -448,34 +456,6 @@ export function PlayerFooterBar({
           </>
         ) : (
           <>
-            <div className="react-footer-controls">
-              <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}>
-                <Icon name="backward-step" />
-              </button>
-              <button
-                type="button"
-                id={isActive ? 'btn-play' : undefined}
-                className="react-play-button"
-                aria-label={isPlaying ? '暂停' : '播放'}
-                onClick={toggle}
-              >
-                <Icon name={isPlaying ? 'pause' : 'play'} />
-              </button>
-              <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}>
-                <Icon name="forward-step" />
-              </button>
-              <button
-                type="button"
-                id={isActive ? 'player-like-btn' : undefined}
-                className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`}
-                aria-label={isLiked ? '取消喜欢' : '喜欢'}
-                aria-pressed={isLiked}
-                onClick={() => void toggleLike()}
-              >
-                <Icon name="heart" />
-                <span>喜欢</span>
-              </button>
-            </div>
             <div className="react-footer-song-section">
               <div className="react-footer-song">
                 <button
@@ -508,6 +488,51 @@ export function PlayerFooterBar({
                     <small>{currentSong ? songArtist(currentSong) : '选择一首歌曲开始播放'}</small>
                   </div>
                 )}
+                <button
+                  type="button"
+                  id={isActive ? 'player-like-btn' : undefined}
+                  className={`player-secondary-action react-like-button ${isLiked ? 'is-active' : ''}`}
+                  aria-label={isLiked ? '取消喜欢' : '喜欢'}
+                  aria-pressed={isLiked}
+                  onClick={() => void toggleLike()}
+                  disabled={!currentSong}
+                >
+                  <Icon name="heart" />
+                  <span>喜欢</span>
+                </button>
+              </div>
+            </div>
+            <div className="react-footer-center">
+              <div className="react-footer-controls">
+                <button
+                  type="button"
+                  className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
+                  aria-label={`播放模式：${modeLabel}`}
+                  aria-pressed={mode !== 'list'}
+                  onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}
+                >
+                  <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
+                  {mode === 'single' && (
+                    <span className="react-mode-one" aria-hidden="true">
+                      1
+                    </span>
+                  )}
+                </button>
+                <button type="button" className="player-secondary-action" aria-label="上一首" onClick={previous}>
+                  <Icon name="backward-step" />
+                </button>
+                <button
+                  type="button"
+                  id={isActive ? 'btn-play' : undefined}
+                  className="react-play-button"
+                  aria-label={isPlaying ? '暂停' : '播放'}
+                  onClick={toggle}
+                >
+                  <Icon name={isPlaying ? 'pause' : 'play'} />
+                </button>
+                <button type="button" className="player-secondary-action" aria-label="下一首" onClick={next}>
+                  <Icon name="forward-step" />
+                </button>
               </div>
               <PlayerProgressRow seek={seek} />
             </div>
@@ -527,17 +552,12 @@ export function PlayerFooterBar({
               </button>
               <button
                 type="button"
-                className={`player-secondary-action react-mode-button ${mode === 'single' ? 'is-single' : ''}`}
-                aria-label={`播放模式：${modeLabel}`}
-                aria-pressed={mode !== 'list'}
-                onClick={() => setMode(mode === 'list' ? 'random' : mode === 'random' ? 'single' : 'list')}
+                className="player-secondary-action react-comments-action"
+                aria-label="打开评论"
+                onClick={openComments}
+                disabled={!currentSong}
               >
-                <Icon name={mode === 'random' ? 'shuffle' : 'repeat'} />
-                {mode === 'single' && (
-                  <span className="react-mode-one" aria-hidden="true">
-                    1
-                  </span>
-                )}
+                <Icon name="comments" />
               </button>
               <button
                 type="button"

@@ -11416,6 +11416,123 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
+/* A compact vertical fader sits above the volume button, like a desktop mixer. */
+.react-volume-control.is-open {
+    overflow: visible !important;
+}
+
+.react-volume-control.is-open .react-volume-popover--vertical {
+    position: absolute;
+    inset: auto 50% calc(100% + 0.55rem) auto;
+    z-index: 245;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    inline-size: 3.85rem;
+    min-inline-size: 0;
+    block-size: 12.5rem;
+    padding: 0.9rem 0.5rem 0.75rem;
+    overflow: visible;
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 82%, transparent);
+    border-radius: 1.4rem;
+    background: color-mix(in srgb, var(--app-surface-solid) 96%, transparent);
+    color: var(--app-text-muted);
+    box-shadow: 0 0.8rem 2rem rgb(0 0 0 / 13%);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+    animation: none;
+    transform: translateX(50%);
+}
+
+.react-volume-popover--vertical .react-volume-value {
+    color: var(--app-text-muted);
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.react-volume-control.is-open .react-volume-popover--vertical .react-volume-range {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    flex: none;
+    width: 9rem;
+    min-width: 9rem;
+    height: 1.5rem;
+    min-height: 1.5rem;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    direction: rtl;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    cursor: pointer;
+    touch-action: pan-y;
+}
+
+.react-volume-popover--vertical .react-volume-range::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--app-accent) 0 var(--volume, 0%), color-mix(in srgb, var(--app-text) 16%, transparent) var(--volume, 0%) 100%);
+}
+
+.react-volume-popover--vertical .react-volume-range::-webkit-slider-thumb {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-top: -0.48rem;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid color-mix(in srgb, var(--app-text) 14%, transparent);
+    border-radius: 50%;
+    background: var(--app-surface-solid);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 22%);
+    opacity: 1;
+    transition: none;
+}
+
+.react-volume-popover--vertical .react-volume-range::-moz-range-track {
+    height: 0.28rem;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-text) 16%, transparent);
+}
+
+.react-volume-popover--vertical .react-volume-range::-moz-range-progress {
+    height: 0.28rem;
+    border-radius: 999px;
+    background: var(--app-accent);
+}
+
+.react-volume-popover--vertical .react-volume-range::-moz-range-thumb {
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid color-mix(in srgb, var(--app-text) 14%, transparent);
+    border-radius: 50%;
+    background: var(--app-surface-solid);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 22%);
+    opacity: 1;
+}
+
+.react-volume-popover--vertical .react-volume-range:focus-visible {
+    outline: 0 !important;
+}
+
+.react-volume-popover--vertical .react-volume-range:focus-visible::-webkit-slider-thumb,
+.react-volume-popover--vertical .react-volume-range:focus-visible::-moz-range-thumb {
+    box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--app-accent) 25%, transparent),
+        0 1px 3px rgb(0 0 0 / 22%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-volume-control.is-open .react-volume-popover--vertical {
+        animation: none;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .react-volume-control {
         transition: none;
@@ -14923,4 +15040,294 @@ body,
 .react-sidebar-playlists-heading .react-icon-button:hover {
     background: transparent;
     color: var(--app-text);
+}
+
+/* Wide player footer: song identity, transport and secondary actions read as
+   three calm zones, with the progress control anchored beneath transport. */
+@media (min-width: 901px) {
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
+        left: var(--app-sidebar-width) !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        grid-template-columns: minmax(15rem, 0.85fr) minmax(20rem, 1.3fr) minmax(10rem, 0.85fr) !important;
+        gap: clamp(1rem, 2vw, 2rem);
+        width: calc(100% - var(--app-sidebar-width)) !important;
+        height: 6rem;
+        min-height: 6rem;
+        padding: 0.65rem clamp(1rem, 2.4vw, 2.6rem);
+        transform: none !important;
+        border: 0 !important;
+        border-top: 1px solid var(--app-border) !important;
+        border-radius: 0 !important;
+        background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent) !important;
+        box-shadow: 0 -0.45rem 1.6rem rgb(25 20 17 / 5%);
+        -webkit-backdrop-filter: blur(28px) saturate(1.35);
+        backdrop-filter: blur(28px) saturate(1.35);
+    }
+
+    .react-player-main {
+        overflow: visible !important;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-section {
+        display: block;
+        min-width: 0;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song {
+        display: flex;
+        min-width: 0;
+        gap: 0.85rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-cover-button {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 0.85rem;
+        box-shadow: 0 0.25rem 0.8rem rgb(0 0 0 / 12%);
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-meta {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-title-row strong {
+        font-size: 0.95rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-meta small {
+        font-size: 0.82rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song .react-like-button {
+        display: grid;
+        width: 2.4rem !important;
+        min-width: 2.4rem;
+        height: 2.4rem;
+        place-items: center;
+        margin-inline-start: 0.15rem;
+        color: var(--app-text-dim);
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song .react-like-button.is-active {
+        color: var(--app-accent);
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song .react-like-button span {
+        display: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-center {
+        grid-column: 2;
+        grid-row: 1;
+        gap: 0.12rem;
+        align-self: center;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls {
+        justify-content: center;
+        gap: clamp(0.6rem, 1.5vw, 1.4rem);
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls .react-mode-button {
+        margin-inline-end: 0.2rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-play-button {
+        width: 3rem;
+        height: 3rem;
+        background: transparent;
+        color: var(--app-text);
+        font-size: 1.45rem;
+        box-shadow: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-play-button:hover {
+        background: color-mix(in srgb, var(--app-text) 7%, transparent);
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-progress-row {
+        gap: 0.55rem;
+        font-size: 0.72rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-progress-row input[type="range"] {
+        height: 0.28rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions {
+        grid-column: 3;
+        grid-row: 1;
+        gap: 0.35rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > button,
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions .react-volume-control {
+        width: 2.65rem;
+        height: 2.65rem;
+    }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        grid-template-columns: minmax(12rem, 1fr) minmax(17rem, 1.2fr) auto !important;
+        gap: 0.65rem;
+        width: 100% !important;
+        height: 6rem;
+        min-height: 6rem;
+        padding: 0.5rem 0.9rem;
+        transform: none !important;
+        border-radius: 0 !important;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-section {
+        display: block;
+        min-width: 0;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song .react-like-button {
+        display: grid;
+        width: 2rem !important;
+        min-width: 2rem;
+        height: 2rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song .react-like-button span {
+        display: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-center {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls {
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions {
+        display: flex;
+        grid-column: 3;
+        grid-row: 1;
+        gap: 0;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > :not(.react-queue-button):not(.react-volume-control) {
+        display: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > .react-comments-action {
+        display: grid !important;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > .react-volume-control {
+        display: block !important;
+    }
+}
+
+@media (max-width: 720px) {
+    .react-player-main {
+        overflow: visible !important;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
+        left: 0 !important;
+        right: 0 !important;
+        bottom: calc(4.2rem + env(safe-area-inset-bottom, 0px)) !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        gap: 0.2rem 0.5rem;
+        width: 100% !important;
+        min-height: 0;
+        padding: 0.42rem 0.65rem max(0.42rem, env(safe-area-inset-bottom, 0px));
+        transform: none !important;
+        border-radius: 1rem 1rem 0 0 !important;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-section {
+        display: block;
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song {
+        min-height: 2.7rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-cover-button {
+        width: 2.55rem;
+        height: 2.55rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song .react-like-button {
+        display: grid;
+        width: 2rem !important;
+        min-width: 2rem;
+        height: 2rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song .react-like-button span {
+        display: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-center {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-row: 2;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls {
+        grid-column: 1;
+        grid-row: 1;
+        gap: 0.05rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls .react-mode-button {
+        display: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-play-button {
+        width: 2.3rem;
+        height: 2.3rem;
+        background: transparent;
+        color: var(--app-text);
+        box-shadow: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-progress-row {
+        display: grid !important;
+        grid-column: 2;
+        grid-row: 1;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 0.28rem;
+        font-size: 0.62rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions {
+        display: flex;
+        grid-column: 2;
+        grid-row: 1;
+        gap: 0.05rem;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > :not(.react-queue-button):not(.react-volume-control) {
+        display: none;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > .react-comments-action {
+        display: grid !important;
+    }
+
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions > .react-volume-control {
+        display: block !important;
+    }
 }
