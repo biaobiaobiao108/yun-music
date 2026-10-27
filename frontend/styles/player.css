@@ -11416,7 +11416,7 @@ textarea:focus-visible {
 
 .react-volume-control.is-open .react-volume-popover--vertical {
     position: absolute;
-    inset: auto 50% calc(100% + 0.55rem) auto;
+    inset: auto 50% calc(100% + 0.75rem) auto;
     z-index: 245;
     display: flex;
     flex-direction: column;
@@ -11424,20 +11424,31 @@ textarea:focus-visible {
     justify-content: flex-start;
     gap: 0.45rem;
     box-sizing: border-box;
-    inline-size: 2.65rem;
+    inline-size: 3rem;
     min-inline-size: 0;
-    block-size: 7rem;
-    padding: 0.6rem 0.2rem;
+    block-size: 10rem;
+    padding: 1rem 0.35rem;
     overflow: visible;
     border: 1px solid color-mix(in srgb, var(--app-border-strong) 82%, transparent);
-    border-radius: 1.4rem;
-    background: color-mix(in srgb, var(--app-surface-solid) 96%, transparent);
+    border-radius: 0.8rem;
+    background: var(--app-surface-solid);
     color: var(--app-text-muted);
     box-shadow: 0 0.8rem 2rem rgb(0 0 0 / 13%);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    backdrop-filter: blur(18px) saturate(1.2);
     animation: none;
     transform: translateX(50%);
+}
+
+.react-volume-control.is-open .react-volume-popover--vertical::after {
+    content: "";
+    position: absolute;
+    inset: auto auto -0.3rem 50%;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-right: 1px solid var(--app-border-strong);
+    border-bottom: 1px solid var(--app-border-strong);
+    background: var(--app-surface-solid);
+    transform: translateX(-50%) rotate(45deg);
+    pointer-events: none;
 }
 
 .react-volume-control.is-open .react-volume-popover--vertical .react-volume-range {
@@ -11445,8 +11456,8 @@ textarea:focus-visible {
     inset: 50% auto auto 50%;
     display: block !important;
     flex: none;
-    width: 5.8rem;
-    min-width: 5.8rem;
+    width: 8rem;
+    min-width: 8rem;
     height: 1.2rem;
     min-height: 1.2rem;
     margin: 0;
@@ -11468,9 +11479,9 @@ textarea:focus-visible {
 }
 
 .react-volume-popover--vertical .react-volume-range::-webkit-slider-thumb {
-    width: 1rem;
-    height: 1rem;
-    margin-top: -0.36rem;
+    width: 1.2rem;
+    height: 1.2rem;
+    margin-top: -0.46rem;
     appearance: none;
     -webkit-appearance: none;
     border: 1px solid color-mix(in srgb, var(--app-text) 14%, transparent);
@@ -11495,8 +11506,8 @@ textarea:focus-visible {
 }
 
 .react-volume-popover--vertical .react-volume-range::-moz-range-thumb {
-    width: 1rem;
-    height: 1rem;
+    width: 1.2rem;
+    height: 1.2rem;
     border: 1px solid color-mix(in srgb, var(--app-text) 14%, transparent);
     border-radius: 50%;
     background: var(--app-surface-solid);
