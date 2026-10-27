@@ -16548,8 +16548,8 @@ body,
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: clamp(0.75rem, 2.2vh, 1.8rem);
-    width: min(100%, 55rem);
+    gap: clamp(0.8rem, 2.4vh, 1.8rem);
+    width: min(100%, 86vw);
     min-height: 0;
 }
 
@@ -16609,8 +16609,8 @@ body,
 
 .react-rhythm-phrase {
     display: block;
-    width: fit-content;
-    max-width: 86%;
+    width: 100%;
+    max-width: 100%;
     margin: 0;
     padding: 0.08em 0;
     border: 0;
@@ -16620,21 +16620,11 @@ body,
     font-size: clamp(2rem, 4vw, 5rem);
     font-weight: 650;
     letter-spacing: normal;
-    line-height: 1.2;
+    line-height: 1.35;
     opacity: 0;
-    text-align: left;
+    text-align: center;
     overflow-wrap: anywhere;
     cursor: pointer;
-}
-
-.react-rhythm-phrase:nth-child(odd) {
-    align-self: flex-start;
-    margin-inline-start: 6%;
-}
-
-.react-rhythm-phrase:nth-child(even) {
-    align-self: flex-end;
-    margin-inline-end: 6%;
 }
 
 .react-rhythm-phrase:focus-visible {
@@ -16645,52 +16635,51 @@ body,
 
 .react-rhythm-word {
     position: relative;
-    display: inline-flex;
-    align-items: baseline;
-    margin-inline-end: 0.075em;
-    color: rgb(255 255 255 / 44%);
-    white-space: pre;
+    display: inline-block;
+    max-width: 100%;
+    margin-inline-end: 0;
+    color: rgb(255 255 255 / var(--rhythm-light, 0.48));
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    vertical-align: baseline;
     transform-origin: 50% 85%;
     opacity: 0;
 }
 
-.react-rhythm-word[data-word-boundary="true"] {
-    margin-inline-end: 0;
-}
-
-.react-rhythm-glyph {
+.react-rhythm-char {
     display: inline-block;
-    color: inherit;
-    white-space: pre;
+    position: relative;
+    z-index: 1;
+    transform-origin: 50% 85%;
 }
 
 .react-rhythm-word::after {
     position: absolute;
-    z-index: 1;
-    inset: -0.75em;
-    background: radial-gradient(ellipse 0.05em 0.12em at 18% 21%, rgb(255 247 226 / 95%) 0 65%, transparent 100%), radial-gradient(ellipse 0.045em 0.09em at 45% 10%, rgb(255 222 168 / 90%) 0 65%, transparent 100%), radial-gradient(ellipse 0.06em 0.11em at 79% 22%, rgb(255 250 237 / 95%) 0 65%, transparent 100%), radial-gradient(ellipse 0.045em 0.12em at 91% 52%, rgb(255 224 175 / 85%) 0 65%, transparent 100%), radial-gradient(ellipse 0.05em 0.1em at 76% 82%, rgb(255 246 220 / 90%) 0 65%, transparent 100%), radial-gradient(ellipse 0.04em 0.09em at 30% 85%, rgb(255 225 178 / 85%) 0 65%, transparent 100%), radial-gradient(ellipse 0.05em 0.12em at 9% 55%, rgb(255 250 237 / 90%) 0 65%, transparent 100%);
+    z-index: 0;
+    inset: -0.65em -0.75em;
+    border-radius: 50%;
+    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 38%, white) 0deg 1deg, transparent 1.5deg 40deg);
+    -webkit-mask-image: radial-gradient(ellipse at center, transparent 26%, black 40% 68%, transparent 78%);
+    mask-image: radial-gradient(ellipse at center, transparent 26%, black 40% 68%, transparent 78%);
+    filter: drop-shadow(0 0 0.12em var(--app-accent, #f42f4c));
     opacity: 0;
     pointer-events: none;
-    transform: scale(0.45);
+    transform: rotate(var(--spark-rotation, 0deg)) scale(var(--spark-scale, 0.45));
     content: none;
 }
 
 .react-rhythm-word[data-spark-active="true"]::after {
     content: "";
     opacity: var(--spark-opacity, 0);
-    transform: rotate(var(--spark-rotation, 0deg)) scale(var(--spark-scale, 0.45));
+}
+
+.react-rhythm-word[data-final="true"][data-spark-active="true"]::after {
+    inset: -0.9em -1em;
+    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 34%, white) 0deg 0.8deg, transparent 1.2deg 24deg);
 }
 
 .react-rhythm-word:last-child {
     margin-inline-end: 0;
-}
-
-.react-rhythm-glyph[data-rhythm-state="sung"] {
-    color: rgb(255 255 255 / 78%);
-}
-
-.react-rhythm-glyph[data-rhythm-state="current"] {
-    color: #fff;
 }
 
 .react-immersive-lyrics-track-meta {
@@ -16714,7 +16703,7 @@ body,
     }
 
     .react-rhythm-phrase {
-        max-width: 90%;
+        max-width: 100%;
         font-size: clamp(1.6rem, 6vw, 2.8rem);
         letter-spacing: normal;
     }
@@ -16755,7 +16744,6 @@ body,
 
 @media (prefers-reduced-motion: reduce) {
     .react-rhythm-word,
-    .react-rhythm-glyph,
     .react-rhythm-phrase {
         transition: none;
         transform: none !important;

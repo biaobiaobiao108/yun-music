@@ -42,8 +42,20 @@ const cjkCharacter = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Sc
 const lyricWordCharacter = /[\p{L}\p{N}]/u
 const lyricPunctuation = /^[\p{P}\p{S}]+$/u
 
+export function rhythmGlyphWidth(text: string): number {
+  if (/^\s+$/u.test(text)) return 0.3
+  if (cjkCharacter.test(text)) return 1
+  if (lyricPunctuation.test(text)) return 0.48
+  if (/[\p{Script=Latin}\p{N}]/u.test(text)) return 0.56
+  return 0.72
+}
+
+export function isRhythmCjkCharacter(text: string): boolean {
+  return cjkCharacter.test(text)
+}
+
 function groupWordGlyphs(glyphs: RhythmGlyph[]): RhythmGlyph[] {
-  const groups: { start: number; end: number; time: number; finish: number; spark: boolean }[] = []
+  const groups: { start: number; time: number; finish: number; spark: boolean }[] = []
   const ids: number[] = []
   let active = -1
   let activeKind: 'word' | 'cjk' | 'other' | null = null
@@ -54,7 +66,7 @@ function groupWordGlyphs(glyphs: RhythmGlyph[]): RhythmGlyph[] {
     const singing = !/^\s+$/u.test(glyph.text) && !lyricPunctuation.test(glyph.text)
     const time = singing ? glyph.time : Number.POSITIVE_INFINITY
     const finish = singing ? glyph.time + glyph.duration : Number.NEGATIVE_INFINITY
-    groups.push({ start: ids.length, end: ids.length + 1, time, finish, spark: Boolean(singing && glyph.spark) })
+    groups.push({ start: ids.length, time, finish, spark: Boolean(singing && glyph.spark) })
     activeKind = kind
     return active
   }
@@ -90,7 +102,6 @@ function groupWordGlyphs(glyphs: RhythmGlyph[]): RhythmGlyph[] {
 
     ids.push(group)
     const entry = groups[group]!
-    entry.end = index + 1
     if (!/^\s+$/u.test(text) && !lyricPunctuation.test(text)) {
       entry.time = Math.min(entry.time, glyph.time)
       entry.finish = Math.max(entry.finish, glyph.time + glyph.duration)
@@ -138,7 +149,7 @@ function expandWords(words: LyricWord[]): RhythmGlyph[] {
 }
 
 /** Split one timed lyric line into short, readable phrases without losing text. */
-export function buildRhythmPhrases(line: LyricLine, endTime: number, maxRows = 4): RhythmPhrase[] {
+export function buildRhythmPhrases(line: LyricLine, endTime: number, maxRows = 4, maxPhraseWidth = 14): RhythmPhrase[] {
   const timed = line.timedWords?.length ? expandWords(line.timedWords) : []
   const normalized = (text: string) =>
     text
@@ -195,9 +206,9 @@ export function buildRhythmPhrases(line: LyricLine, endTime: number, maxRows = 4
   flushRun()
   if (!units.length) return []
 
-  const count = Math.min(Math.max(1, maxRows), 4, units.length)
-  const sizes = units.map(unit => unit.filter(glyph => !/^\s+$/u.test(glyph.text)).length)
+  const sizes = units.map(unit => unit.reduce((sum, glyph) => sum + rhythmGlyphWidth(glyph.text), 0))
   const total = sizes.reduce((sum, size) => sum + size, 0)
+  const count = Math.min(Math.max(1, maxRows), 4, units.length, Math.max(1, Math.ceil(total / maxPhraseWidth)))
   const phrases: RhythmPhrase[] = []
   let from = 0
   let previousSize = 0
@@ -240,40 +251,47 @@ export function rhythmRowFrame(start: number, position: number, side: number) {
 export function rhythmRowShape(lineTime: number, index: number) {
   const seed = lineTime + index * 7.13
   const side = index % 2 === 0 ? -1 : 1
-  return { side, offset: side * (8 + random(seed, 6) * 22), scale: 0.9 + random(seed, 7) * 0.2 }
+  return { side, offset: 0, scale: 0.98 + random(seed, 7) * 0.04 }
+}
+
+export function rhythmGlyphLayoutScale(seed: number, index: number) {
+  return 1.06 + random(seed + index * 7.13, 4) * 0.14
 }
 
 /** Playback position alone determines the frame, so pause and seek stay exact. */
 export function rhythmGlyphFrame(glyph: RhythmGlyph, position: number, seed: number, index: number) {
   const motionSeed = seed + index * 7.13
-  const baseX = (random(motionSeed, 1) - 0.5) * 3
-  const baseY = (random(motionSeed, 2) - 0.5) * 3
-  const baseRotation = (random(motionSeed, 3) - 0.5) * 2
-  const originX = (random(motionSeed, 4) - 0.5) * 24
-  const originY = (random(motionSeed, 5) - 0.5) * 12
-  const originRotation = (random(motionSeed, 6) - 0.5) * 5
-  const targetScale = 1 + random(motionSeed, 7) * 0.025
+  const baseX = (random(motionSeed, 1) - 0.5) * 20
+  const baseY = (random(motionSeed, 2) - 0.5) * 18
+  const baseRotation = (random(motionSeed, 3) - 0.5) * 8
+  const originX = baseX + Math.sin(baseY) * 58
+  const originY = baseY + Math.cos(baseX) * 34
+  const originRotation = 20
+  const targetScale = rhythmGlyphLayoutScale(seed, index)
+  const peakScale = targetScale * 1.3
   const since = position - glyph.time + 0.08
   const after = position - Math.max(glyph.time + glyph.duration, glyph.time + 0.15)
   const spring = since > 0 ? 1 - Math.exp(-10 * since) * (Math.cos(10 * since) + Math.sin(10 * since)) : 0
   let x = baseX + (originX - baseX) * (1 - spring)
   let y = baseY + (originY - baseY) * (1 - spring)
   let rotation = baseRotation + originRotation * (1 - spring)
-  let scale = 0.84 + (targetScale * 1.07 - 0.84) * spring
-  let opacity = clamp01(since / 0.14)
-  let blur = 4 * (1 - clamp01(since / 0.24))
-  let glow = 0.72 * clamp01(since / 0.22)
+  let scale = 0.5 + (peakScale - 0.5) * spring
+  let opacity = clamp01(since / 0.1)
+  let blur = 10 * (1 - clamp01(since / 0.2))
+  let fill = 0.5 + 0.5 * clamp01(since / Math.max(0.08, glyph.duration))
+  let glow = clamp01(since / Math.max(0.08, 0.3 * glyph.duration))
   if (after > 0) {
-    const settled = easeOut(after / 0.42)
-    x = baseX + (random(motionSeed, 8) - 0.5) * 2 * clamp01(after / 5)
-    y = baseY + (random(motionSeed, 9) - 0.5) * 2 * clamp01(after / 5)
-    rotation = baseRotation + (random(motionSeed, 10) - 0.5) * 2 * clamp01(after / 5)
-    scale = targetScale * (1.07 - 0.07 * settled)
-    opacity = 1 - 0.2 * easeOut(after / 0.7)
+    const settled = easeOut(after / 0.5)
+    x = baseX
+    y = baseY
+    rotation = baseRotation + (random(motionSeed, 8) - 0.5) * 10 * clamp01(after / 5)
+    scale = peakScale + (targetScale - peakScale) * settled
+    opacity = 1 - 0.18 * settled
+    fill = 1 - 0.5 * easeOut(after / 0.8)
     blur = 0
-    glow = 0.55 * (1 - clamp01(after / 0.8))
+    glow = 1 - clamp01(after / 0.9)
   }
-  return { x, y, rotation, scale, opacity, blur, glow }
+  return { x, y, rotation, scale, opacity, blur, fill, glow }
 }
 
 /** A short, deterministic burst at the beginning of a sung word. */
