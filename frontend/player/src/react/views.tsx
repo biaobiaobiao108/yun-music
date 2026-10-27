@@ -1418,6 +1418,15 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
             ) : lines.length ? (
               lines.map((line, index) => {
                 const focusClass = lyricFocusClass(index, active)
+                const characters = Array.from(line.text)
+                const lyricLength = characters.length
+                const accessibleLyric = [
+                  line.text,
+                  settings.showLyricTranslation ? line.translation : '',
+                  settings.showLyricRoma ? line.roma : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')
                 return (
                   <button
                     type="button"
@@ -1425,15 +1434,29 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
                     ref={element => {
                       lineRefs.current[index] = element
                     }}
-                    className={focusClass}
+                    className={`${focusClass}${lyricLength > 8 ? ' is-long-line' : ''}`}
                     data-lyric-focus={focusClass.replace('is-', '')}
                     aria-current={index === active ? 'true' : undefined}
+                    aria-label={accessibleLyric}
                     onClick={event => {
                       seek(line.time)
                       if (event.detail > 0) event.currentTarget.blur()
                     }}
                   >
-                    <span className="react-immersive-lyric-text">{line.text}</span>
+                    <span className="react-immersive-lyric-text">
+                      {index === active
+                        ? characters.map((character, characterIndex) => (
+                            <span
+                              className="react-immersive-lyric-char"
+                              key={characterIndex}
+                              aria-hidden="true"
+                              style={{ animationDelay: `${characterIndex * -90}ms` }}
+                            >
+                              {character}
+                            </span>
+                          ))
+                        : line.text}
+                    </span>
                     {Boolean(settings.showLyricTranslation) && line.translation && <small>{line.translation}</small>}
                     {Boolean(settings.showLyricRoma) && line.roma && <small>{line.roma}</small>}
                   </button>
