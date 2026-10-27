@@ -328,16 +328,17 @@ export function rhythmGlyphFrame(glyph: RhythmGlyph, position: number, seed: num
   return { x, y, rotation, scale, opacity, blur, fill, glow }
 }
 
-/** A short, deterministic burst at the beginning of a sung word. */
+/** A short, deterministic star burst at the beginning of a sung word. */
 export function rhythmSparkFrame(glyph: RhythmGlyph, position: number, seed: number, index: number, final = false) {
   if (!glyph.spark || !glyph.text.trim() || /^[\s\p{P}\p{S}]+$/u.test(glyph.text)) return null
   const age = position - glyph.time
-  const lifetime = final ? 0.5 : 0.4
+  const lifetime = final ? 0.55 : 0.42
   if (age < 0 || age >= lifetime) return null
   const progress = clamp01(age / lifetime)
   return {
-    opacity: (1 - progress) ** 2 * (final ? 0.68 : 0.55),
-    scale: 0.4 + easeOut(progress) * (final ? 0.62 : 0.42),
+    opacity: (1 - progress) ** 2 * (final ? 0.78 : 0.68),
+    spread: easeOut(progress),
+    scale: 0.9 - progress * 0.4,
     rotation: (random(seed + index * 7.13, 8) - 0.5) * 60,
   }
 }

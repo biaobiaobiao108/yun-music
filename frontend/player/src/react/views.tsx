@@ -52,6 +52,8 @@ import {
 import { readPlaybackPosition } from './store/playback'
 import type { LyricLine } from './types'
 
+const RHYTHM_SPARK_ANGLES = [0, 60, 120, 180, 240, 300] as const
+
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
   if (!payload || typeof payload !== 'object') return []
@@ -1416,9 +1418,14 @@ function RhythmLyrics({
         if (spark) {
           activeSparks += 1
           word.dataset.sparkActive = 'true'
-          word.style.setProperty('--spark-opacity', spark.opacity.toFixed(3))
-          word.style.setProperty('--spark-scale', spark.scale.toFixed(3))
-          word.style.setProperty('--spark-rotation', `${spark.rotation.toFixed(1)}deg`)
+          const finalSpark = word.dataset.final === 'true'
+          word.querySelectorAll<HTMLElement>('.react-rhythm-spark-star').forEach(star => {
+            const angle = Number(star.dataset.angle)
+            const distance = 0.08 + spark.spread * (finalSpark ? 0.9 : 0.68)
+            const size = Number(star.dataset.size ?? 1)
+            star.style.opacity = spark.opacity.toFixed(3)
+            star.style.transform = `translate(-50%, -50%) rotate(${(angle + spark.rotation).toFixed(1)}deg) translateY(-${distance.toFixed(2)}em) rotate(${-angle}deg) scale(${(spark.scale * size).toFixed(2)})`
+          })
         } else if (word.dataset.sparkActive) {
           delete word.dataset.sparkActive
         }
@@ -1551,6 +1558,18 @@ function RhythmLyrics({
                   data-layout-scale={rhythmGlyphLayoutScale(lineTime, groupId)}
                   data-font-size={fontSize}
                 >
+                  {sparks && first.groupSpark && (
+                    <span className="react-rhythm-spark" aria-hidden="true">
+                      {RHYTHM_SPARK_ANGLES.map((angle, sparkIndex) => (
+                        <i
+                          className="react-rhythm-spark-star"
+                          key={angle}
+                          data-angle={angle}
+                          data-size={sparkIndex % 3 === 1 ? 0.68 : 1}
+                        />
+                      ))}
+                    </span>
+                  )}
                   {isRhythmCjkCharacter(first.text) ? (
                     <span
                       className="react-rhythm-char"

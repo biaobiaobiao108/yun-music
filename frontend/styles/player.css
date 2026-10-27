@@ -16616,34 +16616,36 @@ body,
     transform-origin: 50% 85%;
 }
 
-.react-rhythm-word::after {
+.react-rhythm-spark {
     position: absolute;
-    z-index: 0;
     top: 50%;
     left: 0;
-    width: 1.2em;
-    height: 1.2em;
-    margin: -0.6em 0 0 -0.6em;
-    border-radius: 50%;
-    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 38%, white) 0deg 1.2deg, transparent 2deg 45deg);
-    -webkit-mask-image: radial-gradient(circle at center, transparent 20%, black 34% 60%, transparent 74%);
-    mask-image: radial-gradient(circle at center, transparent 20%, black 34% 60%, transparent 74%);
+    z-index: 2;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.react-rhythm-word[data-spark-active="true"] .react-rhythm-spark {
+    visibility: visible;
+}
+
+.react-rhythm-spark-star {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0.22em;
+    height: 0.22em;
+    background: color-mix(in srgb, var(--app-accent, #f42f4c) 55%, white);
+    clip-path: polygon(50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0% 50%, 40% 40%);
     opacity: 0;
     pointer-events: none;
-    transform: rotate(var(--spark-rotation, 0deg)) scale(var(--spark-scale, 0.45));
-    content: none;
 }
 
-.react-rhythm-word[data-spark-active="true"]::after {
-    content: "";
-    opacity: var(--spark-opacity, 0);
-}
-
-.react-rhythm-word[data-final="true"][data-spark-active="true"]::after {
-    width: 1.5em;
-    height: 1.5em;
-    margin: -0.75em 0 0 -0.75em;
-    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--app-accent, #f42f4c) 34%, white) 0deg 0.9deg, transparent 1.5deg 30deg);
+.react-rhythm-word[data-final="true"] .react-rhythm-spark-star {
+    width: 0.26em;
+    height: 0.26em;
 }
 
 .react-rhythm-word:last-child {
@@ -16719,7 +16721,7 @@ body,
         text-shadow: none !important;
     }
 
-    .react-rhythm-word::after {
+    .react-rhythm-spark {
         display: none;
     }
 }
