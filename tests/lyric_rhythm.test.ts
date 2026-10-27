@@ -1,12 +1,26 @@
 import { describe, expect, it } from 'bun:test'
 import {
   buildRhythmPhrases,
+  isRhythmInterlude,
   rhythmGlyphFrame,
   rhythmRowFrame,
   rhythmSparkFrame,
 } from '../frontend/player/src/react/lyric_rhythm'
 
 describe('immersive lyric rhythm', () => {
+  it('shows an interlude before lyrics and during substantial gaps without hiding held lines', () => {
+    const lines = [
+      { time: 5, text: '你好', timedWords: [{ text: '你好', time: 5, duration: 2 }] },
+      { time: 16, text: '世界' },
+      { time: 24, text: '再见' },
+    ]
+    const layouts = lines.map((line, index) => buildRhythmPhrases(line, lines[index + 1]?.time ?? 30))
+    expect(isRhythmInterlude(lines, layouts, -1, 2, 30)).toBe(true)
+    expect(isRhythmInterlude(lines, layouts, 0, 6, 30)).toBe(false)
+    expect(isRhythmInterlude(lines, layouts, 0, 9, 30)).toBe(true)
+    expect(isRhythmInterlude(lines, layouts, 1, 23, 30)).toBe(false)
+    expect(isRhythmInterlude([], [], -1, 2, 30)).toBe(false)
+  })
   it('uses word timestamps while preserving the original spaces', () => {
     const phrases = buildRhythmPhrases(
       {

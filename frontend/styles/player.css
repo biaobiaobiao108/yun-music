@@ -16553,6 +16553,60 @@ body,
     min-height: 0;
 }
 
+.react-rhythm-interlude {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    height: 3.5rem;
+    color: rgb(255 248 245 / 62%);
+}
+
+.react-rhythm-interlude span {
+    width: 0.28rem;
+    height: 2.4rem;
+    border-radius: 999px;
+    background: currentColor;
+    transform: scaleY(0.2);
+    animation: react-interlude-pulse 1.4s ease-in-out infinite alternate;
+    animation-play-state: paused;
+}
+
+.react-rhythm-interlude.is-playing span {
+    animation-play-state: running;
+}
+
+.react-rhythm-interlude span:nth-child(2),
+.react-rhythm-interlude span:nth-child(4) {
+    animation-delay: -0.5s;
+}
+
+.react-rhythm-interlude span:nth-child(3) {
+    animation-delay: -1s;
+}
+
+.react-rhythm-interlude span:nth-child(5) {
+    animation-delay: -0.8s;
+}
+
+@keyframes react-interlude-pulse {
+    from {
+        transform: scaleY(0.2);
+        opacity: 0.45;
+    }
+    to {
+        transform: scaleY(0.8);
+        opacity: 0.9;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-rhythm-interlude span {
+        animation: none;
+        transform: scaleY(0.4);
+    }
+}
+
 .react-rhythm-current {
     position: relative;
     z-index: 1;

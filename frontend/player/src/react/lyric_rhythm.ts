@@ -3,6 +3,25 @@ import type { LyricLine, LyricWord } from './types'
 export type RhythmGlyph = { text: string; time: number; duration: number; spark?: boolean }
 export type RhythmPhrase = { glyphs: RhythmGlyph[]; time: number }
 
+export function isRhythmInterlude(
+  lines: LyricLine[],
+  layouts: RhythmPhrase[][],
+  index: number,
+  time: number,
+  duration: number,
+): boolean {
+  if (!lines.length) return false
+  if (index < 0) return true
+  const line = lines[index]
+  if (!line) return false
+  const next = lines[index + 1]?.time ?? (duration > time ? duration : 0)
+  if (!next) return false
+  const glyphs = layouts[index]?.flatMap(phrase => phrase.glyphs) ?? []
+  const end = glyphs.reduce((latest, glyph) => Math.max(latest, glyph.time + glyph.duration), line.time)
+  const minimumGap = line.timedWords?.length ? 4 : 12
+  return next - end >= minimumGap && time >= end + 1 && time < next
+}
+
 const graphemeSegmenter =
   typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
 
