@@ -15462,7 +15462,7 @@ body,
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-meta {
-        flex: 1;
+        flex: 0 1 auto;
         min-width: 0;
     }
 
