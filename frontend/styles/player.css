@@ -16713,7 +16713,6 @@ body,
     .react-rhythm-phrase {
         transition: none;
         transform: none !important;
-        filter: none !important;
         text-shadow: none !important;
     }
 

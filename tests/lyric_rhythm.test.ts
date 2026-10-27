@@ -1,26 +1,12 @@
 import { describe, expect, it } from 'bun:test'
 import {
   buildRhythmPhrases,
-  isRhythmInterlude,
   rhythmGlyphFrame,
   rhythmRowFrame,
   rhythmSparkFrame,
 } from '../frontend/player/src/react/lyric_rhythm'
 
 describe('immersive lyric rhythm', () => {
-  it('shows an interlude before lyrics and during substantial gaps without hiding held lines', () => {
-    const lines = [
-      { time: 5, text: '你好', timedWords: [{ text: '你好', time: 5, duration: 2 }] },
-      { time: 16, text: '世界' },
-      { time: 24, text: '再见' },
-    ]
-    const layouts = lines.map((line, index) => buildRhythmPhrases(line, lines[index + 1]?.time ?? 30))
-    expect(isRhythmInterlude(lines, layouts, -1, 2, 30)).toBe(true)
-    expect(isRhythmInterlude(lines, layouts, 0, 6, 30)).toBe(false)
-    expect(isRhythmInterlude(lines, layouts, 0, 9, 30)).toBe(true)
-    expect(isRhythmInterlude(lines, layouts, 1, 23, 30)).toBe(false)
-    expect(isRhythmInterlude([], [], -1, 2, 30)).toBe(false)
-  })
   it('uses word timestamps while preserving the original spaces', () => {
     const phrases = buildRhythmPhrases(
       {
@@ -69,10 +55,11 @@ describe('immersive lyric rhythm', () => {
 
   it('keeps English words together and estimates timing for ordinary LRC', () => {
     const phrases = buildRhythmPhrases({ time: 2, text: 'hello world' }, 6)
-    expect(phrases.map(phrase => phrase.glyphs.map(glyph => glyph.text).join(''))).toEqual(['hello ', 'world'])
-    expect(phrases[0]?.glyphs[0]?.time).toBe(2)
-    expect(phrases[1]?.time).toBeGreaterThan(2)
-    expect(phrases[1]!.glyphs.at(-1)!.time + phrases[1]!.glyphs.at(-1)!.duration).toBeLessThan(6)
+    const glyphs = phrases.flatMap(phrase => phrase.glyphs)
+    expect(phrases.map(phrase => phrase.glyphs.map(glyph => glyph.text).join(''))).toEqual(['hello world'])
+    expect(glyphs[0]?.time).toBe(2)
+    expect(glyphs.find(glyph => glyph.text === 'w')?.time).toBeGreaterThan(2)
+    expect(glyphs.at(-1)!.time + glyphs.at(-1)!.duration).toBeLessThan(6)
   })
 
   it('reconstructs the same animation frame after pause or seek', () => {

@@ -280,7 +280,6 @@ export function rhythmGlyphFrame(glyph: RhythmGlyph, position: number, seed: num
   let rotation = baseRotation + originRotation * (1 - spring)
   let scale = 0.5 + (peakScale - 0.5) * spring
   let opacity = clamp01(since / 0.1)
-  let blur = 10 * (1 - clamp01(since / 0.2))
   let fill = 0.5 + 0.5 * clamp01(since / Math.max(0.08, glyph.duration))
   let glow = clamp01(since / Math.max(0.08, 0.3 * glyph.duration))
   if (after > 0) {
@@ -291,10 +290,9 @@ export function rhythmGlyphFrame(glyph: RhythmGlyph, position: number, seed: num
     scale = peakScale + (targetScale - peakScale) * settled
     opacity = 1 - 0.18 * settled
     fill = 1 - 0.5 * easeOut(after / 0.8)
-    blur = 0
     glow = 1 - clamp01(after / 0.9)
   }
-  return { x, y, rotation, scale, opacity, blur, fill, glow }
+  return { x, y, rotation, scale, opacity, fill, glow }
 }
 
 /** A short, deterministic star burst at the beginning of a sung word. */

@@ -1374,7 +1374,6 @@ function RhythmLyrics({
         if (reduced) {
           word.style.opacity = time >= start ? '0.8' : '0'
           word.style.transform = 'none'
-          word.style.filter = 'none'
           word.style.textShadow = 'none'
           delete word.dataset.sparkActive
           continue
@@ -1382,7 +1381,6 @@ function RhythmLyrics({
         word.style.opacity = String(frame.opacity)
         const motionScale = Math.min(1, viewport.width / 600)
         word.style.transform = `translate(${(frame.x * motionScale).toFixed(2)}px, ${(frame.y * motionScale).toFixed(2)}px) rotate(${frame.rotation.toFixed(2)}deg) scale(${frame.scale.toFixed(3)})`
-        word.style.filter = frame.blur > 0.3 ? `blur(${frame.blur.toFixed(2)}px)` : 'none'
         word.style.textShadow =
           frame.glow > 0.01
             ? `0 0 ${(frame.glow * 0.24).toFixed(2)}em color-mix(in srgb, var(--app-accent, #f42f4c) ${Math.round(frame.glow * 72)}%, transparent)`
