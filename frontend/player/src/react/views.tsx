@@ -6,7 +6,6 @@ import {
   playlistIcon,
   type CommentItem,
   type PlaylistIconKey,
-  type SearchType,
   type UserPlaylist,
 } from './api'
 import { Button, DescriptionDisclosure, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
@@ -534,23 +533,18 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
   const results = useSearchStore(state => state.results)
   const loading = useSearchStore(state => state.loading)
   const error = useSearchStore(state => state.error)
-  const hot = useSearchStore(state => state.hot)
   const search = useSearchStore(state => state.search)
   const setQuery = useSearchStore(state => state.setQuery)
   const setSource = useSearchStore(state => state.setSource)
   const setType = useSearchStore(state => state.setType)
-  const loadHot = useSearchStore(state => state.loadHot)
   const setDetail = usePlayerUiStore(state => state.setDetail)
   const [input, setInput] = useState(query)
-  useEffect(() => {
-    void loadHot()
-  }, [loadHot, source])
   useEffect(() => setInput(query), [query])
   const submit = (event: FormEvent) => {
     event.preventDefault()
     void search(input, 1)
   }
-  const label = type === 'song' ? '歌曲' : type === 'singer' ? '歌手' : type === 'album' ? '专辑' : '歌单'
+  const label = type === 'song' ? '单曲' : type === 'singer' ? '歌手' : type === 'album' ? '专辑' : '歌单'
   if (detail) return <SearchDetailView detail={detail} />
   const resultView =
     type === 'singer' ? (
@@ -563,129 +557,114 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
       <SongList songs={results} empty={query ? '没有找到匹配的歌曲' : '输入关键词开始搜索'} />
     )
   return (
-    <ViewFrame title="搜索音乐">
-      <section className="react-search-card t-bg-panel">
-        <form className="react-search-form" onSubmit={submit}>
-          <label htmlFor="player-search" className="sr-only">
-            搜索音乐
-          </label>
-          <div className="react-global-search react-search-input">
-            <Icon name="search" />
-            <input
-              id="player-search"
-              value={input}
-              onChange={event => {
-                setInput(event.target.value)
-                setQuery(event.target.value)
-              }}
-              placeholder="搜索音乐、歌手、专辑或歌单"
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              aria-label="清空搜索"
-              onClick={() => {
-                setInput('')
-                setQuery('')
-              }}
-            >
-              <Icon name="xmark" />
-            </button>
+    <ViewFrame title="搜索" hideHeader>
+      <div className="react-search-page">
+        <header className="react-search-page-heading">
+          <div className="react-search-page-title">
+            <p>
+              搜索 · 找到 {results.length}{' '}
+              {type === 'song' ? '首单曲' : type === 'singer' ? '位歌手' : type === 'album' ? '张专辑' : '个歌单'}
+            </p>
+            <h1>{query ? `“${query}”` : '搜索音乐'}</h1>
           </div>
-          <div className="react-search-filter">
-            <SelectMenu
-              label="音源"
-              value={source}
-              options={[
-                { value: 'wy', label: '网易云' },
-                { value: 'tx', label: 'QQ音乐' },
-              ]}
-              onChange={setSource}
-            />
-          </div>
-          <div className="react-search-filter">
-            <SelectMenu
-              label="搜索类型"
-              value={type}
-              options={[
-                { value: 'song', label: '歌曲' },
-                { value: 'singer', label: '歌手' },
-                { value: 'album', label: '专辑' },
-                { value: 'playlist', label: '歌单' },
-              ]}
-              onChange={next => setType(next as SearchType)}
-            />
-          </div>
-          <Button variant="primary" type="submit" disabled={loading}>
-            <Icon name="search" />
-            搜索
-          </Button>
-        </form>
-        {!results.length && !query && (
-          <div className="react-hot-search">
-            <h2>热门搜索</h2>
-            <div>
-              {hot.slice(0, 20).map((item, index) => {
-                const text =
-                  typeof item === 'string'
-                    ? item
-                    : String(
-                        (item as Record<string, unknown>)?.name ?? (item as Record<string, unknown>)?.keyword ?? item,
-                      )
-                return (
-                  <button
-                    type="button"
-                    key={`${text}-${index}`}
-                    onClick={() => {
-                      setInput(text)
-                      setQuery(text)
-                      void search(text, 1)
-                    }}
-                  >
-                    {text}
-                  </button>
-                )
-              })}
+          <form className="react-search-toolbar" onSubmit={submit}>
+            <label htmlFor="player-search" className="sr-only">
+              搜索音乐
+            </label>
+            <div className="react-global-search react-search-input">
+              <Icon name="search" />
+              <input
+                id="player-search"
+                value={input}
+                onChange={event => {
+                  setInput(event.target.value)
+                  setQuery(event.target.value)
+                }}
+                placeholder="搜索音乐、歌手、专辑或歌单"
+                autoComplete="off"
+              />
+              {input && (
+                <button
+                  type="button"
+                  aria-label="清空搜索"
+                  onClick={() => {
+                    setInput('')
+                    setQuery('')
+                  }}
+                >
+                  <Icon name="xmark" />
+                </button>
+              )}
             </div>
-          </div>
-        )}
-      </section>
-      <section className="react-content-card t-bg-panel">
-        <div className="react-section-heading">
-          <div>
-            <h2>{query ? `“${query}”的${label}结果` : '搜索结果'}</h2>
-            {results.length > 0 && <p>共显示 {results.length} 条</p>}
-          </div>
+            <div className="react-search-source">
+              <SelectMenu
+                label="音源"
+                value={source}
+                options={[
+                  { value: 'wy', label: '网易云' },
+                  { value: 'tx', label: 'QQ音乐' },
+                ]}
+                onChange={setSource}
+              />
+            </div>
+            <Button variant="primary" type="submit" disabled={loading} aria-label="搜索">
+              <Icon name="search" />
+            </Button>
+          </form>
+        </header>
+        <div className="react-search-tabs" role="group" aria-label="搜索类型">
+          {(
+            [
+              ['song', '单曲'],
+              ['singer', '歌手'],
+              ['album', '专辑'],
+              ['playlist', '歌单'],
+            ] as const
+          ).map(([value, text]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={type === value}
+              className={type === value ? 'is-active' : ''}
+              onClick={() => setType(value)}
+            >
+              {text}
+            </button>
+          ))}
         </div>
-        {loading ? (
-          <Loading label="正在搜索…" />
-        ) : error ? (
-          <p className="react-error" role="alert">
-            {error}
-          </p>
-        ) : (
-          resultView
-        )}
-        <div className="react-pagination react-pagination-bottom">
-          <button
-            type="button"
-            aria-label="上一页"
-            disabled={page <= 1 || loading}
-            onClick={() => void search(query, page - 1)}
-          >
-            <Icon name="chevron-left" />
-          </button>
-          <span>第 {page} 页</span>
-          <button
-            type="button"
-            aria-label="下一页"
-            disabled={!query || loading || results.length < 40}
-            onClick={() => void search(query, page + 1)}
-          >
-            <Icon name="chevron-right" />
-          </button>
-        </div>
-      </section>
+        <section className="react-search-results">
+          {loading ? (
+            <Loading label="正在搜索…" />
+          ) : error ? (
+            <p className="react-error" role="alert">
+              {error}
+            </p>
+          ) : (
+            resultView
+          )}
+          {query && (
+            <div className="react-pagination react-pagination-bottom">
+              <button
+                type="button"
+                aria-label="上一页"
+                disabled={page <= 1 || loading}
+                onClick={() => void search(query, page - 1)}
+              >
+                <Icon name="chevron-left" />
+              </button>
+              <span>第 {page} 页</span>
+              <button
+                type="button"
+                aria-label="下一页"
+                disabled={!query || loading || results.length < 40}
+                onClick={() => void search(query, page + 1)}
+              >
+                <Icon name="chevron-right" />
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
     </ViewFrame>
   )
 }

@@ -152,19 +152,6 @@ export const playerApi = {
       signal,
       ...policy,
     }),
-  hotSearch: async (source: string, signal?: AbortSignal, policy?: RequestPolicy) => {
-    const payload = await requestJson<unknown>(`/api/music/hotSearch?source=${encodeURIComponent(source)}`, {
-      signal,
-      ...policy,
-    })
-    if (Array.isArray(payload)) return payload
-    if (payload && typeof payload === 'object') {
-      const record = payload as Record<string, unknown>
-      for (const key of ['list', 'data', 'result', 'hotSearch'])
-        if (Array.isArray(record[key])) return record[key] as unknown[]
-    }
-    return []
-  },
   songUrl: (
     songInfo: Song,
     quality: string,
