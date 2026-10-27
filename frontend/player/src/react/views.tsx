@@ -51,6 +51,7 @@ import { readPlaybackPosition } from './store/playback'
 import type { LyricLine } from './types'
 
 const RHYTHM_SPARK_ANGLES = [0, 60, 120, 180, 240, 300] as const
+const RHYTHM_INTRO_LINE: LyricLine = { time: 0, text: 'Shh... the melody is doing the talking.' }
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -1281,6 +1282,7 @@ function RhythmLyrics({
       ),
     [duration, lines, maxPhraseWidth],
   )
+  const introLayouts = useMemo(() => buildRhythmPhrases(RHYTHM_INTRO_LINE, 3, 4, maxPhraseWidth), [maxPhraseWidth])
   const updateAt = useCallback(
     (time: number) => {
       const index = findActiveLyricIndex(lines, time)
@@ -1445,7 +1447,7 @@ function RhythmLyrics({
         updateAt(time)
       }
       const index = findActiveLyricIndex(lines, time)
-      const activePhrases = layouts[index] ?? []
+      const activePhrases = index < 0 ? introLayouts : (layouts[index] ?? [])
       if (rhythmNeedsSmoothFrame(activePhrases, time)) frame = window.requestAnimationFrame(tick)
       else timer = window.setTimeout(tick, 100)
     }
@@ -1455,7 +1457,7 @@ function RhythmLyrics({
       if (frame) window.cancelAnimationFrame(frame)
       if (timer) window.clearTimeout(timer)
     }
-  }, [isPlaying, layouts, lines, open, reducedMotion, updateAt])
+  }, [introLayouts, isPlaying, layouts, lines, open, reducedMotion, updateAt])
 
   useEffect(() => {
     if (open && (!isPlaying || reducedMotion)) updateAt(currentTime)
@@ -1575,6 +1577,10 @@ function RhythmLyrics({
             <p className="react-error" role="alert">
               {error}
             </p>
+          ) : lines.length && focus < 0 ? (
+            <div className="react-rhythm-phrases react-rhythm-current" role="group" aria-label="音乐前奏">
+              {renderPhrases(introLayouts, 0, 'intro', false, false, false)}
+            </div>
           ) : lines.length ? (
             <>
               {focus > 0 && (
