@@ -1703,6 +1703,46 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const closeTimer = useRef<number | null>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [lyricMode, setLyricMode] = useState<'rhythm' | 'scroll'>('rhythm')
+  const artwork = safeImageUrl(songImage(song))
+  const [statusColor, setStatusColor] = useState('#3b3b3b')
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setStatusColor('#3b3b3b')
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = 16
+        canvas.height = 16
+        const context = canvas.getContext('2d')
+        if (!context) return
+        context.drawImage(image, 0, 0, 16, 16)
+        const pixels = context.getImageData(0, 0, 16, 4).data
+        const sums = [0, 0, 0]
+        for (let i = 0; i < pixels.length; i += 4) {
+          for (let channel = 0; channel < 3; channel++) sums[channel] += pixels[i + channel]
+        }
+        if (!cancelled)
+          setStatusColor(`rgb(${sums.map(sum => Math.round((sum / (pixels.length / 4)) * 0.58)).join(' ')})`)
+      } catch {
+        // Cross-origin artwork can be displayed but cannot always be sampled.
+      }
+    }
+    image.src = artwork
+    return () => {
+      cancelled = true
+      image.onload = null
+    }
+  }, [artwork, open])
+  useEffect(() => {
+    if (!open) return
+    document.body.style.setProperty('--immersive-status-color', statusColor)
+    return () => {
+      document.body.style.removeProperty('--immersive-status-color')
+    }
+  }, [open, statusColor])
   useEffect(() => {
     if (open) void load(song)
   }, [load, open, song])
@@ -1799,10 +1839,10 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     '--react-lyric-size': `${Math.max(0.9, Number(settings.lyricFontSize || 1.25))}rem`,
   } as CSSProperties
   const title = songTitle(song)
-  const artwork = safeImageUrl(songImage(song))
   const immersiveStyle = {
     ...lyricStyle,
     '--react-immersive-art': `url("${artwork.replaceAll('"', '\\"')}")`,
+    '--immersive-status-color': statusColor,
   } as CSSProperties
   return (
     <dialog
@@ -1814,7 +1854,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
         onClose()
       }}
     >
-      <div className="immersive-status-color" style={immersiveStyle} aria-hidden="true" />
       <div className="react-immersive-lyrics" style={immersiveStyle} tabIndex={-1}>
         <header className="react-immersive-lyrics-header">
           <button

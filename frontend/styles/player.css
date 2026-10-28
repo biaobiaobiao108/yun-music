@@ -16968,30 +16968,11 @@ textarea:focus-visible {
         pointer-events: none;
     }
 
-    .react-immersive-lyrics-dialog[open] > .immersive-status-color {
-        position: fixed;
-        inset: 0 0 auto;
-        z-index: 10;
-        height: 12px;
-        overflow: hidden;
-        background: #555;
-        pointer-events: none;
+    body:has(.react-immersive-lyrics-dialog[open]) > .mobile-status-color {
+        background: var(--immersive-status-color, #3b3b3b);
     }
 
-    .immersive-status-color::before {
-        position: absolute;
-        inset: -5rem -5rem auto;
-        height: calc(100dvh + 10rem);
-        content: "";
-        background: var(--react-immersive-art) center / cover no-repeat;
-        filter: blur(65px) saturate(0.85) brightness(0.8);
-        opacity: 0.95;
-    }
-
-    .immersive-status-color::after {
-        position: absolute;
-        inset: 0;
-        content: "";
-        background: rgb(0 0 0 / 27%);
+    .react-immersive-lyrics::after {
+        background: linear-gradient(to bottom, var(--immersive-status-color, #3b3b3b), transparent 8rem), linear-gradient(180deg, rgb(0 0 0 / 27%), rgb(0 0 0 / 58%));
     }
 }
