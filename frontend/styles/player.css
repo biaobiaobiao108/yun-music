@@ -15014,6 +15014,10 @@ body,
     .react-floating-menu-button {
         display: none;
     }
+
+    .react-floating-history {
+        display: none;
+    }
 }
 
 :root {
@@ -16785,9 +16789,9 @@ body,
 
 @media (max-width: 720px) {
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
-        grid-template-columns: 4.6rem minmax(0, 1fr) auto !important;
+        grid-template-columns: 4.6rem minmax(0, 1fr) !important;
         grid-template-rows: repeat(2, minmax(0, 1fr));
-        gap: 0 0.55rem;
+        gap: 0 0.55rem !important;
         padding: 0.45rem 0.65rem 0.75rem !important;
     }
 
@@ -16809,22 +16813,18 @@ body,
         grid-column: 2;
         grid-row: 1;
         margin-inline-start: 0.5rem;
+        align-self: end;
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions {
-        grid-column: 3;
-        grid-row: 1;
-    }
-
-    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-center {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto auto;
+        display: none !important;
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls {
-        grid-column: 2 / 4;
+        grid-column: 2;
         grid-row: 2;
-        justify-content: center;
+        justify-content: space-around;
+        align-self: center;
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-controls > button,
@@ -16837,6 +16837,7 @@ body,
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-progress-row {
         position: absolute;
         inset: auto 0.65rem 0.2rem;
+        grid-column: 1 / -1;
         grid-template-columns: minmax(0, 1fr);
     }
 

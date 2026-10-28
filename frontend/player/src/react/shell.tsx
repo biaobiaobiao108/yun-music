@@ -542,10 +542,10 @@ function Sidebar() {
   )
 }
 
-const MOBILE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string; activeTabs: PlayerTab[] }[] = [
+const MOBILE_NAV_ITEMS: { id: PlayerTab | 'queue'; label: string; icon: string; activeTabs?: PlayerTab[] }[] = [
   { id: 'home', label: '首页', icon: 'house', activeTabs: ['home'] },
   { id: 'songlist', label: '发现', icon: 'compass', activeTabs: ['songlist', 'leaderboard', 'genres'] },
-  { id: 'recent', label: '最近', icon: 'clock', activeTabs: ['recent'] },
+  { id: 'queue', label: '播放列表', icon: 'list' },
   {
     id: 'library',
     label: '资料库',
@@ -557,18 +557,29 @@ const MOBILE_NAV_ITEMS: { id: PlayerTab; label: string; icon: string; activeTabs
 
 function MobileNavigation() {
   const tab = usePlayerUiStore(state => state.tab)
+  const drawer = usePlayerUiStore(state => state.drawer)
   const setTab = usePlayerUiStore(state => state.setTab)
+  const setDrawer = usePlayerUiStore(state => state.setDrawer)
   return (
     <nav className="react-mobile-navigation" aria-label="移动端主导航">
       {MOBILE_NAV_ITEMS.map(item => {
-        const active = item.activeTabs.includes(tab)
+        const active =
+          item.id === 'queue' ? drawer === 'queue' : drawer !== 'queue' && (item.activeTabs?.includes(tab) ?? false)
         return (
           <button
             key={item.id}
             type="button"
             className={`react-mobile-navigation-item${active ? ' is-active' : ''}`}
-            aria-current={active ? 'page' : undefined}
-            onClick={() => setTab(item.id)}
+            aria-current={item.id !== 'queue' && active ? 'page' : undefined}
+            aria-expanded={item.id === 'queue' ? active : undefined}
+            onClick={() => {
+              if (item.id === 'queue') {
+                setDrawer(drawer === 'queue' ? null : 'queue')
+                return
+              }
+              setDrawer(null)
+              setTab(item.id)
+            }}
           >
             <Icon name={item.icon} />
             <span>{item.label}</span>
