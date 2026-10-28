@@ -16968,8 +16968,18 @@ textarea:focus-visible {
         pointer-events: none;
     }
 
-    body:has(.react-immersive-lyrics-dialog[open]) > .mobile-status-color {
+    .react-immersive-lyrics-dialog[open] {
+        background: var(--immersive-status-color, #3b3b3b) !important;
+    }
+
+    .react-immersive-lyrics-dialog[open] > .immersive-status-color {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 10;
+        width: 100%;
+        height: 12px;
         background: var(--immersive-status-color, #3b3b3b);
+        pointer-events: none;
     }
 
     .react-immersive-lyrics::after {

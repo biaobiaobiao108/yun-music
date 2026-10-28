@@ -1737,13 +1737,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     }
   }, [artwork, open])
   useEffect(() => {
-    if (!open) return
-    document.body.style.setProperty('--immersive-status-color', statusColor)
-    return () => {
-      document.body.style.removeProperty('--immersive-status-color')
-    }
-  }, [open, statusColor])
-  useEffect(() => {
     if (open) void load(song)
   }, [load, open, song])
   const finishClose = useCallback(() => {
@@ -1848,12 +1841,14 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     <dialog
       ref={dialogRef}
       className={`react-immersive-lyrics-dialog ${isClosing ? 'is-closing' : ''}`}
+      style={immersiveStyle}
       aria-label={song ? `${title} 歌词` : '沉浸式歌词'}
       onCancel={event => {
         event.preventDefault()
         onClose()
       }}
     >
+      <div className="immersive-status-color" aria-hidden="true" />
       <div className="react-immersive-lyrics" style={immersiveStyle} tabIndex={-1}>
         <header className="react-immersive-lyrics-header">
           <button
