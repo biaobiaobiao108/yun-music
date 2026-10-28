@@ -16962,13 +16962,36 @@ textarea:focus-visible {
         position: fixed;
         inset: 0 0 auto;
         display: block;
-        height: env(safe-area-inset-top, 0px);
+        height: 12px;
         z-index: 1000;
         background: var(--app-bg, #171719);
         pointer-events: none;
     }
 
-    body:has(.react-immersive-lyrics-dialog[open]) > .mobile-status-color {
-        background: #321c19;
+    .react-immersive-lyrics-dialog[open] > .immersive-status-color {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 10;
+        height: 12px;
+        overflow: hidden;
+        background: #555;
+        pointer-events: none;
+    }
+
+    .immersive-status-color::before {
+        position: absolute;
+        inset: -5rem -5rem auto;
+        height: calc(100dvh + 10rem);
+        content: "";
+        background: var(--react-immersive-art) center / cover no-repeat;
+        filter: blur(65px) saturate(0.85) brightness(0.8);
+        opacity: 0.95;
+    }
+
+    .immersive-status-color::after {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background: rgb(0 0 0 / 27%);
     }
 }

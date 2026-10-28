@@ -1814,6 +1814,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
         onClose()
       }}
     >
+      <div className="immersive-status-color" style={immersiveStyle} aria-hidden="true" />
       <div className="react-immersive-lyrics" style={immersiveStyle} tabIndex={-1}>
         <header className="react-immersive-lyrics-header">
           <button
