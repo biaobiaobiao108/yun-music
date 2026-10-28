@@ -12619,6 +12619,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-section {
         display: contents;
     }
+
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song {
         display: flex !important;
         min-width: 0;
@@ -16789,7 +16790,7 @@ body,
 
 @media (max-width: 720px) {
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) !important;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.5fr) !important;
         grid-template-rows: auto;
         gap: 0 0.55rem !important;
         padding: 0.45rem 0.65rem 0.75rem !important;
@@ -16801,9 +16802,13 @@ body,
         grid-row: 1;
     }
 
+    .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song {
+        gap: 0.5rem;
+    }
+
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-cover-button {
-        width: 3rem;
-        height: 3rem;
+        width: 3.5rem;
+        height: 3.5rem;
         align-self: center;
     }
 
@@ -16888,13 +16893,13 @@ textarea:focus-visible {
    layout reserves fixed-width transport and time columns, which pushes the
    controls out of place on phone-sized viewports. */
 @media (max-width: 720px) {
-    .react-player-footer#player-footer.react-immersive-detail-controls {
+    .react-immersive-lyrics footer.react-player-footer#player-footer.react-immersive-detail-controls {
         position: absolute !important;
         inset-inline: 0.55rem !important;
         inset-block-end: max(0.6rem, env(safe-area-inset-bottom)) !important;
         display: grid !important;
-        grid-template-columns: minmax(0, 1fr) auto !important;
-        grid-template-rows: auto auto auto;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.5fr) !important;
+        grid-template-rows: auto auto;
         align-items: center;
         gap: 0.55rem 0.75rem !important;
         width: auto !important;
@@ -16906,15 +16911,15 @@ textarea:focus-visible {
 
     .react-player-footer#player-footer.react-immersive-detail-controls > .react-immersive-detail-progress {
         grid-column: 1 / -1;
-        grid-row: 1;
+        grid-row: 2;
         min-width: 0;
     }
 
     .react-player-footer#player-footer.react-immersive-detail-controls > .react-immersive-footer-song {
-        grid-column: 1 / -1;
-        grid-row: 2;
+        grid-column: 1;
+        grid-row: 1;
         display: grid;
-        grid-template-columns: 3rem minmax(0, 1fr);
+        grid-template-columns: 3.5rem minmax(0, 1fr) !important;
         align-items: center;
         gap: 0.6rem;
         width: 100%;
@@ -16922,23 +16927,47 @@ textarea:focus-visible {
     }
 
     .react-player-footer#player-footer.react-immersive-detail-controls .react-immersive-footer-art {
-        width: 3rem;
-        height: 3rem;
+        width: 3.5rem;
+        height: 3.5rem;
     }
 
     .react-player-footer#player-footer.react-immersive-detail-controls > .react-immersive-detail-transport {
-        grid-column: 1;
-        grid-row: 3;
+        grid-column: 2;
+        grid-row: 1;
         display: flex !important;
         justify-content: space-between;
         min-width: 0;
         gap: clamp(0.15rem, 2vw, 0.65rem);
     }
 
+    .react-player-footer#player-footer.react-immersive-detail-controls .react-immersive-detail-transport > button {
+        width: 2rem !important;
+        min-width: 2rem !important;
+        height: 2.5rem !important;
+        min-height: 0 !important;
+    }
+
     .react-player-footer#player-footer.react-immersive-detail-controls > .react-immersive-footer-time {
-        grid-column: 2;
-        grid-row: 3;
-        justify-self: end;
-        white-space: nowrap;
+        display: none;
+    }
+}
+
+.mobile-status-color {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    body:has(.react-player-shell) > .mobile-status-color {
+        position: fixed;
+        inset: 0 0 auto;
+        display: block;
+        height: env(safe-area-inset-top, 0px);
+        z-index: 1000;
+        background: var(--app-bg, #171719);
+        pointer-events: none;
+    }
+
+    body:has(.react-immersive-lyrics-dialog[open]) > .mobile-status-color {
+        background: #321c19;
     }
 }

@@ -1701,7 +1701,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const dialogRef = useRef<HTMLDialogElement>(null)
   const lastFocus = useRef<HTMLElement | null>(null)
   const closeTimer = useRef<number | null>(null)
-  const previousThemeColor = useRef<string | null>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [lyricMode, setLyricMode] = useState<'rhythm' | 'scroll'>('rhythm')
   useEffect(() => {
@@ -1739,7 +1738,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
-    const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
     const surface = dialog.querySelector<HTMLElement>('.react-immersive-lyrics')
     const syncFooterPosition = () => {
       const bodyWidth = document.body.getBoundingClientRect().width
@@ -1760,11 +1758,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
         (document.activeElement instanceof HTMLElement ? document.activeElement : null)
       syncFooterPosition()
       dialog.showModal()
-      // Keep the standalone iOS status bar aligned with the immersive lyric surface.
-      if (themeColorMeta) {
-        previousThemeColor.current ??= themeColorMeta.content
-        themeColorMeta.content = '#321c19'
-      }
       onFooterHostChange('immersive')
       surface?.focus({ preventScroll: true })
     } else if (open) {
@@ -1778,10 +1771,6 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     } else if (!open && !dialog.open) {
       onFooterHostChange('normal')
       onClosed?.()
-    }
-    if (!open && themeColorMeta && previousThemeColor.current) {
-      themeColorMeta.content = previousThemeColor.current
-      previousThemeColor.current = null
     }
     if (open) {
       window.addEventListener('resize', syncFooterPosition)
