@@ -14644,6 +14644,32 @@ body,
     font-size: inherit;
 }
 
+:root[data-appearance="dark"] .react-home-section-heading h2 {
+    color: var(--app-text);
+}
+
+:root[data-appearance="dark"] .react-home-chart-card {
+    background: var(--app-surface-solid, #232326);
+}
+
+:root[data-appearance="dark"] .react-home-chart-card:hover {
+    background: var(--app-surface-soft, #29292d);
+}
+
+:root[data-appearance="dark"] .react-home-chart-art {
+    background: var(--app-surface-soft, #29292d);
+    color: var(--app-text-dim, #888890);
+}
+
+:root[data-appearance="dark"] .react-home-chart-copy li {
+    color: var(--app-text-muted, #b0b0b7);
+}
+
+:root[data-appearance="dark"] .react-home-chart-copy li > span:first-child,
+:root[data-appearance="dark"] .react-home-chart-copy li small {
+    color: var(--app-text-dim, #888890);
+}
+
 .react-artwork-grid.react-home-songs-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     grid-template-rows: auto;
@@ -16760,7 +16786,7 @@ body,
 @media (max-width: 720px) {
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
         grid-template-columns: 4.6rem minmax(0, 1fr) auto !important;
-        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-rows: repeat(2, minmax(0, 1fr));
         gap: 0 0.55rem;
         padding: 0.45rem 0.65rem 0.75rem !important;
     }
@@ -16776,11 +16802,13 @@ body,
         grid-row: 1 / 3;
         width: 4.6rem;
         height: 4.6rem;
+        align-self: center;
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-song-meta {
         grid-column: 2;
         grid-row: 1;
+        margin-inline-start: 0.5rem;
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) .react-footer-actions {
