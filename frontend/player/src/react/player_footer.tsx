@@ -10,7 +10,7 @@ import {
   usePlayerUiStore,
   useSettingsStore,
 } from './store'
-import { sameSong, songArtist, songImage, songTitle } from './types'
+import { sameSong, songArtist, songImage, songKey, songTitle } from './types'
 import { buildCachePlaybackUrl, extractRemotePlaybackUrl, parseCachePlaybackUrl } from './media_url'
 import { getSessionGeneration } from './session'
 
@@ -108,8 +108,16 @@ function VolumeControl({
 function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
   const currentTime = usePlaybackStore(state => state.currentTime)
   const duration = usePlaybackStore(state => state.duration)
+  const song = usePlaybackStore(state => (state.currentSong ? songKey(state.currentSong) : ''))
+  const [preview, setPreview] = useState<number | null>(null)
+  const drag = useRef<{ pointerId: number; value: number; song: typeof song } | null>(null)
+  useEffect(() => {
+    drag.current = null
+    setPreview(null)
+  }, [song])
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0
-  const safeCurrentTime = Number.isFinite(currentTime) && currentTime > 0 ? Math.min(currentTime, safeDuration) : 0
+  const position = preview ?? currentTime
+  const safeCurrentTime = Number.isFinite(position) && position > 0 ? Math.min(position, safeDuration) : 0
   const progressPercent = safeDuration > 0 ? Math.min(100, Math.max(0, (safeCurrentTime / safeDuration) * 100)) : 0
   const progressStyle = { '--progress': `${progressPercent}%` } as CSSProperties
 
@@ -125,7 +133,34 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
         max={safeDuration}
         step="0.1"
         value={safeCurrentTime}
-        onChange={event => seek(Number(event.target.value))}
+        onPointerDown={event => {
+          if (!event.isPrimary || event.button !== 0 || !safeDuration) return
+          drag.current = { pointerId: event.pointerId, value: safeCurrentTime, song }
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onChange={event => {
+          const value = Number(event.target.value)
+          if (drag.current) {
+            drag.current.value = value
+            setPreview(value)
+          } else seek(value)
+        }}
+        onPointerUp={event => {
+          const active = drag.current
+          if (!active || active.pointerId !== event.pointerId) return
+          drag.current = null
+          setPreview(null)
+          const currentSong = usePlaybackStore.getState().currentSong
+          if ((currentSong ? songKey(currentSong) : '') === active.song) seek(active.value)
+        }}
+        onPointerCancel={() => {
+          drag.current = null
+          setPreview(null)
+        }}
+        onLostPointerCapture={() => {
+          drag.current = null
+          setPreview(null)
+        }}
         aria-label="播放进度"
       />
       <span className="react-progress-time">

@@ -1270,19 +1270,88 @@ function RhythmLyrics({
     }
   }, [open])
 
-  const layouts = useMemo(
-    () =>
-      lines.map((line, index) =>
-        buildRhythmPhrases(
+  const getLayout = useMemo(() => {
+    const cache = new Map<number, RhythmPhrase[]>()
+    return (index: number) => {
+      const line = lines[index]
+      if (!line) return []
+      let layout = cache.get(index)
+      if (!layout) {
+        layout = buildRhythmPhrases(
           line,
           lines[index + 1]?.time ?? (duration > line.time ? duration : line.time + 4),
           4,
           maxPhraseWidth,
-        ),
-      ),
-    [duration, lines, maxPhraseWidth],
-  )
+        )
+        cache.set(index, layout)
+      }
+      return layout
+    }
+  }, [duration, lines, maxPhraseWidth])
   const introLayouts = useMemo(() => buildRhythmPhrases(RHYTHM_INTRO_LINE, 3, 4, maxPhraseWidth), [maxPhraseWidth])
+  const nodesRef = useRef<{
+    previous: HTMLElement | null
+    phrases: {
+      node: HTMLElement
+      start: number
+      side: number
+      offset: number
+      y: number
+      scale: number
+      previous: boolean
+    }[]
+    words: {
+      node: HTMLElement
+      glyph: RhythmGlyph
+      seed: number
+      index: number
+      final: boolean
+      previous: boolean
+      stars: { node: HTMLElement; angle: number; size: number }[]
+    }[]
+    characters: { node: HTMLElement; start: number; duration: number; previous: boolean }[]
+  }>({ previous: null, phrases: [], words: [], characters: [] })
+  useEffect(() => {
+    const list = listRef.current
+    const previous = list?.querySelector<HTMLElement>('.react-rhythm-previous') ?? null
+    const inPrevious = (node: HTMLElement) => Boolean(previous?.contains(node))
+    nodesRef.current = {
+      previous,
+      phrases: Array.from(list?.querySelectorAll<HTMLElement>('.react-rhythm-phrase') ?? [], node => ({
+        node,
+        start: Number(node.dataset.start),
+        side: Number(node.dataset.side),
+        offset: Number(node.dataset.offset),
+        y: Number(node.dataset.y),
+        scale: Number(node.dataset.scale),
+        previous: inPrevious(node),
+      })),
+      words: Array.from(list?.querySelectorAll<HTMLElement>('.react-rhythm-word') ?? [], node => ({
+        node,
+        glyph: {
+          text: node.textContent ?? '',
+          time: Number(node.dataset.start),
+          duration: Number(node.dataset.duration),
+          spark: node.dataset.spark === 'true',
+        },
+        seed: Number(node.dataset.seed),
+        index: Number(node.dataset.index),
+        final: node.dataset.final === 'true',
+        previous: inPrevious(node),
+        stars: Array.from(node.querySelectorAll<HTMLElement>('.react-rhythm-spark-star'), star => ({
+          node: star,
+          angle: Number(star.dataset.angle),
+          size: Number(star.dataset.size ?? 1),
+        })),
+      })),
+      characters: Array.from(list?.querySelectorAll<HTMLElement>('.react-rhythm-char') ?? [], node => ({
+        node,
+        start: Number(node.dataset.start),
+        duration: Math.max(0.2, Math.min(0.9, Number(node.dataset.duration))),
+        previous: inPrevious(node),
+      })),
+    }
+  }, [error, focus, getLayout, introLayouts, lines, loading, open, viewport])
   const updateAt = useCallback(
     (time: number) => {
       const index = findActiveLyricIndex(lines, time)
@@ -1292,10 +1361,10 @@ function RhythmLyrics({
         return
       }
       const reduced = reducedMotion
-      const words = listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-word')
+      const { words, phrases, characters, previous } = nodesRef.current
       const layoutKey = `${viewport.width}:${viewport.height}`
-      if (words?.length && Array.from(words).some(word => word.dataset.spaceKey !== layoutKey)) {
-        const metrics = Array.from(words, word => {
+      if (words.some(({ node }) => node.dataset.spaceKey !== layoutKey)) {
+        const metrics = words.map(({ node: word }) => {
           const next = word.nextElementSibling
           const nextWord = next instanceof HTMLElement && next.classList.contains('react-rhythm-word') ? next : null
           return {
@@ -1315,7 +1384,6 @@ function RhythmLyrics({
           metric.word.dataset.spaceKey = layoutKey
         }
       }
-      const previous = listRef.current?.querySelector<HTMLElement>('.react-rhythm-previous')
       if (previous) {
         const elapsed = Math.min(1, Math.max(0, (time - Number(previous.dataset.lineStart)) / 0.4))
         const opacity = reduced ? 0 : (1 - elapsed) ** 3
@@ -1323,10 +1391,8 @@ function RhythmLyrics({
         previous.style.transform = reduced ? 'none' : `translateY(${(-12 * (1 - opacity)).toFixed(2)}px)`
       }
       const previousHidden = previous && Number(previous.style.opacity) <= 0.001
-      listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-phrase').forEach(phrase => {
-        if (previousHidden && previous?.contains(phrase)) return
-        const start = Number(phrase.dataset.start)
-        const side = Number(phrase.dataset.side)
+      phrases.forEach(({ node: phrase, start, side, offset, y, scale, previous: wasPrevious }) => {
+        if (previousHidden && wasPrevious) return
         const settledKey = `${start}:${side}:${viewport.width}:${reduced}`
         if (time >= start + 1.5 && phrase.dataset.rhythmSettled === settledKey) return
         if (time >= start + 1.5) phrase.dataset.rhythmSettled = settledKey
@@ -1334,7 +1400,7 @@ function RhythmLyrics({
         const frame = rhythmRowFrame(start, time, side)
         const opacity = reduced ? (time >= start ? 1 : 0) : frame.opacity
         phrase.style.opacity = String(opacity)
-        if (!phrase.closest('.react-rhythm-previous')) {
+        if (!wasPrevious) {
           const visible = opacity > 0.01
           if (phrase.tabIndex !== (visible ? 0 : -1)) phrase.tabIndex = visible ? 0 : -1
           if (visible && phrase.hasAttribute('aria-hidden')) phrase.removeAttribute('aria-hidden')
@@ -1342,22 +1408,22 @@ function RhythmLyrics({
         }
         phrase.style.transform = reduced
           ? 'none'
-          : `translate(${(Number(phrase.dataset.offset) + frame.x).toFixed(2)}px, ${Number(phrase.dataset.y).toFixed(2)}px) scale(${(Number(phrase.dataset.scale) * frame.scale).toFixed(3)})`
+          : `translate(${(offset + frame.x).toFixed(2)}px, ${y.toFixed(2)}px) scale(${(scale * frame.scale).toFixed(3)})`
       })
       let activeSparks = 0
-      for (let index = (words?.length ?? 0) - 1; index >= 0; index -= 1) {
-        const word = words![index]!
-        if (previousHidden && previous?.contains(word)) continue
-        const start = Number(word.dataset.start)
-        const length = Number(word.dataset.duration)
-        const lyricWord = {
-          text: word.textContent ?? '',
-          time: start,
-          duration: length,
-          spark: word.dataset.spark === 'true',
-        }
-        const seed = Number(word.dataset.seed)
-        const wordIndex = Number(word.dataset.index)
+      for (let index = words.length - 1; index >= 0; index -= 1) {
+        const {
+          node: word,
+          glyph: lyricWord,
+          seed,
+          index: wordIndex,
+          final: finalSpark,
+          previous: wasPrevious,
+          stars,
+        } = words[index]!
+        if (previousHidden && wasPrevious) continue
+        const start = lyricWord.time
+        const length = lyricWord.duration
         const end = Math.max(start + length, start + 0.15)
         const after = time - end
         const settledAt = end + 5
@@ -1386,16 +1452,12 @@ function RhythmLyrics({
           frame.glow > 0.01
             ? `0 0 ${(frame.glow * 0.24).toFixed(2)}em color-mix(in srgb, var(--app-accent, #f42f4c) ${Math.round(frame.glow * 72)}%, transparent)`
             : 'none'
-        const spark =
-          activeSparks < 4 ? rhythmSparkFrame(lyricWord, time, seed, wordIndex, word.dataset.final === 'true') : null
+        const spark = activeSparks < 4 ? rhythmSparkFrame(lyricWord, time, seed, wordIndex, finalSpark) : null
         if (spark) {
           activeSparks += 1
           word.dataset.sparkActive = 'true'
-          const finalSpark = word.dataset.final === 'true'
-          word.querySelectorAll<HTMLElement>('.react-rhythm-spark-star').forEach(star => {
-            const angle = Number(star.dataset.angle)
+          stars.forEach(({ node: star, angle, size }) => {
             const distance = 0.12 + spark.spread * (finalSpark ? 1.3 : 1.05)
-            const size = Number(star.dataset.size ?? 1)
             star.style.opacity = spark.opacity.toFixed(3)
             star.style.transform = `translate(-50%, -50%) rotate(${(angle + spark.rotation).toFixed(1)}deg) translateY(-${distance.toFixed(2)}em) rotate(${-angle}deg) scale(${(spark.scale * size).toFixed(2)})`
           })
@@ -1403,10 +1465,8 @@ function RhythmLyrics({
           delete word.dataset.sparkActive
         }
       }
-      listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-char').forEach(character => {
-        if (previousHidden && previous?.contains(character)) return
-        const start = Number(character.dataset.start)
-        const duration = Math.max(0.2, Math.min(0.9, Number(character.dataset.duration)))
+      characters.forEach(({ node: character, start, duration, previous: wasPrevious }) => {
+        if (previousHidden && wasPrevious) return
         const elapsed = time - start
         const settledKey = `${start}:${duration}:${reduced}`
         if (elapsed >= duration * 2.2 && character.dataset.rhythmSettled === settledKey) return
@@ -1446,7 +1506,7 @@ function RhythmLyrics({
         updateAt(time)
       }
       const index = findActiveLyricIndex(lines, time)
-      const activePhrases = index < 0 ? introLayouts : (layouts[index] ?? [])
+      const activePhrases = index < 0 ? introLayouts : getLayout(index)
       if (rhythmNeedsSmoothFrame(activePhrases, time)) frame = window.requestAnimationFrame(tick)
       else timer = window.setTimeout(tick, 100)
     }
@@ -1456,7 +1516,7 @@ function RhythmLyrics({
       if (frame) window.cancelAnimationFrame(frame)
       if (timer) window.clearTimeout(timer)
     }
-  }, [introLayouts, isPlaying, layouts, lines, open, reducedMotion, updateAt])
+  }, [getLayout, introLayouts, isPlaying, lines, open, reducedMotion, updateAt])
 
   useEffect(() => {
     if (open && (!isPlaying || reducedMotion)) updateAt(currentTime)
@@ -1464,7 +1524,7 @@ function RhythmLyrics({
 
   useEffect(() => {
     if (open) updateAt(readPlaybackPosition() ?? usePlaybackStore.getState().currentTime)
-  }, [focus, layouts, open, updateAt, viewport])
+  }, [focus, getLayout, open, updateAt, viewport])
 
   const displayIndex = Math.max(0, focus)
   const renderPhrases = (
@@ -1588,11 +1648,11 @@ function RhythmLyrics({
                   data-line-start={lines[focus]?.time}
                   aria-hidden="true"
                 >
-                  {renderPhrases(layouts[focus - 1] ?? [], lines[focus - 1]?.time ?? 0, `line-${focus - 1}`, true)}
+                  {renderPhrases(getLayout(focus - 1), lines[focus - 1]?.time ?? 0, `line-${focus - 1}`, true)}
                 </div>
               )}
               <div className="react-rhythm-phrases react-rhythm-current">
-                {renderPhrases(layouts[displayIndex] ?? [], lines[displayIndex]?.time ?? 0, `line-${displayIndex}`)}
+                {renderPhrases(getLayout(displayIndex), lines[displayIndex]?.time ?? 0, `line-${displayIndex}`)}
               </div>
             </>
           ) : (
