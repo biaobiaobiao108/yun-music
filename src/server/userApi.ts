@@ -288,9 +288,6 @@ function createLxRequest(
         }, timeoutMs)
 
         const normalizedMethod = String(method || 'get').toUpperCase()
-        const config = global.lx?.config || {}
-        const proxy =
-          config['proxy.all.enabled'] && config['proxy.all.address'] ? String(config['proxy.all.address']) : undefined
         const resp = await fetchSafeRemote(safeUrl, {
           method: normalizedMethod,
           headers: fetchHeaders,
@@ -299,7 +296,6 @@ function createLxRequest(
           timeoutMs,
           maxBytes: budgetLease.maxBytes,
           budgetLease,
-          proxy,
         })
         if (timer) clearTimeout(timer)
 

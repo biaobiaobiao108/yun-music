@@ -30,6 +30,8 @@
   "homepage": "https://github.com/biaobiaobiao108/yun-music#readme",
   "dependencies": {
     "archiver": "^8.0.0",
+    "http-proxy-agent": "^9.1.0",
+    "https-proxy-agent": "^9.1.0",
     "log4js": "^6.9.1",
     "music-tag-native": "^0.2.5",
     "react": "^19.3.0",

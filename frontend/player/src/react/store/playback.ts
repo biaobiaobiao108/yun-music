@@ -57,6 +57,7 @@ type PersistedPlaybackState = Pick<
   PlaybackState,
   'currentSong' | 'currentIndex' | 'currentTime' | 'queue' | 'mode' | 'quality' | 'priorityNextSongKey'
 >
+const MAX_PERSISTED_QUEUE_LENGTH = 300
 type PlaybackPersistHandle = number | ReturnType<typeof setTimeout>
 let pendingPlaybackState: PersistedPlaybackState | null = null
 let playbackPersistHandle: PlaybackPersistHandle | null = null
@@ -107,11 +108,32 @@ const initialVolume = (() => {
 })()
 
 function persistPlayback(state: PersistedPlaybackState): void {
+  let playlist = state.queue
+  let index = state.currentIndex
+  let song = state.currentSong
+  if (song) {
+    const currentKey = songKey(song)
+    if (!playlist[index] || songKey(playlist[index] as Song) !== currentKey) {
+      index = playlist.findIndex(item => songKey(item) === currentKey)
+    }
+    if (index < 0) {
+      playlist = [song, ...playlist]
+      index = 0
+    }
+  } else {
+    index = -1
+  }
+  if (playlist.length > MAX_PERSISTED_QUEUE_LENGTH) {
+    const start = index >= 0 ? Math.min(index, playlist.length - MAX_PERSISTED_QUEUE_LENGTH) : 0
+    playlist = playlist.slice(start, start + MAX_PERSISTED_QUEUE_LENGTH)
+    if (index >= 0) index -= start
+  }
+  song = index >= 0 ? (playlist[index] ?? null) : null
   writeJson(browserStorage(), scopedStorageKey('lx_playback_state'), {
-    song: state.currentSong,
-    index: state.currentIndex,
+    song,
+    index,
     time: state.currentTime,
-    playlist: state.queue.slice(0, 300),
+    playlist,
     playMode: state.mode,
     quality: state.quality,
     priorityNextSongKey: state.priorityNextSongKey,
@@ -144,9 +166,9 @@ function persistPlaybackNow(state: PersistedPlaybackState): void {
 function schedulePlaybackPersist(state: PersistedPlaybackState): void {
   pendingPlaybackState = {
     ...state,
-    // The queue is the largest part of this local snapshot. Keep the existing
-    // resume contract while copying it only once per scheduled write.
-    queue: state.queue.slice(0, 300),
+    // Keep the original queue reference until persistPlayback selects a window
+    // around the current song. Truncating here can discard the active song.
+    queue: state.queue,
   }
   if (playbackPersistHandle !== null) return
 

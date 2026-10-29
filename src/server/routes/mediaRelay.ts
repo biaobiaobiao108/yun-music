@@ -10,7 +10,7 @@ import { verifyAdminAuth } from '../auth'
 import { verifyUserAuth } from './auth'
 import * as fileCache from '../fileCache'
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
-import { assertSafeRemoteHttpUrl } from '../networkSecurity'
+import { assertSafeRemoteHttpUrl, createSafeRemoteProxyAgent } from '../networkSecurity'
 import { verifyDownloadToken } from '../downloadToken'
 import { memoryMaintenance } from '../memoryMaintenance'
 import { tryAcquireMediaStream } from '../resourceBudget'
@@ -372,10 +372,12 @@ export const createDownloadProxyRouter = (): Router => {
 
           try {
             const parsedUrl = await assertSafeRemoteHttpUrl(targetUrl)
+            const proxyAgent = createSafeRemoteProxyAgent(parsedUrl)
             const options: any = {
               method: 'GET',
-              lookup: parsedUrl.lookup,
-              agent: getUpstreamAgent(parsedUrl.protocol),
+              ...(proxyAgent
+                ? { agent: proxyAgent }
+                : { lookup: parsedUrl.lookup, agent: getUpstreamAgent(parsedUrl.protocol) }),
               signal: ctx.request.signal,
               headers: {
                 'User-Agent':
@@ -390,6 +392,7 @@ export const createDownloadProxyRouter = (): Router => {
 
             const proxyReq = lib.request(targetUrl, options, (proxyRes: any) => {
               activeProxyResponse = proxyRes
+              if (proxyAgent) proxyRes.once('close', () => proxyAgent.destroy())
               proxyRes.setTimeout?.(30_000, () => proxyRes.destroy(new Error('Remote response timed out')))
               if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode)) {
                 const location = proxyRes.headers.location
@@ -686,6 +689,7 @@ export const createDownloadProxyRouter = (): Router => {
             })
 
             activeProxyRequest = proxyReq
+            if (proxyAgent) proxyReq.once('error', () => proxyAgent.destroy())
             proxyReq.setTimeout?.(30_000, () => proxyReq.destroy(new Error('Remote request timed out')))
 
             proxyReq.on('error', (err: any) => {

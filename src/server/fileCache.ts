@@ -9,7 +9,12 @@ import { buildLyrics, parseLyrics } from '../utils/lrcTool'
 import { formatPlayTime } from '../utils/common'
 import { getDb } from '@/database'
 import { assertSafePathSegment, isPathInside, resolveInside, resolveInsideAsync } from '@/utils/pathSecurity'
-import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from './networkSecurity'
+import {
+  assertSafeRemoteHttpUrl,
+  createSafeRemoteProxyAgent,
+  fetchSafeRemote,
+  type SafeRemoteHttpUrl,
+} from './networkSecurity'
 import { NativeLruCache } from '@/utils/nativeLru'
 import { memoryMaintenance } from './memoryMaintenance'
 import { memoryCacheBudgets } from './resourceBudget'
@@ -3371,9 +3376,9 @@ export const downloadAndCache = async (
         return targetUrl.origin
       }
       const currentProtocol = currentUrl.protocol === 'https:' ? https : http
+      const proxyAgent = createSafeRemoteProxyAgent(currentUrl)
       const options: https.RequestOptions = {
-        lookup: currentUrl.lookup,
-        agent: false,
+        ...(proxyAgent ? { agent: proxyAgent } : { lookup: currentUrl.lookup, agent: false }),
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -3382,6 +3387,7 @@ export const downloadAndCache = async (
       }
       req = currentProtocol.get(currentUrl, options, async res => {
         activeResponse = res
+        if (proxyAgent) res.once('close', () => proxyAgent.destroy())
         if (res.statusCode && [301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
           res.resume()
           try {
@@ -3707,6 +3713,7 @@ export const downloadAndCache = async (
         })
       })
       req.on('error', err => {
+        if (proxyAgent) proxyAgent.destroy()
         fs.unlink(tempPath, () => {})
         fail(err)
       })
@@ -4115,10 +4122,11 @@ const addCleanupResult = (target: CacheCleanupResult, source: CacheCleanupResult
   target.freedSize += source.freedSize
 }
 
-const getUserCacheDirectories = (username: string): string[] => {
+const getUserCacheDirectories = (username: string, preserveMusic: boolean): string[] => {
   const directories = new Set<string>()
   for (const location of getCacheLocations()) {
-    for (const folder of ['cache', 'music'] as const) {
+    const folders: CacheFolder[] = preserveMusic ? ['cache'] : ['cache', 'music']
+    for (const folder of folders) {
       directories.add(getCacheDir(username, folder === 'music', location, false))
     }
   }
@@ -4126,15 +4134,19 @@ const getUserCacheDirectories = (username: string): string[] => {
   return [...directories]
 }
 
-/** Remove all disposable cache files and their SQLite index rows for a user. */
-export const deleteUserCacheData = (username: string): CacheCleanupResult => {
+/** Remove a user's cache files; optionally retain their downloaded music and index. */
+export const deleteUserCacheData = (
+  username: string,
+  options: { preserveMusic?: boolean } = {},
+): CacheCleanupResult => {
   const normalizedUsername = normalizeCacheUsername(username)
+  const folders: CacheFolder[] = options.preserveMusic ? ['cache'] : ['cache', 'music']
   const result: CacheCleanupResult = { deletedCount: 0, freedSize: 0 }
-  for (const dir of getUserCacheDirectories(normalizedUsername)) {
+  for (const dir of getUserCacheDirectories(normalizedUsername, Boolean(options.preserveMusic))) {
     addCleanupResult(result, removeDirectoryTree(dir))
   }
   for (const location of getCacheLocations()) {
-    for (const folder of ['cache', 'music'] as const) {
+    for (const folder of folders) {
       indexManager.clear(normalizedUsername, folder, location)
     }
   }
@@ -4210,7 +4222,7 @@ export const moveUserCacheData = (oldUsername: string, newUsername: string): { m
 export const clearAllCache = (username?: string) => {
   const normalizedUsername = normalizeCacheUsername(username)
   const result: CacheCleanupResult = { deletedCount: 0, freedSize: 0 }
-  for (const dir of getUserCacheDirectories(normalizedUsername)) {
+  for (const dir of getUserCacheDirectories(normalizedUsername, false)) {
     addCleanupResult(result, removeDirectoryTree(dir))
   }
   for (const location of getCacheLocations()) {

@@ -387,7 +387,7 @@ export const createUserRouter = (): Router => {
           for (const user of deletedUsers) {
             try {
               await downloadQueue.removeUser(user.name)
-              deleteUserCacheData(user.name)
+              deleteUserCacheData(user.name, { preserveMusic: !body.deleteData })
               releaseUserSpace(user.name, true)
               if (body.deleteData && user.dataPath && fs.existsSync(user.dataPath)) {
                 fs.rmSync(user.dataPath, { recursive: true, force: true })

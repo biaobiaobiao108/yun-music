@@ -36,21 +36,6 @@ export class LocalBackupTooLargeError extends Error {
 
 type ArchiveTool = 'unzip' | 'tar'
 
-const detectArchiveTool = (): ArchiveTool => {
-  for (const [tool, args] of [
-    ['unzip', ['-v']],
-    ['tar', ['--version']],
-  ] as const) {
-    try {
-      const result = Bun.spawnSync([tool, ...args])
-      if (result.exitCode === 0) return tool
-    } catch {
-      // Try the next platform-provided archive utility.
-    }
-  }
-  throw new Error('服务器缺少 unzip 或 tar，无法读取备份压缩包')
-}
-
 const readLimitedStream = async (
   stream: ReadableStream<Uint8Array> | null,
   maxBytes: number,
@@ -115,6 +100,28 @@ const runArchiveCommand = async (args: string[], maxOutputBytes = MAX_UNZIP_OUTP
     // before propagating the error to the restore handler's finally block.
     await Promise.allSettled([stdoutPromise, stderrPromise, child.exited])
     throw error
+  }
+}
+
+type ArchiveCommandRunner = (args: string[], maxOutputBytes?: number) => Promise<string>
+
+/** Probe the supplied archive itself; GNU and BusyBox tar exist but cannot read ZIP files. */
+export const detectArchiveTool = async (
+  archivePath: string,
+  run: ArchiveCommandRunner = runArchiveCommand,
+): Promise<{ tool: ArchiveTool; entries: string }> => {
+  try {
+    return { tool: 'unzip', entries: await run(['unzip', '-Z1', archivePath]) }
+  } catch {
+    // macOS ships a libarchive-based tar that can read ZIPs. Testing the actual
+    // archive keeps that path while rejecting GNU/BusyBox tar, which only
+    // report a successful --version despite lacking ZIP support.
+  }
+
+  try {
+    return { tool: 'tar', entries: await run(['tar', '-tf', archivePath]) }
+  } catch {
+    throw new Error('服务器缺少可读取 ZIP 备份的 unzip 或兼容 tar')
   }
 }
 
@@ -514,11 +521,7 @@ export const restoreLocalBackup = async (
     } else {
       await Bun.write(archivePath, source)
     }
-    const archiveTool = detectArchiveTool()
-    const entriesListing =
-      archiveTool === 'unzip'
-        ? await runArchiveCommand(['unzip', '-Z1', archivePath])
-        : await runArchiveCommand(['tar', '-tf', archivePath])
+    const { tool: archiveTool, entries: entriesListing } = await detectArchiveTool(archivePath)
     const detailedListing =
       archiveTool === 'unzip'
         ? await runArchiveCommand(['unzip', '-Z', '-l', archivePath])

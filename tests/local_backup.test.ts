@@ -7,6 +7,7 @@ import { PassThrough } from 'node:stream'
 import { closeDb, createDatabaseSnapshot, getDb, initDatabase } from '@/database'
 import {
   createLocalBackup,
+  detectArchiveTool,
   LocalBackupTooLargeError,
   MAX_LOCAL_BACKUP_BYTES,
   restoreLocalBackup,
@@ -41,6 +42,55 @@ const createZip = async (
   await finished
   return Buffer.concat(chunks)
 }
+
+describe('backup archive reader detection', () => {
+  test('uses unzip when it can list the supplied ZIP', async () => {
+    const calls: string[][] = []
+    const result = await detectArchiveTool('/backup.zip', async args => {
+      calls.push(args)
+      if (args[0] === 'unzip') return 'database/yun-yin.db\n'
+      throw new Error('tar should not be needed')
+    })
+
+    expect(result).toEqual({ tool: 'unzip', entries: 'database/yun-yin.db\n' })
+    expect(calls).toEqual([['unzip', '-Z1', '/backup.zip']])
+  })
+
+  test('keeps the ZIP-capable tar fallback used on macOS', async () => {
+    const calls: string[][] = []
+    const result = await detectArchiveTool('/backup.zip', async args => {
+      calls.push(args)
+      if (args[0] === 'unzip') throw new Error('unzip is unavailable')
+      if (args[0] === 'tar' && args[1] === '-tf') return 'database/yun-yin.db\n'
+      throw new Error('unexpected archive command')
+    })
+
+    expect(result).toEqual({ tool: 'tar', entries: 'database/yun-yin.db\n' })
+    expect(calls).toEqual([
+      ['unzip', '-Z1', '/backup.zip'],
+      ['tar', '-tf', '/backup.zip'],
+    ])
+  })
+
+  for (const tarFlavor of ['GNU tar', 'BusyBox tar']) {
+    test(`does not mistake ${tarFlavor} version availability for ZIP support`, async () => {
+      const calls: string[][] = []
+      const runner = async (args: string[]) => {
+        calls.push(args)
+        if (args[0] === 'unzip') throw new Error('unzip is unavailable')
+        if (args[0] === 'tar' && args[1] === '--version') return tarFlavor
+        if (args[0] === 'tar' && args[1] === '-tf') throw new Error('not a ZIP archive')
+        throw new Error('unexpected archive command')
+      }
+
+      await expect(detectArchiveTool('/backup.zip', runner)).rejects.toThrow('可读取 ZIP 备份')
+      expect(calls).toEqual([
+        ['unzip', '-Z1', '/backup.zip'],
+        ['tar', '-tf', '/backup.zip'],
+      ])
+    })
+  }
+})
 
 describe('Local backup restore', () => {
   let tempDir = ''

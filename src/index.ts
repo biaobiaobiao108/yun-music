@@ -236,96 +236,100 @@ envParams.CONFIG_PATH &&
   envParams.CONFIG_PATH !== dataConfigPath &&
   fs.existsSync(envParams.CONFIG_PATH) &&
   margeConfig(envParams.CONFIG_PATH)
-if (envParams.PROXY_HEADER) {
-  global.lx.config['proxy.enabled'] = true
-  global.lx.config['proxy.header'] = envParams.PROXY_HEADER
-}
-if (envParams.TRUSTED_PROXY_ADDRESSES) {
-  global.lx.config['proxy.trustedAddresses'] = envParams.TRUSTED_PROXY_ADDRESSES.split(',')
-    .map(value => value.trim())
-    .filter(Boolean)
-}
-if (envParams.MAX_SNAPSHOT_NUM) {
-  const num = parseInt(envParams.MAX_SNAPSHOT_NUM)
-  if (!isNaN(num)) global.lx.config.maxSnapshotNum = num
-}
-if (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
-  switch (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
-    case 'top':
-    case 'bottom':
-      global.lx.config['list.addMusicLocationType'] = envParams.LIST_ADD_MUSIC_LOCATION_TYPE
-      break
+const applyEnvironmentConfig = () => {
+  if (envParams.PROXY_HEADER) {
+    global.lx.config['proxy.enabled'] = true
+    global.lx.config['proxy.header'] = envParams.PROXY_HEADER
+  }
+  if (envParams.TRUSTED_PROXY_ADDRESSES) {
+    global.lx.config['proxy.trustedAddresses'] = envParams.TRUSTED_PROXY_ADDRESSES.split(',')
+      .map(value => value.trim())
+      .filter(Boolean)
+  }
+  if (envParams.MAX_SNAPSHOT_NUM) {
+    const num = parseInt(envParams.MAX_SNAPSHOT_NUM)
+    if (!isNaN(num)) global.lx.config.maxSnapshotNum = num
+  }
+  if (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
+    switch (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
+      case 'top':
+      case 'bottom':
+        global.lx.config['list.addMusicLocationType'] = envParams.LIST_ADD_MUSIC_LOCATION_TYPE
+        break
+    }
+  }
+  if (envParams.FRONTEND_PASSWORD) {
+    global.lx.config['frontend.password'] = envParams.FRONTEND_PASSWORD
+    delete global.lx.config['frontend.passwordHash']
+  }
+  if (envParams.USER_ENABLE_PATH) {
+    global.lx.config['user.enablePath'] = envParams.USER_ENABLE_PATH === 'true'
+  }
+  if (envParams.USER_ENABLE_ROOT) {
+    global.lx.config['user.enableRoot'] = envParams.USER_ENABLE_ROOT === 'true'
+  }
+  if (envParams.PORT) {
+    const port = parseInt(envParams.PORT, 10)
+    if (!isNaN(port) && port > 0) global.lx.config.port = port
+  }
+  if (envParams.BIND_IP) {
+    global.lx.config.bindIP = envParams.BIND_IP
+  }
+  if (envParams.ENABLE_WEBPLAYER_AUTH) {
+    global.lx.config['player.enableAuth'] = envParams.ENABLE_WEBPLAYER_AUTH === 'true'
+  }
+  if (envParams.WEBPLAYER_PASSWORD) {
+    global.lx.config['player.password'] = envParams.WEBPLAYER_PASSWORD
+    delete global.lx.config['player.passwordHash']
+  }
+  if (envParams.DISABLE_TELEMETRY) {
+    global.lx.config.disableTelemetry = envParams.DISABLE_TELEMETRY === 'true'
+  }
+  if (envParams.ENABLE_PUBLIC_USER_RESTRICTION) {
+    global.lx.config['user.enablePublicRestriction'] = envParams.ENABLE_PUBLIC_USER_RESTRICTION === 'true'
+  }
+  if (envParams.ENABLE_PUBLIC_NON_ADMIN_LOCAL_MUSIC) {
+    global.lx.config['user.enablePublicNonAdminLocalMusic'] = envParams.ENABLE_PUBLIC_NON_ADMIN_LOCAL_MUSIC === 'true'
+  }
+  if (envParams.ENABLE_PUBLIC_FAVORITES) {
+    global.lx.config['user.enablePublicFavorites'] = envParams.ENABLE_PUBLIC_FAVORITES === 'true'
+  }
+  if (envParams.ENABLE_PUBLIC_NON_ADMIN_ACCESS) {
+    global.lx.config['user.enablePublicNonAdminAccess'] = envParams.ENABLE_PUBLIC_NON_ADMIN_ACCESS === 'true'
+  }
+  if (envParams.ENABLE_LOGIN_USER_CACHE_RESTRICTION) {
+    global.lx.config['user.enableLoginCacheRestriction'] = envParams.ENABLE_LOGIN_USER_CACHE_RESTRICTION === 'true'
+  }
+  if (envParams.ENABLE_CACHE_SIZE_LIMIT) {
+    global.lx.config['user.enableCacheSizeLimit'] = envParams.ENABLE_CACHE_SIZE_LIMIT === 'true'
+  }
+  if (envParams.CACHE_SIZE_LIMIT) {
+    global.lx.config['user.cacheSizeLimit'] = parseInt(envParams.CACHE_SIZE_LIMIT) || 2000
+  }
+  if (envParams.PROXY_ALL_ENABLED) {
+    global.lx.config['proxy.all.enabled'] = envParams.PROXY_ALL_ENABLED === 'true'
+  }
+  if (envParams.PROXY_ALL_ADDRESS) {
+    global.lx.config['proxy.all.address'] = envParams.PROXY_ALL_ADDRESS
+  }
+  if (envParams.ADMIN_PATH !== undefined) {
+    global.lx.config['admin.path'] = envParams.ADMIN_PATH
+  }
+  if (envParams.PLAYER_PATH !== undefined) {
+    global.lx.config['player.path'] = envParams.PLAYER_PATH
+  }
+  if (envParams.SINGER_SOURCE_PRIORITY !== undefined) {
+    const priority = envParams.SINGER_SOURCE_PRIORITY.split(',').filter(s => s === 'tx' || s === 'wy') as Array<
+      'tx' | 'wy'
+    >
+    if (priority.length > 0) global.lx.config['singer.sourcePriority'] = priority
+  }
+  if (envParams.SERVER_NAME) {
+    global.lx.config.serverName = envParams.SERVER_NAME
   }
 }
-if (envParams.FRONTEND_PASSWORD) {
-  global.lx.config['frontend.password'] = envParams.FRONTEND_PASSWORD
-  delete global.lx.config['frontend.passwordHash']
-}
-if (envParams.USER_ENABLE_PATH) {
-  global.lx.config['user.enablePath'] = envParams.USER_ENABLE_PATH === 'true'
-}
-if (envParams.USER_ENABLE_ROOT) {
-  global.lx.config['user.enableRoot'] = envParams.USER_ENABLE_ROOT === 'true'
-}
-if (envParams.PORT) {
-  const port = parseInt(envParams.PORT, 10)
-  if (!isNaN(port) && port > 0) global.lx.config.port = port
-}
-if (envParams.BIND_IP) {
-  global.lx.config.bindIP = envParams.BIND_IP
-}
-if (envParams.ENABLE_WEBPLAYER_AUTH) {
-  global.lx.config['player.enableAuth'] = envParams.ENABLE_WEBPLAYER_AUTH === 'true'
-}
-if (envParams.WEBPLAYER_PASSWORD) {
-  global.lx.config['player.password'] = envParams.WEBPLAYER_PASSWORD
-  delete global.lx.config['player.passwordHash']
-}
-if (envParams.DISABLE_TELEMETRY) {
-  global.lx.config.disableTelemetry = envParams.DISABLE_TELEMETRY === 'true'
-}
-if (envParams.ENABLE_PUBLIC_USER_RESTRICTION) {
-  global.lx.config['user.enablePublicRestriction'] = envParams.ENABLE_PUBLIC_USER_RESTRICTION === 'true'
-}
-if (envParams.ENABLE_PUBLIC_NON_ADMIN_LOCAL_MUSIC) {
-  global.lx.config['user.enablePublicNonAdminLocalMusic'] = envParams.ENABLE_PUBLIC_NON_ADMIN_LOCAL_MUSIC === 'true'
-}
-if (envParams.ENABLE_PUBLIC_FAVORITES) {
-  global.lx.config['user.enablePublicFavorites'] = envParams.ENABLE_PUBLIC_FAVORITES === 'true'
-}
-if (envParams.ENABLE_PUBLIC_NON_ADMIN_ACCESS) {
-  global.lx.config['user.enablePublicNonAdminAccess'] = envParams.ENABLE_PUBLIC_NON_ADMIN_ACCESS === 'true'
-}
-if (envParams.ENABLE_LOGIN_USER_CACHE_RESTRICTION) {
-  global.lx.config['user.enableLoginCacheRestriction'] = envParams.ENABLE_LOGIN_USER_CACHE_RESTRICTION === 'true'
-}
-if (envParams.ENABLE_CACHE_SIZE_LIMIT) {
-  global.lx.config['user.enableCacheSizeLimit'] = envParams.ENABLE_CACHE_SIZE_LIMIT === 'true'
-}
-if (envParams.CACHE_SIZE_LIMIT) {
-  global.lx.config['user.cacheSizeLimit'] = parseInt(envParams.CACHE_SIZE_LIMIT) || 2000
-}
-if (envParams.PROXY_ALL_ENABLED) {
-  global.lx.config['proxy.all.enabled'] = envParams.PROXY_ALL_ENABLED === 'true'
-}
-if (envParams.PROXY_ALL_ADDRESS) {
-  global.lx.config['proxy.all.address'] = envParams.PROXY_ALL_ADDRESS
-}
-if (envParams.ADMIN_PATH !== undefined) {
-  global.lx.config['admin.path'] = envParams.ADMIN_PATH
-}
-if (envParams.PLAYER_PATH !== undefined) {
-  global.lx.config['player.path'] = envParams.PLAYER_PATH
-}
-if (envParams.SINGER_SOURCE_PRIORITY !== undefined) {
-  const priority = envParams.SINGER_SOURCE_PRIORITY.split(',').filter(s => s === 'tx' || s === 'wy') as Array<
-    'tx' | 'wy'
-  >
-  if (priority.length > 0) global.lx.config['singer.sourcePriority'] = priority
-}
-if (envParams.SERVER_NAME) {
-  global.lx.config.serverName = envParams.SERVER_NAME
-}
+
+applyEnvironmentConfig()
 
 if (envUsers.length) {
   const users: LX.Config['users'] = []
@@ -544,6 +548,7 @@ if (fs.existsSync(rootConfigPath)) {
         void (async () => {
           try {
             if (!margeConfig(rootConfigPath, true)) return
+            applyEnvironmentConfig()
             await normalizeConfiguredPassword('frontend.password', 'frontend.passwordHash', 'frontend.password', true)
             await normalizeConfiguredPassword(
               'player.password',

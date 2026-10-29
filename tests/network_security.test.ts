@@ -2,7 +2,15 @@ import { describe, expect, spyOn, test } from 'bun:test'
 import dns from 'node:dns/promises'
 import http from 'node:http'
 import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib'
-import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from '@/server/networkSecurity'
+import { HttpProxyAgent } from 'http-proxy-agent'
+import { HttpsProxyAgent } from 'https-proxy-agent'
+import { SocksProxyAgent } from 'socks-proxy-agent'
+import {
+  assertSafeRemoteHttpUrl,
+  createSafeRemoteProxyAgent,
+  fetchSafeRemote,
+  type SafeRemoteHttpUrl,
+} from '@/server/networkSecurity'
 import { createCacheRouter } from '@/server/routes/cache'
 import { issueDownloadToken } from '@/server/downloadToken'
 
@@ -114,6 +122,8 @@ describe('Outbound URL network boundaries', () => {
   })
 
   test('anonymous download proxy blocks mapped loopback before opening an outbound request', async () => {
+    const previousLx = global.lx
+    global.lx = { config: {} } as typeof global.lx
     const request = spyOn(http, 'request').mockImplementation(() => {
       throw new Error('Unexpected outbound request')
     })
@@ -129,10 +139,13 @@ describe('Outbound URL network boundaries', () => {
       expect(request).not.toHaveBeenCalled()
     } finally {
       request.mockRestore()
+      global.lx = previousLx
     }
   })
 
   test('anonymous download proxy requires a signed URL', async () => {
+    const previousLx = global.lx
+    global.lx = { config: {} } as typeof global.lx
     const request = spyOn(http, 'request').mockImplementation(() => {
       throw new Error('Unexpected outbound request')
     })
@@ -146,10 +159,13 @@ describe('Outbound URL network boundaries', () => {
       expect(request).not.toHaveBeenCalled()
     } finally {
       request.mockRestore()
+      global.lx = previousLx
     }
   })
 
   test('anonymous download proxy applies a sustained per-client request budget', async () => {
+    const previousLx = global.lx
+    global.lx = { config: {} } as typeof global.lx
     const errorLog = spyOn(console, 'error').mockImplementation(() => {})
     try {
       const router = createCacheRouter()
@@ -167,6 +183,7 @@ describe('Outbound URL network boundaries', () => {
       expect(limited).toBe(true)
     } finally {
       errorLog.mockRestore()
+      global.lx = previousLx
     }
   })
 
@@ -196,6 +213,8 @@ describe('Outbound URL network boundaries', () => {
   })
 
   test('download proxy passes the pinned lookup to the transport', async () => {
+    const previousLx = global.lx
+    global.lx = { config: {} } as typeof global.lx
     const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
     let options: any
     const request = spyOn(http, 'request').mockImplementation((_url, requestOptions) => {
@@ -217,6 +236,59 @@ describe('Outbound URL network boundaries', () => {
     } finally {
       request.mockRestore()
       lookup.mockRestore()
+      global.lx = previousLx
+    }
+  })
+
+  test('download proxy sends approved fake-IP targets through the configured proxy', async () => {
+    const previousLx = global.lx
+    const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '198.18.0.1', family: 4 }] as any)
+    let options: any
+    const request = spyOn(http, 'request').mockImplementation((_url, requestOptions) => {
+      options = requestOptions
+      throw new Error('Transport intercepted by test')
+    })
+    global.lx = {
+      config: { 'proxy.all.enabled': true, 'proxy.all.address': 'http://proxy.example:7890' },
+    } as typeof global.lx
+    try {
+      const target = 'http://example.com/audio'
+      await createCacheRouter().handle(
+        new Request(
+          `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+        ),
+      )
+      expect(options.agent).toBeInstanceOf(HttpProxyAgent)
+      expect(options.lookup).toBeUndefined()
+    } finally {
+      global.lx = previousLx
+      request.mockRestore()
+      lookup.mockRestore()
+    }
+  })
+
+  test('creates secure and remote-DNS proxy agents for their target protocols', () => {
+    const previousLx = global.lx
+    const safeUrl = (rawUrl: string) =>
+      Object.assign(new URL(rawUrl), {
+        lookup: (() => undefined) as any,
+        proxyTargetResolutionSafe: true,
+      }) as SafeRemoteHttpUrl
+    try {
+      global.lx = {
+        config: { 'proxy.all.enabled': true, 'proxy.all.address': 'http://proxy.example:7890' },
+      } as typeof global.lx
+      const httpsAgent = createSafeRemoteProxyAgent(safeUrl('https://example.com/audio'))
+      expect(httpsAgent).toBeInstanceOf(HttpsProxyAgent)
+      httpsAgent?.destroy()
+
+      global.lx.config['proxy.all.address'] = 'socks5://proxy.example:1080'
+      const socksAgent = createSafeRemoteProxyAgent(safeUrl('https://example.com/audio'))
+      expect(socksAgent).toBeInstanceOf(SocksProxyAgent)
+      expect((socksAgent as SocksProxyAgent).shouldLookup).toBe(false)
+      socksAgent?.destroy()
+    } finally {
+      global.lx = previousLx
     }
   })
 })
@@ -344,24 +416,57 @@ describe('Bounded remote response transport', () => {
   })
 
   test('proxy HEAD and no-content statuses preserve null bodies', async () => {
-    const fetchMock = spyOn(globalThis, 'fetch')
-    try {
-      const url = Object.assign(new URL('https://remote.example/'), {
-        // This transport fixture bypasses DNS validation intentionally.
-        proxyTargetResolutionSafe: true,
-      }) as SafeRemoteHttpUrl
-      fetchMock.mockResolvedValue(new Response(null, { headers: { 'content-length': '104857600' } }))
-      const head = await fetchSafeRemote(url, { method: 'HEAD', maxBytes: 1024, proxy: 'http://proxy.example' })
-      expect(head.body).toBeNull()
-      expect(head.headers.get('content-length')).toBe('104857600')
-      for (const status of [204, 205, 304]) {
-        fetchMock.mockResolvedValue(new Response(null, { status }))
-        const response = await fetchSafeRemote(url, { proxy: 'http://proxy.example' })
-        expect(response.status).toBe(status)
-        expect(response.body).toBeNull()
-      }
-    } finally {
-      fetchMock.mockRestore()
-    }
+    let proxyStatusIndex = 0
+    await withServer(
+      (_request, response) => {
+        const status = [200, 204, 205, 304][proxyStatusIndex++]!
+        response.writeHead(status, status === 200 ? { 'content-length': '104857600' } : {})
+        response.end()
+      },
+      async serverUrl => {
+        proxyStatusIndex = 0
+        const target = Object.assign(new URL('http://remote.example/'), {
+          lookup: serverUrl.lookup,
+          proxyTargetResolutionSafe: true,
+        }) as SafeRemoteHttpUrl
+        const proxy = `http://127.0.0.1:${new URL(serverUrl).port}`
+        const head = await fetchSafeRemote(target, { method: 'HEAD', maxBytes: 1024, proxy })
+        expect(head.body).toBeNull()
+        expect(head.headers.get('content-length')).toBe('104857600')
+        for (const status of [204, 205, 304]) {
+          const response = await fetchSafeRemote(target, { proxy })
+          expect(response.status).toBe(status)
+          expect(response.body).toBeNull()
+        }
+      },
+    )
+  })
+
+  test('uses the configured global proxy for safe buffered requests by default', async () => {
+    const previousLx = global.lx
+    const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '198.18.0.1', family: 4 }] as any)
+    let requestedTarget = ''
+    global.lx = {
+      config: { 'proxy.all.enabled': true, 'proxy.all.address': '' },
+    } as typeof global.lx
+    await withServer(
+      (request, response) => {
+        requestedTarget = request.url || ''
+        response.writeHead(200, { 'content-type': 'text/plain' })
+        response.end('proxied')
+      },
+      async serverUrl => {
+        try {
+          global.lx.config['proxy.all.address'] = `http://127.0.0.1:${new URL(serverUrl).port}`
+          const safeUrl = await assertSafeRemoteHttpUrl('http://remote.example/resource')
+          const response = await fetchSafeRemote(safeUrl, { maxBytes: 32 })
+          expect(await response.text()).toBe('proxied')
+          expect(requestedTarget).toBe('http://remote.example/resource')
+        } finally {
+          global.lx = previousLx
+          lookup.mockRestore()
+        }
+      },
+    )
   })
 })

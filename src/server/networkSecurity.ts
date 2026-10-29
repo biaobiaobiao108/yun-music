@@ -1,6 +1,9 @@
 import dns from 'node:dns/promises'
 import http from 'node:http'
 import https from 'node:https'
+import { HttpsProxyAgent } from 'https-proxy-agent'
+import { HttpProxyAgent } from 'http-proxy-agent'
+import { SocksProxyAgent } from 'socks-proxy-agent'
 import { Transform, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib'
@@ -97,11 +100,16 @@ export const isPrivateAddress = (value: string): boolean => {
   return isPrivateIpv6(value)
 }
 
-/** True when a global outbound proxy is configured, i.e. fake-ip DNS is in play. */
-const isOutboundProxyConfigured = (): boolean => {
+/** Return the configured global proxy, if enabled. */
+export const getConfiguredOutboundProxy = (): string | null => {
   const config = global.lx?.config as unknown as Record<string, unknown> | undefined
-  return Boolean(config?.['proxy.all.enabled']) && Boolean(String(config?.['proxy.all.address'] || '').trim())
+  if (!config?.['proxy.all.enabled']) return null
+  const address = String(config['proxy.all.address'] || '').trim()
+  return address || null
 }
+
+/** True when a global outbound proxy is configured, i.e. fake-ip DNS is in play. */
+const isOutboundProxyConfigured = (): boolean => Boolean(getConfiguredOutboundProxy())
 
 const isBlockedHostname = (hostname: string): boolean => {
   const normalized = hostname
@@ -120,7 +128,7 @@ export type SafeRemoteHttpUrl = URL & {
 export interface SafeRemoteFetchOptions extends Omit<RequestInit, 'redirect'> {
   /** Caller may hold this through parsing/callback dispatch to avoid nested reservations. */
   budgetLease?: BufferedRequestLease
-  /** Bun 原生 fetch 的代理扩展；配置代理时由调用方显式传入。 */
+  /** Proxy override; otherwise the configured global proxy is used. */
   proxy?: string
   /** 限制响应体大小，避免远端响应造成内存放大。 */
   maxBytes?: number
@@ -128,6 +136,34 @@ export interface SafeRemoteFetchOptions extends Omit<RequestInit, 'redirect'> {
   discardResponseBody?: boolean
   /** 仅在调用方没有提供 signal 时生效。 */
   timeoutMs?: number
+}
+
+/**
+ * Create an agent for streaming Node HTTP requests. Proxy resolution is only
+ * safe for IP literals and fake-IP DNS answers, matching fetchSafeRemote.
+ */
+export const createSafeRemoteProxyAgent = (
+  safeUrl: SafeRemoteHttpUrl,
+  proxyOverride?: string | null,
+): http.Agent | null => {
+  const proxyAddress = proxyOverride === undefined ? getConfiguredOutboundProxy() : proxyOverride?.trim() || null
+  if (!proxyAddress) return null
+  if (safeUrl.proxyTargetResolutionSafe !== true) {
+    throw new Error('全局代理无法安全地重新解析该域名；请使用 fake-IP DNS 或关闭全局代理')
+  }
+
+  const proxyUrl = new URL(proxyAddress)
+  if (proxyUrl.protocol.startsWith('socks')) {
+    if (proxyUrl.protocol === 'socks4:' && isIP(safeUrl.hostname) === 0) {
+      throw new Error('SOCKS4 代理无法安全地解析 fake-IP 域名；请使用 SOCKS5 或关闭全局代理')
+    }
+    // SOCKS5's default URL scheme performs a local DNS lookup. Use its remote
+    // DNS mode so the proxy resolves the validated original hostname.
+    if (proxyUrl.protocol === 'socks5:' && isIP(safeUrl.hostname) === 0) proxyUrl.protocol = 'socks:'
+    return new SocksProxyAgent(proxyUrl)
+  }
+
+  return safeUrl.protocol === 'https:' ? new HttpsProxyAgent(proxyUrl) : new HttpProxyAgent(proxyUrl)
 }
 
 const DEFAULT_REMOTE_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -246,86 +282,15 @@ const responseDecoders = (encoding: string | undefined): Transform[] => {
   })
 }
 
-const readResponseBody = async (response: Response, maxBytes: number): Promise<Buffer> => {
-  const declaredLength = Number(response.headers.get('content-length') || 0)
-  if (declaredLength > maxBytes) {
-    await response.body?.cancel()
-    throw new Error('Remote response is too large')
-  }
-
-  if (!response.body) return Buffer.alloc(0)
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let received = 0
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (!value) continue
-      received += value.byteLength
-      if (received > maxBytes) {
-        await reader.cancel('Remote response is too large')
-        throw new Error('Remote response is too large')
-      }
-      chunks.push(value)
-    }
-  } finally {
-    reader.releaseLock()
-  }
-  return Buffer.concat(chunks)
-}
-
-const fetchViaBunProxy = async (safeUrl: SafeRemoteHttpUrl, options: SafeRemoteFetchOptions): Promise<Response> => {
-  const { proxy, signal: inputSignal, discardResponseBody, ...requestInit } = options
-  const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
-  const timeoutMs = normalizeRemoteTimeout(options.timeoutMs)
-  const signal = inputSignal || AbortSignal.timeout(timeoutMs)
-  const response = await fetch(safeUrl.href, {
-    ...requestInit,
-    signal,
-    redirect: 'manual',
-    proxy,
-  } as RequestInit & { proxy: string })
-  if (discardResponseBody) {
-    await response.body?.cancel()
-    return new Response(null, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: new Headers(response.headers),
-    })
-  }
-  const noBody = hasNoResponseBody(options.method || 'GET', response.status)
-  const body = noBody ? null : await readResponseBody(response, maxBytes)
-  const headers = new Headers(response.headers)
-  if (!noBody) {
-    headers.delete('content-length')
-    // Bun fetch has already decompressed its response stream.
-    headers.delete('content-encoding')
-  }
-  return new Response(body ? responseBody(body) : null, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  })
-}
-
-/**
- * 使用已验证的 DNS 地址发起远程请求。
- *
- * Bun fetch 目前没有 Node `lookup` 等价的连接级钉扎参数。普通域名交给
- * 代理会让代理自行解析，绕开这里验证过的地址，因此启用代理时对此类
- * 请求明确失败；代理只用于公网 IP 字面量和 fake-IP DNS。未配置代理时
- * 直连使用 node:http(s) 与固定 DNS 地址。所有响应都经过统一的字节上限处理。
- */
+/** Use a pinned local DNS result directly, or let a configured proxy resolve an approved target. */
 const fetchSafeRemoteTransport = async (
   safeUrl: SafeRemoteHttpUrl,
   options: SafeRemoteFetchOptions = {},
 ): Promise<Response> => {
   if (options.proxy) {
-    if (safeUrl.proxyTargetResolutionSafe !== true) {
-      throw new Error('全局代理无法安全地重新解析该域名；请使用 fake-IP DNS 或关闭全局代理')
-    }
-    return fetchViaBunProxy(safeUrl, options)
+    const proxyAgent = createSafeRemoteProxyAgent(safeUrl, options.proxy)
+    if (!proxyAgent) throw new Error('Outbound proxy is not configured')
+    return fetchPinnedRemote(safeUrl, options, safeUrl.lookup, () => {}, proxyAgent)
   }
 
   const hostname = safeUrl.hostname.replace(/^\[|\]$/g, '')
@@ -375,6 +340,7 @@ const fetchPinnedRemote = async (
   options: SafeRemoteFetchOptions,
   lookup: LookupFunction,
   onHeaders: () => void,
+  proxyAgent?: http.Agent,
 ): Promise<Response> => {
   const { method = 'GET', headers: inputHeaders, body: inputBody, signal, discardResponseBody } = options
   const maxBytes = normalizeRemoteResponseLimit(options.maxBytes)
@@ -431,8 +397,7 @@ const fetchPinnedRemote = async (
         path: `${safeUrl.pathname}${safeUrl.search}`,
         method: normalizedMethod,
         headers: Object.fromEntries(requestHeaders.entries()),
-        lookup,
-        agent: false,
+        ...(proxyAgent ? { agent: proxyAgent } : { lookup, agent: false }),
       },
       incomingResponse => {
         response = incomingResponse
@@ -509,7 +474,10 @@ const fetchPinnedRemote = async (
       },
     )
 
-    request.on('error', fail)
+    request.on('error', error => {
+      proxyAgent?.destroy()
+      fail(error)
+    })
     request.setTimeout(Math.max(1, timeoutMs), () => {
       request.destroy(new Error('Remote request timed out'))
       fail(new Error('Remote request timed out'))
@@ -530,6 +498,7 @@ export const fetchSafeRemote = async (
     ? AbortSignal.any([options.signal, AbortSignal.timeout(normalizeRemoteTimeout(options.timeoutMs))])
     : AbortSignal.timeout(normalizeRemoteTimeout(options.timeoutMs))
   const { budgetLease: supplied, ...transportOptions } = options
+  const proxy = options.proxy ?? getConfiguredOutboundProxy() ?? undefined
   const noBody = options.discardResponseBody || String(options.method || 'GET').toUpperCase() === 'HEAD'
   const lease =
     supplied ||
@@ -538,6 +507,7 @@ export const fetchSafeRemote = async (
     signal.throwIfAborted()
     return await fetchSafeRemoteTransport(safeUrl, {
       ...transportOptions,
+      ...(proxy ? { proxy } : {}),
       signal,
       maxBytes: Math.min(normalizeRemoteResponseLimit(options.maxBytes), lease.maxBytes),
     })

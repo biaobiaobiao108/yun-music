@@ -26,6 +26,7 @@ test('external config reload preserves SQLite users and subsequent account write
       LOG_PATH: path.join(directory, 'logs'),
       STATIC_PATH: path.join(project, 'public'),
       FRONTEND_PASSWORD: password,
+      SERVER_NAME: 'from-env',
       PORT: String(port),
       BIND_IP: '127.0.0.1',
       DISABLE_TELEMETRY: 'true',
@@ -55,12 +56,16 @@ test('external config reload preserves SQLite users and subsequent account write
     const cookie = login.headers.get('set-cookie')!.split(';')[0]
     const users = async () =>
       (await (await fetch(`${base}/api/users`, { headers: { cookie } })).json()) as Array<{ name: string }>
+    const frontendConfig = async () => await (await fetch(`${base}/js/config.js`)).text()
     expect((await users()).map(user => user.name)).toEqual(['original'])
     const saved = fs.readFileSync(configPath, 'utf8')
     expect(saved).toContain('"users": []')
-    fs.writeFileSync(configPath, saved.replace('"serverName": "yun-yin"', '"serverName": "reloaded"'))
+    expect(saved).toContain('"serverName": "from-env"')
+    fs.writeFileSync(configPath, saved.replace('"serverName": "from-env"', '"serverName": "file-edited"'))
     await Bun.sleep(900)
     expect((await users()).map(user => user.name)).toEqual(['original'])
+    expect(await frontendConfig()).toContain('"serverName": "from-env"')
+    expect(fs.readFileSync(configPath, 'utf8')).toContain('"serverName": "from-env"')
     const created = await fetch(`${base}/api/users`, {
       method: 'POST',
       headers: { cookie, 'Content-Type': 'application/json' },

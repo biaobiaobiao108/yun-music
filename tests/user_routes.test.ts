@@ -339,23 +339,30 @@ describe('User snapshot permissions', () => {
 
 describe('Deleted account credentials', () => {
   let previousLx: typeof global.lx
+  let previousCacheLocation: string
   let tempDir: string
   const username = 'deleted_account'
   let adminHeaders: Record<string, string>
 
   beforeEach(async () => {
     previousLx = global.lx
+    previousCacheLocation = fileCache.getCacheLocation()
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-account-test-'))
+    fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
     closeDb()
     initDatabase(':memory:')
     global.lx = {
+      appPath: tempDir,
+      logPath: tempDir,
       dataPath: tempDir,
       userPath: tempDir,
+      staticPath: path.join(tempDir, 'static'),
+      saveConfig: () => {},
       config: {
         users: [{ name: username, password: 'old-password' }],
         'frontend.password': 'account-admin',
       },
-    } as typeof global.lx
+    } as unknown as typeof global.lx
     await syncUsersToDatabase(global.lx.config.users)
     adminHeaders = {
       cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`,
@@ -369,6 +376,7 @@ describe('Deleted account credentials', () => {
     await downloadQueue.removeUser(username)
     await new Promise(resolve => setTimeout(resolve, 220))
     closeDb()
+    fileCache.setCacheLocation(previousCacheLocation)
     global.lx = previousLx
     fs.rmSync(tempDir, { recursive: true, force: true })
   })
@@ -416,21 +424,30 @@ describe('Deleted account credentials', () => {
 
   test('deleting an account keeps its playlists unless deleteData is set', async () => {
     seedUserData()
+    const musicDir = fileCache.getCacheDir(username, true)
+    const cacheDir = fileCache.getCacheDir(username, false)
+    fs.writeFileSync(path.join(musicDir, 'downloaded.mp3'), 'keep')
+    fs.writeFileSync(path.join(cacheDir, 'cached.mp3'), 'remove')
     const response = await deleteAccount(false)
     expect(response.status).toBe(200)
     const body = (await response.json()) as { dataPreserved?: string[] }
     expect(body.dataPreserved).toEqual([username])
     // Account gone (login must not be revived) but structured data kept.
     expect(countRows()).toEqual({ snapshots: 1, settings: 1, users: 0, sessions: 0 })
+    expect(fs.existsSync(path.join(musicDir, 'downloaded.mp3'))).toBe(true)
+    expect(fs.existsSync(cacheDir)).toBe(false)
   })
 
   test('deleting an account with deleteData wipes playlists and settings', async () => {
     seedUserData()
+    const musicDir = fileCache.getCacheDir(username, true)
+    fs.writeFileSync(path.join(musicDir, 'downloaded.mp3'), 'remove')
     const response = await deleteAccount(true)
     expect(response.status).toBe(200)
     const body = (await response.json()) as { dataPreserved?: string[] }
     expect(body.dataPreserved).toBeUndefined()
     expect(countRows()).toEqual({ snapshots: 0, settings: 0, users: 0, sessions: 0 })
+    expect(fs.existsSync(path.join(musicDir, 'downloaded.mp3'))).toBe(false)
   })
 
   test('deletion drains active downloads, rejects recreation during cleanup and removes old tasks', async () => {

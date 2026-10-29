@@ -575,4 +575,85 @@ describe('React player settings reset', () => {
       else Reflect.deleteProperty(globalThis, 'localStorage')
     }
   })
+
+  it('keeps the current song and relative index in the persisted window for long queues', async () => {
+    const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+    const previousPlayback = usePlaybackStore.getState()
+    const values = new Map<string, string>()
+    const storage = {
+      get length() {
+        return values.size
+      },
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => [...values.keys()][index] ?? null,
+      removeItem: (key: string) => {
+        values.delete(key)
+      },
+      setItem: (key: string, value: string) => {
+        values.set(key, String(value))
+      },
+    } as Storage
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage })
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        requestIdleCallback: (callback: () => void) => {
+          queueMicrotask(callback)
+          return 1
+        },
+        cancelIdleCallback: () => undefined,
+      },
+    })
+    setSessionScope('long-queue-persistence-test')
+    let now = Date.now() + 100_000
+    const clock = spyOn(Date, 'now').mockImplementation(() => now)
+    const storageKey = scopedStorageKey('lx_playback_state')
+    const cases = [
+      { queueLength: 301, currentIndex: 300, expectedIndex: 299 },
+      { queueLength: 1000, currentIndex: 850, expectedIndex: 150 },
+    ]
+    try {
+      for (const { queueLength, currentIndex, expectedIndex } of cases) {
+        now += 6000
+        const queue = Array.from({ length: queueLength }, (_, index) => ({
+          source: 'wy',
+          songmid: `queue-${index}`,
+          name: `歌曲 ${index}`,
+        }))
+        const currentSong = queue[currentIndex]!
+        usePlaybackStore.setState({ queue, currentIndex, currentSong, currentTime: 0 })
+        usePlaybackStore.getState().setProgress(42, 120)
+        await Promise.resolve()
+
+        const saved = JSON.parse(values.get(storageKey)!) as {
+          song: Song
+          index: number
+          playlist: Song[]
+        }
+        expect(saved.playlist).toHaveLength(300)
+        expect(saved.index).toBe(expectedIndex)
+        expect(saved.playlist[saved.index]?.songmid).toBe(currentSong.songmid)
+        expect(saved.song.songmid).toBe(currentSong.songmid)
+
+        usePlaybackStore.getState().reset()
+        usePlaybackStore.getState().hydrate()
+        const restored = usePlaybackStore.getState()
+        expect(restored.queue).toHaveLength(300)
+        expect(restored.currentIndex).toBe(expectedIndex)
+        expect(restored.currentSong?.songmid).toBe(currentSong.songmid)
+        expect(restored.queue[restored.currentIndex]?.songmid).toBe(restored.currentSong?.songmid)
+        expect(restored.currentTime).toBe(42)
+      }
+    } finally {
+      clock.mockRestore()
+      usePlaybackStore.setState(previousPlayback)
+      setSessionScope(null)
+      if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage)
+      else Reflect.deleteProperty(globalThis, 'localStorage')
+      if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
+      else Reflect.deleteProperty(globalThis, 'window')
+    }
+  })
 })
