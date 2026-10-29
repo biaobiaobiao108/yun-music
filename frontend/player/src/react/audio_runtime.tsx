@@ -569,34 +569,66 @@ export function AudioRuntime() {
       setMediaSessionPlaybackState(currentSong ? 'paused' : 'none')
       emitPlaybackService({ type: 'pause' })
     }
+    let crossfadeSelection: {
+      queue: Song[]
+      currentIndex: number
+      mode: string
+      priorityNextSongKey: string | null
+      randomNextSongKey: string | null
+      nextSong?: Song
+    } | null = null
+    const getCrossfadeNextSong = () => {
+      let state = usePlaybackStore.getState()
+      const cached = crossfadeSelection
+      if (
+        cached &&
+        cached.queue === state.queue &&
+        cached.currentIndex === state.currentIndex &&
+        cached.mode === state.mode &&
+        cached.priorityNextSongKey === state.priorityNextSongKey &&
+        cached.randomNextSongKey === state.randomNextSongKey
+      )
+        return cached.nextSong
+
+      let nextSong: Song | undefined
+      const priorityNextSong = state.priorityNextSongKey
+        ? state.queue.find(song => songKey(song) === state.priorityNextSongKey)
+        : undefined
+      const randomNextSong =
+        state.mode === 'random' && state.randomNextSongKey
+          ? state.queue.find(song => songKey(song) === state.randomNextSongKey)
+          : undefined
+      if (priorityNextSong || randomNextSong) {
+        nextSong = priorityNextSong ?? randomNextSong
+      } else if (state.mode !== 'single' && state.queue.length > 1) {
+        const nextIndex =
+          state.mode === 'random'
+            ? (state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[
+                Math.floor(Math.random() * (state.queue.length - 1))
+              ] ?? -1)
+            : (state.currentIndex + 1) % state.queue.length
+        nextSong = state.queue[nextIndex]
+        if (state.mode === 'random' && nextSong) {
+          usePlaybackStore.getState().setRandomNextSongKey(songKey(nextSong))
+          state = usePlaybackStore.getState()
+        }
+      }
+      crossfadeSelection = {
+        queue: state.queue,
+        currentIndex: state.currentIndex,
+        mode: state.mode,
+        priorityNextSongKey: state.priorityNextSongKey,
+        randomNextSongKey: state.randomNextSongKey,
+        nextSong,
+      }
+      return nextSong
+    }
     const onTime = () => {
       if (resolvedSongKey.current !== songId) return
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       if (settings.enableCrossfade && duration > 0 && currentTime < duration) {
-        const state = usePlaybackStore.getState()
-        let nextSong: Song | undefined
-        const priorityNextSong = state.priorityNextSongKey
-          ? state.queue.find(song => songKey(song) === state.priorityNextSongKey)
-          : undefined
-        const randomNextSong =
-          state.mode === 'random' && state.randomNextSongKey
-            ? state.queue.find(song => songKey(song) === state.randomNextSongKey)
-            : undefined
-        if (priorityNextSong || randomNextSong) {
-          nextSong = priorityNextSong ?? randomNextSong
-        } else if (state.mode !== 'single' && state.queue.length > 1) {
-          const nextIndex =
-            state.mode === 'random'
-              ? (state.queue.map((_, index) => index).filter(index => index !== state.currentIndex)[
-                  Math.floor(Math.random() * (state.queue.length - 1))
-                ] ?? -1)
-              : (state.currentIndex + 1) % state.queue.length
-          nextSong = state.queue[nextIndex]
-          if (state.mode === 'random' && nextSong) {
-            usePlaybackStore.getState().setRandomNextSongKey(songKey(nextSong))
-          }
-        }
+        const nextSong = getCrossfadeNextSong()
         const remaining = duration - currentTime
         if (nextSong && songKey(nextSong) !== songId && remaining <= CROSSFADE_DURATION_MS / 1000 && remaining > 0) {
           const fadeKey = `${songId}:${songKey(nextSong)}`

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import * as archiver from 'archiver'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -14,6 +14,8 @@ import {
 import { getUserDirname, syncUsersToDatabase } from '@/user'
 import { createSystemRouter } from '@/server/routes/system'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
+import { enqueue, removeUser } from '@/server/serverDownloadQueue'
+import * as downloadQueue from '@/server/serverDownloadQueue'
 
 const createZip = async (
   entries: Array<{ name: string; content?: string; sourcePath?: string }>,
@@ -159,5 +161,50 @@ describe('Local backup restore', () => {
     await expect(createLocalBackup(1)).rejects.toBeInstanceOf(LocalBackupTooLargeError)
 
     expect(fs.readdirSync(tempDir).filter(name => name.startsWith('yun-yin-backup-'))).toEqual([])
+  })
+
+  test('releases the queue suspension and data lock when backup temp directory creation fails', async () => {
+    const makeTempDir = spyOn(fs, 'mkdtempSync').mockImplementation(() => {
+      throw new Error('simulated temporary directory failure')
+    })
+    try {
+      await expect(createLocalBackup()).rejects.toThrow('simulated temporary directory failure')
+    } finally {
+      makeTempDir.mockRestore()
+    }
+
+    expect(() => enqueue('backup-failure-user', [{ songInfo: { id: 'after-failure' } }])).not.toThrow()
+    await removeUser('backup-failure-user')
+    await expect(createLocalBackup()).resolves.toMatch(/^yun-yin-backup-/)
+  })
+
+  test('releases the queue suspension and data lock when queue draining fails', async () => {
+    const suspend = spyOn(downloadQueue, 'suspendAll').mockImplementationOnce(async () => {
+      throw new Error('simulated queue drain failure')
+    })
+    try {
+      await expect(createLocalBackup()).rejects.toThrow('simulated queue drain failure')
+    } finally {
+      suspend.mockRestore()
+    }
+
+    expect(() => enqueue('backup-drain-failure-user', [{ songInfo: { id: 'after-failure' } }])).not.toThrow()
+    await removeUser('backup-drain-failure-user')
+    await expect(createLocalBackup()).resolves.toMatch(/^yun-yin-backup-/)
+  })
+
+  test('restore releases the queue suspension and data lock when queue draining fails', async () => {
+    const suspend = spyOn(downloadQueue, 'suspendAll').mockImplementationOnce(async () => {
+      throw new Error('simulated restore queue drain failure')
+    })
+    try {
+      await expect(restoreLocalBackup(new Uint8Array([1]))).rejects.toThrow('simulated restore queue drain failure')
+    } finally {
+      suspend.mockRestore()
+    }
+
+    expect(() => enqueue('restore-drain-failure-user', [{ songInfo: { id: 'after-failure' } }])).not.toThrow()
+    await removeUser('restore-drain-failure-user')
+    await expect(createLocalBackup()).resolves.toMatch(/^yun-yin-backup-/)
   })
 })

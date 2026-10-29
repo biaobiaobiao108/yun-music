@@ -71,6 +71,7 @@ const controllers = new Map<string, AbortController>()
 // Removed tasks keep their execution slot until their resolver/download settles.
 const activeTasks = new Map<string, ServerDownloadTask>()
 const suspendedUsers = new Set<string>()
+let allUsersSuspended = false
 const activeSettled = new Map<string, Promise<void>>()
 const concurrencyByUser = new Map<string, number>()
 const taskIdentityIndex = new Map<string, string>()
@@ -795,7 +796,7 @@ const processQueue = async () => {
       }
       let next: ServerDownloadTask | undefined
       for (const task of tasks.values()) {
-        if (suspendedUsers.has(task.username)) continue
+        if (allUsersSuspended || suspendedUsers.has(task.username)) continue
         if (
           !isDownloadTaskRunnable(
             task,
@@ -894,7 +895,7 @@ const markTaskAsExisting = (task: ServerDownloadTask, username: string, input: Q
 }
 
 export const enqueue = (username: string, inputs: QueueInput[]) => {
-  if (suspendedUsers.has(username)) throw new Error('用户数据正在迁移或删除')
+  if (allUsersSuspended || suspendedUsers.has(username)) throw new Error('用户数据正在迁移或删除')
   if (inputs.length > 100) throw new Error('Too many tasks in one request')
   deduplicateTasksInMemory()
   const pendingCount = pendingCountByUser.get(username) || 0
@@ -1234,6 +1235,7 @@ export const releaseUser = (username: string) => {
 
 /** Block new work and drain all workers across all users (for instance-wide backups/restores). */
 export const suspendAll = async () => {
+  allUsersSuspended = true
   const users = new Set<string>()
   for (const task of tasks.values()) users.add(task.username)
   for (const task of activeTasks.values()) users.add(task.username)
@@ -1242,6 +1244,7 @@ export const suspendAll = async () => {
 }
 
 export const releaseAll = () => {
+  allUsersSuspended = false
   suspendedUsers.clear()
   void processQueue()
 }

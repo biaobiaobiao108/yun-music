@@ -1456,6 +1456,30 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
         filenameToItemMap.set(item.filename, { key, item })
       }
       const dir = getCacheDir(normalizedUsername, folder === 'music', location)
+      const lyricNamesByDirectory = new Map<string, Promise<Map<string, string>>>()
+      const getLyricNames = (relativeDirectory: string) => {
+        let pending = lyricNamesByDirectory.get(relativeDirectory)
+        if (!pending) {
+          const directoryPath = resolveCacheRelativePath(dir, relativeDirectory)
+          pending = directoryPath
+            ? fs.promises.readdir(directoryPath, { withFileTypes: true }).then(entries => {
+                const names = new Map<string, string>()
+                for (const entry of entries) {
+                  if (
+                    entry.isFile() &&
+                    path.extname(entry.name).toLowerCase() === '.lrc' &&
+                    !names.has(entry.name.toLowerCase())
+                  ) {
+                    names.set(entry.name.toLowerCase(), entry.name)
+                  }
+                }
+                return names
+              })
+            : Promise.resolve(new Map<string, string>())
+          lyricNamesByDirectory.set(relativeDirectory, pending)
+        }
+        return pending
+      }
       if (!fs.existsSync(dir)) continue
 
       for await (const discoveredPath of walkCacheFilesAsync(dir)) {
@@ -1522,9 +1546,16 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
         // Normalize ID
         const normalizedId = songId.includes('_') ? songId : `${source || 'unknown'}_${songId}`
 
-        // Always check for a companion lyric file. Use the actual filename
-        // so legacy `.LRC` files and nested download folders are repaired too.
-        const companionLyric = findCompanionLyricFile(dir, file)
+        // Read each audio directory once per sync. This keeps legacy extension
+        // casing support without synchronously rescanning it for every song.
+        const parentRelativePath = path.dirname(file) === '.' ? '' : path.dirname(file).replace(/\\/g, '/')
+        const expectedLyricName = `${path.basename(file, path.extname(file))}.lrc`
+        const lyricName = (await getLyricNames(parentRelativePath)).get(expectedLyricName.toLowerCase())
+        const lyricRelativePath = lyricName
+          ? path.posix.join(parentRelativePath || '.', lyricName).replace(/^\.\//, '')
+          : null
+        const lyricPath = lyricRelativePath ? resolveCacheRelativePath(dir, lyricRelativePath) : null
+        const companionLyric = lyricPath && lyricRelativePath ? { filename: lyricRelativePath, path: lyricPath } : null
         const lrcFile = companionLyric?.filename
         const hasLyricOnDisk = !!companionLyric
         let lyricSize = 0

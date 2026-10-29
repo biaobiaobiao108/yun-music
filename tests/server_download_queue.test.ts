@@ -11,6 +11,8 @@ import {
   enqueue,
   MAX_PENDING_TASKS_PER_USER,
   suspendUser,
+  suspendAll,
+  releaseAll,
   releaseUser,
   renameUser,
   removeUser,
@@ -761,6 +763,29 @@ test('account suspension drains workers, blocks new work and migrates paused tas
     expect(list('drain-new')).toEqual([])
   } finally {
     releaseUser('drain-old')
+    await new Promise(resolve => setTimeout(resolve, 220))
+    checkCache.mockRestore()
+    worker.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('instance suspension blocks queue work for users without existing tasks', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-suspend-all-download-'))
+  const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+  const worker = spyOn(fileCache, 'downloadAndCache').mockResolvedValue(undefined)
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => ({ url: 'https://example.com/song' }))
+    await suspendAll()
+    expect(() => enqueue('new-user-during-backup', [{ songInfo: { id: 'blocked' } }])).toThrow()
+    releaseAll()
+    expect(() => enqueue('new-user-during-backup', [{ songInfo: { id: 'allowed' } }])).not.toThrow()
+  } finally {
+    releaseAll()
+    await removeUser('new-user-during-backup')
     await new Promise(resolve => setTimeout(resolve, 220))
     checkCache.mockRestore()
     worker.mockRestore()

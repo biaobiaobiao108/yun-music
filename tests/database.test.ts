@@ -41,6 +41,40 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     expect(sessionSchema.sql).toContain('FOREIGN KEY (user_name) REFERENCES users(name)')
   })
 
+  it('migrates legacy cache sizes across multiple pages', () => {
+    const db = getDb()
+    db.run('DROP TABLE cache_index')
+    db.run(`CREATE TABLE cache_index (
+      location TEXT NOT NULL, user_name TEXT NOT NULL, folder TEXT NOT NULL,
+      song_id TEXT NOT NULL, quality TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL,
+      PRIMARY KEY (location, user_name, folder, song_id, quality)
+    )`)
+    const insert = db.prepare('INSERT INTO cache_index VALUES (?, ?, ?, ?, ?, ?, ?)')
+    for (let index = 0; index < 600; index++) {
+      insert.run(
+        'root',
+        'user',
+        'cache',
+        String(index),
+        'flac',
+        index === 300 ? '{' : JSON.stringify({ size: index + 1, lyricSize: index + 2 }),
+        0,
+      )
+    }
+    insert.finalize()
+    db.run('PRAGMA user_version = 3')
+    closeDb()
+
+    const migrated = initDatabase(testDbPath)
+    const read = migrated.prepare<{ audio_size: number; lyric_size: number }, [string]>(
+      'SELECT audio_size, lyric_size FROM cache_index WHERE song_id = ?',
+    )
+    expect(read.get('0')).toEqual({ audio_size: 1, lyric_size: 2 })
+    expect(read.get('300')).toEqual({ audio_size: 0, lyric_size: 0 })
+    expect(read.get('599')).toEqual({ audio_size: 600, lyric_size: 601 })
+    read.finalize()
+  })
+
   it('should CRUD user records', async () => {
     const db = getDb()
     const now = Date.now()

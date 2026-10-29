@@ -191,27 +191,38 @@ export const initDatabase = (customDbPath?: string): Database => {
     if (!columns.includes('lyric_size'))
       db.run('ALTER TABLE cache_index ADD COLUMN lyric_size INTEGER NOT NULL DEFAULT 0')
 
-    const rows = db.query<{ rowid: number; data: string }, []>('SELECT rowid, data FROM cache_index').all()
+    const firstPage = db.prepare<{ rowid: number; data: string }, []>(
+      'SELECT rowid, data FROM cache_index ORDER BY rowid LIMIT 256',
+    )
+    const nextPage = db.prepare<{ rowid: number; data: string }, [number]>(
+      'SELECT rowid, data FROM cache_index WHERE rowid > ? ORDER BY rowid LIMIT 256',
+    )
     const update = db.prepare('UPDATE cache_index SET audio_size = ?, lyric_size = ? WHERE rowid = ?')
     try {
       db.transaction(() => {
-        for (const row of rows) {
-          let audioSize = 0
-          let lyricSize = 0
-          try {
-            const item = JSON.parse(row.data) as { size?: unknown; lyricSize?: unknown }
-            const parsedAudioSize = Number(item.size)
-            const parsedLyricSize = Number(item.lyricSize)
-            audioSize = Number.isFinite(parsedAudioSize) && parsedAudioSize > 0 ? Math.trunc(parsedAudioSize) : 0
-            lyricSize = Number.isFinite(parsedLyricSize) && parsedLyricSize > 0 ? Math.trunc(parsedLyricSize) : 0
-          } catch {
-            // Leave invalid historical rows at zero; the background cache
-            // reconciliation will repair them from the physical files.
+        let rows = firstPage.all()
+        while (rows.length) {
+          for (const row of rows) {
+            let audioSize = 0
+            let lyricSize = 0
+            try {
+              const item = JSON.parse(row.data) as { size?: unknown; lyricSize?: unknown }
+              const parsedAudioSize = Number(item.size)
+              const parsedLyricSize = Number(item.lyricSize)
+              audioSize = Number.isFinite(parsedAudioSize) && parsedAudioSize > 0 ? Math.trunc(parsedAudioSize) : 0
+              lyricSize = Number.isFinite(parsedLyricSize) && parsedLyricSize > 0 ? Math.trunc(parsedLyricSize) : 0
+            } catch {
+              // Leave invalid historical rows at zero; the background cache
+              // reconciliation will repair them from the physical files.
+            }
+            update.run(audioSize, lyricSize, row.rowid)
           }
-          update.run(audioSize, lyricSize, row.rowid)
+          rows = nextPage.all(rows[rows.length - 1]!.rowid)
         }
       })()
     } finally {
+      firstPage.finalize()
+      nextPage.finalize()
       update.finalize()
     }
   }

@@ -1686,8 +1686,7 @@ function ScrollingLyrics({
   showRoma: boolean
   seek: (time: number) => void
 }) {
-  const currentTime = usePlaybackStore(state => state.currentTime)
-  const activeIndex = findActiveLyricIndex(lines, currentTime)
+  const activeIndex = usePlaybackStore(state => findActiveLyricIndex(lines, state.currentTime))
   const listRef = useRef<HTMLElement>(null)
 
   useEffect(() => {

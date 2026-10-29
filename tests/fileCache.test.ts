@@ -103,7 +103,7 @@ describe('File Cache Path Traversal Defense', () => {
       const musicDir = fileCache.getCacheDir('test-user', true)
       fs.mkdirSync(path.join(musicDir, 'album'), { recursive: true })
       const audioFilename = 'album/song.flac'
-      const lyricFilename = 'album/song.lrc'
+      const lyricFilename = 'album/song.LRC'
       const audioPath = path.join(musicDir, audioFilename)
       fs.writeFileSync(audioPath, Buffer.from('not-a-real-audio-file'))
       fs.writeFileSync(path.join(musicDir, lyricFilename), '[00:00.00]lyrics')

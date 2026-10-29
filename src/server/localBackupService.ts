@@ -10,6 +10,16 @@ import { releaseAll, suspendAll } from './serverDownloadQueue'
 const safeBackupName = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 let backupInProgress = false
 
+const suspendQueueForBackup = async (): Promise<void> => {
+  try {
+    await suspendAll()
+  } catch (error) {
+    releaseAll()
+    releaseDataOperation('backup')
+    throw error
+  }
+}
+
 export const MAX_LOCAL_BACKUP_BYTES = 100 * 1024 * 1024
 const MAX_LOCAL_BACKUP_ENTRIES = 20_000
 const MAX_LOCAL_BACKUP_EXTRACTED_BYTES = 512 * 1024 * 1024
@@ -364,12 +374,13 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
     throw new Error('备份压缩文件上限参数无效')
   }
   if (backupInProgress || !tryAcquireDataOperation('backup')) throw new Error('备份或账户变更正在进行，请稍后重试')
-  await suspendAll()
+  await suspendQueueForBackup()
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
   let tempDir: string
   try {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-local-backup-'))
   } catch (error) {
+    releaseAll()
     releaseDataOperation('backup')
     throw error
   }
@@ -475,7 +486,7 @@ export const restoreLocalBackup = async (
   }
 
   if (backupInProgress || !tryAcquireDataOperation('backup')) throw new Error('备份或账户变更正在进行，请稍后重试')
-  await suspendAll()
+  await suspendQueueForBackup()
   backupInProgress = true
   let tempDir = ''
   let previousDbPath = ''
