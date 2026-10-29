@@ -674,6 +674,13 @@ export function AudioRuntime() {
         }
       }
     }
+    const onSeeked = () => {
+      if (resolvedSongKey.current !== songId) return
+      // Final seek positions must bypass timeupdate throttling, including while paused.
+      const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
+      emitPlaybackService({ type: 'progress', currentTime, duration })
+    }
     const onLoaded = () => {
       if (resolvedSongKey.current !== songId) return
       const state = usePlaybackStore.getState()
@@ -795,6 +802,7 @@ export function AudioRuntime() {
     audio.addEventListener('playing', onPlaying)
     audio.addEventListener('pause', onPause)
     audio.addEventListener('timeupdate', onTime)
+    audio.addEventListener('seeked', onSeeked)
     audio.addEventListener('loadedmetadata', onLoaded)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
@@ -805,6 +813,7 @@ export function AudioRuntime() {
       audio.removeEventListener('playing', onPlaying)
       audio.removeEventListener('pause', onPause)
       audio.removeEventListener('timeupdate', onTime)
+      audio.removeEventListener('seeked', onSeeked)
       audio.removeEventListener('loadedmetadata', onLoaded)
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)

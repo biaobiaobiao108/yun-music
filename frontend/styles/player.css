@@ -16591,6 +16591,14 @@ body,
     min-height: 0;
 }
 
+/* WebKit benefits from isolating the static full-viewport blur. Keep this
+   scoped: forcing layers here makes Chromium slower in the same lyric scene. */
+@supports (-webkit-backdrop-filter: blur(0)) {
+    .react-immersive-lyrics-dialog[open] .react-immersive-lyrics::before {
+        will-change: transform;
+    }
+}
+
 .react-rhythm-current {
     position: relative;
     z-index: 1;
@@ -16635,7 +16643,7 @@ body,
     display: inline-block;
     max-width: 100%;
     margin-inline-end: 0;
-    color: rgb(255 255 255 / var(--rhythm-light, 0.48));
+    color: rgb(255 255 255 / 48%);
     overflow-wrap: anywhere;
     white-space: pre-wrap;
     vertical-align: baseline;
