@@ -51,7 +51,7 @@ let playCommand: () => void = () => undefined
 let pauseCommand: () => void = () => undefined
 let seekCommand: (time: number) => void = () => undefined
 let volumeCommand: (volume: number) => void = () => undefined
-let positionCommand: () => number | null = () => null
+let playbackPositionUpdatedAt = performance.now()
 let lastPlaybackPersistAt = 0
 type PersistedPlaybackState = Pick<
   PlaybackState,
@@ -69,19 +69,24 @@ export function connectAudioCommands(commands: {
   seek: (time: number) => void
   volume: (volume: number) => void
   prime?: () => void
-  position?: () => number | null
 }): void {
   playCommand = commands.play
   pauseCommand = commands.pause
   seekCommand = commands.seek
   volumeCommand = commands.volume
-  positionCommand = commands.position ?? (() => null)
   primeCommand = commands.prime ?? null
 }
 
-/** The immersive lyrics sample the audio clock without updating the playback store every frame. */
+/** Smooth the same confirmed progress used by the footer without publishing per-frame state. */
 export function readPlaybackPosition(): number | null {
-  return positionCommand()
+  const state = usePlaybackStore.getState()
+  if (!state.currentSong) return null
+  // Never let an animation clock run away during a seek, buffering or suspended events.
+  const elapsed = state.isPlaying
+    ? Math.min(0.25, Math.max(0, (performance.now() - playbackPositionUpdatedAt) / 1000))
+    : 0
+  const position = state.currentTime + elapsed
+  return state.duration > 0 ? Math.min(position, state.duration) : position
 }
 
 export function pausePlaybackCommand(): void {
@@ -220,6 +225,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     if (!isPlaying) persistPlaybackNow(get())
   },
   setProgress: (currentTime, duration) => {
+    playbackPositionUpdatedAt = performance.now()
     set({ currentTime, ...(duration !== undefined ? { duration } : {}) })
     const now = Date.now()
     if (now - lastPlaybackPersistAt >= 5000) {
@@ -278,6 +284,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     persistPlaybackNow({ ...state, currentSong, queue })
   },
   seek: time => {
+    playbackPositionUpdatedAt = performance.now()
     seekCommand(time)
     set({ currentTime: time })
   },
@@ -507,6 +514,17 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     })
   },
 }))
+
+// Also reset interpolation on pause/resume, song changes and hydration.
+usePlaybackStore.subscribe((state, previous) => {
+  if (
+    state.currentTime !== previous.currentTime ||
+    state.isPlaying !== previous.isPlaying ||
+    state.currentSong !== previous.currentSong
+  ) {
+    playbackPositionUpdatedAt = performance.now()
+  }
+})
 
 export function connectPlaybackServiceStore(): () => void {
   return subscribePlaybackService((event: PlaybackServiceEvent) => {

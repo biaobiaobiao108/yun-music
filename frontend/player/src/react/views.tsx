@@ -1559,8 +1559,7 @@ function RhythmLyrics({
   useEffect(() => {
     if (!open) return
     const stateTime = usePlaybackStore.getState().currentTime
-    // A paused seek may commit to the store before the media clock catches up.
-    // Re-reading that old clock after changing the focused line would undo it.
+    // Paused and reduced-motion frames use the exact shared progress snapshot.
     const time = !isPlaying || reducedMotion ? stateTime : (readPlaybackPosition() ?? stateTime)
     updateAt(time)
   }, [currentTime, focus, getLayout, isPlaying, open, reducedMotion, updateAt, viewport])

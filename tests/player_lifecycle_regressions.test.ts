@@ -1,7 +1,11 @@
 import { describe, expect, it, spyOn } from 'bun:test'
 import { readFileSync } from 'fs'
 import { runInNewContext } from 'vm'
-import { connectAudioCommands, usePlaybackStore } from '../frontend/player/src/react/store/playback'
+import {
+  connectAudioCommands,
+  readPlaybackPosition,
+  usePlaybackStore,
+} from '../frontend/player/src/react/store/playback'
 import { useSleepTimerStore } from '../frontend/player/src/react/store/sleep'
 
 describe('playback sleep deadline', () => {
@@ -50,6 +54,70 @@ describe('playback sleep deadline', () => {
         seek: () => undefined,
         volume: () => undefined,
       })
+    }
+  })
+})
+
+describe('lyric playback clock', () => {
+  it('stays bounded to confirmed progress through seeks, buffering and pause/resume', () => {
+    const initialPlayback = usePlaybackStore.getState()
+    let now = 1000
+    const clock = spyOn(performance, 'now').mockImplementation(() => now)
+    connectAudioCommands({
+      play: () => undefined,
+      pause: () => undefined,
+      seek: () => undefined,
+      volume: () => undefined,
+    })
+    try {
+      usePlaybackStore.setState({
+        currentSong: { source: 'wy', songmid: 'clock-test' },
+        isPlaying: true,
+        currentTime: 10,
+        duration: 120,
+      })
+      now += 100
+      expect(readPlaybackPosition()).toBeCloseTo(10.1)
+      now += 5000
+      expect(readPlaybackPosition()).toBeCloseTo(10.25)
+
+      // A forward seek must discard time elapsed at the previous position.
+      usePlaybackStore.getState().seek(70)
+      expect(readPlaybackPosition()).toBe(70)
+      now += 1000
+      expect(readPlaybackPosition()).toBeCloseTo(70.25)
+      usePlaybackStore.getState().setProgress(70.15, 120)
+      expect(readPlaybackPosition()).toBe(70.15)
+
+      usePlaybackStore.getState().seek(3)
+      expect(readPlaybackPosition()).toBe(3)
+      now += 50
+      expect(readPlaybackPosition()).toBeCloseTo(3.05)
+      usePlaybackStore.getState().setPlaying(false)
+      now += 5000
+      expect(readPlaybackPosition()).toBe(3)
+      usePlaybackStore.getState().seek(20)
+      now += 1000
+      expect(readPlaybackPosition()).toBe(20)
+      usePlaybackStore.getState().setPlaying(true)
+      expect(readPlaybackPosition()).toBe(20)
+      now += 100
+      expect(readPlaybackPosition()).toBeCloseTo(20.1)
+
+      // A stalled progress stream and repeated equal samples cannot accumulate drift.
+      usePlaybackStore.getState().setProgress(20)
+      now += 1000
+      expect(readPlaybackPosition()).toBeCloseTo(20.25)
+      usePlaybackStore.getState().setProgress(20)
+      expect(readPlaybackPosition()).toBe(20)
+      usePlaybackStore.getState().setProgress(119.95)
+      now += 1000
+      expect(readPlaybackPosition()).toBe(120)
+      usePlaybackStore.setState({ currentSong: null })
+      expect(readPlaybackPosition()).toBeNull()
+    } finally {
+      clock.mockRestore()
+      usePlaybackStore.setState(initialPlayback)
     }
   })
 })

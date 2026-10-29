@@ -485,12 +485,6 @@ export function AudioRuntime() {
         })
       },
       pause: () => audio.pause(),
-      position: () => {
-        const activeSong = usePlaybackStore.getState().currentSong
-        if (!audio.isConnected || !activeSong || songKey(activeSong) !== songId || resolvedSongKey.current !== songId)
-          return null
-        return Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : null
-      },
       seek: time => {
         if (Number.isFinite(time)) audio.currentTime = Math.max(0, time)
       },
