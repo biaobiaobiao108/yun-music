@@ -1241,12 +1241,12 @@ function RhythmLyrics({
   seek: (time: number) => void
 }) {
   const isPlaying = usePlaybackStore(state => state.isPlaying)
-  const currentTime = usePlaybackStore(state => state.currentTime)
   const duration = usePlaybackStore(state => state.duration)
   const listRef = useRef<HTMLElement | null>(null)
   const focusRef = useRef(-1)
   const [focus, setFocus] = useState(-1)
   const [reducedMotion, setReducedMotion] = useState(false)
+  const currentTime = usePlaybackStore(state => (state.isPlaying && !reducedMotion ? 0 : state.currentTime))
   const [viewport, setViewport] = useState({ width: 960, height: 600 })
   const availableWidth = Math.max(1, Math.min(viewport.width * 0.86, viewport.width - 32))
   const targetFontSize = Math.min(88, Math.max(26, viewport.width * 0.06875))
@@ -1289,8 +1289,32 @@ function RhythmLyrics({
       if (focusRef.current !== index) {
         focusRef.current = index
         setFocus(index)
+        return
       }
       const reduced = reducedMotion
+      const words = listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-word')
+      const layoutKey = `${viewport.width}:${viewport.height}`
+      if (words?.length && Array.from(words).some(word => word.dataset.spaceKey !== layoutKey)) {
+        const metrics = Array.from(words, word => {
+          const next = word.nextElementSibling
+          const nextWord = next instanceof HTMLElement && next.classList.contains('react-rhythm-word') ? next : null
+          return {
+            word,
+            width: word.offsetWidth,
+            scale: Number(word.dataset.layoutScale),
+            nextWidth: nextWord?.offsetWidth ?? 0,
+            nextScale: Number(nextWord?.dataset.layoutScale ?? 1),
+            gap: Number(word.dataset.fontSize) * 0.08,
+            hasNext: Boolean(nextWord),
+          }
+        })
+        for (const metric of metrics) {
+          const growth = (metric.width * (metric.scale - 1) + metric.nextWidth * (metric.nextScale - 1)) / 2
+          const margin = metric.hasNext ? Math.max(metric.gap * 2, growth + metric.gap) : 0
+          metric.word.style.marginInlineEnd = `${margin.toFixed(2)}px`
+          metric.word.dataset.spaceKey = layoutKey
+        }
+      }
       const previous = listRef.current?.querySelector<HTMLElement>('.react-rhythm-previous')
       if (previous) {
         const elapsed = Math.min(1, Math.max(0, (time - Number(previous.dataset.lineStart)) / 0.4))
@@ -1320,29 +1344,6 @@ function RhythmLyrics({
           ? 'none'
           : `translate(${(Number(phrase.dataset.offset) + frame.x).toFixed(2)}px, ${Number(phrase.dataset.y).toFixed(2)}px) scale(${(Number(phrase.dataset.scale) * frame.scale).toFixed(3)})`
       })
-      const words = listRef.current?.querySelectorAll<HTMLElement>('.react-rhythm-word')
-      const layoutKey = `${viewport.width}:${viewport.height}`
-      if (words?.length && Array.from(words).some(word => word.dataset.spaceKey !== layoutKey)) {
-        const metrics = Array.from(words, word => {
-          const next = word.nextElementSibling
-          const nextWord = next instanceof HTMLElement && next.classList.contains('react-rhythm-word') ? next : null
-          return {
-            word,
-            width: word.offsetWidth,
-            scale: Number(word.dataset.layoutScale),
-            nextWidth: nextWord?.offsetWidth ?? 0,
-            nextScale: Number(nextWord?.dataset.layoutScale ?? 1),
-            gap: Number(word.dataset.fontSize) * 0.08,
-            hasNext: Boolean(nextWord),
-          }
-        })
-        for (const metric of metrics) {
-          const growth = (metric.width * (metric.scale - 1) + metric.nextWidth * (metric.nextScale - 1)) / 2
-          const margin = metric.hasNext ? Math.max(metric.gap * 2, growth + metric.gap) : 0
-          metric.word.style.marginInlineEnd = `${margin.toFixed(2)}px`
-          metric.word.dataset.spaceKey = layoutKey
-        }
-      }
       let activeSparks = 0
       for (let index = (words?.length ?? 0) - 1; index >= 0; index -= 1) {
         const word = words![index]!
