@@ -229,6 +229,7 @@ export function AudioRuntime() {
   const prefetchController = useRef<AbortController | null>(null)
   const playbackStatusKey = useRef('')
   const lastProgressEmitAt = useRef(0)
+  const confirmedAudioPosition = useRef(0)
   const lastMediaSessionAt = useRef(0)
   const playbackTraceName = songId
     ? `yun-music:play:${encodeURIComponent(songId).slice(0, 120)}:${encodeURIComponent(quality)}`
@@ -441,6 +442,7 @@ export function AudioRuntime() {
     historyRecordedKey.current = ''
     playbackStatusKey.current = ''
     lastProgressEmitAt.current = 0
+    confirmedAudioPosition.current = 0
     lastMediaSessionAt.current = 0
     naturalFadeKey.current = ''
     cancelScheduledPrefetch()
@@ -452,7 +454,7 @@ export function AudioRuntime() {
     if (!audio) return
     let retryCancelled = false
     let retryController: AbortController | null = null
-    connectAudioCommands({
+    const disconnectAudioCommands = connectAudioCommands({
       prime: () => {
         try {
           if (!audio.src) {
@@ -485,8 +487,23 @@ export function AudioRuntime() {
         })
       },
       pause: () => audio.pause(),
+      position: () => {
+        if (resolvedSongKey.current !== songId || audio.readyState < HTMLMediaElement.HAVE_METADATA) return null
+        // WebKit exposes the requested currentTime before the seek has finished.
+        if (!audio.seeking) confirmedAudioPosition.current = Math.max(0, audio.currentTime)
+        return confirmedAudioPosition.current
+      },
       seek: time => {
-        if (Number.isFinite(time)) audio.currentTime = Math.max(0, time)
+        if (!Number.isFinite(time) || audio.readyState < HTMLMediaElement.HAVE_METADATA) return
+        // A seek away from the outro must also cancel its in-flight volume fade.
+        if (naturalFadeKey.current) {
+          naturalFadeKey.current = ''
+          cancelVolumeAnimation()
+          fadeFactor.current = 1
+          syncAudioVolume()
+        }
+        if (!audio.seeking) confirmedAudioPosition.current = Math.max(0, audio.currentTime)
+        audio.currentTime = Math.max(0, Number.isFinite(audio.duration) ? Math.min(time, audio.duration) : time)
       },
       volume: next => {
         volumeTarget.current = next
@@ -618,8 +635,9 @@ export function AudioRuntime() {
       return nextSong
     }
     const onTime = () => {
-      if (resolvedSongKey.current !== songId) return
+      if (resolvedSongKey.current !== songId || audio.seeking) return
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      confirmedAudioPosition.current = currentTime
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       if (settings.enableCrossfade && duration > 0 && currentTime < duration) {
         const nextSong = getCrossfadeNextSong()
@@ -669,10 +687,12 @@ export function AudioRuntime() {
       }
     }
     const onSeeked = () => {
-      if (resolvedSongKey.current !== songId) return
+      if (resolvedSongKey.current !== songId || audio.seeking) return
       // Final seek positions must bypass timeupdate throttling, including while paused.
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      confirmedAudioPosition.current = currentTime
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
+      lastProgressEmitAt.current = Date.now()
       emitPlaybackService({ type: 'progress', currentTime, duration })
     }
     const onLoaded = () => {
@@ -680,6 +700,7 @@ export function AudioRuntime() {
       const state = usePlaybackStore.getState()
       const resumeTime = state.currentTime
       const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      confirmedAudioPosition.current = currentTime
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       if (playbackTraceName) {
         const endMark = `${playbackTraceName}:metadata-end`
@@ -801,6 +822,7 @@ export function AudioRuntime() {
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('error', onError)
     return () => {
+      disconnectAudioCommands()
       retryCancelled = true
       retryController?.abort()
       audio.removeEventListener('play', onPlay)

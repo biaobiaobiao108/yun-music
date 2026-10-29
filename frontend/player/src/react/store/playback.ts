@@ -51,7 +51,7 @@ let playCommand: () => void = () => undefined
 let pauseCommand: () => void = () => undefined
 let seekCommand: (time: number) => void = () => undefined
 let volumeCommand: (volume: number) => void = () => undefined
-let playbackPositionUpdatedAt = performance.now()
+let readAudioPosition: (() => number | null) | null = null
 let lastPlaybackPersistAt = 0
 type PersistedPlaybackState = Pick<
   PlaybackState,
@@ -69,24 +69,32 @@ export function connectAudioCommands(commands: {
   seek: (time: number) => void
   volume: (volume: number) => void
   prime?: () => void
-}): void {
+  position?: () => number | null
+}): () => void {
   playCommand = commands.play
   pauseCommand = commands.pause
   seekCommand = commands.seek
   volumeCommand = commands.volume
   primeCommand = commands.prime ?? null
+  readAudioPosition = commands.position ?? null
+  return () => {
+    if (seekCommand !== commands.seek) return
+    playCommand = () => undefined
+    pauseCommand = () => undefined
+    seekCommand = () => undefined
+    volumeCommand = () => undefined
+    primeCommand = null
+    readAudioPosition = null
+  }
 }
 
-/** Smooth the same confirmed progress used by the footer without publishing per-frame state. */
+/** Read the media clock without publishing per-frame React state. */
 export function readPlaybackPosition(): number | null {
   const state = usePlaybackStore.getState()
   if (!state.currentSong) return null
-  // Never let an animation clock run away during a seek, buffering or suspended events.
-  const elapsed = state.isPlaying
-    ? Math.min(0.25, Math.max(0, (performance.now() - playbackPositionUpdatedAt) / 1000))
-    : 0
-  const position = state.currentTime + elapsed
-  return state.duration > 0 ? Math.min(position, state.duration) : position
+  // The media clock stops during Safari seeks and buffering; wall time does not.
+  if (readAudioPosition) return readAudioPosition()
+  return state.currentTime
 }
 
 export function pausePlaybackCommand(): void {
@@ -225,7 +233,6 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     if (!isPlaying) persistPlaybackNow(get())
   },
   setProgress: (currentTime, duration) => {
-    playbackPositionUpdatedAt = performance.now()
     set({ currentTime, ...(duration !== undefined ? { duration } : {}) })
     const now = Date.now()
     if (now - lastPlaybackPersistAt >= 5000) {
@@ -284,7 +291,9 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     persistPlaybackNow({ ...state, currentSong, queue })
   },
   seek: time => {
-    playbackPositionUpdatedAt = performance.now()
+    if (!Number.isFinite(time)) return
+    const duration = get().duration
+    time = Math.max(0, duration > 0 ? Math.min(time, duration) : time)
     seekCommand(time)
     set({ currentTime: time })
   },
@@ -514,17 +523,6 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     })
   },
 }))
-
-// Also reset interpolation on pause/resume, song changes and hydration.
-usePlaybackStore.subscribe((state, previous) => {
-  if (
-    state.currentTime !== previous.currentTime ||
-    state.isPlaying !== previous.isPlaying ||
-    state.currentSong !== previous.currentSong
-  ) {
-    playbackPositionUpdatedAt = performance.now()
-  }
-})
 
 export function connectPlaybackServiceStore(): () => void {
   return subscribePlaybackService((event: PlaybackServiceEvent) => {

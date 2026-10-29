@@ -59,6 +59,54 @@ describe('playback sleep deadline', () => {
 })
 
 describe('lyric playback clock', () => {
+  it('uses the media clock through delayed seeks, buffering, rate changes and pause', () => {
+    const initialPlayback = usePlaybackStore.getState()
+    let mediaTime = 10
+    let now = 1000
+    const clock = spyOn(performance, 'now').mockImplementation(() => now)
+    const requests: number[] = []
+    const disconnect = connectAudioCommands({
+      play: () => undefined,
+      pause: () => undefined,
+      seek: time => requests.push(time),
+      volume: () => undefined,
+      position: () => mediaTime,
+    })
+    try {
+      usePlaybackStore.setState({
+        currentSong: { source: 'wy', songmid: 'media-clock-test' },
+        isPlaying: true,
+        currentTime: 10,
+        duration: 120,
+      })
+      usePlaybackStore.getState().seek(70)
+      now += 5000
+      expect(readPlaybackPosition()).toBe(10)
+      // Late progress from before the seek cannot move the lyric clock.
+      usePlaybackStore.getState().setProgress(10.2)
+      mediaTime = 70
+      expect(readPlaybackPosition()).toBe(70)
+      now += 5000
+      expect(readPlaybackPosition()).toBe(70)
+      mediaTime = 70.5
+      expect(readPlaybackPosition()).toBe(70.5)
+      usePlaybackStore.getState().seek(3)
+      mediaTime = 3
+      usePlaybackStore.getState().setPlaying(false)
+      now += 5000
+      expect(readPlaybackPosition()).toBe(3)
+      usePlaybackStore.getState().seek(Number.NaN)
+      usePlaybackStore.getState().seek(Number.POSITIVE_INFINITY)
+      usePlaybackStore.getState().seek(-5)
+      usePlaybackStore.getState().seek(200)
+      expect(requests).toEqual([70, 3, 0, 120])
+    } finally {
+      disconnect()
+      clock.mockRestore()
+      usePlaybackStore.setState(initialPlayback)
+    }
+  })
+
   it('stays bounded to confirmed progress through seeks, buffering and pause/resume', () => {
     const initialPlayback = usePlaybackStore.getState()
     let now = 1000
@@ -77,22 +125,22 @@ describe('lyric playback clock', () => {
         duration: 120,
       })
       now += 100
-      expect(readPlaybackPosition()).toBeCloseTo(10.1)
+      expect(readPlaybackPosition()).toBe(10)
       now += 5000
-      expect(readPlaybackPosition()).toBeCloseTo(10.25)
+      expect(readPlaybackPosition()).toBe(10)
 
       // A forward seek must discard time elapsed at the previous position.
       usePlaybackStore.getState().seek(70)
       expect(readPlaybackPosition()).toBe(70)
       now += 1000
-      expect(readPlaybackPosition()).toBeCloseTo(70.25)
+      expect(readPlaybackPosition()).toBe(70)
       usePlaybackStore.getState().setProgress(70.15, 120)
       expect(readPlaybackPosition()).toBe(70.15)
 
       usePlaybackStore.getState().seek(3)
       expect(readPlaybackPosition()).toBe(3)
       now += 50
-      expect(readPlaybackPosition()).toBeCloseTo(3.05)
+      expect(readPlaybackPosition()).toBe(3)
       usePlaybackStore.getState().setPlaying(false)
       now += 5000
       expect(readPlaybackPosition()).toBe(3)
@@ -102,17 +150,17 @@ describe('lyric playback clock', () => {
       usePlaybackStore.getState().setPlaying(true)
       expect(readPlaybackPosition()).toBe(20)
       now += 100
-      expect(readPlaybackPosition()).toBeCloseTo(20.1)
+      expect(readPlaybackPosition()).toBe(20)
 
       // A stalled progress stream and repeated equal samples cannot accumulate drift.
       usePlaybackStore.getState().setProgress(20)
       now += 1000
-      expect(readPlaybackPosition()).toBeCloseTo(20.25)
+      expect(readPlaybackPosition()).toBe(20)
       usePlaybackStore.getState().setProgress(20)
       expect(readPlaybackPosition()).toBe(20)
       usePlaybackStore.getState().setProgress(119.95)
       now += 1000
-      expect(readPlaybackPosition()).toBe(120)
+      expect(readPlaybackPosition()).toBe(119.95)
       usePlaybackStore.setState({ currentSong: null })
       expect(readPlaybackPosition()).toBeNull()
     } finally {

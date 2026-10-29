@@ -7496,6 +7496,7 @@ textarea:focus-visible {
 .react-progress-row input[type="range"] {
     width: 100%;
     accent-color: var(--app-accent);
+    touch-action: none;
 }
 
 .react-footer-actions {

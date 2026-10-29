@@ -612,7 +612,7 @@ describe('React player module boundaries', () => {
     expect(shell).not.toContain('react-queue-next-chip')
     expect(playerCss).not.toContain('.react-queue-drag-preview')
     expect(playerCss).not.toContain('.react-queue-list li.is-dragging')
-    expect(playerCss).not.toContain('touch-action: none')
+    expect(playerCss).not.toMatch(/\.react-queue[^{}]*\{[^{}]*touch-action:\s*none/)
     expect(playerCss).toContain('min-width: var(--react-queue-cover-size)')
     expect(playerCss).toContain('aspect-ratio: 1 / 1')
     expect(playerCss).toContain('object-fit: cover')

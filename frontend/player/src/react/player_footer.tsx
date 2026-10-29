@@ -110,11 +110,25 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
   const duration = usePlaybackStore(state => state.duration)
   const song = usePlaybackStore(state => (state.currentSong ? songKey(state.currentSong) : ''))
   const [preview, setPreview] = useState<number | null>(null)
-  const drag = useRef<{ pointerId: number; value: number; song: typeof song } | null>(null)
-  useEffect(() => {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const drag = useRef<{ pointerId: number; left: number; width: number; duration: number; song: typeof song } | null>(
+    null,
+  )
+  const cancelDrag = useCallback(() => {
+    const active = drag.current
     drag.current = null
+    const input = inputRef.current
+    if (active && input?.hasPointerCapture(active.pointerId)) input.releasePointerCapture(active.pointerId)
     setPreview(null)
-  }, [song])
+  }, [])
+  useEffect(() => {
+    cancelDrag()
+    window.addEventListener('blur', cancelDrag)
+    return () => {
+      window.removeEventListener('blur', cancelDrag)
+      cancelDrag()
+    }
+  }, [cancelDrag, song])
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0
   const position = preview ?? currentTime
   const safeCurrentTime = Number.isFinite(position) && position > 0 ? Math.min(position, safeDuration) : 0
@@ -127,40 +141,50 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
         <Time value={safeCurrentTime} />
       </span>
       <input
+        ref={inputRef}
         style={progressStyle}
         type="range"
         min="0"
         max={safeDuration}
         step="0.1"
         value={safeCurrentTime}
+        disabled={!safeDuration}
         onPointerDown={event => {
           if (!event.isPrimary || event.button !== 0 || !safeDuration) return
-          drag.current = { pointerId: event.pointerId, value: safeCurrentTime, song }
+          // Own the pointer gesture entirely: native WebKit range tracking and
+          // explicit pointer capture must not compete for the same drag.
+          event.preventDefault()
+          event.currentTarget.focus({ preventScroll: true })
+          const { left, width } = event.currentTarget.getBoundingClientRect()
+          if (!width) return
+          drag.current = { pointerId: event.pointerId, left, width, duration: safeDuration, song }
           event.currentTarget.setPointerCapture(event.pointerId)
+          setPreview(Math.min(1, Math.max(0, (event.clientX - left) / width)) * safeDuration)
+        }}
+        onPointerMove={event => {
+          const active = drag.current
+          if (!active || active.pointerId !== event.pointerId) return
+          if (event.pointerType === 'mouse' && event.buttons === 0) {
+            cancelDrag()
+            return
+          }
+          setPreview(Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration)
         }}
         onChange={event => {
-          const value = Number(event.target.value)
-          if (drag.current) {
-            drag.current.value = value
-            setPreview(value)
-          } else seek(value)
+          // Keyboard and assistive input retain the native range semantics.
+          if (!drag.current) seek(Number(event.target.value))
         }}
         onPointerUp={event => {
           const active = drag.current
           if (!active || active.pointerId !== event.pointerId) return
-          drag.current = null
-          setPreview(null)
+          const value = Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration
+          cancelDrag()
           const currentSong = usePlaybackStore.getState().currentSong
-          if ((currentSong ? songKey(currentSong) : '') === active.song) seek(active.value)
+          if ((currentSong ? songKey(currentSong) : '') === active.song) seek(value)
         }}
-        onPointerCancel={() => {
-          drag.current = null
-          setPreview(null)
-        }}
-        onLostPointerCapture={() => {
-          drag.current = null
-          setPreview(null)
-        }}
+        onPointerCancel={cancelDrag}
+        onLostPointerCapture={cancelDrag}
+        onBlur={cancelDrag}
         aria-label="播放进度"
       />
       <span className="react-progress-time">
