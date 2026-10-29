@@ -16498,7 +16498,8 @@ body,
     color: rgb(255 255 255 / 75%);
 }
 
-.react-lyrics-mode {
+.react-lyrics-mode,
+.react-lyrics-fullscreen {
     position: absolute;
     inset: 0 0 auto auto;
     pointer-events: auto;
@@ -16509,8 +16510,14 @@ body,
     font-size: 1rem;
 }
 
+.react-lyrics-fullscreen {
+    inset: 0 auto auto 0;
+}
+
 .react-lyrics-mode:hover,
-.react-lyrics-mode:focus-visible {
+.react-lyrics-mode:focus-visible,
+.react-lyrics-fullscreen:hover,
+.react-lyrics-fullscreen:focus-visible {
     background: transparent;
     color: white;
 }

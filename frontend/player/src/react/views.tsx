@@ -1758,13 +1758,84 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
   const settings = useSettingsStore(state => state.settings)
+  const notify = usePlayerUiStore(state => state.notify)
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const fullscreenOwned = useRef(false)
+  const openRef = useRef(open)
+  openRef.current = open
+  const [fullscreenSupported, setFullscreenSupported] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
   const lastFocus = useRef<HTMLElement | null>(null)
   const closeTimer = useRef<number | null>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [lyricMode, setLyricMode] = useState<'rhythm' | 'scroll'>('rhythm')
   const artwork = safeImageUrl(songImage(song))
   const [statusColor, setStatusColor] = useState('#3b3b3b')
+  useEffect(() => {
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null
+      webkitExitFullscreen?: () => void
+    }
+    const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void }
+    setFullscreenSupported(Boolean(root.requestFullscreen || root.webkitRequestFullscreen))
+    const syncFullscreen = () => {
+      const active = doc.fullscreenElement ?? doc.webkitFullscreenElement
+      setFullscreen(Boolean(active))
+      if (!active) fullscreenOwned.current = false
+      else if (!openRef.current && fullscreenOwned.current && active === document.documentElement) {
+        fullscreenOwned.current = false
+        if (doc.exitFullscreen) void doc.exitFullscreen().catch(error => console.error('退出全屏失败:', error))
+        else doc.webkitExitFullscreen?.()
+      }
+    }
+    syncFullscreen()
+    document.addEventListener('fullscreenchange', syncFullscreen)
+    document.addEventListener('webkitfullscreenchange', syncFullscreen)
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen)
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen)
+    }
+  }, [])
+  const exitOwnedFullscreen = useCallback(() => {
+    const doc = document as Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void }
+    if (!fullscreenOwned.current) return
+    const active = doc.fullscreenElement ?? doc.webkitFullscreenElement
+    if (!active) return
+    fullscreenOwned.current = false
+    if (active !== document.documentElement) return
+    if (doc.exitFullscreen) void doc.exitFullscreen().catch(error => console.error('退出全屏失败:', error))
+    else doc.webkitExitFullscreen?.()
+  }, [])
+  useEffect(() => {
+    if (!open) exitOwnedFullscreen()
+  }, [exitOwnedFullscreen, open])
+  useEffect(() => {
+    openRef.current = open
+    return () => {
+      openRef.current = false
+      exitOwnedFullscreen()
+    }
+  }, [exitOwnedFullscreen])
+  const toggleFullscreen = async () => {
+    const doc = document as Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void }
+    const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void }
+    try {
+      if (doc.fullscreenElement ?? doc.webkitFullscreenElement) {
+        if (doc.exitFullscreen) await doc.exitFullscreen()
+        else doc.webkitExitFullscreen?.()
+        fullscreenOwned.current = false
+      } else {
+        fullscreenOwned.current = true
+        if (root.requestFullscreen) await root.requestFullscreen()
+        else root.webkitRequestFullscreen?.()
+        if (!openRef.current) exitOwnedFullscreen()
+      }
+    } catch (error) {
+      fullscreenOwned.current = false
+      console.error('切换全屏失败:', error)
+      notify('无法切换全屏，请检查浏览器设置')
+    }
+  }
   useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -1911,6 +1982,17 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
       <div className="immersive-status-color" aria-hidden="true" />
       <div className="react-immersive-lyrics" style={immersiveStyle} tabIndex={-1}>
         <header className="react-immersive-lyrics-header">
+          {fullscreenSupported && (
+            <button
+              type="button"
+              className="react-lyrics-fullscreen"
+              aria-label={fullscreen ? '退出全屏' : '进入全屏'}
+              aria-pressed={fullscreen}
+              onClick={() => void toggleFullscreen()}
+            >
+              <Icon name={fullscreen ? 'compress' : 'expand'} />
+            </button>
+          )}
           <button
             type="button"
             className="react-immersive-nav-button"

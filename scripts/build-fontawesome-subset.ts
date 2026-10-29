@@ -34,6 +34,7 @@ const fallbackIconNames = [
   'cloud-arrow-down',
   'cloud-rain',
   'comments',
+  'compress',
   'compact-disc',
   'database',
   'download',
