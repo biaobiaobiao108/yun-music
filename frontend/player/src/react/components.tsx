@@ -426,25 +426,34 @@ function VirtualSongRows({
     const measure = () => {
       const listRect = list.getBoundingClientRect()
       const parentRect = scrollParent.getBoundingClientRect()
-      const rowHeight = resolveVirtualRowHeight(list)
-      setWindowState({
+      const next = {
         scrollTop: scrollParent.scrollTop,
         viewportHeight: scrollParent.clientHeight,
         listTop: listRect.top - parentRect.top + scrollParent.scrollTop,
-        rowHeight,
-      })
+        rowHeight: resolveVirtualRowHeight(list),
+      }
+      setWindowState(current =>
+        current.scrollTop === next.scrollTop &&
+        current.viewportHeight === next.viewportHeight &&
+        current.listTop === next.listTop &&
+        current.rowHeight === next.rowHeight
+          ? current
+          : next,
+      )
     }
     const onScroll = () => {
       if (frame) return
       frame = window.requestAnimationFrame(() => {
         frame = 0
-        const listRect = list.getBoundingClientRect()
-        const parentRect = scrollParent.getBoundingClientRect()
-        setWindowState(current => ({
-          ...current,
-          scrollTop: scrollParent.scrollTop,
-          listTop: listRect.top - parentRect.top + scrollParent.scrollTop,
-        }))
+        const scrollTop = scrollParent.scrollTop
+        setWindowState(current => {
+          const currentFirst = Math.max(
+            0,
+            Math.floor(Math.max(0, current.scrollTop - current.listTop) / current.rowHeight),
+          )
+          const nextFirst = Math.max(0, Math.floor(Math.max(0, scrollTop - current.listTop) / current.rowHeight))
+          return currentFirst === nextFirst ? current : { ...current, scrollTop }
+        })
       })
     }
 
@@ -452,7 +461,18 @@ function VirtualSongRows({
     scrollParent.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure, { passive: true })
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    observer?.observe(scrollParent)
+    if (observer) {
+      observer.observe(scrollParent)
+      let flowNode: HTMLElement | null = list
+      while (flowNode && flowNode !== scrollParent) {
+        let previous = flowNode.previousElementSibling
+        while (previous) {
+          observer.observe(previous)
+          previous = previous.previousElementSibling
+        }
+        flowNode = flowNode.parentElement
+      }
+    }
     return () => {
       scrollParent.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', measure)
