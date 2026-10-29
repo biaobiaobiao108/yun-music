@@ -111,12 +111,27 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
   const song = usePlaybackStore(state => (state.currentSong ? songKey(state.currentSong) : ''))
   const [preview, setPreview] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const previewFrame = useRef<number | null>(null)
+  const pendingPreview = useRef<number | null>(null)
   const drag = useRef<{ pointerId: number; left: number; width: number; duration: number; song: typeof song } | null>(
     null,
   )
+  const queuePreview = useCallback((value: number) => {
+    pendingPreview.current = value
+    if (previewFrame.current !== null) return
+    previewFrame.current = window.requestAnimationFrame(() => {
+      previewFrame.current = null
+      const next = pendingPreview.current
+      pendingPreview.current = null
+      if (next !== null) setPreview(next)
+    })
+  }, [])
   const cancelDrag = useCallback(() => {
     const active = drag.current
     drag.current = null
+    if (previewFrame.current !== null) window.cancelAnimationFrame(previewFrame.current)
+    previewFrame.current = null
+    pendingPreview.current = null
     const input = inputRef.current
     if (active && input?.hasPointerCapture(active.pointerId)) input.releasePointerCapture(active.pointerId)
     setPreview(null)
@@ -168,7 +183,7 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
             cancelDrag()
             return
           }
-          setPreview(Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration)
+          queuePreview(Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration)
         }}
         onChange={event => {
           // Keyboard and assistive input retain the native range semantics.

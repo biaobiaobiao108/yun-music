@@ -708,18 +708,22 @@ export function AudioRuntime() {
         measurePlayerPerformance(`${playbackTraceName}:metadata`, `${playbackTraceName}:start`, endMark, false)
       }
       emitPlaybackService({ type: 'loaded', duration })
-      emitPlaybackService({ type: 'progress', currentTime, duration })
-      if (
+      const shouldResume =
         settings.autoResume &&
         duration > 0 &&
         resumeTime > 0 &&
         resumeTime < duration &&
         recoveryAttempts.current.has(`resume:${songId}`) === false
-      ) {
-        audio.currentTime = resumeTime
-        emitPlaybackService({ type: 'progress', currentTime: resumeTime, duration })
+      if (shouldResume) {
         recoveryAttempts.current.add(`resume:${songId}`)
+        if (Math.abs(currentTime - resumeTime) > 0.05) {
+          // Wait for seeked before publishing the restored position. WebKit can
+          // expose the requested time while the decoder is still seeking.
+          audio.currentTime = resumeTime
+          return
+        }
       }
+      emitPlaybackService({ type: 'progress', currentTime, duration })
     }
     const onEnded = () => {
       if (resolvedSongKey.current !== songId) return
