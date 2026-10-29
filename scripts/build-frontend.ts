@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import { createHash } from 'node:crypto'
 
 const isWatch = process.argv.includes('--watch')
 const publicRoot = path.join(import.meta.dir, '../public')
@@ -238,6 +239,9 @@ async function main() {
   else await build()
 
   if (isWatch) {
+    const iconRoot = path.join(import.meta.dir, '../docs/assets')
+    const iconSources = new Set(['yun-yin.png', 'yun-yin-favicon.png'].map(filename => path.join(iconRoot, filename)))
+    const iconFingerprints = new Map([...iconSources].map(filePath => [filePath, fingerprintFile(filePath)] as const))
     const watchRoots = [
       // Watch each app root so changes to its HTML, manifest, and copied
       // Service Worker files trigger the same rebuild as source changes.
@@ -245,8 +249,6 @@ async function main() {
       path.join(import.meta.dir, '../frontend/player'),
       path.join(import.meta.dir, '../frontend/shared'),
       path.join(import.meta.dir, '../frontend/styles'),
-      // The build also copies these icons to both published app directories.
-      path.join(import.meta.dir, '../docs/assets'),
     ]
     let debounceTimer: Timer | null = null
     let buildInProgress = false
@@ -281,7 +283,33 @@ async function main() {
     for (const watchRoot of watchRoots) {
       if (fs.existsSync(watchRoot)) fs.watch(watchRoot, { recursive: true }, (_, f) => onChange(f))
     }
+    // On macOS, copying an APFS-cloned icon into public/ can also emit a
+    // recursive-watch event for the source path. Ignore those unless its
+    // content actually changed, or the watch build would trigger itself forever.
+    if (fs.existsSync(iconRoot)) {
+      fs.watch(iconRoot, { recursive: true }, (_, filename) => {
+        const changedPaths = filename ? [path.resolve(iconRoot, String(filename))] : [...iconSources]
+        let sourceChanged = false
+        for (const filePath of changedPaths) {
+          if (!iconSources.has(filePath)) continue
+          const fingerprint = fingerprintFile(filePath)
+          if (fingerprint === iconFingerprints.get(filePath)) continue
+          iconFingerprints.set(filePath, fingerprint)
+          sourceChanged = true
+        }
+        if (sourceChanged) onChange(filename)
+      })
+    }
     console.log('[Bun Bundler] Watching for changes in frontend/ ...')
+  }
+}
+
+function fingerprintFile(filePath: string): string | null {
+  try {
+    return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
   }
 }
 
