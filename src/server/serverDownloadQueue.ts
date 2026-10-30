@@ -208,11 +208,11 @@ const getTaskIdentity = (
   >,
 ) => {
   const songInfo = task.songInfo || {}
+  const source = String(songInfo.source || songInfo.meta?.source || 'unknown').trim() || 'unknown'
   const normalizedSongId = fileCache.normalizeSongId(songInfo)
   const requestedQuality = String(task.requestedQuality || task.quality || 'unknown')
-  if (normalizedSongId) return `${task.username}:${normalizedSongId}:${requestedQuality}`
+  if (normalizedSongId) return `${task.username}:${source}:${normalizedSongId}:${requestedQuality}`
 
-  const source = String(songInfo.source || songInfo.meta?.source || 'unknown')
   const name = String(songInfo.name || songInfo.meta?.songName || '')
   const singer = String(songInfo.singer || songInfo.meta?.singerName || '')
   const album = String(songInfo.albumName || songInfo.meta?.albumName || '')

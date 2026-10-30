@@ -21,6 +21,30 @@ import { memoryCacheBudgets } from './resourceBudget'
 import { getMusicTagNative } from './musicTagNative'
 import { walkCacheFilesAsync } from './cacheFileWalker'
 
+/** Install a fully written staging file without replacing existing user data. */
+const linkFileWithoutOverwrite = (
+  sourcePath: string,
+  targetPath: string,
+  callback: (error: NodeJS.ErrnoException | null) => void,
+): void => {
+  fs.link(sourcePath, targetPath, error => {
+    if (error) {
+      callback(error)
+      return
+    }
+    fs.unlink(sourcePath, unlinkError => {
+      if (!unlinkError) {
+        callback(null)
+        return
+      }
+      fs.unlink(targetPath, cleanupError => {
+        if (cleanupError) console.error('[FileCache] Failed to roll back staged file link:', cleanupError)
+        callback(unlinkError)
+      })
+    })
+  })
+}
+
 // --- Cache Naming Patterns ---
 export const CACHE_NAMING_PATTERNS = {
   STANDARD: 'standard', // {Name}_-_{Singer}_-_{Source}_-_{ID}_-_{Quality}
@@ -1183,20 +1207,18 @@ const moveFileNoOverwriteSync = (src: string, dst: string) => {
 /**
  * 规范化歌曲 ID：确保带上 source 前缀，与索引中的 Key 保持一致
  */
-export const normalizeSongId = (songInfo: any): string => {
-  let id = String(songInfo?.songmid || songInfo?.songId || songInfo?.id || '')
-  const source = String(songInfo?.source || 'unknown')
-  if (id && !id.includes('_') && source !== 'unknown') {
-    id = `${source}_${id}`
-  }
-  return id
-}
-
 const normalizeSongIdValue = (value: unknown, source: string) => {
   const id = String(value || '').trim()
   if (!id) return ''
-  if (id.includes('_') || source === 'unknown') return id
-  return `${source}_${id}`
+  const normalizedSource = String(source || 'unknown').trim() || 'unknown'
+  if (normalizedSource === 'unknown' || id.startsWith(`${normalizedSource}_`)) return id
+  return `${normalizedSource}_${id}`
+}
+
+export const normalizeSongId = (songInfo: any): string => {
+  const id = String(songInfo?.songmid || songInfo?.songId || songInfo?.id || '')
+  const source = String(songInfo?.source || songInfo?.meta?.source || 'unknown')
+  return normalizeSongIdValue(id, source)
 }
 
 /**
@@ -1217,19 +1239,30 @@ export const getSongIdCandidates = (songInfo: any): string[] => {
     const normalized = normalizeSongIdValue(value, valueSource)
     if (normalized && !candidates.includes(normalized)) candidates.push(normalized)
   }
+  const addLegacyAlias = (value: unknown, valueSource = source) => {
+    const raw = String(value || '').trim()
+    if (!raw || valueSource === 'unknown' || raw.startsWith(`${valueSource}_`)) return
+    if (!candidates.includes(raw)) candidates.push(raw)
+  }
 
-  // Preserve the exact historical primary ID first.
+  // Canonical source-prefixed IDs avoid collisions when provider IDs contain underscores.
   add(normalizeSongId(songInfo), 'unknown')
   add(songInfo.songmid)
+  addLegacyAlias(songInfo.songmid)
   add(songInfo.songId)
+  addLegacyAlias(songInfo.songId)
   add(songInfo.id)
+  addLegacyAlias(songInfo.id)
 
   const meta = songInfo.meta
   if (meta && typeof meta === 'object') {
     const metaSource = String(meta.source || source).trim() || source
     add(meta.songmid, metaSource)
+    addLegacyAlias(meta.songmid, metaSource)
     add(meta.songId, metaSource)
+    addLegacyAlias(meta.songId, metaSource)
     add(meta.id, metaSource)
+    addLegacyAlias(meta.id, metaSource)
   }
 
   return candidates
@@ -1549,7 +1582,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
 
         if (!songId) continue
         // Normalize ID
-        const normalizedId = songId.includes('_') ? songId : `${source || 'unknown'}_${songId}`
+        const normalizedId = normalizeSongIdValue(songId, source || 'unknown')
 
         // Read each audio directory once per sync. This keeps legacy extension
         // casing support without synchronously rescanning it for every song.
@@ -1575,6 +1608,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
 
         const needsCoverCheck =
           !existing ||
+          existing.id !== normalizedId ||
           existing.coverCheckedVersion !== COVER_CHECK_VERSION ||
           existing.coverCheckedMtime !== stats.mtimeMs ||
           existing.coverCheckedSize !== stats.size ||
@@ -1599,6 +1633,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
         ) {
           itemChanged = true
           if (existing) {
+            existing.id = normalizedId
             existing.size = stats.size
             existing.mtime = stats.mtimeMs
             existing.hasLyric = hasLyricOnDisk
@@ -2510,6 +2545,9 @@ export const checkCache = (
   try {
     const ids = getSongIdCandidates(songInfo)
     const id = ids[0] || normalizeSongId(songInfo)
+    const requestedSource = String(songInfo.source || songInfo.meta?.source || 'unknown')
+      .trim()
+      .toLowerCase()
     const quality = songInfo.quality || 'unknown'
     const normalizedUsername = normalizeCacheUsername(username)
     const candidateUsernames = normalizedUsername === '_open' ? ['_open'] : [normalizedUsername, '_open']
@@ -2528,6 +2566,16 @@ export const checkCache = (
           for (const candidateId of ids) {
             const cached = indexManager.get(targetUser, candidateId, folder, quality, useExact, location)
             if (cached) {
+              // Legacy indexes used an unprefixed raw ID whenever it contained
+              // an underscore. Only accept that alias from the same provider.
+              if (
+                candidateId !== id &&
+                requestedSource !== 'unknown' &&
+                String(cached.source || 'unknown')
+                  .trim()
+                  .toLowerCase() !== requestedSource
+              )
+                continue
               // 二次校验：exactQuality 模式下确保音质匹配
               if (useExact && quality && cached.quality !== quality) continue
               // 下载完成后还可能进入标签、封面和歌词后处理阶段。此时索引已经
@@ -3532,7 +3580,7 @@ export const downloadAndCache = async (
               unbindActualProgress = bindCacheProgress(username, normalizeSongId(songInfo), actualQuality, progressKey)
             const finalBaseName = getFileName(songInfo, actualQuality, isOnlyDownload, username)
             const finalPath = path.join(dir, finalBaseName + ext)
-            fs.rename(tempPath, finalPath, async err => {
+            linkFileWithoutOverwrite(tempPath, finalPath, async err => {
               if (err) {
                 releasePostProcess?.()
                 fs.unlink(tempPath, () => {})

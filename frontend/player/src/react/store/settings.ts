@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { playerApi, persistLegacySettings, readLegacySettings } from '../api'
-import { getSessionGeneration, getSessionScope } from '../session'
+import { getSessionGeneration, getSessionScope, scopedStorageKey } from '../session'
 import { usePlaybackStore } from './playback'
 import { applyAppearance, DEFAULT_SETTINGS, type PlayerSettings } from './shared'
 import { readThemePreferences, updateThemePreferences } from '../../../../shared/src/theme'
@@ -89,6 +89,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', event => {
+    if (event.key === scopedStorageKey('lx_settings')) {
+      settingsRevision += 1
+      const settings = withSharedAppearance(sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS)))
+      useSettingsStore.setState({ settings })
+      applyAppearance(settings)
+      usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
+      return
+    }
     if (event.key !== 'lx_settings') return
     const settings = {
       ...useSettingsStore.getState().settings,
