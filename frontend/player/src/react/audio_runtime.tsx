@@ -13,7 +13,7 @@ import { songAlbum, songArtist, songImage, songKey, songTitle, type Song } from 
 import { safeImageUrl } from '../../../shared/src/runtime'
 import { emitPlaybackService } from './playback_service'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl, parseCachePlaybackUrl } from './media_url'
-import { readMediaClock, resolveMediaClock, type SeekHold } from './media_clock'
+import { beginSeek, isSeekSettled, readMediaClock, resolveMediaClock, type SeekHold } from './media_clock'
 import { getSessionGeneration } from './session'
 import { clearPlayerPerformanceMark, markPlayerPerformance, measurePlayerPerformance } from './performance'
 
@@ -39,6 +39,8 @@ const pendingSongUrlRequests = new Map<string, PendingSongUrlRequest>()
 const SONG_URL_CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CACHED_SONG_URLS = 16
 const CROSSFADE_DURATION_MS = 300
+/** Store/React publish cadence for playback progress; shared by events and the timer. */
+const PROGRESS_EMIT_INTERVAL_MS = 200
 let songUrlCacheGeneration = getSessionGeneration()
 
 type ScreenWakeLockSentinel = {
@@ -322,9 +324,7 @@ export function AudioRuntime() {
     const audio = audioRef.current
     if (!audio || resolvedSongKey.current !== songId) return null
     if (audio.readyState < HTMLMediaElement.HAVE_METADATA) return null
-    const reading = readMediaClock(audio)
-    if (reading === null) return confirmedAudioPosition.current
-    const resolved = resolveMediaClock(reading, pendingSeek.current, Date.now())
+    const resolved = resolveMediaClock(readMediaClock(audio), pendingSeek.current, Date.now(), audio.seeking)
     pendingSeek.current = resolved.hold
     if (resolved.position !== null) confirmedAudioPosition.current = resolved.position
     return confirmedAudioPosition.current
@@ -517,7 +517,7 @@ export function AudioRuntime() {
         // Safari reports the pre-seek position for a while after a jump and can
         // keep `seeking` set even when playback already resumed, so the target
         // itself anchors the clock until the decoder catches up.
-        pendingSeek.current = { target, issuedAt: Date.now() }
+        pendingSeek.current = beginSeek(target, Date.now())
         confirmedAudioPosition.current = target
         audio.currentTime = target
       },
@@ -679,7 +679,7 @@ export function AudioRuntime() {
       // Safari can dispatch timeupdate more often than the footer needs. Keep
       // the imperative audio element smooth while limiting store, React and
       // synchronous localStorage work to a modest update rate.
-      if (now - lastProgressEmitAt.current >= 200) {
+      if (now - lastProgressEmitAt.current >= PROGRESS_EMIT_INTERVAL_MS) {
         lastProgressEmitAt.current = now
         emitPlaybackService({ type: 'progress', currentTime, duration })
         prefetchNext()
@@ -708,8 +708,17 @@ export function AudioRuntime() {
       // The decoder has committed, so its reading is authoritative again. The
       // seeked event must always publish, otherwise a seek that Safari reports
       // while `seeking` is still set would be dropped entirely.
-      pendingSeek.current = null
-      const currentTime = readMediaClock(audio) ?? confirmedAudioPosition.current
+      const reading = readMediaClock(audio)
+      // WebKit also fires `seeked` while still handing back the pre-seek
+      // position. Publishing that would snap the lyrics back for one frame, so
+      // keep the target anchor until the sampler sees the decoder arrive.
+      const hold = pendingSeek.current
+      const keepAnchor = hold !== null && !isSeekSettled(reading, hold)
+      // `seeked` itself is fresh evidence of a repositioning, so the grace window
+      // restarts here; otherwise a late `seeked` would expire it immediately and
+      // publish the stale reading anyway.
+      pendingSeek.current = keepAnchor ? { ...hold, refreshedAt: Date.now(), lastReading: null } : null
+      const currentTime = keepAnchor ? hold.target : (reading ?? confirmedAudioPosition.current)
       confirmedAudioPosition.current = currentTime
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       lastProgressEmitAt.current = Date.now()
@@ -740,7 +749,7 @@ export function AudioRuntime() {
         if (Math.abs(currentTime - resumeTime) > 0.05) {
           // Wait for seeked before publishing the restored position. WebKit can
           // expose the requested time while the decoder is still seeking.
-          pendingSeek.current = { target: resumeTime, issuedAt: Date.now() }
+          pendingSeek.current = beginSeek(resumeTime, Date.now())
           audio.currentTime = resumeTime
           return
         }
@@ -883,25 +892,24 @@ export function AudioRuntime() {
   }, [muted, volume])
 
   // Safari can throttle or skip `timeupdate` around a FLAC seek, which froze the
-  // footer and the scrolling lyrics until the next event arrived. Sampling the
-  // same confirmed position every frame keeps both on the media clock.
+  // footer and the scrolling lyrics until the next event arrived. A 200ms timer
+  // matches the publish cadence exactly, so it costs one wake-up per update
+  // instead of one per display frame.
   useEffect(() => {
     if (!isPlaying) return
-    let frame = 0
     const tick = () => {
-      frame = window.requestAnimationFrame(tick)
       const audio = audioRef.current
       if (!audio || resolvedSongKey.current !== songId) return
       const now = Date.now()
-      if (now - lastProgressEmitAt.current < 200) return
+      if (now - lastProgressEmitAt.current < PROGRESS_EMIT_INTERVAL_MS) return
       const position = samplePosition()
       if (position === null) return
       lastProgressEmitAt.current = now
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       emitPlaybackService({ type: 'progress', currentTime: position, duration })
     }
-    frame = window.requestAnimationFrame(tick)
-    return () => window.cancelAnimationFrame(frame)
+    const timer = window.setInterval(tick, PROGRESS_EMIT_INTERVAL_MS)
+    return () => window.clearInterval(timer)
   }, [isPlaying, songId])
 
   useEffect(() => {
