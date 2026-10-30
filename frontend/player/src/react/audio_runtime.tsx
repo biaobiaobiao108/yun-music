@@ -769,6 +769,13 @@ export function AudioRuntime() {
         return
       }
       state.next()
+      const nextSong = usePlaybackStore.getState().currentSong
+      if (nextSong && songKey(nextSong) !== songId) {
+        // Flush the ended decoder before the next track can load into this element.
+        audio.pause()
+        audio.removeAttribute('src')
+        audio.load()
+      }
     }
     const reportPlaybackError = () => {
       if (settings.enableAutoDegradeQuality && currentSong && !currentSong.url) {
