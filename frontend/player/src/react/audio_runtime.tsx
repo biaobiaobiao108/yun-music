@@ -13,6 +13,7 @@ import { songAlbum, songArtist, songImage, songKey, songTitle, type Song } from 
 import { safeImageUrl } from '../../../shared/src/runtime'
 import { emitPlaybackService } from './playback_service'
 import { buildPlaybackUrl, normalizeCachePlaybackUrl, parseCachePlaybackUrl } from './media_url'
+import { readMediaClock, resolveMediaClock, type SeekHold } from './media_clock'
 import { getSessionGeneration } from './session'
 import { clearPlayerPerformanceMark, markPlayerPerformance, measurePlayerPerformance } from './performance'
 
@@ -230,6 +231,7 @@ export function AudioRuntime() {
   const playbackStatusKey = useRef('')
   const lastProgressEmitAt = useRef(0)
   const confirmedAudioPosition = useRef(0)
+  const pendingSeek = useRef<SeekHold | null>(null)
   const lastMediaSessionAt = useRef(0)
   const playbackTraceName = songId
     ? `yun-music:play:${encodeURIComponent(songId).slice(0, 120)}:${encodeURIComponent(quality)}`
@@ -313,6 +315,19 @@ export function AudioRuntime() {
     if (idleWindow.cancelIdleCallback) idleWindow.cancelIdleCallback(prefetchIdleHandle.current)
     else window.clearTimeout(prefetchIdleHandle.current)
     prefetchIdleHandle.current = null
+  }
+
+  /** Single reader for the lyric view, the footer and media session progress. */
+  const samplePosition = (): number | null => {
+    const audio = audioRef.current
+    if (!audio || resolvedSongKey.current !== songId) return null
+    if (audio.readyState < HTMLMediaElement.HAVE_METADATA) return null
+    const reading = readMediaClock(audio)
+    if (reading === null) return confirmedAudioPosition.current
+    const resolved = resolveMediaClock(reading, pendingSeek.current, Date.now())
+    pendingSeek.current = resolved.hold
+    if (resolved.position !== null) confirmedAudioPosition.current = resolved.position
+    return confirmedAudioPosition.current
   }
 
   useEffect(() => {
@@ -443,6 +458,7 @@ export function AudioRuntime() {
     playbackStatusKey.current = ''
     lastProgressEmitAt.current = 0
     confirmedAudioPosition.current = 0
+    pendingSeek.current = null
     lastMediaSessionAt.current = 0
     naturalFadeKey.current = ''
     cancelScheduledPrefetch()
@@ -487,12 +503,7 @@ export function AudioRuntime() {
         })
       },
       pause: () => audio.pause(),
-      position: () => {
-        if (resolvedSongKey.current !== songId || audio.readyState < HTMLMediaElement.HAVE_METADATA) return null
-        // WebKit exposes the requested currentTime before the seek has finished.
-        if (!audio.seeking) confirmedAudioPosition.current = Math.max(0, audio.currentTime)
-        return confirmedAudioPosition.current
-      },
+      position: () => samplePosition(),
       seek: time => {
         if (!Number.isFinite(time) || audio.readyState < HTMLMediaElement.HAVE_METADATA) return
         // A seek away from the outro must also cancel its in-flight volume fade.
@@ -502,8 +513,13 @@ export function AudioRuntime() {
           fadeFactor.current = 1
           syncAudioVolume()
         }
-        if (!audio.seeking) confirmedAudioPosition.current = Math.max(0, audio.currentTime)
-        audio.currentTime = Math.max(0, Number.isFinite(audio.duration) ? Math.min(time, audio.duration) : time)
+        const target = Math.max(0, Number.isFinite(audio.duration) ? Math.min(time, audio.duration) : time)
+        // Safari reports the pre-seek position for a while after a jump and can
+        // keep `seeking` set even when playback already resumed, so the target
+        // itself anchors the clock until the decoder catches up.
+        pendingSeek.current = { target, issuedAt: Date.now() }
+        confirmedAudioPosition.current = target
+        audio.currentTime = target
       },
       volume: next => {
         volumeTarget.current = next
@@ -635,9 +651,10 @@ export function AudioRuntime() {
       return nextSong
     }
     const onTime = () => {
-      if (resolvedSongKey.current !== songId || audio.seeking) return
-      const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
-      confirmedAudioPosition.current = currentTime
+      if (resolvedSongKey.current !== songId) return
+      // `timeupdate` is unreliable on Safari while a FLAC decode is repositioning,
+      // so the shared sampler owns the reading instead of the event.
+      const currentTime = samplePosition() ?? 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       if (settings.enableCrossfade && duration > 0 && currentTime < duration) {
         const nextSong = getCrossfadeNextSong()
@@ -687,9 +704,12 @@ export function AudioRuntime() {
       }
     }
     const onSeeked = () => {
-      if (resolvedSongKey.current !== songId || audio.seeking) return
-      // Final seek positions must bypass timeupdate throttling, including while paused.
-      const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      if (resolvedSongKey.current !== songId) return
+      // The decoder has committed, so its reading is authoritative again. The
+      // seeked event must always publish, otherwise a seek that Safari reports
+      // while `seeking` is still set would be dropped entirely.
+      pendingSeek.current = null
+      const currentTime = readMediaClock(audio) ?? confirmedAudioPosition.current
       confirmedAudioPosition.current = currentTime
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       lastProgressEmitAt.current = Date.now()
@@ -699,7 +719,8 @@ export function AudioRuntime() {
       if (resolvedSongKey.current !== songId) return
       const state = usePlaybackStore.getState()
       const resumeTime = state.currentTime
-      const currentTime = Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0
+      pendingSeek.current = null
+      const currentTime = readMediaClock(audio) ?? 0
       confirmedAudioPosition.current = currentTime
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       if (playbackTraceName) {
@@ -719,6 +740,7 @@ export function AudioRuntime() {
         if (Math.abs(currentTime - resumeTime) > 0.05) {
           // Wait for seeked before publishing the restored position. WebKit can
           // expose the requested time while the decoder is still seeking.
+          pendingSeek.current = { target: resumeTime, issuedAt: Date.now() }
           audio.currentTime = resumeTime
           return
         }
@@ -859,6 +881,28 @@ export function AudioRuntime() {
   useEffect(() => {
     if (!volumeAnimation.current) syncAudioVolume()
   }, [muted, volume])
+
+  // Safari can throttle or skip `timeupdate` around a FLAC seek, which froze the
+  // footer and the scrolling lyrics until the next event arrived. Sampling the
+  // same confirmed position every frame keeps both on the media clock.
+  useEffect(() => {
+    if (!isPlaying) return
+    let frame = 0
+    const tick = () => {
+      frame = window.requestAnimationFrame(tick)
+      const audio = audioRef.current
+      if (!audio || resolvedSongKey.current !== songId) return
+      const now = Date.now()
+      if (now - lastProgressEmitAt.current < 200) return
+      const position = samplePosition()
+      if (position === null) return
+      lastProgressEmitAt.current = now
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
+      emitPlaybackService({ type: 'progress', currentTime: position, duration })
+    }
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
+  }, [isPlaying, songId])
 
   useEffect(() => {
     if (settings.enableCrossfade || (!crossfadeTransition.current && !naturalFadeKey.current)) return
