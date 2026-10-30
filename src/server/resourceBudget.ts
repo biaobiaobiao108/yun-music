@@ -8,7 +8,9 @@ export const getWorkloadLimits = (containerLimit = getContainerMemoryLimit()) =>
     bufferedBytes: Math.max(8 * MiB, Math.min(64 * MiB, (containerLimit ?? 256 * MiB) / 4)),
     bufferedRequests: smallContainer ? 2 : 4,
     downloads: smallContainer ? 2 : 4,
-    mediaStreams: smallContainer ? 4 : 8,
+    // 中继流是带背压的透传，主要开销是上游连接数。8 条时两台设备同时播放就会
+    // 互相挤占，而单机浏览器自己就可能占满 6 条连接，因此留出两倍的余量。
+    mediaStreams: smallContainer ? 4 : 12,
     pendingRequests: 32,
     cacheBytes: Math.max(2 * MiB, Math.min(32 * MiB, (containerLimit ?? 256 * MiB) / 8)),
   }

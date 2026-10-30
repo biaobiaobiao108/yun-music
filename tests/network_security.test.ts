@@ -172,8 +172,9 @@ describe('Outbound URL network boundaries', () => {
       const remoteAddress = '203.0.113.247'
       const target = 'http://127.0.0.1/audio'
       const url = `http://localhost/api/music/download?url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`
+      // 中继的请求额度是 1200 条/10 分钟（连续补充），这里跑满一个桶即可。
       let limited = false
-      for (let attempt = 0; attempt < 300; attempt += 1) {
+      for (let attempt = 0; attempt < 1_500; attempt += 1) {
         const response = await router.handle(new Request(url), { remoteAddress })
         if (response.status === 429) {
           limited = true

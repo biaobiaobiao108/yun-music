@@ -158,12 +158,17 @@ const isExpectedDownloadAbort = (error: unknown, signal?: AbortSignal): boolean 
 
 export const isOpaqueBrowserProgressId = (id: string): boolean => /^(?:dl|server)_[A-Za-z0-9_-]{20,128}$/.test(id)
 
-const DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP = 4
-const DOWNLOAD_PROXY_MAX_TAGGING_PER_IP = 1
+// Safari/WebKit 对同源媒体会并发多条连接（HTTP/1.1 每主机 6 条），播放 FLAC
+// 时拖动进度条又会重开连接；并发额度若低于浏览器的连接池，第 5 条请求就会拿到
+// 429，表现为拖动后停播。这里给出高于连接池的余量，全局预算继续兜底。
+const DOWNLOAD_PROXY_MAX_ACTIVE_PER_IP = 8
+const DOWNLOAD_PROXY_MAX_TAGGING_PER_IP = 3
 const DOWNLOAD_PROXY_MAX_ACTIVE_GLOBAL = 64
 const DOWNLOAD_PROXY_BUDGET_WINDOW_MS = 10 * 60 * 1000
-const DOWNLOAD_PROXY_MAX_REQUESTS_PER_IP = 240
-const DOWNLOAD_PROXY_MAX_REQUESTS_GLOBAL = 1_200
+// 播放一首 FLAC 会产生多条 Range 请求，拖动一次通常是 1~2 条。240 条/10 分钟
+// （平均 0.4 条/秒）会先于字节额度耗尽，把正常的连续拖动判成异常流量。
+const DOWNLOAD_PROXY_MAX_REQUESTS_PER_IP = 1_200
+const DOWNLOAD_PROXY_MAX_REQUESTS_GLOBAL = 4_800
 const DOWNLOAD_PROXY_MAX_BYTES_PER_IP = 2 * 1024 * 1024 * 1024
 const DOWNLOAD_PROXY_MAX_BYTES_GLOBAL = 8 * 1024 * 1024 * 1024
 const DOWNLOAD_PROXY_MAX_BUDGET_CLIENTS = 10_000

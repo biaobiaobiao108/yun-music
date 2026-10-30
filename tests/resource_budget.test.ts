@@ -14,7 +14,7 @@ test('workload and cache ceilings tighten for small container memory limits', ()
   const mib = 1024 * 1024
   const large = getWorkloadLimits(1024 * mib)
   const small = getWorkloadLimits(128 * mib)
-  expect(large).toMatchObject({ bufferedBytes: 64 * mib, cacheBytes: 32 * mib, downloads: 4, mediaStreams: 8 })
+  expect(large).toMatchObject({ bufferedBytes: 64 * mib, cacheBytes: 32 * mib, downloads: 4, mediaStreams: 12 })
   expect(small).toMatchObject({ bufferedBytes: 32 * mib, cacheBytes: 16 * mib, downloads: 2, mediaStreams: 4 })
   expect(Object.values(memoryCacheBudgets).reduce((total, bytes) => total + bytes, 0)).toBeLessThanOrEqual(32 * mib)
 })
