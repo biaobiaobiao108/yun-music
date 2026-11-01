@@ -22,7 +22,7 @@ import { getMusicTagNative } from './musicTagNative'
 import { walkCacheFilesAsync } from './cacheFileWalker'
 
 /** Install a fully written staging file without replacing existing user data. */
-const linkFileWithoutOverwrite = (
+export const linkFileWithoutOverwrite = (
   sourcePath: string,
   targetPath: string,
   callback: (error: NodeJS.ErrnoException | null) => void,
@@ -33,9 +33,11 @@ const linkFileWithoutOverwrite = (
       fs.unlinkSync(sourcePath)
       callback(null)
     } catch (copyError: any) {
-      try {
-        fs.unlinkSync(targetPath)
-      } catch {}
+      if (copyError?.code !== 'EEXIST') {
+        try {
+          fs.unlinkSync(targetPath)
+        } catch {}
+      }
       callback(copyError)
     }
   }

@@ -1664,6 +1664,72 @@ describe('File Cache Path Traversal Defense', () => {
   })
 })
 
+describe('linkFileWithoutOverwrite', () => {
+  it('does not unlink existing destination file on copy fallback EEXIST', async () => {
+    const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'link-test-'))
+    const sourceFile = path.join(testDir, 'staged.tmp')
+    const targetFile = path.join(testDir, 'final.mp3')
+
+    fs.writeFileSync(sourceFile, 'new-staged-content')
+    fs.writeFileSync(targetFile, 'existing-audio-content')
+
+    const originalLink = fs.link
+    try {
+      ;(fs as any).link = (_src: string, _dst: string, cb: (err: any) => void) => {
+        const err: any = new Error('Cross-device link')
+        err.code = 'EXDEV'
+        cb(err)
+      }
+
+      const resultErr = await new Promise<any>(resolve => {
+        fileCache.linkFileWithoutOverwrite(sourceFile, targetFile, err => {
+          resolve(err)
+        })
+      })
+
+      expect(resultErr).toBeTruthy()
+      expect(resultErr.code).toBe('EEXIST')
+      expect(fs.existsSync(targetFile)).toBe(true)
+      expect(fs.readFileSync(targetFile, 'utf8')).toBe('existing-audio-content')
+      expect(fs.existsSync(sourceFile)).toBe(true)
+    } finally {
+      ;(fs as any).link = originalLink
+      fs.rmSync(testDir, { recursive: true, force: true })
+    }
+  })
+
+  it('successfully copies and unlinks source when fs.link encounters EXDEV/EINVAL and target does not exist', async () => {
+    const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'link-test-'))
+    const sourceFile = path.join(testDir, 'staged.tmp')
+    const targetFile = path.join(testDir, 'final.mp3')
+
+    fs.writeFileSync(sourceFile, 'new-staged-content')
+
+    const originalLink = fs.link
+    try {
+      ;(fs as any).link = (_src: string, _dst: string, cb: (err: any) => void) => {
+        const err: any = new Error('Cross-device link')
+        err.code = 'EXDEV'
+        cb(err)
+      }
+
+      const resultErr = await new Promise<any>(resolve => {
+        fileCache.linkFileWithoutOverwrite(sourceFile, targetFile, err => {
+          resolve(err)
+        })
+      })
+
+      expect(resultErr).toBeNull()
+      expect(fs.existsSync(targetFile)).toBe(true)
+      expect(fs.readFileSync(targetFile, 'utf8')).toBe('new-staged-content')
+      expect(fs.existsSync(sourceFile)).toBe(false)
+    } finally {
+      ;(fs as any).link = originalLink
+      fs.rmSync(testDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('File Cache Progress Lifecycle', () => {
   it('expires terminal progress entries through one bounded cleanup path', () => {
     const now = Date.now()
