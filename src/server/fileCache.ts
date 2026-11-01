@@ -27,8 +27,25 @@ const linkFileWithoutOverwrite = (
   targetPath: string,
   callback: (error: NodeJS.ErrnoException | null) => void,
 ): void => {
+  const copyFallback = () => {
+    try {
+      fs.copyFileSync(sourcePath, targetPath, fs.constants.COPYFILE_EXCL)
+      fs.unlinkSync(sourcePath)
+      callback(null)
+    } catch (copyError: any) {
+      try {
+        fs.unlinkSync(targetPath)
+      } catch {}
+      callback(copyError)
+    }
+  }
+
   fs.link(sourcePath, targetPath, error => {
     if (error) {
+      if (error.code === 'EXDEV' || error.code === 'EINVAL') {
+        copyFallback()
+        return
+      }
       callback(error)
       return
     }
@@ -1158,22 +1175,6 @@ const ensureDir = (username?: string, isOnlyDownload?: boolean) => {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
   }
   return dir
-}
-
-// Safe rename: try rename, fall back to copy+unlink if rename fails (cross-device, permissions, etc.)
-const safeRenameSync = (src: string, dst: string) => {
-  try {
-    fs.renameSync(src, dst)
-    return true
-  } catch (err) {
-    try {
-      fs.copyFileSync(src, dst)
-      fs.unlinkSync(src)
-      return true
-    } catch (err2) {
-      throw err // keep original error context
-    }
-  }
 }
 
 /** Move one file without ever replacing an existing destination. */
@@ -4394,6 +4395,23 @@ export const checkAndCleanupCache = async (username?: string) => {
   const config = (global as any).lx.config
   if (!config || !config['user.enableCacheSizeLimit']) return
   const normalizedUsername = normalizeCacheUsername(username)
+
+  // 清理超时的孤儿临时文件 (.tmp)，无需等待超出容量限制
+  for (const location of getCacheLocations()) {
+    const dir = getCacheDir(normalizedUsername, false, location, false)
+    if (!fs.existsSync(dir)) continue
+    for (const filePath of getCacheFilesRecursively(dir)) {
+      if (filePath.endsWith('.tmp')) {
+        try {
+          const fileStat = fs.statSync(filePath)
+          if (Date.now() - fileStat.mtime.getTime() > 3600_000) {
+            fs.unlinkSync(filePath)
+          }
+        } catch {}
+      }
+    }
+  }
+
   scheduleCacheIndexSync(normalizedUsername)
   const stats = await scanCacheStatsAsync(normalizedUsername)
   const cacheSize = stats.cache?.totalSize ?? 0
@@ -4451,15 +4469,8 @@ export const checkAndCleanupCache = async (username?: string) => {
     }
 
     // 没有索引的历史文件也要纳入清理，并按从未播放处理。
-    // 同时清理已超时的孤儿临时文件 (.tmp)。
     for (const filePath of getCacheFilesRecursively(dir)) {
       if (filePath.endsWith('.tmp')) {
-        try {
-          const fileStat = fs.statSync(filePath)
-          if (Date.now() - fileStat.mtime.getTime() > 3600_000) {
-            fs.unlinkSync(filePath)
-          }
-        } catch {}
         continue
       }
       if (indexedFiles.has(filePath)) continue
@@ -4552,7 +4563,6 @@ export const switchFolder = async (
     }
 
     if (!sourceFolder || !item) {
-      console.log(`[FileCache][DEBUG] switchFolder: not found in indexes`, { filename, requestedTargetFolder })
       failCount++
       continue
     }
@@ -4589,16 +4599,7 @@ export const switchFolder = async (
     }
 
     try {
-      console.log(`[FileCache][DEBUG] switchFolder start`, {
-        filename,
-        sourceFolder,
-        targetFolder,
-        sourcePath,
-        targetPath,
-      })
       const srcExists = fs.existsSync(sourcePath)
-      const tgtExists = fs.existsSync(targetPath)
-      console.log(`[FileCache][DEBUG] existence`, { filename, srcExists, tgtExists })
 
       if (srcExists) {
         // Ensure target directory exists (including any nested subfolders)
@@ -4668,9 +4669,8 @@ export const switchFolder = async (
 
         // Move audio file
         try {
-          safeRenameSync(sourcePath, targetPath)
+          moveFileNoOverwriteSync(sourcePath, targetPath)
           cacheChanged = true
-          console.log(`[FileCache][DEBUG] moved audio`, { filename, sourcePath, targetPath })
         } catch (moveErr) {
           const errMsg = moveErr instanceof Error ? moveErr.stack : String(moveErr)
           console.error(`[FileCache][ERROR] move audio failed for ${filename}:`, errMsg)
@@ -4685,7 +4685,6 @@ export const switchFolder = async (
         if (shouldMoveLyric && sourceLrcPath && targetLrcPath) {
           try {
             moveFileNoOverwriteSync(sourceLrcPath, targetLrcPath)
-            console.log(`[FileCache][DEBUG] moved lyric`, { filename, sourceLrcPath, targetLrcPath })
           } catch (lrErr) {
             const errMsg = lrErr instanceof Error ? lrErr.stack : String(lrErr)
             console.error(`[FileCache][ERROR] move lyric failed for ${filename}:`, errMsg)
@@ -4722,14 +4721,12 @@ export const switchFolder = async (
 
         // Update Index
         const removed = indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLocation)
-        console.log(`[FileCache][DEBUG] index remove result`, { filename, removed })
         item.folder = targetFolder
         indexManager.update(normalizedUsername, item, targetFolder, sourceLocation)
         cacheChanged = true
         successCount++
         moved.push({ filename, from: sourceFolder, to: targetFolder })
       } else {
-        console.log(`[FileCache][DEBUG] source missing`, { filename, sourcePath })
         failCount++
       }
     } catch (e) {
@@ -4960,7 +4957,7 @@ export const switchBaseLocation = async (filenames: string[], username: string |
         }
 
         // Move audio file
-        safeRenameSync(sourcePath, targetPath)
+        moveFileNoOverwriteSync(sourcePath, targetPath)
         movedAudio = true
 
         // Move lyrics
