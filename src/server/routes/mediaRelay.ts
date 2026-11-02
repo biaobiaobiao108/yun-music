@@ -39,6 +39,24 @@ const upstreamHttpsAgent = new https.Agent({
 const getUpstreamAgent = (protocol: string): http.Agent | https.Agent =>
   protocol === 'https:' ? upstreamHttpsAgent : upstreamHttpAgent
 
+const INFERRED_AUDIO_TYPES: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
+  '.aac': 'audio/aac',
+  '.opus': 'audio/opus',
+}
+
+type RelayRedirectCacheEntry = {
+  finalUrl: string
+  expiresAt: number
+}
+const relayRedirectCache = new Map<string, RelayRedirectCacheEntry>()
+const RELAY_REDIRECT_CACHE_TTL_MS = 60_000
+const MAX_RELAY_REDIRECT_CACHE_ENTRIES = 256
+
 /** Own the slot through downstream consumption, including small prefetched responses. */
 const completeWhenConsumed = (
   stream: ReadableStream<Uint8Array>,
@@ -398,7 +416,9 @@ export const createDownloadProxyRouter = (): Router => {
             const proxyReq = lib.request(targetUrl, options, (proxyRes: any) => {
               activeProxyResponse = proxyRes
               if (proxyAgent) proxyRes.once('close', () => proxyAgent.destroy())
-              proxyRes.setTimeout?.(30_000, () => proxyRes.destroy(new Error('Remote response timed out')))
+              if (!isInline || isTaggingMode) {
+                proxyRes.setTimeout?.(30_000, () => proxyRes.destroy(new Error('Remote response timed out')))
+              }
               if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode)) {
                 const location = proxyRes.headers.location
                 if (location) {
@@ -407,8 +427,18 @@ export const createDownloadProxyRouter = (): Router => {
                   proxyRes.destroy()
                   try {
                     const nextUrl = new URL(location, parsedUrl).href
+                    relayRedirectCache.set(urlStr, {
+                      finalUrl: nextUrl,
+                      expiresAt: Date.now() + RELAY_REDIRECT_CACHE_TTL_MS,
+                    })
+                    while (relayRedirectCache.size > MAX_RELAY_REDIRECT_CACHE_ENTRIES) {
+                      const oldest = relayRedirectCache.keys().next().value
+                      if (!oldest) break
+                      relayRedirectCache.delete(oldest)
+                    }
                     void doFetch(nextUrl, attempt + 1)
                   } catch {
+                    relayRedirectCache.delete(urlStr)
                     settleResponse(ctx.fail(502, '远程地址跳转目标不合法'))
                   }
                   return
@@ -426,10 +456,32 @@ export const createDownloadProxyRouter = (): Router => {
                 .split(';')[0]
                 .trim()
                 .toLowerCase()
-              const safeInlineType =
+              let safeInlineType =
                 /^(audio|video)\/[a-z0-9.+-]+$/.test(remoteType) ||
                 /^image\/(jpeg|png|gif|webp|avif|bmp)$/.test(remoteType)
-              const contentType = safeInlineType ? remoteType : 'application/octet-stream'
+              let contentType = safeInlineType ? remoteType : 'application/octet-stream'
+
+              if (
+                isInline &&
+                !safeInlineType &&
+                (!remoteType || remoteType === 'application/octet-stream' || remoteType === 'binary/octet-stream')
+              ) {
+                const requestedFilename = ctx.query.get('filename')
+                if (requestedFilename) {
+                  const ext = path.extname(requestedFilename).toLowerCase()
+                  if (INFERRED_AUDIO_TYPES[ext]) {
+                    contentType = INFERRED_AUDIO_TYPES[ext]
+                    safeInlineType = true
+                  }
+                }
+              }
+
+              if (targetUrl !== urlStr && (proxyRes.statusCode === 200 || proxyRes.statusCode === 206)) {
+                relayRedirectCache.set(urlStr, {
+                  finalUrl: targetUrl,
+                  expiresAt: Date.now() + RELAY_REDIRECT_CACHE_TTL_MS,
+                })
+              }
 
               const headers: Record<string, string> = {
                 'Content-Type': contentType,
@@ -440,6 +492,11 @@ export const createDownloadProxyRouter = (): Router => {
               if (proxyRes.headers['content-length']) headers['Content-Length'] = proxyRes.headers['content-length']
               if (proxyRes.headers['accept-ranges']) headers['Accept-Ranges'] = proxyRes.headers['accept-ranges']
               if (proxyRes.headers['content-range']) headers['Content-Range'] = proxyRes.headers['content-range']
+
+              if (isInline && safeInlineType) {
+                headers['X-Accel-Buffering'] = 'no'
+                if (!headers['Accept-Ranges']) headers['Accept-Ranges'] = 'bytes'
+              }
 
               if (!isInline || !safeInlineType) {
                 headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(filename)}"`
@@ -698,6 +755,7 @@ export const createDownloadProxyRouter = (): Router => {
             proxyReq.setTimeout?.(30_000, () => proxyReq.destroy(new Error('Remote request timed out')))
 
             proxyReq.on('error', (err: any) => {
+              relayRedirectCache.delete(urlStr)
               if (isExpectedDownloadAbort(err, ctx.request.signal)) {
                 finishExpectedAbort()
                 return
@@ -708,6 +766,7 @@ export const createDownloadProxyRouter = (): Router => {
 
             proxyReq.end()
           } catch (err: any) {
+            relayRedirectCache.delete(urlStr)
             if (isExpectedDownloadAbort(err, ctx.request.signal)) {
               finishExpectedAbort()
               return
@@ -717,7 +776,13 @@ export const createDownloadProxyRouter = (): Router => {
           }
         }
 
-        void doFetch(urlStr, 0)
+        const cachedRedirect = relayRedirectCache.get(urlStr)
+        let initialFetchUrl = urlStr
+        if (cachedRedirect && cachedRedirect.expiresAt > Date.now()) {
+          initialFetchUrl = cachedRedirect.finalUrl
+        }
+
+        void doFetch(initialFetchUrl, 0)
       } catch (err: any) {
         if (isExpectedDownloadAbort(err, ctx.request.signal)) {
           finishExpectedAbort()

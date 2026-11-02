@@ -262,7 +262,8 @@ export function AudioRuntime() {
   const animateVolumeFactor = (target: number, duration: number) =>
     new Promise<void>(resolve => {
       const audio = audioRef.current
-      if (!audio || duration <= 0) {
+      const isBackground = typeof document !== 'undefined' && document.hidden
+      if (!audio || duration <= 0 || isBackground) {
         fadeFactor.current = target
         syncAudioVolume()
         resolve()
@@ -395,7 +396,7 @@ export function AudioRuntime() {
       !state.currentSong ||
       !Number.isFinite(duration) ||
       duration <= 0 ||
-      state.currentTime / duration < 0.8
+      state.currentTime / duration < 0.75
     )
       return
     if (state.queue.length <= 1) return
@@ -433,6 +434,7 @@ export function AudioRuntime() {
     if (cachedUrl) prefetchedUrls.delete(key)
     if (pendingSongUrlRequests.has(key)) return
 
+    const isBackground = typeof document !== 'undefined' && document.hidden
     const runPrefetch = () => {
       prefetchIdleHandle.current = null
       const controller = new AbortController()
@@ -446,10 +448,10 @@ export function AudioRuntime() {
     const idleWindow = window as Window & {
       requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
     }
-    if (idleWindow.requestIdleCallback) {
-      prefetchIdleHandle.current = idleWindow.requestIdleCallback(runPrefetch, { timeout: 2500 })
+    if (isBackground || !idleWindow.requestIdleCallback) {
+      prefetchIdleHandle.current = window.setTimeout(runPrefetch, 0)
     } else {
-      prefetchIdleHandle.current = window.setTimeout(runPrefetch, 180)
+      prefetchIdleHandle.current = idleWindow.requestIdleCallback(runPrefetch, { timeout: 1500 })
     }
   }
 
@@ -475,12 +477,11 @@ export function AudioRuntime() {
         try {
           if (!audio.src) {
             audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+            audio.loop = true
           }
           const p = audio.play()
           if (p !== undefined) {
-            p.then(() => {
-              if (audio.src.startsWith('data:')) audio.pause()
-            }).catch(() => {})
+            p.catch(() => {})
           }
         } catch {}
       },
@@ -656,7 +657,8 @@ export function AudioRuntime() {
       // so the shared sampler owns the reading instead of the event.
       const currentTime = samplePosition() ?? 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
-      if (settings.enableCrossfade && duration > 0 && currentTime < duration) {
+      const isBackground = typeof document !== 'undefined' && document.hidden
+      if (settings.enableCrossfade && duration > 0 && currentTime < duration && !isBackground) {
         const nextSong = getCrossfadeNextSong()
         const remaining = duration - currentTime
         if (nextSong && songKey(nextSong) !== songId && remaining <= CROSSFADE_DURATION_MS / 1000 && remaining > 0) {
@@ -771,10 +773,13 @@ export function AudioRuntime() {
       state.next()
       const nextSong = usePlaybackStore.getState().currentSong
       if (nextSong && songKey(nextSong) !== songId) {
-        // Flush the ended decoder before the next track can load into this element.
-        audio.pause()
-        audio.removeAttribute('src')
-        audio.load()
+        // Keep the audio pipeline actively outputting silence so Safari does not
+        // suspend the background tab or reject autoplay for the upcoming track.
+        try {
+          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+          audio.loop = true
+          void audio.play()
+        } catch {}
       }
     }
     const reportPlaybackError = () => {
@@ -978,9 +983,10 @@ export function AudioRuntime() {
         if (cancelled || controller.signal.aborted) return
         const transition = crossfadeTransition.current
         const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
+        const isBackground = typeof document !== 'undefined' && document.hidden
         if (transition?.to === songId) {
           const state = usePlaybackStore.getState()
-          if (crossfadeEnabled && state.isPlaying) {
+          if (crossfadeEnabled && state.isPlaying && !isBackground) {
             if (audio.paused || audio.ended || fadeFactor.current <= 0) fadeFactor.current = 0
             else await animateVolumeFactor(0, CROSSFADE_DURATION_MS)
             if (cancelled || controller.signal.aborted) return
@@ -1002,7 +1008,7 @@ export function AudioRuntime() {
             }
           } else {
             cancelVolumeAnimation()
-            audio.pause()
+            if (!isBackground) audio.pause()
             crossfadeTransition.current = null
             crossfadeIncoming.current = false
             fadeFactor.current = 1
@@ -1022,6 +1028,7 @@ export function AudioRuntime() {
         }
         setResolvedUrl(result.url)
         resolvedSongKey.current = songId
+        audio.loop = false
         audio.src = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
         audio.load()
         if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
@@ -1091,9 +1098,11 @@ export function AudioRuntime() {
         crossfadeIncoming.current = false
         fadeFactor.current = 1
         syncAudioVolume()
-        audio.pause()
-        audio.removeAttribute('src')
-        audio.load()
+        if (!selectedSongKey || !state.isPlaying) {
+          audio.pause()
+          audio.removeAttribute('src')
+          audio.load()
+        }
       }
     }
   }, [
