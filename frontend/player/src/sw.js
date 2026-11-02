@@ -78,7 +78,8 @@ self.addEventListener('fetch', event => {
 
   // 2. 忽略所有音频请求、下载请求和 API 请求，让浏览器直接处理
   // 拦截下载会导致大文件占用 Cache 且单个失败可能引起 SW state 不良
-  const isApiOrAudio = url.pathname.includes('/api/') || url.href.match(/\.(mp3|flac|m4a|ogg|aac)(\?.*)?$/i)
+  const isApiOrAudio =
+    url.pathname.includes('/api/') || url.href.match(/\.(mp3|flac|m4a|ogg|aac|wav|opus|webm)(\?.*)?$/i)
 
   if (isApiOrAudio) {
     return // 直接 return 就不走 event.respondWith，相当于不拦截

@@ -665,7 +665,34 @@ export const createCacheRouter = (): Router => {
       })
     }
 
-    const contentType = bunFile.type || 'audio/mpeg'
+    const ext = path.extname(filePath).toLowerCase()
+    const inferredType =
+      ext === '.flac'
+        ? 'audio/flac'
+        : ext === '.m4a'
+          ? 'audio/mp4'
+          : ext === '.wav'
+            ? 'audio/wav'
+            : ext === '.aac'
+              ? 'audio/aac'
+              : ext === '.mp3'
+                ? 'audio/mpeg'
+                : ext === '.ogg'
+                  ? 'audio/ogg'
+                  : ext === '.opus'
+                    ? 'audio/opus'
+                    : undefined
+    const contentType =
+      inferredType ||
+      (bunFile.type === 'audio/x-flac'
+        ? 'audio/flac'
+        : bunFile.type === 'audio/x-m4a'
+          ? 'audio/mp4'
+          : bunFile.type === 'audio/x-wav'
+            ? 'audio/wav'
+            : bunFile.type === 'audio/x-aac'
+              ? 'audio/aac'
+              : bunFile.type || 'audio/mpeg')
 
     if (rangeHeader) {
       const match = rangeHeader.trim().match(/^bytes=(\d*)-(\d*)$/)

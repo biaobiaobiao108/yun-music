@@ -4110,6 +4110,7 @@ aside {
     display: inline-block;
     vertical-align: middle;
     user-select: none;
+    -webkit-user-select: none;
     cursor: pointer;
 }
 /* 继承布局 */
@@ -4341,6 +4342,7 @@ aside {
     font-size: 11px;
     line-height: 1.4;
     user-select: none;
+    -webkit-user-select: none;
     background-color: color-mix(in srgb, var(--c-500) 12%, var(--bg-panel));
     color: var(--c-600);
     border: 1px solid color-mix(in srgb, var(--c-500) 40%, transparent);
@@ -4404,6 +4406,7 @@ aside {
         opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
         transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     user-select: none;
+    -webkit-user-select: none;
 }
 
 @media (min-width: 768px) {
@@ -4811,6 +4814,7 @@ aside {
     line-height: 1;
     cursor: default;
     user-select: none;
+    -webkit-user-select: none;
     letter-spacing: -0.02em;
 }
 
@@ -6338,6 +6342,7 @@ body > .flex.flex-1.overflow-hidden.relative {
     border-bottom: 1px solid color-mix(in srgb, var(--border-main) 70%, transparent);
     background: color-mix(in srgb, var(--bg-panel) 58%, transparent);
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .react-immersive-lyrics-header h2 {
@@ -8021,6 +8026,7 @@ textarea:focus-visible {
     border: 0 !important;
     background: transparent !important;
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .react-immersive-header-label {
@@ -8044,6 +8050,7 @@ textarea:focus-visible {
     color: var(--app-text);
     cursor: pointer;
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .react-immersive-nav-button:hover,
@@ -8162,6 +8169,7 @@ textarea:focus-visible {
     background: transparent !important;
     box-shadow: none !important;
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     transform: none !important;
 }
 
@@ -8516,6 +8524,7 @@ textarea:focus-visible {
     color: var(--app-text);
     box-shadow: 0 1rem 2.8rem rgb(0 0 0 / 30%);
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .react-song-actions-popover-heading {
@@ -8860,6 +8869,7 @@ textarea:focus-visible {
     background: transparent !important;
     box-shadow: none !important;
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .react-immersive-footer .react-footer-controls {
@@ -12015,6 +12025,7 @@ textarea:focus-visible {
     border-radius: 0.9rem;
     background: transparent;
     user-select: none;
+    -webkit-user-select: none;
     transition:
         background-color var(--app-motion-fast, 140ms) ease,
         border-color var(--app-motion-fast, 140ms) ease,
@@ -12051,6 +12062,7 @@ textarea:focus-visible {
     cursor: pointer;
     text-align: left;
     user-select: none;
+    -webkit-user-select: none;
 }
 
 .react-queue-song:focus-visible {

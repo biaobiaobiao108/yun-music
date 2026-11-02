@@ -456,10 +456,20 @@ export const createDownloadProxyRouter = (): Router => {
                 .split(';')[0]
                 .trim()
                 .toLowerCase()
+              const normalizedRemoteType =
+                remoteType === 'audio/x-flac'
+                  ? 'audio/flac'
+                  : remoteType === 'audio/x-m4a'
+                    ? 'audio/mp4'
+                    : remoteType === 'audio/x-wav'
+                      ? 'audio/wav'
+                      : remoteType === 'audio/x-aac'
+                        ? 'audio/aac'
+                        : remoteType
               let safeInlineType =
-                /^(audio|video)\/[a-z0-9.+-]+$/.test(remoteType) ||
-                /^image\/(jpeg|png|gif|webp|avif|bmp)$/.test(remoteType)
-              let contentType = safeInlineType ? remoteType : 'application/octet-stream'
+                /^(audio|video)\/[a-z0-9.+-]+$/.test(normalizedRemoteType) ||
+                /^image\/(jpeg|png|gif|webp|avif|bmp)$/.test(normalizedRemoteType)
+              let contentType = safeInlineType ? normalizedRemoteType : 'application/octet-stream'
 
               if (
                 isInline &&
