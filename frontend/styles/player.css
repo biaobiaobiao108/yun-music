@@ -7965,66 +7965,33 @@ textarea:focus-visible {
 
 .react-artwork-equalizer-badge {
     position: absolute;
-    top: 0.45rem;
-    right: 0.45rem;
-    z-index: 2;
+    bottom: 0.55rem;
+    left: 0.55rem;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.25rem 0.38rem;
+    padding: 0.22rem 0.46rem;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--app-surface-solid) 92%, transparent);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    background: rgba(0, 0, 0, 0.52);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     pointer-events: none;
-}
-
-.react-artwork-play-button.is-current {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0) scale(1);
-    background: color-mix(in srgb, var(--app-surface-solid) 92%, transparent);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-}
-
-.react-artwork-btn-equalizer,
-.react-artwork-btn-icon {
-    grid-area: 1 / 1;
-    display: grid;
-    place-items: center;
     transition: opacity var(--app-motion-fast, 140ms) ease;
 }
 
-.react-artwork-play-button.is-current .react-artwork-btn-icon {
-    opacity: 0;
+.react-artwork-equalizer-badge .react-song-equalizer span {
+    background: #ffffff;
 }
 
-.react-artwork-play-button.is-current:hover,
-.react-artwork-card:hover .react-artwork-play-button.is-current {
-    background: var(--app-accent);
-    color: #ffffff;
+.react-artwork-equalizer-badge.is-paused {
+    opacity: 0.82;
 }
 
-.react-artwork-play-button.is-current:hover .react-artwork-btn-equalizer,
-.react-artwork-card:hover .react-artwork-play-button.is-current .react-artwork-btn-equalizer {
-    opacity: 0;
-}
-
-.react-artwork-play-button.is-current:hover .react-artwork-btn-icon,
-.react-artwork-card:hover .react-artwork-play-button.is-current .react-artwork-btn-icon {
-    opacity: 1;
-}
-
-.react-artwork-play-button.is-current:hover .react-artwork-btn-icon i,
-.react-artwork-card:hover .react-artwork-play-button.is-current .react-artwork-btn-icon i {
-    color: #ffffff;
-}
-
-.react-artwork-play-button.is-current .react-artwork-btn-icon i {
-    font-size: 0.9rem;
+.react-artwork-card.is-current .react-artwork-button strong {
+    color: var(--app-accent);
 }
 
 .react-song-index,

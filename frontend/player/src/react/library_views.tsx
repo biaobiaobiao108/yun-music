@@ -65,38 +65,30 @@ function ArtworkCard({
   }
 
   return (
-    <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''}`}>
+    <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''} ${isCurrent ? 'is-current' : ''}`}>
       <button type="button" className="react-artwork-button" onClick={handleCardClick}>
         <span className={`react-artwork-cover ${kind === 'artist' ? 'is-artist' : ''}`}>
           <SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} />
-          {isCurrent && !onPlay && (
-            <span className="react-artwork-equalizer-badge" aria-label={isPlaying ? '正在播放' : '已暂停'}>
-              <SongEqualizer size="sm" paused={!isPlaying} />
+          {isCurrent && (
+            <span
+              className={`react-artwork-equalizer-badge ${isPlaying ? 'is-playing' : 'is-paused'}`}
+              aria-label={isPlaying ? '正在播放' : '已暂停'}
+            >
+              <SongEqualizer size="xs" paused={!isPlaying} />
             </span>
           )}
         </span>
-        <strong>{title}</strong>
+        <strong className={isCurrent ? 'is-current-title' : ''}>{title}</strong>
         {subtitle != null && subtitle !== '' && <small>{subtitle}</small>}
       </button>
       {onPlay && (
         <button
           type="button"
-          className={`react-artwork-play-button ${isCurrent ? `is-current ${isPlaying ? 'is-playing' : 'is-paused'}` : ''}`}
-          aria-label={isCurrent ? (isPlaying ? `暂停 ${title}` : `继续播放 ${title}`) : `播放 ${title}`}
+          className="react-artwork-play-button"
+          aria-label={isCurrent && isPlaying ? `暂停 ${title}` : `播放 ${title}`}
           onClick={handlePlayButtonClick}
         >
-          {isCurrent ? (
-            <>
-              <span className="react-artwork-btn-equalizer">
-                <SongEqualizer size="sm" paused={!isPlaying} />
-              </span>
-              <span className="react-artwork-btn-icon">
-                <Icon name={isPlaying ? 'pause' : 'play'} />
-              </span>
-            </>
-          ) : (
-            <Icon name="play" />
-          )}
+          <Icon name={isCurrent && isPlaying ? 'pause' : 'play'} />
         </button>
       )}
     </article>
