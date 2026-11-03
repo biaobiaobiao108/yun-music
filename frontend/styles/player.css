@@ -9241,55 +9241,45 @@ textarea:focus-visible {
 }
 
 .react-entity-card,
-.react-playlist-card,
-.react-artwork-card {
+.react-playlist-card {
     animation: react-grid-item-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .react-entity-card:nth-child(1),
-.react-playlist-card:nth-child(1),
-.react-artwork-card:nth-child(1) {
+.react-playlist-card:nth-child(1) {
     animation-delay: 20ms;
 }
 .react-entity-card:nth-child(2),
-.react-playlist-card:nth-child(2),
-.react-artwork-card:nth-child(2) {
+.react-playlist-card:nth-child(2) {
     animation-delay: 40ms;
 }
 .react-entity-card:nth-child(3),
-.react-playlist-card:nth-child(3),
-.react-artwork-card:nth-child(3) {
+.react-playlist-card:nth-child(3) {
     animation-delay: 60ms;
 }
 .react-entity-card:nth-child(4),
-.react-playlist-card:nth-child(4),
-.react-artwork-card:nth-child(4) {
+.react-playlist-card:nth-child(4) {
     animation-delay: 80ms;
 }
 .react-entity-card:nth-child(5),
-.react-playlist-card:nth-child(5),
-.react-artwork-card:nth-child(5) {
+.react-playlist-card:nth-child(5) {
     animation-delay: 100ms;
 }
 .react-entity-card:nth-child(6),
-.react-playlist-card:nth-child(6),
-.react-artwork-card:nth-child(6) {
+.react-playlist-card:nth-child(6) {
     animation-delay: 120ms;
 }
 .react-entity-card:nth-child(7),
-.react-playlist-card:nth-child(7),
-.react-artwork-card:nth-child(7) {
+.react-playlist-card:nth-child(7) {
     animation-delay: 140ms;
 }
 .react-entity-card:nth-child(8),
-.react-playlist-card:nth-child(8),
-.react-artwork-card:nth-child(8) {
+.react-playlist-card:nth-child(8) {
     animation-delay: 160ms;
 }
 
 .react-entity-card:nth-child(n + 9),
-.react-playlist-card:nth-child(n + 9),
-.react-artwork-card:nth-child(n + 9) {
+.react-playlist-card:nth-child(n + 9) {
     animation: none;
 }
 
