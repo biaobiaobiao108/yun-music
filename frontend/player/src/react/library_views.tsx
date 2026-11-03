@@ -41,13 +41,35 @@ function ArtworkCard({
     kind === 'artist' ? String(song.songCount ?? song.count ?? '') : String(song.singer || song.artist || '专辑')
   const currentSong = usePlaybackStore(state => state.currentSong)
   const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const togglePlayback = usePlaybackStore(state => state.toggle)
   const isCurrent = Boolean(currentSong && sameSong(currentSong, song))
+
+  const handleCardClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.blur()
+    if (isCurrent && onPlay) {
+      togglePlayback()
+      return
+    }
+    const action = onOpen ?? onPlay
+    action?.()
+  }
+
+  const handlePlayButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    event.currentTarget.blur()
+    if (isCurrent) {
+      togglePlayback()
+      return
+    }
+    onPlay?.()
+  }
+
   return (
     <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''}`}>
-      <button type="button" className="react-artwork-button" onClick={onOpen ?? onPlay}>
+      <button type="button" className="react-artwork-button" onClick={handleCardClick}>
         <span className={`react-artwork-cover ${kind === 'artist' ? 'is-artist' : ''}`}>
           <SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} />
-          {isCurrent && (
+          {isCurrent && !onPlay && (
             <span className="react-artwork-equalizer-badge" aria-label={isPlaying ? '正在播放' : '已暂停'}>
               <SongEqualizer size="sm" paused={!isPlaying} />
             </span>
@@ -59,14 +81,22 @@ function ArtworkCard({
       {onPlay && (
         <button
           type="button"
-          className="react-artwork-play-button"
-          aria-label={`播放 ${title}`}
-          onClick={event => {
-            event.stopPropagation()
-            onPlay()
-          }}
+          className={`react-artwork-play-button ${isCurrent ? `is-current ${isPlaying ? 'is-playing' : 'is-paused'}` : ''}`}
+          aria-label={isCurrent ? (isPlaying ? `暂停 ${title}` : `继续播放 ${title}`) : `播放 ${title}`}
+          onClick={handlePlayButtonClick}
         >
-          <Icon name="play" />
+          {isCurrent ? (
+            <>
+              <span className="react-artwork-btn-equalizer">
+                <SongEqualizer size="sm" paused={!isPlaying} />
+              </span>
+              <span className="react-artwork-btn-icon">
+                <Icon name={isPlaying ? 'pause' : 'play'} />
+              </span>
+            </>
+          ) : (
+            <Icon name="play" />
+          )}
         </button>
       )}
     </article>

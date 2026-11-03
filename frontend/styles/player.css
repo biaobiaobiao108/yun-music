@@ -282,7 +282,7 @@ body.overlay-open > *:not(.skip-link) {
 }
 
 .react-artwork-card:hover .react-artwork-play-button,
-.react-artwork-card:focus-within .react-artwork-play-button {
+.react-artwork-play-button:focus-visible {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0) scale(1);
@@ -747,7 +747,7 @@ body {
 }
 
 .react-artwork-card:hover .react-artwork-play-button,
-.react-artwork-card:focus-within .react-artwork-play-button {
+.react-artwork-play-button:focus-visible {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0) scale(1);
@@ -7980,6 +7980,53 @@ textarea:focus-visible {
     pointer-events: none;
 }
 
+.react-artwork-play-button.is-current {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    background: color-mix(in srgb, var(--app-surface-solid) 92%, transparent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.react-artwork-btn-equalizer,
+.react-artwork-btn-icon {
+    grid-area: 1 / 1;
+    display: grid;
+    place-items: center;
+    transition: opacity var(--app-motion-fast, 140ms) ease;
+}
+
+.react-artwork-play-button.is-current .react-artwork-btn-icon {
+    opacity: 0;
+}
+
+.react-artwork-play-button.is-current:hover,
+.react-artwork-card:hover .react-artwork-play-button.is-current {
+    background: var(--app-accent);
+    color: #ffffff;
+}
+
+.react-artwork-play-button.is-current:hover .react-artwork-btn-equalizer,
+.react-artwork-card:hover .react-artwork-play-button.is-current .react-artwork-btn-equalizer {
+    opacity: 0;
+}
+
+.react-artwork-play-button.is-current:hover .react-artwork-btn-icon,
+.react-artwork-card:hover .react-artwork-play-button.is-current .react-artwork-btn-icon {
+    opacity: 1;
+}
+
+.react-artwork-play-button.is-current:hover .react-artwork-btn-icon i,
+.react-artwork-card:hover .react-artwork-play-button.is-current .react-artwork-btn-icon i {
+    color: #ffffff;
+}
+
+.react-artwork-play-button.is-current .react-artwork-btn-icon i {
+    font-size: 0.9rem;
+}
+
 .react-song-index,
 .react-song-duration,
 .react-song-size,
@@ -9480,7 +9527,7 @@ textarea:focus-visible {
 }
 
 .react-artwork-card:hover .react-artwork-play-button,
-.react-artwork-card:focus-within .react-artwork-play-button {
+.react-artwork-play-button:focus-visible {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0) scale(1);
