@@ -68,8 +68,21 @@ function VolumeControl({
   const displayedVolume = muted ? 0 : volume
   const icon = muted || displayedVolume === 0 ? 'volume-xmark' : displayedVolume < 0.5 ? 'volume-low' : 'volume-high'
   const volumeStyle = { '--volume': `${Math.round(displayedVolume * 100)}%` } as CSSProperties
+
+  const handleWheel = (event: React.WheelEvent) => {
+    event.preventDefault()
+    const delta = event.deltaY < 0 ? 0.05 : -0.05
+    const nextVolume = Math.min(1, Math.max(0, Math.round((displayedVolume + delta) * 100) / 100))
+    onVolumeChange(nextVolume)
+  }
+
   return (
-    <div ref={rootRef} className={`react-volume-control ${open ? 'is-open' : ''}`}>
+    <div
+      ref={rootRef}
+      className={`react-volume-control ${open ? 'is-open' : ''}`}
+      onWheel={handleWheel}
+      title="音量调节（支持鼠标滚轮在图标上快速调节）"
+    >
       {open && (
         <div
           id={popoverId}
@@ -110,6 +123,7 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
   const duration = usePlaybackStore(state => state.duration)
   const song = usePlaybackStore(state => (state.currentSong ? songKey(state.currentSong) : ''))
   const [preview, setPreview] = useState<number | null>(null)
+  const [hoverPosition, setHoverPosition] = useState<{ time: number; percent: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const previewFrame = useRef<number | null>(null)
   const pendingPreview = useRef<number | null>(null)
@@ -155,53 +169,72 @@ function PlayerProgressRow({ seek }: { seek: (time: number) => void }) {
       <span className="react-progress-time">
         <Time value={safeCurrentTime} />
       </span>
-      <input
-        ref={inputRef}
-        style={progressStyle}
-        type="range"
-        min="0"
-        max={safeDuration}
-        step="0.1"
-        value={safeCurrentTime}
-        disabled={!safeDuration}
-        onPointerDown={event => {
-          if (!event.isPrimary || event.button !== 0 || !safeDuration) return
-          // Own the pointer gesture entirely: native WebKit range tracking and
-          // explicit pointer capture must not compete for the same drag.
-          event.preventDefault()
-          event.currentTarget.focus({ preventScroll: true })
-          const { left, width } = event.currentTarget.getBoundingClientRect()
-          if (!width) return
-          drag.current = { pointerId: event.pointerId, left, width, duration: safeDuration, song }
-          event.currentTarget.setPointerCapture(event.pointerId)
-          setPreview(Math.min(1, Math.max(0, (event.clientX - left) / width)) * safeDuration)
-        }}
-        onPointerMove={event => {
-          const active = drag.current
-          if (!active || active.pointerId !== event.pointerId) return
-          if (event.pointerType === 'mouse' && event.buttons === 0) {
+      <div className="react-progress-track-wrap">
+        {hoverPosition && (
+          <div
+            className="react-progress-hover-tooltip"
+            style={{ left: `${hoverPosition.percent}%` }}
+            aria-hidden="true"
+          >
+            <Time value={hoverPosition.time} />
+          </div>
+        )}
+        <input
+          ref={inputRef}
+          style={progressStyle}
+          type="range"
+          min="0"
+          max={safeDuration}
+          step="0.1"
+          value={safeCurrentTime}
+          disabled={!safeDuration}
+          onPointerDown={event => {
+            if (!event.isPrimary || event.button !== 0 || !safeDuration) return
+            // Own the pointer gesture entirely: native WebKit range tracking and
+            // explicit pointer capture must not compete for the same drag.
+            event.preventDefault()
+            event.currentTarget.focus({ preventScroll: true })
+            const { left, width } = event.currentTarget.getBoundingClientRect()
+            if (!width) return
+            drag.current = { pointerId: event.pointerId, left, width, duration: safeDuration, song }
+            event.currentTarget.setPointerCapture(event.pointerId)
+            setPreview(Math.min(1, Math.max(0, (event.clientX - left) / width)) * safeDuration)
+          }}
+          onPointerMove={event => {
+            const active = drag.current
+            if (active && active.pointerId === event.pointerId) {
+              if (event.pointerType === 'mouse' && event.buttons === 0) {
+                cancelDrag()
+                return
+              }
+              queuePreview(Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration)
+            } else if (safeDuration && !active) {
+              const rect = event.currentTarget.getBoundingClientRect()
+              if (rect.width > 0) {
+                const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+                setHoverPosition({ time: ratio * safeDuration, percent: ratio * 100 })
+              }
+            }
+          }}
+          onPointerLeave={() => setHoverPosition(null)}
+          onChange={event => {
+            // Keyboard and assistive input retain the native range semantics.
+            if (!drag.current) seek(Number(event.target.value))
+          }}
+          onPointerUp={event => {
+            const active = drag.current
+            if (!active || active.pointerId !== event.pointerId) return
+            const value = Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration
             cancelDrag()
-            return
-          }
-          queuePreview(Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration)
-        }}
-        onChange={event => {
-          // Keyboard and assistive input retain the native range semantics.
-          if (!drag.current) seek(Number(event.target.value))
-        }}
-        onPointerUp={event => {
-          const active = drag.current
-          if (!active || active.pointerId !== event.pointerId) return
-          const value = Math.min(1, Math.max(0, (event.clientX - active.left) / active.width)) * active.duration
-          cancelDrag()
-          const currentSong = usePlaybackStore.getState().currentSong
-          if ((currentSong ? songKey(currentSong) : '') === active.song) seek(value)
-        }}
-        onPointerCancel={cancelDrag}
-        onLostPointerCapture={cancelDrag}
-        onBlur={cancelDrag}
-        aria-label="播放进度"
-      />
+            const currentSong = usePlaybackStore.getState().currentSong
+            if ((currentSong ? songKey(currentSong) : '') === active.song) seek(value)
+          }}
+          onPointerCancel={cancelDrag}
+          onLostPointerCapture={cancelDrag}
+          onBlur={cancelDrag}
+          aria-label="播放进度"
+        />
+      </div>
       <span className="react-progress-time">
         <Time value={safeDuration} />
       </span>

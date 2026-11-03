@@ -7525,6 +7525,38 @@ textarea:focus-visible {
     touch-action: none;
 }
 
+.react-progress-track-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.react-progress-track-wrap input[type="range"] {
+    width: 100%;
+    min-width: 0;
+}
+
+.react-progress-hover-tooltip {
+    position: absolute;
+    bottom: calc(100% + 0.45rem);
+    transform: translateX(-50%);
+    padding: 0.18rem 0.42rem;
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--app-text) 92%, transparent);
+    color: var(--app-bg);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 22%);
+    white-space: nowrap;
+    z-index: 20;
+    animation: react-panel-enter 100ms ease both;
+}
+
 .react-footer-actions {
     display: flex;
     align-items: center;
@@ -7792,6 +7824,67 @@ textarea:focus-visible {
 
 .react-song-row.is-selected {
     background: color-mix(in srgb, var(--app-accent) 6%, transparent);
+}
+
+.react-song-row.is-current {
+    background: color-mix(in srgb, var(--app-accent) 3.5%, transparent);
+}
+
+.react-song-row.is-current .react-song-text strong.is-current-title {
+    color: var(--app-accent);
+}
+
+.react-song-equalizer {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    width: 14px;
+    height: 14px;
+}
+
+.react-song-equalizer span {
+    width: 2.5px;
+    height: 100%;
+    background: var(--app-accent);
+    border-radius: 1px;
+    animation: react-equalizer 0.8s ease-in-out infinite alternate;
+}
+
+.react-song-equalizer span:nth-child(1) {
+    animation-delay: 0.1s;
+    height: 55%;
+}
+
+.react-song-equalizer span:nth-child(2) {
+    animation-delay: 0.35s;
+    height: 95%;
+}
+
+.react-song-equalizer span:nth-child(3) {
+    animation-delay: 0.2s;
+    height: 40%;
+}
+
+.react-song-equalizer.is-paused span {
+    animation: none;
+    height: 50%;
+    opacity: 0.7;
+}
+
+@keyframes react-equalizer {
+    0% {
+        height: 20%;
+    }
+    100% {
+        height: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .react-song-equalizer span {
+        animation: none;
+    }
 }
 
 .react-song-index,
@@ -8087,6 +8180,28 @@ textarea:focus-visible {
     align-items: center;
     gap: clamp(2rem, 8vw, 8rem);
     padding: clamp(1rem, 3vw, 2.4rem) clamp(1rem, 5vw, 4rem) max(1.25rem, env(safe-area-inset-bottom));
+}
+
+.react-immersive-lyrics-grid > .react-immersive-lyrics-list:only-child {
+    grid-column: 1 / -1;
+    margin-inline: auto;
+    width: min(860px, 100%);
+}
+
+.react-scrolling-lyrics button {
+    transition:
+        transform var(--app-motion, 220ms) ease,
+        opacity var(--app-motion, 220ms) ease,
+        color var(--app-motion, 220ms) ease;
+}
+
+.react-scrolling-lyrics button:not(.is-active) {
+    opacity: 0.45;
+}
+
+.react-scrolling-lyrics button.is-active {
+    opacity: 1;
+    transform: scale(1.04);
 }
 
 .react-immersive-cover-panel {

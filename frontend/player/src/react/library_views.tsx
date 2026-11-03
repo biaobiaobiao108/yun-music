@@ -84,10 +84,7 @@ export function HomeView() {
       <section className="react-home-page">
         <section className="react-home-section">
           <div className="react-home-section-heading">
-            <div>
-              <p className="react-eyebrow">最近听过</p>
-              <h2>最近播放</h2>
-            </div>
+            <h2>最近播放</h2>
             <button type="button" className="react-text-button" onClick={() => setTab('recent')}>
               查看全部 <Icon name="arrow-right" />
             </button>
@@ -114,10 +111,7 @@ export function HomeView() {
         </section>
         <section className="react-home-section">
           <div className="react-home-section-heading">
-            <div>
-              <p className="react-eyebrow">常听常新</p>
-              <h2>收藏歌曲</h2>
-            </div>
+            <h2>收藏歌曲</h2>
             <button type="button" className="react-text-button" onClick={() => openFavoriteList('love')}>
               查看全部 <Icon name="arrow-right" />
             </button>
@@ -150,10 +144,7 @@ export function HomeView() {
         </section>
         <section className="react-home-section">
           <div className="react-home-section-heading">
-            <div>
-              <p className="react-eyebrow">来自你的音乐库</p>
-              <h2>艺人</h2>
-            </div>
+            <h2>艺人</h2>
             <button type="button" className="react-text-button" onClick={() => setTab('artists')}>
               查看全部 <Icon name="arrow-right" />
             </button>
@@ -185,10 +176,7 @@ export function HomeView() {
         </section>
         <section className="react-home-section react-home-playlists-section">
           <div className="react-home-section-heading">
-            <div>
-              <p className="react-eyebrow">你的收藏</p>
-              <h2>我的歌单</h2>
-            </div>
+            <h2>我的歌单</h2>
             <button type="button" className="react-text-button" onClick={() => setDialog('createList')}>
               <Icon name="plus" /> 新建歌单
             </button>

@@ -12,6 +12,7 @@ import {
 import { safeImageUrl, formatBytes, formatDuration } from '../../../shared/src/runtime'
 import type { Song } from './types'
 import {
+  sameSong,
   songAlbum,
   songArtist,
   songDurationValue,
@@ -319,10 +320,13 @@ export const SongRow = memo(function SongRow({
 }) {
   const playSong = usePlaybackStore(state => state.playSong)
   const enqueue = usePlaybackStore(state => state.enqueue)
+  const currentSong = usePlaybackStore(state => state.currentSong)
+  const isPlaying = usePlaybackStore(state => state.isPlaying)
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const isLoved = useLibraryStore(state => isSongInLoveList(state, song))
   const notify = usePlayerUiStore(state => state.notify)
+  const isCurrent = Boolean(currentSong && sameSong(currentSong, song))
   const toggleFavorite = () => {
     const operation = isLoved ? removeSong('love', song) : addSong('love', song)
     void operation
@@ -343,10 +347,11 @@ export const SongRow = memo(function SongRow({
   }
   return (
     <li
-      className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''}`}
+      className={`react-song-row ${onSelect ? 'is-selectable' : ''} ${selected ? 'is-selected' : ''} ${compact ? 'is-compact' : ''} ${isCurrent ? (isPlaying ? 'is-current is-playing' : 'is-current is-paused') : ''}`}
       style={style}
       aria-setsize={virtualTotal}
       aria-posinset={virtualTotal ? index + 1 : undefined}
+      aria-current={isCurrent ? 'true' : undefined}
     >
       {onSelect && (
         <span className="react-song-select">
@@ -359,7 +364,21 @@ export const SongRow = memo(function SongRow({
         </span>
       )}
       <span className="react-song-index" aria-hidden="true">
-        {String(index + 1).padStart(2, '0')}
+        {isCurrent && isPlaying ? (
+          <span className="react-song-equalizer" aria-label="正在播放">
+            <span />
+            <span />
+            <span />
+          </span>
+        ) : isCurrent ? (
+          <span className="react-song-equalizer is-paused" aria-label="已暂停">
+            <span />
+            <span />
+            <span />
+          </span>
+        ) : (
+          String(index + 1).padStart(2, '0')
+        )}
       </span>
       <button
         type="button"
@@ -369,7 +388,7 @@ export const SongRow = memo(function SongRow({
       >
         <SafeImage src={songImage(song)} width="48" height="48" loading="lazy" decoding="async" alt="" />
         <span className="react-song-text">
-          <strong>{songTitle(song)}</strong>
+          <strong className={isCurrent ? 'is-current-title' : ''}>{songTitle(song)}</strong>
           <small>{songArtist(song)}</small>
         </span>
       </button>
