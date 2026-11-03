@@ -1521,8 +1521,6 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
         }
         return pending
       }
-      if (!fs.existsSync(dir)) continue
-
       for await (const discoveredPath of walkCacheFilesAsync(dir)) {
         const file = path.relative(dir, discoveredPath).replace(/\\/g, '/')
         if (file === 'cache_index.json' || file === 'music_index.json') continue

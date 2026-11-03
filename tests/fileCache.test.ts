@@ -1069,6 +1069,57 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('removes indexed files when an entire cache or music directory disappears', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-directory-delete-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = { dataPath, config: {} }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      for (const folder of ['cache', 'music'] as const) {
+        const username = `directory-delete-${folder}`
+        const isMusic = folder === 'music'
+        const directory = fileCache.getCacheDir(username, isMusic)
+        const filename = 'album/song.flac'
+        const audioPath = path.join(directory, filename)
+        fs.mkdirSync(path.dirname(audioPath), { recursive: true })
+        fs.writeFileSync(audioPath, Buffer.from('audio'))
+        const stats = fs.statSync(audioPath)
+        const item = {
+          id: `wy_directory-delete-${folder}`,
+          songmid: `wy_directory-delete-${folder}`,
+          name: 'Directory Deleted Song',
+          singer: 'Test Singer',
+          albumName: 'Test Album',
+          source: 'wy',
+          quality: 'flac',
+          filename,
+          folder,
+          mtime: stats.mtimeMs,
+          size: stats.size,
+          ext: 'flac',
+        }
+        fileCache.indexManager.update(username, item, folder)
+
+        await fileCache.syncCacheIndex(username, [folder])
+        expect(fileCache.indexManager.get(username, item.id, folder, item.quality, true)).toBeDefined()
+
+        fs.rmSync(directory, { recursive: true, force: true })
+        await fileCache.syncCacheIndex(username, [folder])
+        expect(fileCache.indexManager.get(username, item.id, folder, item.quality, true)).toBeUndefined()
+      }
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('preserves a cache index written while stale entries are being reconciled', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-sync-race-'))
     const previousLx = (global as any).lx

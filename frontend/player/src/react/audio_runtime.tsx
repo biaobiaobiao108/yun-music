@@ -244,6 +244,7 @@ export function AudioRuntime() {
   const crossfadeTransition = useRef<{ from: string; to: string } | null>(null)
   const crossfadeIncoming = useRef(false)
   const naturalFadeKey = useRef('')
+  const naturalFadeNextSongKey = useRef('')
   const lastSwitchWasPlaying = useRef(false)
   volumeTarget.current = muted ? 0 : volume
 
@@ -476,7 +477,12 @@ export function AudioRuntime() {
     const disconnectAudioCommands = connectAudioCommands({
       prime: options => {
         const audioPlaying = Boolean(audio && !audio.paused && !audio.ended && !audio.src.startsWith('data:'))
-        const wasPlaying = Boolean(options ? options.wasPlaying && audioPlaying : audioPlaying)
+        // A natural outro has already reached `ended` by the time `next()`
+        // primes the audio element. Preserve the intent to crossfade into the
+        // selected next track even though the outgoing element is no longer
+        // actively playing.
+        const wasNaturalFade = Boolean(naturalFadeNextSongKey.current && options?.wasPlaying)
+        const wasPlaying = Boolean(options ? options.wasPlaying && (audioPlaying || wasNaturalFade) : audioPlaying)
         lastSwitchWasPlaying.current = wasPlaying
         if (!wasPlaying) {
           audio.pause()
@@ -524,6 +530,7 @@ export function AudioRuntime() {
         // A seek away from the outro must also cancel its in-flight volume fade.
         if (naturalFadeKey.current) {
           naturalFadeKey.current = ''
+          naturalFadeNextSongKey.current = ''
           cancelVolumeAnimation()
           fadeFactor.current = 1
           syncAudioVolume()
@@ -689,6 +696,7 @@ export function AudioRuntime() {
           const fadeKey = `${songId}:${songKey(nextSong)}`
           if (naturalFadeKey.current !== fadeKey) {
             naturalFadeKey.current = fadeKey
+            naturalFadeNextSongKey.current = songKey(nextSong)
             void animateVolumeFactor(0, Math.min(CROSSFADE_DURATION_MS, remaining * 1000))
           }
         } else if (
@@ -696,6 +704,7 @@ export function AudioRuntime() {
           (!nextSong || songKey(nextSong) === songId || remaining > CROSSFADE_DURATION_MS / 1000)
         ) {
           naturalFadeKey.current = ''
+          naturalFadeNextSongKey.current = ''
           cancelVolumeAnimation()
           fadeFactor.current = 1
           syncAudioVolume()
@@ -788,14 +797,26 @@ export function AudioRuntime() {
       if (state.mode === 'single' && !state.priorityNextSongKey) {
         cancelVolumeAnimation()
         naturalFadeKey.current = ''
+        naturalFadeNextSongKey.current = ''
         fadeFactor.current = 1
         syncAudioVolume()
         audio.currentTime = 0
         void audio.play()
         return
       }
+      const expectedNaturalFadeTarget = naturalFadeNextSongKey.current
       state.next()
       const nextSong = usePlaybackStore.getState().currentSong
+      const nextSongKey = nextSong ? songKey(nextSong) : ''
+      if (expectedNaturalFadeTarget && expectedNaturalFadeTarget !== nextSongKey) {
+        // The queue may have changed during the outro. Do not carry an old
+        // fade target into a different song and leave its volume ramp behind.
+        naturalFadeKey.current = ''
+        naturalFadeNextSongKey.current = ''
+        cancelVolumeAnimation()
+        fadeFactor.current = 1
+        syncAudioVolume()
+      }
       if (nextSong && songKey(nextSong) !== songId) {
         // Keep the audio pipeline actively outputting silence so Safari does not
         // suspend the background tab or reject autoplay for the upcoming track.
@@ -952,6 +973,7 @@ export function AudioRuntime() {
     if (settings.enableCrossfade || (!crossfadeTransition.current && !naturalFadeKey.current)) return
     cancelVolumeAnimation()
     naturalFadeKey.current = ''
+    naturalFadeNextSongKey.current = ''
     const hadTransition = Boolean(crossfadeTransition.current)
     crossfadeTransition.current = null
     crossfadeIncoming.current = false
@@ -974,6 +996,7 @@ export function AudioRuntime() {
           cancelVolumeAnimation()
           crossfadeIncoming.current = false
           naturalFadeKey.current = ''
+          naturalFadeNextSongKey.current = ''
           fadeFactor.current = 1
           syncAudioVolume()
         }
@@ -1017,9 +1040,11 @@ export function AudioRuntime() {
           !audio.ended &&
           !audio.src.startsWith('data:') &&
           fadeFactor.current > 0
-        if (transition?.to === songId && canCrossfade) {
+        const completedNaturalFade = naturalFadeNextSongKey.current === songId
+        if (completedNaturalFade) naturalFadeKey.current = ''
+        if (transition?.to === songId && (canCrossfade || completedNaturalFade)) {
           if (crossfadeEnabled && state.isPlaying && !isBackground) {
-            if (audio.paused || audio.ended || fadeFactor.current <= 0) fadeFactor.current = 0
+            if (completedNaturalFade || audio.paused || audio.ended || fadeFactor.current <= 0) fadeFactor.current = 0
             else await animateVolumeFactor(0, CROSSFADE_DURATION_MS)
             if (cancelled || controller.signal.aborted) return
             const latestState = usePlaybackStore.getState()
@@ -1032,11 +1057,13 @@ export function AudioRuntime() {
               crossfadeTransition.current = null
               crossfadeIncoming.current = true
               fadeFactor.current = 0
+              naturalFadeNextSongKey.current = ''
             } else {
               cancelVolumeAnimation()
               crossfadeTransition.current = null
               crossfadeIncoming.current = false
               fadeFactor.current = 1
+              naturalFadeNextSongKey.current = ''
             }
           } else {
             cancelVolumeAnimation()
@@ -1044,10 +1071,13 @@ export function AudioRuntime() {
             crossfadeTransition.current = null
             crossfadeIncoming.current = false
             fadeFactor.current = 1
+            naturalFadeNextSongKey.current = ''
           }
         } else {
           crossfadeIncoming.current = false
           fadeFactor.current = 1
+          naturalFadeKey.current = ''
+          naturalFadeNextSongKey.current = ''
         }
         syncAudioVolume()
         prefetchedUrls.delete(prefetchKey)
@@ -1162,6 +1192,7 @@ export function AudioRuntime() {
         audio.pause()
         if (naturalFadeKey.current) {
           naturalFadeKey.current = ''
+          naturalFadeNextSongKey.current = ''
           cancelVolumeAnimation()
           fadeFactor.current = 1
           syncAudioVolume()

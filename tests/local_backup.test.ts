@@ -197,6 +197,41 @@ describe('Local backup restore', () => {
     expect(fs.readFileSync(path.join(global.lx.userPath, 'old.txt'), 'utf8')).toBe('old')
   })
 
+  test('keeps recovery copies when restoring the original user directory fails', async () => {
+    const backupDbPath = path.join(tempDir, 'backup-source.db')
+    createDatabaseSnapshot(backupDbPath)
+    const archive = await createZip([{ name: 'database/yun-yin.db', sourcePath: backupDbPath }])
+    const originalRename = fs.renameSync
+    const renameSpy = spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+      if (String(source).includes('previous-users') && destination === global.lx.userPath) {
+        throw new Error('simulated user directory rollback failure')
+      }
+      return originalRename(source, destination)
+    })
+
+    let failure: unknown
+    try {
+      await restoreLocalBackup(archive, {
+        onRestored: () => {
+          throw new Error('simulated post-restore failure')
+        },
+      })
+    } catch (error) {
+      failure = error
+    } finally {
+      renameSpy.mockRestore()
+    }
+
+    const recoveryDirs = fs.readdirSync(tempDir).filter(name => name.startsWith('.lx-backup-'))
+    expect(recoveryDirs).toHaveLength(1)
+    const recoveryDir = path.join(tempDir, recoveryDirs[0])
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as Error).message).toContain(recoveryDir)
+    expect(((failure as Error).cause as Error).message).toBe('simulated post-restore failure')
+    expect(fs.existsSync(path.join(recoveryDir, 'previous.db'))).toBe(true)
+    expect(fs.readFileSync(path.join(recoveryDir, 'previous-users', 'old.txt'), 'utf8')).toBe('old')
+  })
+
   test('generated archives stay within the restore limit and can be restored', async () => {
     const archiveName = await createLocalBackup()
     const archivePath = path.join(tempDir, archiveName)

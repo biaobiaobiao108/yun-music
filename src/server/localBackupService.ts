@@ -501,6 +501,7 @@ export const restoreLocalBackup = async (
   let previousUsersMoved = false
   let restoredUsersInstalled = false
   let databaseRestored = false
+  let preserveRecoveryFiles = false
 
   try {
     tempDir = fs.mkdtempSync(path.join(global.lx.dataPath, '.lx-backup-'))
@@ -559,6 +560,7 @@ export const restoreLocalBackup = async (
       try {
         restoreDatabaseSnapshot(previousDbPath)
       } catch (rollbackError) {
+        preserveRecoveryFiles = true
         console.error('[Backup] 数据库恢复回滚失败:', rollbackError)
       }
     }
@@ -571,13 +573,22 @@ export const restoreLocalBackup = async (
       try {
         fs.renameSync(previousUsersPath, global.lx.userPath)
       } catch (rollbackError) {
+        preserveRecoveryFiles = true
         console.error('[Backup] 用户目录恢复回滚失败:', rollbackError)
       }
+    }
+    if (preserveRecoveryFiles) {
+      console.error('[Backup] 备份恢复失败:', error)
+      throw new Error(`备份恢复失败且回滚未完成，恢复文件保留在 ${tempDir}，请查看服务端日志`, { cause: error })
     }
     throw error
   } finally {
     try {
-      if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true })
+      if (tempDir && preserveRecoveryFiles) {
+        console.error(`[Backup] 回滚未完成，已保留恢复文件：${tempDir}`)
+      } else if (tempDir) {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
     } finally {
       releaseAll()
       backupInProgress = false
