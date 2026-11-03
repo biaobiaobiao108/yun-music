@@ -558,6 +558,7 @@ export function LocalMusicView() {
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [batchMode, setBatchMode] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const cacheController = useRef<AbortController | null>(null)
   const cacheUserScope = useRef(userName || '')
@@ -699,6 +700,16 @@ export function LocalMusicView() {
       else next.add(key)
       return next
     })
+  useEffect(() => {
+    if (!batchMode) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setBatchMode(false)
+      setSelected(new Set())
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [batchMode])
   const deleteSelected = async () => {
     const items = visibleCacheItems
       .filter(item => selected.has(localCacheItemKey(item, userName)))
@@ -726,7 +737,26 @@ export function LocalMusicView() {
     return formatDuration(value)
   }
   return (
-    <ViewFrame title="本地音乐">
+    <ViewFrame
+      title="本地音乐"
+      actions={
+        batchMode ? undefined : (
+          <div className="react-view-header-actions react-playlist-header-actions">
+            <Button
+              className="react-icon-only-button"
+              aria-label="多选操作"
+              onClick={() => {
+                setBatchMode(true)
+                setSelected(new Set())
+              }}
+              disabled={!visibleCacheItems.length}
+            >
+              <Icon name="list" />
+            </Button>
+          </div>
+        )
+      }
+    >
       <section className="react-toolbar-card t-bg-panel react-local-toolbar">
         <div className="react-toolbar-field">
           <span>目录</span>
@@ -769,14 +799,6 @@ export function LocalMusicView() {
             </h2>
             <p>缓存与明确下载的音乐共用现有服务器存储规则</p>
           </div>
-          {!selected.size && (
-            <Button
-              onClick={() => setSelected(new Set(visibleCacheItems.map(item => localCacheItemKey(item, userName))))}
-              disabled={!visibleCacheItems.length}
-            >
-              全选
-            </Button>
-          )}
         </div>
         {cacheErrorForCurrentUser && hasCacheDataForCurrentUser && (
           <p className="react-cache-refresh-error" role="status">
@@ -801,22 +823,24 @@ export function LocalMusicView() {
                 const album = songAlbum(song)
                 const sizeBytes = songSizeBytes(item.size ?? song)
                 return (
-                  <li className="react-song-row is-selectable react-local-cache-row" key={key}>
-                    <span className="react-song-select">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(key)}
-                        onChange={() => toggleSelected(item)}
-                        aria-label={`选择 ${songTitle(song)}`}
-                      />
-                    </span>
+                  <li
+                    className={`react-song-row react-local-cache-row ${batchMode ? 'is-selectable' : ''} ${
+                      selected.has(key) ? 'is-selected' : ''
+                    }`}
+                    key={key}
+                  >
                     <span className="react-song-index" aria-hidden="true">
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <button
                       type="button"
                       className="react-song-main"
+                      aria-pressed={batchMode ? selected.has(key) : undefined}
                       onClick={() => {
+                        if (batchMode) {
+                          toggleSelected(item)
+                          return
+                        }
                         void playerApi
                           .cachePlayback({
                             filename: String(item.filename),
@@ -867,7 +891,7 @@ export function LocalMusicView() {
                 </Button>
               </nav>
             )}
-            {selected.size > 0 && <div className="react-selection-dock-spacer" aria-hidden="true" />}
+            {batchMode && <div className="react-selection-dock-spacer" aria-hidden="true" />}
           </div>
         ) : (
           <div className="react-empty">
@@ -875,7 +899,7 @@ export function LocalMusicView() {
             <p>暂无服务器缓存或下载音乐</p>
           </div>
         )}
-        {selected.size > 0 && (
+        {batchMode && (
           <SelectionDock
             count={selected.size}
             allSelected={allVisibleSelected}
@@ -887,9 +911,17 @@ export function LocalMusicView() {
                   : new Set(visibleCacheItems.map(item => localCacheItemKey(item, userName))),
               )
             }
-            onClose={() => setSelected(new Set())}
+            onClose={() => {
+              setBatchMode(false)
+              setSelected(new Set())
+            }}
           >
-            <button type="button" className="react-selection-action is-danger" onClick={() => setConfirmOpen(true)}>
+            <button
+              type="button"
+              className="react-selection-action is-danger"
+              onClick={() => setConfirmOpen(true)}
+              disabled={!selected.size}
+            >
               <Icon name="trash" />
               <span>删除</span>
             </button>

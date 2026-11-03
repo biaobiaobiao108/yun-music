@@ -612,6 +612,18 @@ describe('React player navigation and state restoration', () => {
     expect(components).toContain('aria-label={`选择 ${songTitle(song)}`}')
   })
 
+  it('keeps local music rows and batch selection aligned with playlist pages', () => {
+    const heavyViews = read('frontend/player/src/react/heavy_views.tsx')
+    const css = read('frontend/styles/player.css')
+    expect(heavyViews).toContain('const [batchMode, setBatchMode] = useState(false)')
+    expect(heavyViews).toContain('aria-label="多选操作"')
+    expect(heavyViews).not.toContain('react-local-cache-row is-selectable')
+    expect(heavyViews).not.toContain('type="checkbox"')
+    expect(css).toContain(
+      '.react-local-song-table .react-local-cache-row {\n    grid-template-columns: 2.5rem minmax(15rem, 2.3fr)',
+    )
+  })
+
   it('renders one visible heading for playlist pages while retaining the browser title', () => {
     const shell = read('frontend/player/src/react/shell.tsx')
     const views = read('frontend/player/src/react/views.tsx')

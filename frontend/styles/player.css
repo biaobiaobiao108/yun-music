@@ -1709,12 +1709,7 @@ body {
     font-size: 0.8rem;
 }
 .react-local-cache-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
-}
-.react-local-cache-row > input {
-    width: 1rem;
-    height: 1rem;
-    accent-color: var(--c-500);
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 .react-local-cache-row .react-song-main {
     min-width: 0;
@@ -11100,9 +11095,9 @@ textarea:focus-visible {
 }
 
 /* The server library does not expose a favorite action. Keep the table at
-   eight tracks so the remaining metadata has room to breathe. */
+   seven tracks so the remaining metadata has room to breathe. */
 .react-local-song-table .react-local-cache-row {
-    grid-template-columns: 1.75rem 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 4.5rem 5.5rem 4.2rem 3.5rem;
+    grid-template-columns: 2.5rem minmax(15rem, 2.3fr) minmax(10rem, 1.35fr) 4.5rem 5.5rem 4.2rem 3.5rem;
 }
 
 /* Keep the library search as one capsule; the input and placeholder never
@@ -11141,7 +11136,7 @@ textarea:focus-visible {
 
 @media (max-width: 760px) {
     .react-local-song-table .react-local-cache-row {
-        grid-template-columns: 1.7rem 2.2rem minmax(0, 1fr) 4rem 2.2rem;
+        grid-template-columns: 2.2rem minmax(0, 1fr) 4rem 2.2rem;
     }
 }
 
@@ -13256,7 +13251,7 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
         grid-template-columns: auto minmax(0, 1fr) auto;
     }
     .react-local-cache-row {
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto;
     }
     .react-local-toolbar {
         grid-template-columns: minmax(0, 1fr) auto;
@@ -14166,13 +14161,13 @@ html[data-focus-modality="pointer"] #root :is(button, a, input, select, textarea
     }
 
     .react-local-cache-row {
-        grid-template-columns: 1.65rem minmax(0, 1fr) 2.45rem !important;
+        grid-template-columns: minmax(0, 1fr) 2.45rem !important;
     }
     .react-local-cache-row .react-song-main {
-        grid-column: 2;
+        grid-column: 1;
     }
     .react-local-cache-row .react-song-actions {
-        grid-column: 3;
+        grid-column: 2;
     }
 }
 
