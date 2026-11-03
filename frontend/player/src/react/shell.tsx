@@ -15,7 +15,7 @@ import {
 } from 'react'
 import { AudioRuntime } from './audio_runtime'
 import { playerApi, playlistIcon, type CacheTask } from './api'
-import { Button, Drawer, DrawerState, Icon, Loading, Modal, SafeImage, ToastRegion } from './components'
+import { Button, Drawer, DrawerState, Icon, Loading, Modal, SafeImage, SongEqualizer, ToastRegion } from './components'
 import {
   HomeView,
   LibraryAlbumsView,
@@ -816,7 +816,7 @@ function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                       <SafeImage src={songImage(song)} width="48" height="48" loading="lazy" draggable={false} alt="" />
                       {isCurrent && (
                         <span className="react-queue-current-cover">
-                          <Icon name={isPlaying ? 'volume-high' : 'pause'} />
+                          {isPlaying ? <SongEqualizer size="sm" /> : <Icon name="pause" />}
                         </span>
                       )}
                     </span>

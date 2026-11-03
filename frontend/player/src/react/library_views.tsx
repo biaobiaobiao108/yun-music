@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { playerApi, playlistIcon } from './api'
-import { Icon, Loading, SafeImage, SelectMenu, SongList } from './components'
+import { Icon, Loading, SafeImage, SelectMenu, SongEqualizer, SongList } from './components'
 import { filterPlaylistCatalog, type PlaylistSort } from './playlist_catalog'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import {
@@ -14,7 +14,7 @@ import {
   useRecentStore,
 } from './store'
 import type { Song } from './types'
-import { songAlbum, songArtist, songImage, songKey, songTitle } from './types'
+import { sameSong, songAlbum, songArtist, songImage, songKey, songTitle } from './types'
 import { safeImageUrl } from '../../../shared/src/runtime'
 import { ViewFrame } from './view_frame'
 
@@ -39,11 +39,19 @@ function ArtworkCard({
         : songTitle(song)
   const subtitle =
     kind === 'artist' ? String(song.songCount ?? song.count ?? '') : String(song.singer || song.artist || '专辑')
+  const currentSong = usePlaybackStore(state => state.currentSong)
+  const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const isCurrent = Boolean(currentSong && sameSong(currentSong, song))
   return (
     <article className={`react-artwork-card ${kind === 'artist' ? 'is-artist' : ''}`}>
       <button type="button" className="react-artwork-button" onClick={onOpen ?? onPlay}>
         <span className={`react-artwork-cover ${kind === 'artist' ? 'is-artist' : ''}`}>
           <SafeImage src={songImage(song)} width="196" height="196" loading="lazy" alt={`${title}封面`} />
+          {isCurrent && (
+            <span className="react-artwork-equalizer-badge" aria-label={isPlaying ? '正在播放' : '已暂停'}>
+              <SongEqualizer size="sm" paused={!isPlaying} />
+            </span>
+          )}
         </span>
         <strong>{title}</strong>
         {subtitle != null && subtitle !== '' && <small>{subtitle}</small>}

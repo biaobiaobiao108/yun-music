@@ -7839,45 +7839,81 @@ textarea:focus-visible {
     align-items: flex-end;
     justify-content: center;
     gap: 2px;
-    width: 14px;
     height: 14px;
+    vertical-align: middle;
+    pointer-events: none;
 }
 
 .react-song-equalizer span {
+    display: inline-block;
     width: 2.5px;
     height: 100%;
     background: var(--app-accent);
-    border-radius: 1px;
-    animation: react-equalizer 0.8s ease-in-out infinite alternate;
+    border-radius: 999px;
+    transform-origin: bottom;
+    animation: react-equalizer-bounce 0.85s ease-in-out infinite alternate;
 }
 
 .react-song-equalizer span:nth-child(1) {
-    animation-delay: 0.1s;
-    height: 55%;
+    height: 60%;
+    animation-delay: 0.05s;
+    animation-duration: 0.75s;
 }
 
 .react-song-equalizer span:nth-child(2) {
-    animation-delay: 0.35s;
-    height: 95%;
+    height: 100%;
+    animation-delay: 0.25s;
+    animation-duration: 0.9s;
 }
 
 .react-song-equalizer span:nth-child(3) {
-    animation-delay: 0.2s;
-    height: 40%;
+    height: 80%;
+    animation-delay: 0.45s;
+    animation-duration: 0.8s;
+}
+
+.react-song-equalizer span:nth-child(4) {
+    height: 45%;
+    animation-delay: 0.15s;
+    animation-duration: 0.7s;
+}
+
+.react-song-equalizer--xs {
+    height: 10px;
+    gap: 1.5px;
+}
+
+.react-song-equalizer--xs span {
+    width: 1.8px;
+}
+
+.react-song-equalizer--sm {
+    height: 12px;
+    gap: 2px;
+}
+
+.react-song-equalizer--sm span {
+    width: 2px;
 }
 
 .react-song-equalizer.is-paused span {
     animation: none;
-    height: 50%;
-    opacity: 0.7;
+    height: 40% !important;
+    opacity: 0.65;
 }
 
-@keyframes react-equalizer {
+@keyframes react-equalizer-bounce {
     0% {
-        height: 20%;
+        height: 25%;
+        opacity: 0.7;
+    }
+    50% {
+        height: 100%;
+        opacity: 1;
     }
     100% {
-        height: 100%;
+        height: 35%;
+        opacity: 0.8;
     }
 }
 
@@ -7885,6 +7921,63 @@ textarea:focus-visible {
     .react-song-equalizer span {
         animation: none;
     }
+}
+
+.react-song-mobile-equalizer {
+    display: none;
+    margin-left: 0.45rem;
+    vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+    .react-song-mobile-equalizer {
+        display: inline-flex;
+    }
+}
+
+.react-footer-cover-button {
+    position: relative;
+}
+
+.react-footer-cover-equalizer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.42);
+    border-radius: inherit;
+    color: #ffffff;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    pointer-events: none;
+    transition: opacity var(--app-motion-fast, 140ms) ease;
+}
+
+.react-footer-cover-equalizer .react-song-equalizer span,
+.react-queue-current-cover .react-song-equalizer span {
+    background: #ffffff;
+}
+
+.react-artwork-cover {
+    position: relative;
+}
+
+.react-artwork-equalizer-badge {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.38rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-surface-solid) 92%, transparent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: none;
 }
 
 .react-song-index,

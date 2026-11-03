@@ -28,6 +28,28 @@ export function Icon({ name }: { name: string }) {
   return <i className={`fas fa-${name}`} aria-hidden="true" />
 }
 
+export function SongEqualizer({
+  size = 'md',
+  paused = false,
+  className = '',
+}: {
+  size?: 'xs' | 'sm' | 'md'
+  paused?: boolean
+  className?: string
+}) {
+  return (
+    <span
+      className={`react-song-equalizer react-song-equalizer--${size} ${paused ? 'is-paused' : ''} ${className}`}
+      aria-hidden="true"
+    >
+      <span />
+      <span />
+      <span />
+      <span />
+    </span>
+  )
+}
+
 export function Button({
   children,
   variant = 'secondary',
@@ -364,21 +386,7 @@ export const SongRow = memo(function SongRow({
         </span>
       )}
       <span className="react-song-index" aria-hidden="true">
-        {isCurrent && isPlaying ? (
-          <span className="react-song-equalizer" aria-label="正在播放">
-            <span />
-            <span />
-            <span />
-          </span>
-        ) : isCurrent ? (
-          <span className="react-song-equalizer is-paused" aria-label="已暂停">
-            <span />
-            <span />
-            <span />
-          </span>
-        ) : (
-          String(index + 1).padStart(2, '0')
-        )}
+        {isCurrent ? <SongEqualizer paused={!isPlaying} /> : String(index + 1).padStart(2, '0')}
       </span>
       <button
         type="button"
@@ -388,7 +396,14 @@ export const SongRow = memo(function SongRow({
       >
         <SafeImage src={songImage(song)} width="48" height="48" loading="lazy" decoding="async" alt="" />
         <span className="react-song-text">
-          <strong className={isCurrent ? 'is-current-title' : ''}>{songTitle(song)}</strong>
+          <strong className={isCurrent ? 'is-current-title' : ''}>
+            <span>{songTitle(song)}</span>
+            {isCurrent && (
+              <span className="react-song-mobile-equalizer">
+                <SongEqualizer size="xs" paused={!isPlaying} />
+              </span>
+            )}
+          </strong>
           <small>{songArtist(song)}</small>
         </span>
       </button>
