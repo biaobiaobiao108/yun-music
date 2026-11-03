@@ -26,6 +26,15 @@ test('switching songs clears the previous playback duration', () => {
   expect(usePlaybackStore.getState().duration).toBe(0)
 })
 
+test('playing a song outside the supplied queue keeps the queue index consistent', () => {
+  const outside: Song = { id: 'outside', source: 'wy', name: '队列外歌曲' }
+  usePlaybackStore.getState().playSong(outside, [first, second])
+  const state = usePlaybackStore.getState()
+  expect(state.currentSong).toBe(outside)
+  expect(state.queue[state.currentIndex]).toBe(outside)
+  expect(state.currentIndex).toBe(0)
+})
+
 test('a completed download updates its original queue item after switching songs', () => {
   const generation = getSessionGeneration()
   const playback = usePlaybackStore.getState()

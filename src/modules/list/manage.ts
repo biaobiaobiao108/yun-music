@@ -7,6 +7,7 @@ export class ListManage {
   snapshotDataManage: SnapshotDataManage
   listDataManage: ListDataManage
   private snapshotQueue: Promise<string> = Promise.resolve('')
+  private operationQueue: Promise<unknown> = Promise.resolve()
 
   constructor(userDataManage: UserDataManage) {
     this.snapshotDataManage = new SnapshotDataManage(userDataManage)
@@ -40,6 +41,31 @@ export class ListManage {
       return ''
     })
     return next
+  }
+
+  /**
+   * Apply an in-memory list mutation and persist it as one logical operation.
+   * If snapshot persistence fails, restore the previous lists so a failed
+   * request cannot leave a phantom change that disappears after restart.
+   */
+  runWithSnapshot = <T>(operation: () => Promise<T> | T): Promise<T> => {
+    const task = this.operationQueue.then(async (): Promise<T> => {
+      const previous = JSON.parse(JSON.stringify(await this.getListData())) as LX.List.ListData
+      try {
+        const result = await operation()
+        await this.createSnapshot()
+        return result
+      } catch (error) {
+        try {
+          await this.listDataManage.restore(previous)
+        } catch (rollbackError) {
+          console.error('[ListManage] Failed to roll back list mutation:', rollbackError)
+        }
+        throw error
+      }
+    })
+    this.operationQueue = task.catch(() => undefined)
+    return task
   }
 
   getCurrentListInfoKey = async () => {

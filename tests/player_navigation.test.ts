@@ -622,7 +622,7 @@ describe('React player navigation and state restoration', () => {
     expect(views).not.toContain(
       '<h2>歌曲</h2>{batchMode && selectedSongs.size > 0 && <p>已选择 {selectedSongs.size} 首</p>}',
     )
-    expect(views).toContain('react-header-selection-count')
+    expect(views).toContain('SelectionDock')
     expect(views).toContain('showFileMetadata={false}')
     expect(components).toContain('react-song-table--without-file-metadata')
     expect(components).not.toContain('react-song-head')

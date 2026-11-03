@@ -4,6 +4,7 @@ import { filterFileName, toMD5 } from '@/utils'
 import { getDb } from '@/database'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { moveUserCacheData } from '@/server/fileCache'
+import { moveUserSourceData } from './sourceStorage'
 import { hashPassword, isPasswordHash, PASSWORD_HASH_PATTERN, verifyPasswordHash } from '@/utils/passwordHash'
 
 export interface ServerInfo {
@@ -263,17 +264,16 @@ const purgeUserRows = (db: ReturnType<typeof getDb>, userName: string): void => 
 }
 
 /**
- * 快照数量上限的解析顺序：用户级显式覆盖 → 全局配置 → 数据库镜像值 → 10。
+ * 快照数量上限的解析顺序：用户级显式覆盖 → 数据库值 → 全局配置 → 10。
  *
  * 不抛 "user not found"：账号删除后如果保留了歌单数据（deleteData=false），
  * 之后的历史列表/裁剪仍需要读这个值，否则每次请求都会 500。
  */
 export const resolveMaxSnapshotNum = (userName: string, storedValue?: number): number => {
   const user = global.lx.config.users?.find(item => item.name === userName)
-  const candidates: Array<number | undefined> = [user?.maxSnapshotNum, global.lx.config.maxSnapshotNum, storedValue, 10]
+  const candidates: Array<number | undefined> = [user?.maxSnapshotNum, storedValue, global.lx.config.maxSnapshotNum, 10]
   for (const candidate of candidates) {
-    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 1 && candidate <= 10000)
-      return candidate
+    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 1) return Math.min(candidate, 100)
   }
   return 10
 }
@@ -283,6 +283,12 @@ export const getMaxSnapshotNum = (userName: string): number => {
     .query<{ max_snapshot_num: number }, [string]>('SELECT max_snapshot_num FROM users WHERE name = ?')
     .get(userName)
   return resolveMaxSnapshotNum(userName, row?.max_snapshot_num)
+}
+
+/** Update users that still use the previous global default, preserving overrides. */
+export const updateStoredSnapshotLimitDefault = (previous: number, next: number): void => {
+  if (!Number.isInteger(previous) || !Number.isInteger(next) || previous === next) return
+  getDb().run('UPDATE users SET max_snapshot_num = ? WHERE max_snapshot_num = ?', [next, previous])
 }
 
 /** 重命名用户时同步 SQLite 归属和文件夹；不保留旧协议状态。 */
@@ -296,12 +302,14 @@ export const migrateUserData = (oldName: string, newName: string): string => {
 
   let moved = false
   let movedCache = false
+  let movedSource = false
   try {
     if (shouldMoveDirectory) {
       fs.renameSync(oldDirPath, newDirPath)
       moved = true
     }
     movedCache = moveUserCacheData(oldName, newName).movedDirectories > 0
+    movedSource = moveUserSourceData(oldName, newName)
 
     const db = getDb()
     const now = Date.now()
@@ -317,6 +325,13 @@ export const migrateUserData = (oldName: string, newName: string): string => {
       db.run('UPDATE cache_index SET user_name = ? WHERE user_name = ?', [newName, oldName])
     })()
   } catch (error) {
+    if (movedSource) {
+      try {
+        moveUserSourceData(newName, oldName)
+      } catch (rollbackError) {
+        console.error('[User] 用户音源迁移回滚失败:', rollbackError)
+      }
+    }
     if (movedCache) {
       try {
         moveUserCacheData(newName, oldName)

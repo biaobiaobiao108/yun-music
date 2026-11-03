@@ -10,12 +10,18 @@ type SortMode = 'default' | 'name-asc' | 'name-desc' | 'size-desc' | 'time-desc'
 const STORAGE_PAGE_SIZE = 100
 
 function storageItemKey(item: StorageItem): string {
-  return `${String(item.rawUsername ?? '_open')}|${String(item.folder ?? 'cache')}|${String(item.filename ?? item.id ?? item.name ?? '')}`
+  return `${String(item.rawUsername ?? '_open')}|${String(item.location ?? '')}|${String(item.folder ?? 'cache')}|${String(item.filename ?? item.id ?? item.name ?? '')}`
 }
 
 function storageCover(item: StorageItem): string {
   if (item.img) return safeImageUrl(item.img)
-  return `/api/music/cache/cover?filename=${encodeURIComponent(String(item.filename ?? ''))}&folder=${encodeURIComponent(String(item.folder ?? 'cache'))}&user=${encodeURIComponent(String(item.rawUsername ?? '_open'))}`
+  const params = new URLSearchParams({
+    filename: String(item.filename ?? ''),
+    folder: String(item.folder ?? 'cache'),
+    user: String(item.rawUsername ?? '_open'),
+  })
+  if (item.location === 'data' || item.location === 'root') params.set('location', item.location)
+  return `/api/music/cache/cover?${params.toString()}`
 }
 
 function displayName(item: StorageItem): string {
@@ -180,6 +186,7 @@ export function StorageView() {
           .map(item => ({
             filename: String(item.filename ?? ''),
             folder: item.folder,
+            location: item.location,
             user: String(item.rawUsername ?? '_open'),
           }))
           .filter(item => item.filename),
@@ -197,7 +204,11 @@ export function StorageView() {
     try {
       await adminApi.moveCache(
         items
-          .map(item => ({ filename: String(item.filename ?? ''), user: String(item.rawUsername ?? '_open') }))
+          .map(item => ({
+            filename: String(item.filename ?? ''),
+            location: item.location,
+            user: String(item.rawUsername ?? '_open'),
+          }))
           .filter(item => item.filename),
       )
       setSelected(new Set())
@@ -254,7 +265,9 @@ export function StorageView() {
       setPlayingKey('')
       return
     }
-    audio.src = `/api/music/cache/file/${encodeURIComponent(String(item.rawUsername ?? '_open'))}/${encodeURIComponent(String(item.filename ?? ''))}?folder=${encodeURIComponent(String(item.folder ?? 'cache'))}`
+    const params = new URLSearchParams({ folder: String(item.folder ?? 'cache') })
+    if (item.location === 'data' || item.location === 'root') params.set('location', item.location)
+    audio.src = `/api/music/cache/file/${encodeURIComponent(String(item.rawUsername ?? '_open'))}/${encodeURIComponent(String(item.filename ?? ''))}?${params.toString()}`
     void audio
       .play()
       .then(() => setPlayingKey(key))

@@ -7,6 +7,7 @@ import { verifyAdminAuth } from './auth'
 import { verifyUserAuth } from './routes/auth'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote } from './networkSecurity'
+import { getUserSourceDir } from '@/user/sourceStorage'
 
 // 读取请求体
 async function readBody(ctx: HttpContext): Promise<string> {
@@ -192,12 +193,7 @@ async function getScriptInfo(scriptContent: string) {
 
 // 辅助函数：获取源存储目录
 function getSourceDir(username?: string) {
-  const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
-  const root = path.join(dataPath, 'users', 'source')
-  // 如果 username 是 'open' 或 'default' 或空，则映射到 '_open'
-  const targetDirName =
-    username && username !== 'default' && username !== 'open' ? assertSafePathSegment(username, 'username') : '_open'
-  return path.join(root, targetDirName)
+  return getUserSourceDir(username)
 }
 
 // 辅助函数：生成可读且唯一的 ID/文件名

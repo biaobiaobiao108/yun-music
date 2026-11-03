@@ -92,6 +92,23 @@ export const accessLogMiddleware: Middleware = async (ctx, next) => {
   return await next()
 }
 
+/**
+ * Private JSON/API responses must not be reused by a browser or shared cache.
+ * Public endpoints may opt out by setting their own Cache-Control header.
+ */
+export const apiNoStoreMiddleware: Middleware = async (ctx, next) => {
+  const response = await next()
+  if (!(response instanceof Response) || !ctx.pathname.startsWith('/api/')) return response
+  if (response.headers.has('cache-control')) return response
+  const headers = new Headers(response.headers)
+  headers.set('Cache-Control', 'private, no-store')
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
 /** 值得压缩的响应类型（文本类） */
 const COMPRESSIBLE_TYPE = /^(?:text\/|application\/(?:json|javascript|xml|xhtml\+xml|manifest\+json)|image\/svg\+xml)/i
 const COMPRESS_MIN_BYTES = 1024

@@ -7,10 +7,13 @@ import { readThemePreferences, updateThemePreferences } from '../../../../shared
 
 let settingsRevision = 0
 let settingsHydrationId = 0
+let settingsSaveRevision = 0
 
 export type SettingsState = {
   settings: PlayerSettings
+  saveError: string
   setSetting: (key: string, value: unknown) => void
+  clearSaveError: () => void
   hydrate: () => Promise<void>
   reset: () => void
 }
@@ -35,6 +38,7 @@ function withSharedAppearance(settings: PlayerSettings): PlayerSettings {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: withSharedAppearance(sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS))),
+  saveError: '',
   setSetting: (key, value) => {
     if (REMOVED_SETTING_KEYS.includes(key as (typeof REMOVED_SETTING_KEYS)[number])) return
     settingsRevision += 1
@@ -45,8 +49,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       updateThemePreferences({ appearance: value === 'dark' || value === 'light' ? value : 'system' })
     applyAppearance(settings)
     if (key === 'preferredQuality') usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
-    void playerApi.saveSettings({ [key]: value }).catch(() => undefined)
+    const saveRevision = ++settingsSaveRevision
+    void playerApi
+      .saveSettings({ [key]: value })
+      .then(() => {
+        if (saveRevision === settingsSaveRevision) set({ saveError: '' })
+      })
+      .catch(error => {
+        if (saveRevision === settingsSaveRevision) {
+          set({ saveError: error instanceof Error ? error.message : '设置同步失败，请稍后重试' })
+        }
+      })
   },
+  clearSaveError: () => set({ saveError: '' }),
   hydrate: async () => {
     const hydrationId = ++settingsHydrationId
     const sessionScope = getSessionScope()
@@ -79,8 +94,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   reset: () => {
     settingsRevision += 1
     settingsHydrationId += 1
+    settingsSaveRevision += 1
     const settings = withSharedAppearance(sanitizeSettings(DEFAULT_SETTINGS))
-    set({ settings })
+    set({ settings, saveError: '' })
     applyAppearance(settings)
     // Session reset happens before playback hydration; preserve the saved queue.
     usePlaybackStore.setState({ quality: String(settings.preferredQuality || 'flac') })

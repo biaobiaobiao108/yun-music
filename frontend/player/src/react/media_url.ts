@@ -8,6 +8,7 @@ export type CachePlaybackReference = {
   filename: string
   folder: CacheFolder
   username?: string
+  location?: string
 }
 
 const CACHE_FILE_PREFIX = '/api/music/cache/file/'
@@ -32,7 +33,13 @@ export function parseCachePlaybackUrl(rawUrl: unknown): CachePlaybackReference |
     const filename = decodeURIComponent(encodedFilename)
     if (!filename) return null
     const folder = parsed.searchParams.get('folder')
-    return { filename, folder: folder === 'music' ? 'music' : 'cache', ...(username ? { username } : {}) }
+    const location = parsed.searchParams.get('location')
+    return {
+      filename,
+      folder: folder === 'music' ? 'music' : 'cache',
+      ...(username ? { username } : {}),
+      ...(location === 'data' || location === 'root' ? { location } : {}),
+    }
   } catch {
     return null
   }
@@ -46,7 +53,9 @@ export function buildCachePlaybackUrl(reference: CachePlaybackReference): string
     username && username !== '_open' && username !== 'open' && username !== 'default'
       ? `${encodeURIComponent(username)}/${encodedFilename}`
       : encodedFilename
-  return `${CACHE_FILE_PREFIX}${target}?folder=${encodeURIComponent(reference.folder)}`
+  const params = new URLSearchParams({ folder: reference.folder })
+  if (reference.location === 'data' || reference.location === 'root') params.set('location', reference.location)
+  return `${CACHE_FILE_PREFIX}${target}?${params.toString()}`
 }
 
 /** Extract a remote source URL from a direct URL or the same-origin relay URL. */

@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:tes
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { closeDb, initDatabase } from '@/database'
+import { closeDb, getDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user/data'
 import { hashPassword } from '@/utils/passwordHash'
 
@@ -235,6 +235,24 @@ describe('Web Cookie Authentication', () => {
       new Request('http://localhost/api/user/auth/verify', { headers: { cookie } }),
     )
     expect(await afterLogout.json()).toEqual({ valid: false, username: null })
+  })
+
+  test('logout reports a persistence failure instead of pretending the session was revoked', async () => {
+    const router = createAuthRouter()
+    const login = await router.handle(
+      new Request('http://localhost/api/user/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'test_user', password: 'password123' }),
+      }),
+    )
+    const cookie = login.headers.get('Set-Cookie')!.split(';', 1)[0]
+    getDb().run('DROP TABLE user_sessions')
+    const logout = await router.handle(
+      new Request('http://localhost/api/user/logout', { method: 'POST', headers: { cookie } }),
+    )
+    expect(logout.status).toBe(500)
+    expect(logout.headers.get('Set-Cookie')).toBeNull()
   })
 
   test('legacy password, token headers and token query parameters are rejected', async () => {

@@ -3,7 +3,12 @@ import path from 'node:path'
 import os from 'node:os'
 import { Router, getCompressedCacheStats, type HttpContext } from '../core'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses, toUserMessage } from '../core/context'
-import { revokeAllAdminSessions, revokeAllPlayerSessions, verifyAdminAuth } from '../auth'
+import {
+  revokeAllAdminSessions,
+  revokeAllPlayerSessions,
+  revokeSessionsForConfigChange,
+  verifyAdminAuth,
+} from '../auth'
 import { revokeAllUserSessions } from './auth'
 import { serverStatus } from '../state'
 import { startupLog } from '@/utils/log4js'
@@ -15,7 +20,7 @@ import {
   MAX_LOCAL_BACKUP_BYTES,
   restoreLocalBackup,
 } from '../localBackupService'
-import { refreshUsersFromDatabase } from '@/user/data'
+import { refreshUsersFromDatabase, updateStoredSnapshotLimitDefault } from '@/user/data'
 import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
 import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
@@ -27,6 +32,7 @@ import { getResourceBudgetStats } from '../resourceBudget'
 import { getSourceMatchCacheStats } from '../services/musicResolver'
 import { getSingerCacheStats } from '../utils/singer'
 import { getGeneralCacheStats } from '@/utils/cache'
+import { initUserApis } from '../userApi'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -373,7 +379,9 @@ const applyValidatedConfig = async (
     config.port = Number(restored.port)
   }
   if (Number.isInteger(restored.maxSnapshotNum) && Number(restored.maxSnapshotNum) >= 1) {
-    config.maxSnapshotNum = Math.min(Number(restored.maxSnapshotNum), 10000)
+    const previousMax = Number(config.maxSnapshotNum) || 10
+    config.maxSnapshotNum = Math.min(Number(restored.maxSnapshotNum), 100)
+    updateStoredSnapshotLimitDefault(previousMax, config.maxSnapshotNum)
   }
   if (Number.isInteger(restored['user.cacheSizeLimit']) && Number(restored['user.cacheSizeLimit']) >= 1) {
     config['user.cacheSizeLimit'] = Math.min(Number(restored['user.cacheSizeLimit']), 1024 * 1024)
@@ -424,13 +432,13 @@ const applyValidatedConfig = async (
   if (options.includeSecrets) {
     if (
       (restored['frontend.password'] !== undefined || restored['frontend.passwordHash'] !== undefined) &&
-      !process.env.FRONTEND_PASSWORD
+      !global.lx.managedCredentials?.adminPassword
     ) {
       await applyConfiguredPassword(config, restored, 'frontend.password', 'frontend.passwordHash', '管理员密码', true)
     }
     if (
       (restored['player.password'] !== undefined || restored['player.passwordHash'] !== undefined) &&
-      !process.env.WEBPLAYER_PASSWORD
+      !global.lx.managedCredentials?.playerPassword
     ) {
       await applyConfiguredPassword(
         config,
@@ -469,6 +477,7 @@ export const reloadServerData = async (): Promise<void> => {
       if (!rootConfig || typeof rootConfig !== 'object' || Array.isArray(rootConfig))
         throw new Error('配置文件格式无效')
       await applyValidatedConfig(rootConfig, { includeSecrets: true })
+      revokeSessionsForConfigChange(previousConfig, global.lx.config as unknown as Record<string, unknown>)
       startupLog.info('Config.js re-loaded and merged.')
     } catch (err: any) {
       for (const key of Object.keys(global.lx.config)) {
@@ -653,8 +662,10 @@ export const createSystemRouter = (): Router => {
       'user.enableCacheSizeLimit': c['user.enableCacheSizeLimit'],
       'user.cacheSizeLimit': c['user.cacheSizeLimit'],
       'frontend.passwordConfigured': Boolean(c['frontend.passwordHash'] || c['frontend.password']),
+      'frontend.passwordManaged': Boolean(global.lx.managedCredentials?.adminPassword),
       'player.enableAuth': c['player.enableAuth'] || false,
       'player.passwordConfigured': Boolean(c['player.passwordHash'] || c['player.password']),
+      'player.passwordManaged': Boolean(global.lx.managedCredentials?.playerPassword),
       'proxy.all.enabled': c['proxy.all.enabled'] || false,
       'proxy.all.address': redactUrlCredentials(c['proxy.all.address']),
       'admin.path': c['admin.path'] ?? '',
@@ -690,8 +701,11 @@ export const createSystemRouter = (): Router => {
         }
         c.serverName = newConfig.serverName
       }
-      if (newConfig.maxSnapshotNum !== undefined)
-        c.maxSnapshotNum = parseBoundedInteger(newConfig.maxSnapshotNum, 1, 10000, c.maxSnapshotNum)
+      if (newConfig.maxSnapshotNum !== undefined) {
+        const previousMax = Number(c.maxSnapshotNum) || 10
+        c.maxSnapshotNum = parseBoundedInteger(newConfig.maxSnapshotNum, 1, 100, previousMax)
+        updateStoredSnapshotLimitDefault(previousMax, c.maxSnapshotNum)
+      }
       if (newConfig['list.addMusicLocationType'] !== undefined) {
         if (newConfig['list.addMusicLocationType'] !== 'top' && newConfig['list.addMusicLocationType'] !== 'bottom') {
           rollbackConfig()
@@ -757,6 +771,10 @@ export const createSystemRouter = (): Router => {
           rollbackConfig()
           return ctx.json({ success: false, error: '管理员密码格式无效' }, 422)
         }
+        if (global.lx.managedCredentials?.adminPassword && newConfig['frontend.password'].trim()) {
+          rollbackConfig()
+          return ctx.json({ success: false, error: '管理员密码由 FRONTEND_PASSWORD 环境变量管理，不能在此修改' }, 422)
+        }
         if (newConfig['frontend.password'].length > 1024) {
           rollbackConfig()
           return ctx.json({ success: false, error: '管理员密码长度不能超过 1024 个字符' }, 422)
@@ -779,6 +797,10 @@ export const createSystemRouter = (): Router => {
         if (typeof newConfig['player.password'] !== 'string') {
           rollbackConfig()
           return ctx.json({ success: false, error: '播放器密码格式无效' }, 422)
+        }
+        if (global.lx.managedCredentials?.playerPassword && newConfig['player.password'].trim()) {
+          rollbackConfig()
+          return ctx.json({ success: false, error: '播放器密码由 WEBPLAYER_PASSWORD 环境变量管理，不能在此修改' }, 422)
         }
         if (newConfig['player.password'].length > 1024) {
           rollbackConfig()
@@ -956,6 +978,7 @@ export const createSystemRouter = (): Router => {
         await applyValidatedConfig(restoredConfig)
         resetUserSpaces()
         refreshUsersFromDatabase()
+        await initUserApis()
         if (global.lx.config.serverCacheLocation) {
           fileCache.setCacheLocation(global.lx.config.serverCacheLocation)
         }

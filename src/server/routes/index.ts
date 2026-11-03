@@ -4,6 +4,7 @@ import {
   securityHeadersMiddleware,
   accessLogMiddleware,
   compressionMiddleware,
+  apiNoStoreMiddleware,
   type Middleware,
 } from '../core'
 import { verifyAdminAuth, checkPlayerAuthSession } from '../auth'
@@ -64,6 +65,7 @@ export const createRootRouter = (): Router => {
   root.use(corsMiddleware)
   root.use(accessLogMiddleware)
   root.use(compressionMiddleware)
+  root.use(apiNoStoreMiddleware)
 
   // 播放器接口鉴权要在业务路由和限流之前执行，避免未授权请求进入昂贵的业务处理。
   root.use('/api/music', playerApiAuthMiddleware)

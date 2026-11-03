@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadPlaylistSongs, playerApi, type CacheItem } from './api'
-import { Button, DescriptionDisclosure, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
+import {
+  Button,
+  DescriptionDisclosure,
+  Icon,
+  Loading,
+  Modal,
+  SafeImage,
+  SelectMenu,
+  SelectionDock,
+  SongList,
+} from './components'
 import { selectUserLists, useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
 import type { PlayerDetail, Song } from './types'
 import {
@@ -518,13 +528,14 @@ export function LeaderboardView() {
 }
 
 function localCacheItemKey(item: CacheItem, fallbackUsername?: string | null): string {
-  return `${String(item.rawUsername || fallbackUsername || '_open')}:${String(item.folder)}:${String(item.filename)}`
+  return `${String(item.rawUsername || fallbackUsername || '_open')}:${String(item.location || '')}:${String(item.folder)}:${String(item.filename)}`
 }
 
 function sameCacheItems(current: CacheItem[], next: CacheItem[]): boolean {
   if (current.length !== next.length) return false
   const fields: Array<keyof CacheItem> = [
     'rawUsername',
+    'location',
     'folder',
     'filename',
     'mtime',
@@ -624,6 +635,7 @@ export function LocalMusicView() {
   const cacheFileUrl = useCallback(
     (item: CacheItem) => {
       const params = new URLSearchParams({ folder: String(item.folder || 'cache') })
+      if (item.location === 'data' || item.location === 'root') params.set('location', item.location)
       const username = String(item.rawUsername || item.username || userName || '_open').trim()
       const encodedFilename = encodeURIComponent(String(item.filename))
       const isPublic = username === '_open' || username === 'open' || username === 'default'
@@ -673,8 +685,11 @@ export function LocalMusicView() {
   )
   const hasCacheDataForCurrentUser = cacheDataScope === (userName || '')
   const cacheErrorForCurrentUser = cacheErrorScope === (userName || '') ? cacheError : ''
+  const allVisibleSelected =
+    visibleCacheItems.length > 0 && visibleCacheItems.every(item => selected.has(localCacheItemKey(item, userName)))
   useEffect(() => {
     setPage(0)
+    setSelected(new Set())
   }, [cacheFilter, keyword])
   const toggleSelected = (item: CacheItem) =>
     setSelected(current => {
@@ -687,12 +702,18 @@ export function LocalMusicView() {
   const deleteSelected = async () => {
     const items = visibleCacheItems
       .filter(item => selected.has(localCacheItemKey(item, userName)))
-      .map(item => ({ filename: String(item.filename), folder: String(item.folder), user: item.rawUsername }))
+      .map(item => ({
+        filename: String(item.filename),
+        folder: String(item.folder),
+        location: item.location,
+        user: item.rawUsername,
+      }))
     if (!items.length) return
     try {
       await playerApi.cacheRemove(items, userName || undefined)
       notify(`已删除 ${items.length} 个本地文件`)
       setConfirmOpen(false)
+      setSelected(new Set())
       await loadCache()
     } catch (error) {
       notify(error instanceof Error ? error.message : '删除本地文件失败')
@@ -748,20 +769,14 @@ export function LocalMusicView() {
             </h2>
             <p>缓存与明确下载的音乐共用现有服务器存储规则</p>
           </div>
-          <div className="react-dialog-actions">
+          {!selected.size && (
             <Button
               onClick={() => setSelected(new Set(visibleCacheItems.map(item => localCacheItemKey(item, userName))))}
               disabled={!visibleCacheItems.length}
             >
               全选
             </Button>
-            <Button onClick={() => setSelected(new Set())} disabled={!selected.size}>
-              取消选择
-            </Button>
-            <Button variant="danger" onClick={() => setConfirmOpen(true)} disabled={!selected.size}>
-              删除已选（{selected.size}）
-            </Button>
-          </div>
+          )}
         </div>
         {cacheErrorForCurrentUser && hasCacheDataForCurrentUser && (
           <p className="react-cache-refresh-error" role="status">
@@ -802,11 +817,14 @@ export function LocalMusicView() {
                       type="button"
                       className="react-song-main"
                       onClick={() => {
-                        void playerApi.cachePlayback({
-                          filename: String(item.filename),
-                          folder: String(item.folder),
-                          user: item.rawUsername,
-                        })
+                        void playerApi
+                          .cachePlayback({
+                            filename: String(item.filename),
+                            folder: String(item.folder),
+                            location: item.location,
+                            user: item.rawUsername,
+                          })
+                          .catch(() => undefined)
                         playSong(song, serverSongs, index)
                       }}
                     >
@@ -849,12 +867,33 @@ export function LocalMusicView() {
                 </Button>
               </nav>
             )}
+            {selected.size > 0 && <div className="react-selection-dock-spacer" aria-hidden="true" />}
           </div>
         ) : (
           <div className="react-empty">
             <Icon name="cloud-arrow-down" />
             <p>暂无服务器缓存或下载音乐</p>
           </div>
+        )}
+        {selected.size > 0 && (
+          <SelectionDock
+            count={selected.size}
+            allSelected={allVisibleSelected}
+            canSelectAll={visibleCacheItems.length > 0}
+            onToggleAll={() =>
+              setSelected(
+                allVisibleSelected
+                  ? new Set()
+                  : new Set(visibleCacheItems.map(item => localCacheItemKey(item, userName))),
+              )
+            }
+            onClose={() => setSelected(new Set())}
+          >
+            <button type="button" className="react-selection-action is-danger" onClick={() => setConfirmOpen(true)}>
+              <Icon name="trash" />
+              <span>删除</span>
+            </button>
+          </SelectionDock>
         )}
         <Modal open={confirmOpen} title="删除本地音乐" onClose={() => setConfirmOpen(false)}>
           <p>确定删除选中的 {selected.size} 个服务器文件吗？该操作会同时清理关联歌词、封面与缓存索引。</p>

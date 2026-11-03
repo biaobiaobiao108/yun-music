@@ -710,6 +710,7 @@ export const createMusicRouter = (): Router => {
     const verifiedUsername = verifyUserAuth(ctx)
     const lyricUsername = verifiedUsername || '_open'
     const canReadLocalLyricCache = lyricUsername !== '_open' || canReadPublicLocalMusic(ctx, verifiedUsername)
+    const lyricCacheControl = lyricUsername === '_open' ? 'public, max-age=86400' : 'private, no-store'
 
     const localLyricResult = canReadLocalLyricCache
       ? await fileCache.checkLyricCache(
@@ -726,7 +727,7 @@ export const createMusicRouter = (): Router => {
 
     if (localLyricResult.exists && localLyricResult.content) {
       return ctx.json({ ...localLyricResult.content, _fromLocalCache: true }, 200, {
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': lyricCacheControl,
       })
     }
 
@@ -751,7 +752,7 @@ export const createMusicRouter = (): Router => {
       const lyricInfo = await requestObj.promise
 
       return ctx.json(lyricInfo, 200, {
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': lyricCacheControl,
       })
     } catch (err: any) {
       console.error('[Lyric] Fetch error:', source, songmid, err.message || err)
@@ -769,7 +770,9 @@ export const createMusicRouter = (): Router => {
         : { exists: false, content: null }
 
       if (fallbackResult.exists && fallbackResult.content) {
-        return ctx.json({ ...fallbackResult.content, _fromLocalCache: true })
+        return ctx.json({ ...fallbackResult.content, _fromLocalCache: true }, 200, {
+          'Cache-Control': lyricCacheControl,
+        })
       }
 
       return ctx.fail(500, toUserMessage(err, '获取歌词失败，请稍后重试'))

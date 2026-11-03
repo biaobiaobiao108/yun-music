@@ -40,6 +40,45 @@ export function Button({
   )
 }
 
+export function SelectionDock({
+  count,
+  allSelected,
+  canSelectAll,
+  busy = false,
+  onToggleAll,
+  onClose,
+  children,
+  label = '已选歌曲操作',
+}: {
+  count: number
+  allSelected: boolean
+  canSelectAll: boolean
+  busy?: boolean
+  onToggleAll: () => void
+  onClose: () => void
+  children?: ReactNode
+  label?: string
+}) {
+  return (
+    <div className="react-selection-dock" role="toolbar" aria-label={label}>
+      <span className="react-selection-count" aria-live="polite">
+        <span>已选</span>
+        <strong>{count}</strong>
+        <span>首</span>
+      </span>
+      <span className="react-selection-divider" aria-hidden="true" />
+      <button type="button" className="react-selection-action" onClick={onToggleAll} disabled={!canSelectAll || busy}>
+        <Icon name={allSelected ? 'xmark' : 'check'} />
+        <span>{allSelected ? '取消全选' : '全选'}</span>
+      </button>
+      {children}
+      <button type="button" className="react-selection-close" aria-label="退出多选" onClick={onClose} disabled={busy}>
+        <Icon name="xmark" />
+      </button>
+    </div>
+  )
+}
+
 export type SelectOption = { value: string; label: string; disabled?: boolean }
 
 const firstEnabledOption = (options: SelectOption[]): number => options.findIndex(option => !option.disabled)

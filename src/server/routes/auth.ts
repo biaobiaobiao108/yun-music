@@ -20,6 +20,7 @@ import {
   recordLoginFailure,
   verifyConfiguredPassword,
   getCookieValue,
+  trimUserSessionRows,
   type HeaderSource,
 } from '../auth'
 import { loginLog } from '@/utils/log4js'
@@ -76,6 +77,7 @@ const issueUserSession = (username: string): string => {
     username,
     createdAt,
   ])
+  trimUserSessionRows(username)
   return sessionId
 }
 
@@ -98,8 +100,8 @@ export const clearUserSessionCache = (): void => {
 }
 
 export const revokeAllUserSessions = (): void => {
-  getDb().run('DELETE FROM user_sessions')
   clearUserSessionCache()
+  getDb().run('DELETE FROM user_sessions')
 }
 
 /** 验证 Web 用户的 HttpOnly 会话，不再接受密码、Token 或用户名请求头。 */
@@ -202,8 +204,21 @@ export const createAuthRouter = (): Router => {
 
   router.post('/api/logout', ctx => {
     const sessionId = ctx.cookies[ADMIN_SESSION_COOKIE_NAME]
-    if (sessionId) removeAdminSession(sessionId)
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
+    let logoutError: unknown = null
+    if (sessionId) {
+      try {
+        removeAdminSession(sessionId)
+      } catch (error) {
+        logoutError = error
+        console.error('[Auth] 管理员会话注销失败:', error)
+      }
+    }
+    if (logoutError) {
+      return ctx.fail(500, '退出登录失败，请稍后重试')
+    }
+    return ctx.json({ success: true }, 200, {
+      'Set-Cookie': cookie(ADMIN_SESSION_COOKIE_NAME, '', 0, ctx.isSecure),
+    })
   })
 
   router.post('/api/user/login', async ctx => {
@@ -249,11 +264,20 @@ export const createAuthRouter = (): Router => {
 
   router.post('/api/user/logout', ctx => {
     const sessionId = ctx.cookies[USER_SESSION_COOKIE_NAME]
+    let logoutError: unknown = null
     if (sessionId) {
       userSessions.delete(sessionId)
-      deletePersistedUserSession(sessionId)
+      try {
+        deletePersistedUserSession(sessionId)
+      } catch (error) {
+        logoutError = error
+        console.error('[Auth] 用户会话注销失败:', error)
+      }
     }
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
+    if (logoutError) return ctx.fail(500, '退出登录失败，请稍后重试')
+    return ctx.json({ success: true }, 200, {
+      'Set-Cookie': cookie(USER_SESSION_COOKIE_NAME, '', 0, ctx.isSecure),
+    })
   })
 
   router.get('/api/music/auth/verify', ctx => ctx.json({ valid: checkPlayerAuthSession(ctx.cookies) }))
@@ -291,8 +315,19 @@ export const createAuthRouter = (): Router => {
 
   router.post('/api/music/auth/logout', ctx => {
     const sessionId = ctx.cookies[SESSION_COOKIE_NAME]
-    if (sessionId) removePlayerSession(sessionId)
-    return ctx.json({ success: true }, 200, { 'Set-Cookie': cookie(SESSION_COOKIE_NAME, '', 0, ctx.isSecure) })
+    let logoutError: unknown = null
+    if (sessionId) {
+      try {
+        removePlayerSession(sessionId)
+      } catch (error) {
+        logoutError = error
+        console.error('[Auth] 播放器会话注销失败:', error)
+      }
+    }
+    if (logoutError) return ctx.fail(500, '退出登录失败，请稍后重试')
+    return ctx.json({ success: true }, 200, {
+      'Set-Cookie': cookie(SESSION_COOKIE_NAME, '', 0, ctx.isSecure),
+    })
   })
 
   router.get('/api/user/auth/verify', ctx => {

@@ -221,14 +221,21 @@ export function ConfigView() {
           <div className="admin-config-grid">
             <ConfigField
               label="管理员新密码"
-              description={config?.['frontend.passwordConfigured'] ? '已配置，留空保持不变' : '尚未配置，请设置密码'}
+              description={
+                config?.['frontend.passwordManaged']
+                  ? '由 FRONTEND_PASSWORD 环境变量管理'
+                  : config?.['frontend.passwordConfigured']
+                    ? '已配置，留空保持不变'
+                    : '尚未配置，请设置密码'
+              }
             >
               <input
                 type="password"
                 autoComplete="new-password"
                 value={String(draft['frontend.password'] ?? '')}
                 onChange={event => update('frontend.password', event.target.value)}
-                placeholder="留空表示不修改"
+                placeholder={config?.['frontend.passwordManaged'] ? '由环境变量管理' : '留空表示不修改'}
+                disabled={Boolean(config?.['frontend.passwordManaged'])}
               />
             </ConfigField>
             <ConfigToggle
@@ -238,14 +245,21 @@ export function ConfigView() {
             />
             <ConfigField
               label="播放器新密码"
-              description={config?.['player.passwordConfigured'] ? '已配置，留空保持不变' : '尚未配置，请设置密码'}
+              description={
+                config?.['player.passwordManaged']
+                  ? '由 WEBPLAYER_PASSWORD 环境变量管理'
+                  : config?.['player.passwordConfigured']
+                    ? '已配置，留空保持不变'
+                    : '尚未配置，请设置密码'
+              }
             >
               <input
                 type="password"
                 autoComplete="new-password"
                 value={String(draft['player.password'] ?? '')}
                 onChange={event => update('player.password', event.target.value)}
-                placeholder="留空表示不修改"
+                placeholder={config?.['player.passwordManaged'] ? '由环境变量管理' : '留空表示不修改'}
+                disabled={Boolean(config?.['player.passwordManaged'])}
               />
             </ConfigField>
           </div>

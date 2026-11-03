@@ -3,7 +3,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
 import { buildSongMatchSet, sameSong, songKey, songListId, songMatchSetHas } from '../frontend/player/src/react/types'
-import { buildPlaybackUrl, normalizeCachePlaybackUrl } from '../frontend/player/src/react/media_url'
+import {
+  buildCachePlaybackUrl,
+  buildPlaybackUrl,
+  normalizeCachePlaybackUrl,
+  parseCachePlaybackUrl,
+} from '../frontend/player/src/react/media_url'
 import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
 import { getSessionScope, scopedStorageKey, setSessionScope } from '../frontend/player/src/react/session'
 import { songEntityDetail, songEntityId, songEntityName } from '../frontend/player/src/react/song_details'
@@ -261,6 +266,16 @@ describe('React player module boundaries', () => {
     expect(
       buildPlaybackUrl('http://localhost:9527/api/music/cache/file/_open/song.mp3', song, {}, 'http://localhost:9527'),
     ).toBe('http://localhost:9527/api/music/cache/file/_open/song.mp3')
+    const alternateRoot = parseCachePlaybackUrl('/api/music/cache/file/steelway108/test.mp3?folder=music&location=data')
+    expect(alternateRoot).toEqual({
+      filename: 'test.mp3',
+      folder: 'music',
+      username: 'steelway108',
+      location: 'data',
+    })
+    expect(buildCachePlaybackUrl(alternateRoot!)).toBe(
+      '/api/music/cache/file/steelway108/test.mp3?folder=music&location=data',
+    )
   })
 
   it('keeps audio lifecycle lightweight and cache APIs isolated behind services', () => {

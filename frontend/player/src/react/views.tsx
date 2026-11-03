@@ -8,7 +8,17 @@ import {
   type PlaylistIconKey,
   type UserPlaylist,
 } from './api'
-import { Button, DescriptionDisclosure, Icon, Loading, Modal, SafeImage, SelectMenu, SongList } from './components'
+import {
+  Button,
+  DescriptionDisclosure,
+  Icon,
+  Loading,
+  Modal,
+  SafeImage,
+  SelectMenu,
+  SelectionDock,
+  SongList,
+} from './components'
 import { consumeImmersiveLyricsTrigger, PlayerFooterBar } from './player_footer'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import {
@@ -717,11 +727,22 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
     setBatchMode(false)
     setRenameValue(name)
   }, [listId, name])
+  useEffect(() => {
+    if (!batchMode) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setBatchMode(false)
+      setSelectedSongs(new Set())
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [batchMode])
   const selectedListSongs = useMemo(
     () => songs.filter(song => selectedSongs.has(songKey(song))),
     [selectedSongs, songs],
   )
-  const hasSelection = selectedSongs.size > 0
+  const hasSelection = selectedListSongs.length > 0
+  const allSelected = songs.length > 0 && songs.every(song => selectedSongs.has(songKey(song)))
   const toggleSong = (song: Song) =>
     setSelectedSongs(current => {
       const next = new Set(current)
@@ -731,6 +752,10 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
       return next
     })
   const selectAll = () => setSelectedSongs(new Set(songs.map(songKey)))
+  const toggleSelectAll = () => {
+    if (allSelected) setSelectedSongs(new Set())
+    else selectAll()
+  }
   const playRandom = () => {
     if (!songs.length) {
       notify('当前歌单没有歌曲')
@@ -822,50 +847,6 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
       )}
     </>
   )
-  const batchActions = (
-    <>
-      <span className="react-header-selection-count" aria-live="polite">
-        已选择 {selectedSongs.size} 首
-      </span>
-      <Button
-        className="react-icon-only-button"
-        aria-label={hasSelection ? '取消选择' : '全选'}
-        onClick={() => (hasSelection ? setSelectedSongs(new Set()) : selectAll())}
-        disabled={!songs.length}
-      >
-        <Icon name={hasSelection ? 'xmark' : 'check'} />
-      </Button>
-      <Button
-        variant="primary"
-        className="react-icon-only-button"
-        aria-label={downloadBusy ? '正在加入下载队列' : '批量下载'}
-        onClick={() => void downloadBatch()}
-        disabled={!selectedSongs.size || downloadBusy}
-      >
-        <Icon name={downloadBusy ? 'spinner' : 'download'} />
-      </Button>
-      <Button
-        variant="danger"
-        className="react-icon-only-button"
-        aria-label="批量移除"
-        onClick={() => setConfirmOpen(true)}
-        disabled={!selectedSongs.size || downloadBusy}
-      >
-        <Icon name="trash" />
-      </Button>
-      <Button
-        className="react-icon-only-button"
-        aria-label="退出多选"
-        onClick={() => {
-          setBatchMode(false)
-          setSelectedSongs(new Set())
-        }}
-        disabled={downloadBusy}
-      >
-        <Icon name="xmark" />
-      </Button>
-    </>
-  )
   const normalActions = (
     <>
       <Button
@@ -886,12 +867,12 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
     <ViewFrame
       title={name}
       actions={
-        <div className="react-view-header-actions react-playlist-header-actions">
-          {batchMode ? batchActions : normalActions}
-        </div>
+        batchMode ? undefined : (
+          <div className="react-view-header-actions react-playlist-header-actions">{normalActions}</div>
+        )
       }
     >
-      <section className="react-content-card t-bg-panel react-playlist-page">
+      <section className={`react-content-card t-bg-panel react-playlist-page ${batchMode ? 'is-batch-selecting' : ''}`}>
         {loading ? (
           <Loading label="正在加载歌单…" />
         ) : error ? (
@@ -908,9 +889,42 @@ function SongCollectionView({ listId, name, songs, loading, error, onRename, onD
             empty={listId === 'love' ? '还没有喜欢的歌曲，去搜索音乐吧' : '歌单还是空的，去搜索音乐吧'}
           />
         )}
+        {batchMode && <div className="react-selection-dock-spacer" aria-hidden="true" />}
+        {batchMode && (
+          <SelectionDock
+            count={selectedListSongs.length}
+            allSelected={allSelected}
+            canSelectAll={songs.length > 0}
+            busy={downloadBusy}
+            onToggleAll={toggleSelectAll}
+            onClose={() => {
+              setBatchMode(false)
+              setSelectedSongs(new Set())
+            }}
+          >
+            <button
+              type="button"
+              className="react-selection-action is-primary"
+              onClick={() => void downloadBatch()}
+              disabled={!hasSelection || downloadBusy}
+            >
+              <Icon name={downloadBusy ? 'spinner' : 'download'} />
+              <span>{downloadBusy ? '加入中' : '下载'}</span>
+            </button>
+            <button
+              type="button"
+              className="react-selection-action is-danger"
+              onClick={() => setConfirmOpen(true)}
+              disabled={!hasSelection || downloadBusy}
+            >
+              <Icon name="trash" />
+              <span>移除</span>
+            </button>
+          </SelectionDock>
+        )}
         <Modal open={confirmOpen} title="批量移除歌曲" onClose={() => setConfirmOpen(false)}>
           <p>
-            确定从“{name}”移除选中的 {selectedSongs.size} 首歌曲吗？
+            确定从“{name}”移除选中的 {selectedListSongs.length} 首歌曲吗？
           </p>
           <div className="react-dialog-actions">
             <Button onClick={() => setConfirmOpen(false)}>取消</Button>
@@ -1030,6 +1044,8 @@ export function FavoritesView() {
 export function SettingsView() {
   const settings = useSettingsStore(state => state.settings)
   const setSetting = useSettingsStore(state => state.setSetting)
+  const saveError = useSettingsStore(state => state.saveError)
+  const clearSaveError = useSettingsStore(state => state.clearSaveError)
   const userAuthenticated = useAuthStore(state => state.userAuthenticated)
   const userName = useAuthStore(state => state.userName)
   const userLogin = useAuthStore(state => state.userLogin)
@@ -1052,6 +1068,14 @@ export function SettingsView() {
   const toggle = (key: string) => (event: React.ChangeEvent<HTMLInputElement>) => setSetting(key, event.target.checked)
   return (
     <ViewFrame title="设置">
+      {saveError && (
+        <div className="react-settings-sync-error" role="alert">
+          <span>设置已保存在本机，但未同步到服务器：{saveError}</span>
+          <button type="button" onClick={clearSaveError}>
+            关闭
+          </button>
+        </div>
+      )}
       <section className="react-settings-grid">
         <section className="react-content-card t-bg-panel">
           <h2>外观</h2>

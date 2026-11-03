@@ -309,8 +309,8 @@ export const createCacheRouter = (): Router => {
   // 按最近播放时间做 LRU 清理。请求目标由 user 查询参数限定在当前用户
   // 或公共空间，不能跨用户写入播放记录。
   router.post('/api/music/cache/playback', async ctx => {
-    const target = resolveCacheTarget(ctx, { publicWrite: true })
-    if (!target.ok) return target.error
+    const username = getCacheRequestUsername(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
 
     try {
       const body = await ctx.bodyJson<{ filename?: string; folder?: fileCache.CacheFolder; location?: string }>()
@@ -320,8 +320,8 @@ export const createCacheRouter = (): Router => {
         return ctx.fail(400, '缓存位置不合法')
 
       const marked = body.location
-        ? fileCache.markCachePlayback(body.filename, target.username, body.folder, body.location)
-        : fileCache.markCachePlayback(body.filename, target.username, body.folder)
+        ? fileCache.markCachePlayback(body.filename, username, body.folder, body.location)
+        : fileCache.markCachePlayback(body.filename, username, body.folder)
       return ctx.json({ success: true, data: { marked } })
     } catch (err) {
       return ctx.fail(400, toUserMessage(err, '记录播放时间失败，请稍后重试'))
@@ -592,12 +592,22 @@ export const createCacheRouter = (): Router => {
     if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') {
       return ctx.fail(400, '目录类型不合法')
     }
-    const locations = [
-      fileCache.getCacheLocation(),
-      fileCache.getCacheLocation() === fileCache.CACHE_ROOTS.DATA
-        ? fileCache.CACHE_ROOTS.ROOT
-        : fileCache.CACHE_ROOTS.DATA,
-    ]
+    const requestedLocation = ctx.query.get('location')
+    if (
+      requestedLocation &&
+      requestedLocation !== fileCache.CACHE_ROOTS.DATA &&
+      requestedLocation !== fileCache.CACHE_ROOTS.ROOT
+    ) {
+      return ctx.fail(400, '缓存位置不合法')
+    }
+    const locations = requestedLocation
+      ? [requestedLocation]
+      : [
+          fileCache.getCacheLocation(),
+          fileCache.getCacheLocation() === fileCache.CACHE_ROOTS.DATA
+            ? fileCache.CACHE_ROOTS.ROOT
+            : fileCache.CACHE_ROOTS.DATA,
+        ]
     const roots: Array<fileCache.CacheFolder> = requestedFolder
       ? [requestedFolder as fileCache.CacheFolder]
       : ['cache', 'music']
@@ -902,9 +912,21 @@ export const createCacheRouter = (): Router => {
       return ctx.fail(400, '目录类型不合法')
     }
 
-    const cover = (await (requestedFolder
-      ? fileCache.getCacheCover(filename, username, requestedFolder as fileCache.CacheFolder)
-      : fileCache.getCacheCover(filename, username))) as any
+    const requestedLocation = ctx.query.get('location')
+    if (
+      requestedLocation &&
+      requestedLocation !== fileCache.CACHE_ROOTS.DATA &&
+      requestedLocation !== fileCache.CACHE_ROOTS.ROOT
+    ) {
+      return ctx.fail(400, '缓存位置不合法')
+    }
+
+    const folder = requestedFolder ? (requestedFolder as fileCache.CacheFolder) : undefined
+    const cover = (await (requestedLocation
+      ? fileCache.getCacheCover(filename, username, folder, requestedLocation)
+      : folder
+        ? fileCache.getCacheCover(filename, username, folder)
+        : fileCache.getCacheCover(filename, username))) as any
     if (cover && cover.data) {
       return new Response(cover.data, {
         status: 200,
@@ -935,32 +957,45 @@ export const createCacheRouter = (): Router => {
           : []
       if (rawItems.length === 0) throw new Error('Missing items')
 
-      const deleteItems: Array<{ filename: string; folder?: fileCache.CacheFolder; user?: string }> = rawItems.map(
-        (item: any) => {
-          if (typeof item === 'string') return { filename: item }
-          if (!item || typeof item.filename !== 'string') throw new Error('Invalid delete item')
-          if (item.folder !== undefined && item.folder !== 'cache' && item.folder !== 'music') {
-            throw new Error('Invalid folder')
-          }
-          return {
-            filename: item.filename,
-            folder: item.folder,
-            user:
-              typeof item.user === 'string' && item.user
-                ? item.user
-                : typeof item.rawUsername === 'string' && item.rawUsername
-                  ? item.rawUsername
-                  : undefined,
-          }
-        },
-      )
+      const deleteItems: Array<{
+        filename: string
+        folder?: fileCache.CacheFolder
+        location?: string
+        user?: string
+      }> = rawItems.map((item: any) => {
+        if (typeof item === 'string') return { filename: item }
+        if (!item || typeof item.filename !== 'string') throw new Error('Invalid delete item')
+        if (item.folder !== undefined && item.folder !== 'cache' && item.folder !== 'music') {
+          throw new Error('Invalid folder')
+        }
+        if (
+          item.location !== undefined &&
+          item.location !== fileCache.CACHE_ROOTS.DATA &&
+          item.location !== fileCache.CACHE_ROOTS.ROOT
+        ) {
+          throw new Error('Invalid location')
+        }
+        return {
+          filename: item.filename,
+          folder: item.folder,
+          location: item.location,
+          user:
+            typeof item.user === 'string' && item.user
+              ? item.user
+              : typeof item.rawUsername === 'string' && item.rawUsername
+                ? item.rawUsername
+                : undefined,
+        }
+      })
 
       let deletedCount = 0
       const failures: Array<{ filename: string; folder?: fileCache.CacheFolder; message: string }> = []
       for (const item of deleteItems) {
         try {
           const itemUser = isAdmin && item.user ? assertSafePathSegment(item.user, 'user name') : username
-          const result = fileCache.removeCacheFile(item.filename, itemUser, item.folder)
+          const result = item.location
+            ? fileCache.removeCacheFile(item.filename, itemUser, item.folder, item.location)
+            : fileCache.removeCacheFile(item.filename, itemUser, item.folder)
           if (result.deleted) {
             deletedCount++
             accessLog.info(
@@ -1018,19 +1053,28 @@ export const createCacheRouter = (): Router => {
       if (rawItems.length === 0) return ctx.fail(400, '缺少必要参数：filenames')
       if (rawItems.length > 500) return ctx.fail(400, '单次最多移动 500 个文件')
 
-      const userGroup = new Map<string, string[]>()
-      const publicPromotions: Array<{ filename: string; sourceUser: string }> = []
+      const userGroup = new Map<string, { user: string; location?: string; filenames: string[] }>()
+      const publicPromotions: Array<{ filename: string; sourceUser: string; location?: string }> = []
       for (const item of rawItems) {
         const requestedSourceUser = String(item.sourceUser || item.user || item.rawUsername || '').trim()
         const sourceUser = ['open', 'default', '_open'].includes(requestedSourceUser) ? '_open' : requestedSourceUser
+        if (
+          item.location !== undefined &&
+          item.location !== fileCache.CACHE_ROOTS.DATA &&
+          item.location !== fileCache.CACHE_ROOTS.ROOT
+        ) {
+          return ctx.fail(400, '缓存位置不合法')
+        }
+        const location = item.location as string | undefined
         if (!isAdmin && sourceUser === '_open' && target.username !== '_open' && requestedTargetFolder === 'music') {
-          publicPromotions.push({ filename: item.filename, sourceUser })
+          publicPromotions.push({ filename: item.filename, sourceUser, location })
           continue
         }
         const itemUser = isAdmin && sourceUser ? assertSafePathSegment(sourceUser, 'user name') : target.username
-        const list = userGroup.get(itemUser) || []
-        list.push(item.filename)
-        userGroup.set(itemUser, list)
+        const groupKey = JSON.stringify([itemUser, location ?? null])
+        const group = userGroup.get(groupKey) || { user: itemUser, location, filenames: [] }
+        group.filenames.push(item.filename)
+        userGroup.set(groupKey, group)
       }
 
       let totalSuccess = 0
@@ -1038,13 +1082,19 @@ export const createCacheRouter = (): Router => {
       const moved: Array<{ filename: string; from: fileCache.CacheFolder; to: fileCache.CacheFolder; user: string }> =
         []
       for (const item of publicPromotions) {
-        const result = await fileCache.promoteCacheFile(item.filename, item.sourceUser, target.username)
+        const result = await fileCache.promoteCacheFile(
+          item.filename,
+          item.sourceUser,
+          target.username,
+          'cache',
+          item.location,
+        )
         totalSuccess += result.successCount
         totalFail += result.failCount
         moved.push(...result.moved.map(entry => ({ ...entry, user: target.username })))
       }
-      for (const [user, filenames] of userGroup.entries()) {
-        const result = await fileCache.switchFolder(filenames, user, requestedTargetFolder ?? undefined)
+      for (const { user, location, filenames } of userGroup.values()) {
+        const result = await fileCache.switchFolder(filenames, user, requestedTargetFolder ?? undefined, location)
         totalSuccess += result.successCount
         totalFail += result.failCount
         moved.push(...result.moved.map(item => ({ ...item, user })))

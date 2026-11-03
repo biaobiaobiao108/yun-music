@@ -29,6 +29,10 @@ describe('Outbound URL network boundaries', () => {
     '[::ffff:10.0.0.1]',
     '[::ffff:192.168.1.1]',
     '[::ffff:169.254.169.254]',
+    '[::ffff:0:7f00:1]',
+    '[::ffff:0:0:7f00:1]',
+    '[64:ff9b::7f00:1]',
+    '[2002:7f00:1::1]',
   ])('rejects private address %s', async host => {
     await expect(assertSafeRemoteHttpUrl(`http://${host}/audio`)).rejects.toThrow('Private network URL is not allowed')
   })

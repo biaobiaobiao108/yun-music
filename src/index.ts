@@ -15,6 +15,7 @@ import { assertSafePathSegment } from './utils/pathSecurity'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses } from './server/core/context'
 import { parseConfigFile } from './utils/configLoader'
 import { hashPassword, isPasswordHash } from './utils/passwordHash'
+import { revokeSessionsForConfigChange } from './server/auth'
 
 // Declare Env Params Type
 type ENV_PARAMS_Type = typeof ENV_PARAMS
@@ -130,11 +131,18 @@ const saveConfigToFile = async () => {
         return
       }
     }
-    lastConfigHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
-    await Bun.write(configPath, content)
+    const nextHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
+    const tempPath = `${configPath}.${process.pid}.${Date.now()}.tmp`
     try {
-      fs.chmodSync(configPath, 0o600)
-    } catch {}
+      fs.writeFileSync(tempPath, content, { encoding: 'utf8', mode: 0o600 })
+      fs.renameSync(tempPath, configPath)
+      try {
+        fs.chmodSync(configPath, 0o600)
+      } catch {}
+      lastConfigHash = nextHash
+    } finally {
+      if (fs.existsSync(tempPath)) fs.rmSync(tempPath, { force: true })
+    }
     // console.log('Current memory config saved to config.js')
   } catch (err) {
     console.error('Failed to save config.js:', err)
@@ -237,6 +245,10 @@ envParams.CONFIG_PATH &&
   fs.existsSync(envParams.CONFIG_PATH) &&
   margeConfig(envParams.CONFIG_PATH)
 const applyEnvironmentConfig = () => {
+  global.lx.managedCredentials = {
+    adminPassword: Boolean(envParams.FRONTEND_PASSWORD),
+    playerPassword: Boolean(envParams.WEBPLAYER_PASSWORD),
+  }
   if (envParams.PROXY_HEADER) {
     global.lx.config['proxy.enabled'] = true
     global.lx.config['proxy.header'] = envParams.PROXY_HEADER
@@ -248,7 +260,7 @@ const applyEnvironmentConfig = () => {
   }
   if (envParams.MAX_SNAPSHOT_NUM) {
     const num = parseInt(envParams.MAX_SNAPSHOT_NUM)
-    if (!isNaN(num)) global.lx.config.maxSnapshotNum = num
+    if (!isNaN(num)) global.lx.config.maxSnapshotNum = Math.min(Math.max(num, 1), 100)
   }
   if (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
     switch (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
@@ -531,16 +543,29 @@ await startServer(global.lx.config.port, global.lx.config.bindIP)
 // 监控 config.js 变动以实现热重载 (由于 nodemon 已忽略该文件)
 const rootConfigPath = process.env.CONFIG_PATH || path.join(global.lx.dataPath, 'config.js')
 let configWatcher: fs.FSWatcher | null = null
+let configDebounceTimer: NodeJS.Timeout | null = null
 if (fs.existsSync(rootConfigPath)) {
   lastConfigHash = getConfigHash(rootConfigPath)
-  let debounceTimer: NodeJS.Timeout | null = null
-  configWatcher = fs.watch(rootConfigPath, event => {
-    if (event === 'change') {
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => {
+  const attachConfigWatcher = () => {
+    try {
+      configWatcher?.close()
+    } catch {}
+    configWatcher = null
+    if (!fs.existsSync(rootConfigPath)) return
+    configWatcher = fs.watch(rootConfigPath, event => {
+      if (event !== 'change' && event !== 'rename') return
+      // Atomic config replacement produces rename and invalidates the old
+      // watcher on some platforms. Reattach after the replacement settles.
+      if (event === 'rename') {
+        const timer = setTimeout(attachConfigWatcher, 100)
+        timer.unref?.()
+      }
+      if (configDebounceTimer) clearTimeout(configDebounceTimer)
+      configDebounceTimer = setTimeout(() => {
         const currentHash = getConfigHash(rootConfigPath)
+        if (!currentHash) return
         // 如果内容未发生实质改变（如内部写配置触发的 fs.watch 事件），跳过热重载
-        if (currentHash && currentHash === lastConfigHash) return
+        if (currentHash === lastConfigHash) return
         lastConfigHash = currentHash
 
         console.log('Detected external config.js change, hot-reloading...')
@@ -556,6 +581,7 @@ if (fs.existsSync(rootConfigPath)) {
               'player.password',
               Boolean(global.lx.config['player.enableAuth']),
             )
+            revokeSessionsForConfigChange(previousConfig, global.lx.config as unknown as Record<string, unknown>)
             await saveConfigToFile()
           } catch (e) {
             for (const key of Object.keys(global.lx.config)) {
@@ -566,8 +592,9 @@ if (fs.existsSync(rootConfigPath)) {
           }
         })()
       }, 500)
-    }
-  })
+    })
+  }
+  attachConfigWatcher()
 }
 
 // 优雅停机处理 (Graceful Shutdown)

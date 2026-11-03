@@ -257,6 +257,9 @@ export class ListDataManage {
 
   userListsRemove = async (ids: string[]) => {
     await this.initPromise
+    if (ids.some(id => [LIST_IDS.DEFAULT, LIST_IDS.LOVE, LIST_IDS.TEMP, LIST_IDS.DOWNLOAD].includes(id as any))) {
+      throw new Error('不能删除内置歌单')
+    }
     const changedIds = []
     for (const id of ids) {
       this.removeUserList(id)

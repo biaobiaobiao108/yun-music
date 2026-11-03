@@ -212,20 +212,21 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   error: '',
   // Loading a new song is asynchronous. AudioRuntime owns the actual play
   // call after the new source is ready.
-  playSong: (
-    song,
-    queue = get().queue,
-    index = Math.max(
-      0,
-      queue.findIndex(item => songKey(item) === songKey(song)),
-    ),
-  ) => {
+  playSong: (song, queue = get().queue, index) => {
     const wasPlaying = get().isPlaying
     primeCommand?.({ wasPlaying })
-    const nextQueue = queue.length ? queue : [song]
-    const nextIndex = index >= 0 ? index : nextQueue.findIndex(item => songKey(item) === songKey(song))
+    const key = songKey(song)
+    let nextQueue = queue.length ? queue : [song]
+    let nextIndex = typeof index === 'number' ? index : -1
+    if (nextIndex < 0 || !nextQueue[nextIndex] || songKey(nextQueue[nextIndex]) !== key) {
+      nextIndex = nextQueue.findIndex(item => songKey(item) === key)
+    }
+    if (nextIndex < 0) {
+      nextQueue = [song, ...nextQueue]
+      nextIndex = 0
+    }
     const state = get()
-    const priorityNextSongKey = state.priorityNextSongKey === songKey(song) ? null : state.priorityNextSongKey
+    const priorityNextSongKey = state.priorityNextSongKey === key ? null : state.priorityNextSongKey
     const next = {
       currentSong: song,
       queue: nextQueue,
@@ -242,6 +243,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     persistPlaybackNow({ ...get(), ...next })
   },
   toggle: () => {
+    if (!get().currentSong) return
     if (get().isPlaying) {
       pauseCommand()
       set({ isPlaying: false })

@@ -1891,9 +1891,10 @@ export const getCacheList = async (username?: string) => {
   // the list endpoint open while metadata and cover state are inspected.
   scheduleCacheIndexSync(normalizedUsername)
 
-  const cacheItems = indexManager.getAll(normalizedUsername, 'cache')
-  const musicItems = indexManager.getAll(normalizedUsername, 'music')
-  const items = [...cacheItems, ...musicItems]
+  const items = getCacheLocations().flatMap(location => [
+    ...indexManager.getAll(normalizedUsername, 'cache', location).map(item => ({ ...item, location })),
+    ...indexManager.getAll(normalizedUsername, 'music', location).map(item => ({ ...item, location })),
+  ])
 
   return items.map(item => ({
     ...item,
@@ -2312,14 +2313,17 @@ const setIndexCoverState = (
 /**
  * Get cover image for a cached file
  */
-export const getCacheCover = async (filename: string, username?: string, requestedFolder?: CacheFolder) => {
+export const getCacheCover = async (
+  filename: string,
+  username?: string,
+  requestedFolder?: CacheFolder,
+  requestedLocation?: string,
+) => {
   if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') return null
+  if (requestedLocation && requestedLocation !== CACHE_ROOTS.DATA && requestedLocation !== CACHE_ROOTS.ROOT) return null
   const normalizedUsername = normalizeCacheUsername(username)
 
-  const locations = [
-    currentCacheLocation,
-    currentCacheLocation === CACHE_ROOTS.DATA ? CACHE_ROOTS.ROOT : CACHE_ROOTS.DATA,
-  ]
+  const locations = requestedLocation ? [requestedLocation] : getCacheLocations()
   const roots: Array<CacheFolder> = requestedFolder ? [requestedFolder] : ['cache', 'music']
 
   for (const loc of locations) {
@@ -2598,7 +2602,7 @@ export const checkCache = (
                   quality: cached.quality,
                   folder: folder,
                   location,
-                  url: `/api/music/cache/file/${encodeURIComponent(targetUser)}/${encodeURIComponent(fileName)}?folder=${folder}`,
+                  url: `/api/music/cache/file/${encodeURIComponent(targetUser)}/${encodeURIComponent(fileName)}?folder=${folder}&location=${encodeURIComponent(location)}`,
                 }
               } else {
                 // Stale index entry, cleanup only in the location that was checked.
@@ -2668,7 +2672,7 @@ export const checkCache = (
               collisionSongmid: collision.songmid,
               filename: collisionFileName,
               path: collisionFilePath,
-              url: `/api/music/cache/file/${encodeURIComponent(targetUser)}/${encodeURIComponent(collisionFileName)}?folder=${collision.folder}`,
+              url: `/api/music/cache/file/${encodeURIComponent(targetUser)}/${encodeURIComponent(collisionFileName)}?folder=${collision.folder}&location=${encodeURIComponent(location)}`,
               quality: collision.quality,
               foundIn: targetUser,
               folder: collision.folder,
@@ -2698,7 +2702,7 @@ export const checkCache = (
                     quality: cachedAny.quality,
                     folder: folder,
                     location,
-                    url: `/api/music/cache/file/${encodeURIComponent(targetUser)}/${encodeURIComponent(fileName)}?folder=${folder}`,
+                    url: `/api/music/cache/file/${encodeURIComponent(targetUser)}/${encodeURIComponent(fileName)}?folder=${folder}&location=${encodeURIComponent(location)}`,
                   }
                 }
               }
@@ -4531,14 +4535,17 @@ export const switchFolder = async (
   filenames: string[],
   username: string | undefined,
   requestedTargetFolder?: CacheFolder,
+  requestedLocation?: string,
 ) => {
+  if (requestedLocation && requestedLocation !== CACHE_ROOTS.DATA && requestedLocation !== CACHE_ROOTS.ROOT)
+    throw new Error('Invalid cache location')
   const normalizedUsername = normalizeCacheUsername(username)
   let successCount = 0
   let failCount = 0
   let cacheChanged = false
   const moved: Array<{ filename: string; from: CacheFolder; to: CacheFolder }> = []
 
-  const locations = getCacheLocations()
+  const locations = requestedLocation ? [requestedLocation] : getCacheLocations()
 
   for (const filename of filenames) {
     let sourceFolder: 'cache' | 'music' | null = null
@@ -4756,12 +4763,16 @@ export const promoteCacheFile = async (
   sourceUsername: string | undefined,
   targetUsername: string | undefined,
   sourceFolder: CacheFolder = 'cache',
+  requestedLocation?: string,
 ) => {
   const normalizedSource = normalizeCacheUsername(sourceUsername)
   const normalizedTarget = normalizeCacheUsername(targetUsername)
-  if (normalizedSource === normalizedTarget) return switchFolder([filename], normalizedTarget, 'music')
+  if (normalizedSource === normalizedTarget)
+    return switchFolder([filename], normalizedTarget, 'music', requestedLocation)
 
-  for (const location of getCacheLocations()) {
+  if (requestedLocation && requestedLocation !== CACHE_ROOTS.DATA && requestedLocation !== CACHE_ROOTS.ROOT)
+    return { successCount: 0, failCount: 1, moved: [] }
+  for (const location of requestedLocation ? [requestedLocation] : getCacheLocations()) {
     const item = indexManager
       .getAll(normalizedSource, sourceFolder, location)
       .find(entry => entry.filename === filename)

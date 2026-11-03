@@ -40,21 +40,76 @@ const isPrivateIpv4 = (value: string): boolean => {
   return ranges.some(([start, end]) => number >= start && number <= end)
 }
 
-const isPrivateIpv6 = (value: string): boolean => {
-  const address = value.replace(/^\[|\]$/g, '').split('%')[0]
+const ipv4FromHextets = (high: number, low: number): string => `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`
+
+const parseIpv6Hextets = (value: string): number[] | null => {
+  const address = value
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .split('%')[0]
+  const halves = address.split('::')
+  if (halves.length > 2) return null
+
+  const parsePart = (part: string): string[] => (part ? part.split(':') : [])
+  let left = parsePart(halves[0] || '')
+  const right = parsePart(halves[1] || '')
+  const dottedIndex = (right.length ? right : left).findIndex(part => part.includes('.'))
+  if (dottedIndex >= 0) {
+    const groups = right.length ? right : left
+    const dotted = groups[dottedIndex]
+    const octets = dotted.split('.')
+    if (octets.length !== 4 || octets.some(octet => !/^\d{1,3}$/.test(octet))) return null
+    const nums = octets.map(Number)
+    if (nums.some(octet => octet > 255)) return null
+    groups.splice(dottedIndex, 1, ((nums[0] << 8) | nums[1]).toString(16), ((nums[2] << 8) | nums[3]).toString(16))
+    if (right.length) right.splice(0, right.length, ...groups)
+    else left = groups
+  }
+
+  const missing = 8 - left.length - right.length
+  if (missing < 0) return null
+  const parts = [...left, ...Array.from({ length: missing }, () => '0'), ...right]
+  if (parts.length !== 8 || parts.some(part => !/^[\da-f]{1,4}$/.test(part))) return null
+  return parts.map(part => Number.parseInt(part, 16))
+}
+
+const hasPrivateEmbeddedIpv4 = (value: string): boolean => {
   let normalized: string
   try {
     // Canonicalize expanded and dotted IPv4-mapped IPv6 forms alike.
-    normalized = new URL(`http://[${address}]/`).hostname.slice(1, -1)
+    normalized = new URL(`http://[${value.replace(/^\[|\]$/g, '').split('%')[0]}]/`).hostname.slice(1, -1)
   } catch {
     return true
   }
-  const mapped = normalized.match(/^::ffff:([\da-f]+):([\da-f]+)$/)
-  if (mapped) {
-    const high = parseInt(mapped[1], 16)
-    const low = parseInt(mapped[2], 16)
-    return isPrivateIpv4(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`)
+  const hextets = parseIpv6Hextets(normalized)
+  if (!hextets) return true
+
+  const lastTwoPrivate = isPrivateIpv4(ipv4FromHextets(hextets[6], hextets[7]))
+  // IPv4-mapped and IPv4-translated forms. Some platforms accept multiple
+  // zero-filled variants, so check the known 96-bit prefixes rather than one
+  // textual spelling.
+  for (let prefixLength = 3; prefixLength <= 5; prefixLength++) {
+    if (hextets.slice(0, prefixLength).every(part => part === 0) && hextets[prefixLength] === 0xffff && lastTwoPrivate)
+      return true
   }
+
+  // IPv4-compatible ::/96.
+  if (hextets.slice(0, 6).every(part => part === 0) && lastTwoPrivate) return true
+
+  // NAT64 well-known prefix 64:ff9b::/96.
+  if (hextets[0] === 0x0064 && hextets[1] === 0xff9b && hextets.slice(2, 6).every(part => part === 0) && lastTwoPrivate)
+    return true
+
+  // 6to4 embeds the IPv4 address in the second and third hextets.
+  if (hextets[0] === 0x2002 && isPrivateIpv4(ipv4FromHextets(hextets[1], hextets[2]))) return true
+
+  // Teredo obfuscates the client's IPv4 address in the final two hextets.
+  if (hextets[0] === 0x2001 && hextets[1] === 0) {
+    const clientHigh = ~hextets[6] & 0xffff
+    const clientLow = ~hextets[7] & 0xffff
+    if (isPrivateIpv4(ipv4FromHextets(clientHigh, clientLow))) return true
+  }
+
   return (
     normalized === '::' ||
     normalized === '::1' ||
@@ -64,6 +119,8 @@ const isPrivateIpv6 = (value: string): boolean => {
     normalized.startsWith('ff')
   )
 }
+
+const isPrivateIpv6 = (value: string): boolean => hasPrivateEmbeddedIpv4(value)
 
 // Some desktop proxy clients use RFC 2544 benchmarking IPv4 addresses and a
 // fixed ULA IPv6 prefix as synthetic DNS answers. They are not routable

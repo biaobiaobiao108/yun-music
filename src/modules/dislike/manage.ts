@@ -6,6 +6,7 @@ import { toMD5 } from '@/utils'
 export class DislikeManage {
   snapshotDataManage: SnapshotDataManage
   dislikeDataManage: DislikeDataManage
+  private snapshotQueue: Promise<unknown> = Promise.resolve()
 
   constructor(userDataManage: UserDataManage) {
     this.snapshotDataManage = new SnapshotDataManage(userDataManage)
@@ -13,6 +14,12 @@ export class DislikeManage {
   }
 
   createSnapshot = async () => {
+    const task = this.snapshotQueue.then(() => this.persistSnapshot())
+    this.snapshotQueue = task.catch(() => undefined)
+    return task
+  }
+
+  private persistSnapshot = async () => {
     const listData = await this.getDislikeRules()
     const md5 = toMD5(listData.trim())
     const snapshotInfo = await this.snapshotDataManage.getSnapshotInfo()

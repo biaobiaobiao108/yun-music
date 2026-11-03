@@ -9,23 +9,29 @@ const filterRulesToString = (rules: string) => {
 export class DislikeDataManage {
   snapshotDataManage: SnapshotDataManage
   dislikeRules = ''
+  private ready: Promise<void>
 
   constructor(snapshotDataManage: SnapshotDataManage) {
     this.snapshotDataManage = snapshotDataManage
 
-    let dislikeRules: LX.Dislike.DislikeRules | null
-    void this.snapshotDataManage.getSnapshotInfo().then(async snapshotInfo => {
-      if (snapshotInfo.latest) dislikeRules = await this.snapshotDataManage.getSnapshot(snapshotInfo.latest)
-      if (!dislikeRules) dislikeRules = ''
-      this.dislikeRules = dislikeRules
-    })
+    this.ready = this.snapshotDataManage
+      .getSnapshotInfo()
+      .then(async snapshotInfo => {
+        const dislikeRules = snapshotInfo.latest ? await this.snapshotDataManage.getSnapshot(snapshotInfo.latest) : ''
+        this.dislikeRules = dislikeRules || ''
+      })
+      .catch(error => {
+        console.error('[Dislike] 快照初始化失败:', error)
+      })
   }
 
   getDislikeRules = async (): Promise<LX.Dislike.DislikeRules> => {
+    await this.ready
     return this.dislikeRules
   }
 
   addDislikeInfo = async (infos: LX.Dislike.DislikeMusicInfo[]) => {
+    await this.ready
     this.dislikeRules = filterRulesToString(
       this.dislikeRules +
         '\n' +
@@ -35,6 +41,7 @@ export class DislikeDataManage {
   }
 
   overwirteDislikeInfo = async (rules: string) => {
+    await this.ready
     this.dislikeRules = filterRulesToString(rules)
     return this.dislikeRules
   }

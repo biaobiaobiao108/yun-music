@@ -50,6 +50,7 @@ export type StorageItem = Record<string, unknown> & {
   albumName?: string
   size?: number
   folder?: 'cache' | 'music'
+  location?: 'data' | 'root' | string
   mtime?: number
 }
 export type Snapshot = Record<string, unknown> & { id?: string; time?: number; size?: number; name?: string }
@@ -426,9 +427,9 @@ export const adminApi = {
       `/api/music/cache/list?user=${encodeURIComponent(user)}`,
       { signal },
     ),
-  removeCache: (items: Array<{ filename: string; folder?: 'cache' | 'music'; user?: string }>) =>
+  removeCache: (items: Array<{ filename: string; folder?: 'cache' | 'music'; location?: string; user?: string }>) =>
     adminRequest('/api/music/cache/remove', { method: 'POST', body: JSON.stringify({ items }) }),
-  moveCache: (items: Array<{ filename: string; user?: string }>) =>
+  moveCache: (items: Array<{ filename: string; location?: string; user?: string }>) =>
     adminRequest('/api/music/cache/move', { method: 'POST', body: JSON.stringify({ items }) }),
   clearCache: (user: string) =>
     adminRequest(`/api/music/cache/clear?user=${encodeURIComponent(user)}`, { method: 'POST' }),

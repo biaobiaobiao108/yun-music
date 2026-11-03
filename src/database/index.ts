@@ -134,6 +134,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     );
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_created_at ON user_sessions(created_at);')
+  db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_user_name ON user_sessions(user_name);')
 
   // 7. 播放器访问会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
   db.run(`

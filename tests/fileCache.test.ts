@@ -620,6 +620,7 @@ describe('File Cache Path Traversal Defense', () => {
       expect(result.exists).toBe(true)
       expect(result.path).toBe(audioPath)
       expect(result.location).toBe(fileCache.CACHE_ROOTS.ROOT)
+      expect(result.url).toContain('location=root')
 
       expect(fileCache.markCachePlayback(filename, username, 'cache', result.location)).toBe(true)
       const updated = fileCache.indexManager.get(

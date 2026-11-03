@@ -303,6 +303,7 @@ export function PlayerFooterBar({
             filename: currentReference.filename,
             folder: currentReference.folder,
             username: currentReference.username || '_open',
+            location: currentReference.location,
           }
         : null
 
@@ -333,6 +334,7 @@ export function PlayerFooterBar({
               filename: String(match.filename),
               folder: String(match.folder || 'cache') as 'cache' | 'music',
               username: String(match.rawUsername || match.username || userName || '_open').trim() || '_open',
+              location: match.location,
             }
         } catch {
           // A cache index read is an optimization. The already-resolved source
@@ -346,6 +348,7 @@ export function PlayerFooterBar({
             filename: cachedItem.filename,
             folder: 'music',
             username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username,
+            location: cachedItem.location,
           })
           setSongUrl(currentSong, nextUrl, sessionGeneration)
           notify('歌曲已经在下载目录中，已切换到下载路径')
@@ -357,6 +360,7 @@ export function PlayerFooterBar({
             {
               filename: cachedItem.filename,
               folder: cachedItem.folder,
+              location: cachedItem.location,
               user: cachedItem.username,
               rawUsername: cachedItem.username,
               sourceUser: cachedItem.username,
@@ -370,6 +374,7 @@ export function PlayerFooterBar({
           filename: cachedItem.filename,
           folder: 'music',
           username: cachedItem.username === '_open' ? (userName ?? undefined) : cachedItem.username,
+          location: cachedItem.location,
         })
         setSongUrl(currentSong, nextUrl, sessionGeneration)
         notify('已移入下载目录，后续播放不会重复消耗音源次数')

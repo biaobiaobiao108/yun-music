@@ -7,6 +7,10 @@ declare global {
     config: LX.Config
     staticPath: string
     saveConfig: () => void
+    managedCredentials?: {
+      adminPassword: boolean
+      playerPassword: boolean
+    }
     lastCpuSample?: { idle: number; total: number }
     lastProcessSample?: { cpu: NodeJS.CpuUsage; time: number }
   }

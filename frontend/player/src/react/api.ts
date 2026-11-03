@@ -76,6 +76,7 @@ export type CacheItem = Record<string, unknown> & {
   quality?: string
   filename: string
   folder: 'cache' | 'music' | string
+  location?: 'data' | 'root' | string
   rawUsername?: string
   username?: string
   size?: number
@@ -194,8 +195,11 @@ export const playerApi = {
       body: JSON.stringify(mutation),
     }),
   saveListData: (data: UserListData) => requestJson('/api/user/list', { method: 'POST', body: JSON.stringify(data) }),
-  addToList: (listId: string, musicInfos: Song[], location = 'bottom') =>
-    requestJson('/api/music/user/list/add', { method: 'POST', body: JSON.stringify({ listId, musicInfos, location }) }),
+  addToList: (listId: string, musicInfos: Song[], location?: 'top' | 'bottom') =>
+    requestJson('/api/music/user/list/add', {
+      method: 'POST',
+      body: JSON.stringify({ listId, musicInfos, ...(location ? { location } : {}) }),
+    }),
   removeFromList: (listId: string, songIds: string[]) =>
     requestJson('/api/music/user/list/remove', { method: 'POST', body: JSON.stringify({ listId, songIds }) }),
   settings: () => requestJson<Record<string, unknown>>('/api/user/settings'),
@@ -257,7 +261,7 @@ export const playerApi = {
     ),
   cacheSync: (user?: string, signal?: AbortSignal) =>
     requestJson(`/api/music/cache/sync${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST', signal }),
-  cacheRemove: (items: Array<{ filename: string; folder?: string; user?: string }>, user?: string) =>
+  cacheRemove: (items: Array<{ filename: string; folder?: string; location?: string; user?: string }>, user?: string) =>
     requestJson(`/api/music/cache/remove${user ? `?user=${encodeURIComponent(user)}` : ''}`, {
       method: 'POST',
       body: JSON.stringify({ items }),
@@ -265,9 +269,19 @@ export const playerApi = {
   cacheClear: (user?: string) =>
     requestJson(`/api/music/cache/clear${user ? `?user=${encodeURIComponent(user)}` : ''}`, { method: 'POST' }),
   cachePlayback: (item: { filename: string; folder?: string; location?: string; user?: string }) =>
-    requestJson('/api/music/cache/playback', { method: 'POST', body: JSON.stringify(item) }),
+    requestJson(`/api/music/cache/playback${item.user ? `?user=${encodeURIComponent(item.user)}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify({ filename: item.filename, folder: item.folder, location: item.location }),
+    }),
   cacheMove: (
-    items: Array<{ filename: string; folder?: string; user?: string; rawUsername?: string; sourceUser?: string }>,
+    items: Array<{
+      filename: string
+      folder?: string
+      location?: string
+      user?: string
+      rawUsername?: string
+      sourceUser?: string
+    }>,
     targetFolder: 'cache' | 'music' = 'music',
   ) =>
     requestJson<{ success?: boolean; successCount?: number; failCount?: number; moved?: unknown[] }>(

@@ -22,6 +22,9 @@ import { SnapshotConflictError } from '@/modules/snapshotStorage'
 import { PlaylistIdConflictError, type PlaylistMutation } from '@/modules/list/listDataManage'
 import { deleteUserCacheData } from '@/server/fileCache'
 import * as downloadQueue from '@/server/serverDownloadQueue'
+import { initUserApis, reloadUserCustomSources } from '../userApi'
+import { removeUserSourceData } from '@/user/sourceStorage'
+import { LIST_IDS } from '@/constants'
 import { releaseDataOperation, tryAcquireDataOperation } from '../dataOperationLock'
 
 let accountChangeInProgress = false
@@ -41,12 +44,12 @@ const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | 
   const canAccessOpen =
     config['user.enablePublicFavorites'] && (config['user.enablePublicNonAdminAccess'] || isAdmin || !!tokenUser)
 
-  if (reqUsername === '_open') {
+  if (reqUsername === 'default' || reqUsername === 'open' || reqUsername === '_open') {
     if (canAccessOpen) return '_open'
     return null
   }
 
-  if (!reqUsername || reqUsername === 'default') return tokenUser || (canAccessOpen ? '_open' : null)
+  if (!reqUsername) return tokenUser || (canAccessOpen ? '_open' : null)
   if (isAdmin) {
     try {
       return assertSafePathSegment(reqUsername, 'user name')
@@ -81,6 +84,13 @@ const saveUsers = async (options: { purgeDataFor?: readonly string[] } = {}) => 
     console.error('Failed to sync users to SQLite:', err)
     throw err
   }
+}
+
+const rejectUnavailableDataWrite = (ctx: HttpContext, username: string): Response | null => {
+  if (accountChangeInProgress) return ctx.fail(409, '账户数据正在迁移或删除，请稍后重试')
+  if (username === '_open') return null
+  if (global.lx.config.users.some(user => user.name === username)) return null
+  return ctx.fail(409, '账户已变更，请刷新页面后重试')
 }
 
 const resolveSnapshotUsername = (ctx: HttpContext, userParam: string, write = false): string | null => {
@@ -272,6 +282,11 @@ export const createUserRouter = (): Router => {
             user.password = ''
           }
           await saveUsers()
+          try {
+            await reloadUserCustomSources(normalizedName, normalizedNewName)
+          } catch (reloadError) {
+            console.error('[User] 用户音源重新加载失败:', reloadError)
+          }
           await downloadQueue.renameUser(normalizedName, normalizedNewName)
           return ctx.json({ success: true })
         } catch (err: any) {
@@ -389,6 +404,8 @@ export const createUserRouter = (): Router => {
               await downloadQueue.removeUser(user.name)
               deleteUserCacheData(user.name, { preserveMusic: !body.deleteData })
               releaseUserSpace(user.name, true)
+              removeUserSourceData(user.name)
+              await initUserApis(user.name)
               if (body.deleteData && user.dataPath && fs.existsSync(user.dataPath)) {
                 fs.rmSync(user.dataPath, { recursive: true, force: true })
               }
@@ -443,6 +460,8 @@ export const createUserRouter = (): Router => {
     const username = resolveTargetUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '公共歌单修改需要管理员权限')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
     try {
       const mutation = await ctx.bodyJson<PlaylistMutation>(MAX_USER_SETTING_BODY_BYTES)
       if (!mutation || !['create', 'toggle', 'rename', 'delete'].includes(mutation.action))
@@ -477,9 +496,8 @@ export const createUserRouter = (): Router => {
           return ctx.fail(400, '歌单名称无效')
       }
       const manager = getUserSpace(username).listManage
-      const result = await manager.listDataManage.mutatePlaylist(mutation)
+      const result = await manager.runWithSnapshot(() => manager.listDataManage.mutatePlaylist(mutation))
       if (!result) return ctx.fail(404, '歌单不存在')
-      await manager.createSnapshot()
       return ctx.json({ success: true, ...result })
     } catch (err: any) {
       if (err instanceof PlaylistIdConflictError) return ctx.fail(409, err.message)
@@ -498,12 +516,13 @@ export const createUserRouter = (): Router => {
     if (username === '_open' && !isAdmin) {
       return ctx.json({ success: false, error: '权限不足：公共歌单修改受限，请先验证管理员身份。' }, 403)
     }
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
 
     try {
       const listData = await ctx.bodyJson<LX.List.ListData>()
       const userSpace = getUserSpace(username)
-      await userSpace.listManage.listDataManage.restore(listData)
-      await userSpace.listManage.createSnapshot()
+      await userSpace.listManage.runWithSnapshot(() => userSpace.listManage.listDataManage.restore(listData))
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
@@ -534,6 +553,8 @@ export const createUserRouter = (): Router => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '修改公开收藏需要管理员权限')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
     try {
       const parsed = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       if (!Array.isArray(parsed)) throw new Error('Expected an array')
@@ -573,6 +594,8 @@ export const createUserRouter = (): Router => {
     const username = resolveTargetUsername(ctx, false)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
     if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '修改公开收藏需要管理员权限')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
     try {
       const parsed = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       if (!Array.isArray(parsed)) throw new Error('Expected an array')
@@ -615,6 +638,8 @@ export const createUserRouter = (): Router => {
   router.post('/api/user/settings', async ctx => {
     const resolvedUsername = resolveSettingsUsername(ctx, true)
     if (resolvedUsername instanceof Response) return resolvedUsername
+    const unavailable = rejectUnavailableDataWrite(ctx, resolvedUsername)
+    if (unavailable) return unavailable
 
     try {
       const parsedSettings = await ctx.bodyJson<unknown>(MAX_USER_SETTING_BODY_BYTES)
@@ -691,6 +716,8 @@ export const createUserRouter = (): Router => {
     if (username === '_open' && !verifyAdminAuth(ctx.request)) {
       return ctx.fail(403, '权限不足：公开音效配置仅允许管理员修改')
     }
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
     try {
       const body = await ctx.bodyJson(MAX_USER_SETTING_BODY_BYTES)
       const db = getDb()
@@ -710,12 +737,15 @@ export const createUserRouter = (): Router => {
   router.post('/api/music/user/list/remove', async ctx => {
     const username = verifyUserAuth(ctx)
     if (!username) return ctx.fail(401, '需要用户认证，请先登录')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
     try {
       const { listId, songIds } = await ctx.bodyJson<{ listId?: string; songIds?: string[] }>()
       if (!listId || !Array.isArray(songIds)) return ctx.text('参数错误:需要listId和songIds数组', 400)
       const userSpace = getUserSpace(username)
-      await userSpace.listManage.listDataManage.listMusicRemove(listId, songIds)
-      await userSpace.listManage.createSnapshot()
+      await userSpace.listManage.runWithSnapshot(() =>
+        userSpace.listManage.listDataManage.listMusicRemove(listId, songIds),
+      )
       return ctx.text('删除成功', 200)
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '删除失败，请稍后重试'))
@@ -725,16 +755,31 @@ export const createUserRouter = (): Router => {
   router.post('/api/music/user/list/add', async ctx => {
     const username = verifyUserAuth(ctx)
     if (!username) return ctx.fail(401, '需要用户认证，请先登录')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
     try {
       const {
         listId,
         musicInfos,
-        location = 'bottom',
-      } = await ctx.bodyJson<{ listId?: string; musicInfos?: any[]; location?: any }>()
+        location: requestedLocation,
+      } = await ctx.bodyJson<{
+        listId?: string
+        musicInfos?: any[]
+        location?: unknown
+      }>()
       if (!listId || !Array.isArray(musicInfos)) return ctx.text('参数错误:需要listId和musicInfos数组', 400)
+      const userLocation = global.lx.config.users.find(user => user.name === username)?.['list.addMusicLocationType']
+      const configuredLocation = userLocation ?? global.lx.config['list.addMusicLocationType']
+      const location =
+        requestedLocation === 'top' || requestedLocation === 'bottom'
+          ? requestedLocation
+          : configuredLocation === 'top'
+            ? 'top'
+            : 'bottom'
       const userSpace = getUserSpace(username)
-      await userSpace.listManage.listDataManage.listMusicAdd(listId, musicInfos, location)
-      await userSpace.listManage.createSnapshot()
+      await userSpace.listManage.runWithSnapshot(() =>
+        userSpace.listManage.listDataManage.listMusicAdd(listId, musicInfos, location),
+      )
       return ctx.text('添加成功', 200)
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '添加失败，请稍后重试'))
@@ -894,9 +939,15 @@ export const createUserRouter = (): Router => {
     try {
       const { username, playlistId } = await ctx.bodyJson<{ username?: string; playlistId?: string }>()
       if (!username || !playlistId) return ctx.fail(400, '缺少必要参数')
+      if ([LIST_IDS.DEFAULT, LIST_IDS.LOVE, LIST_IDS.TEMP, LIST_IDS.DOWNLOAD].includes(playlistId as any)) {
+        return ctx.fail(422, '不能删除内置歌单')
+      }
+      const unavailable = rejectUnavailableDataWrite(ctx, username)
+      if (unavailable) return unavailable
       const userSpace = getUserSpace(username)
-      await userSpace.listManage.listDataManage.userListsRemove([playlistId])
-      await userSpace.listManage.createSnapshot()
+      await userSpace.listManage.runWithSnapshot(() =>
+        userSpace.listManage.listDataManage.userListsRemove([playlistId]),
+      )
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
@@ -912,9 +963,12 @@ export const createUserRouter = (): Router => {
         songId?: string
       }>()
       if (!username || !playlistId || !songId) return ctx.fail(400, '缺少必要参数')
+      const unavailable = rejectUnavailableDataWrite(ctx, username)
+      if (unavailable) return unavailable
       const userSpace = getUserSpace(username)
-      await userSpace.listManage.listDataManage.listMusicRemove(playlistId, [songId])
-      await userSpace.listManage.createSnapshot()
+      await userSpace.listManage.runWithSnapshot(() =>
+        userSpace.listManage.listDataManage.listMusicRemove(playlistId, [songId]),
+      )
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
@@ -930,13 +984,14 @@ export const createUserRouter = (): Router => {
         newName?: string
       }>()
       if (!username || !playlistId || !newName) return ctx.fail(400, '缺少必要参数')
+      const unavailable = rejectUnavailableDataWrite(ctx, username)
+      if (unavailable) return unavailable
       const userSpace = getUserSpace(username)
       const listData = await userSpace.listManage.getListData()
       const target = listData.userList.find((l: any) => l.id === playlistId)
       if (!target) return ctx.fail(404, '歌单不存在')
       target.name = newName
-      await userSpace.listManage.listDataManage.restore(listData)
-      await userSpace.listManage.createSnapshot()
+      await userSpace.listManage.runWithSnapshot(() => userSpace.listManage.listDataManage.restore(listData))
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
@@ -952,6 +1007,8 @@ export const createUserRouter = (): Router => {
         songIndices?: number[]
       }>()
       if (!username || !playlistId || !Array.isArray(songIndices)) return ctx.fail(400, '缺少必要参数')
+      const unavailable = rejectUnavailableDataWrite(ctx, username)
+      if (unavailable) return unavailable
 
       const userSpace = getUserSpace(username)
       const listManage = userSpace.listManage
@@ -962,8 +1019,7 @@ export const createUserRouter = (): Router => {
       const songIds = songIndices.map(index => playlist.list?.[index]?.id).filter(Boolean)
       if (songIds.length === 0) return ctx.fail(400, '没有选中有效的歌曲')
 
-      await listManage.listDataManage.listMusicRemove(playlistId, songIds)
-      await listManage.createSnapshot()
+      await listManage.runWithSnapshot(() => listManage.listDataManage.listMusicRemove(playlistId, songIds))
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))

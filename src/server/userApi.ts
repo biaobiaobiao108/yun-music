@@ -1116,7 +1116,7 @@ let fsWatcher: fs.FSWatcher | null = null
 const lastReloadMap = new Map<string, number>() // 记录每个用户的最后加载时间
 let reloadChain: Promise<void> = Promise.resolve()
 
-const disposeLoadedApis = async (owner?: string) => {
+export const disposeLoadedApis = async (owner?: string) => {
   const entries = Array.from(loadedApis.entries()).filter(([, api]) => !owner || api.info.owner === owner)
   for (const [key, api] of entries) {
     try {
@@ -1291,6 +1291,16 @@ export function initUserApis(targetUser?: string) {
   const nextReload = reloadChain.then(() => initUserApisInternal(targetUser))
   reloadChain = nextReload.catch(() => {})
   return nextReload
+}
+
+/** Dispose an old account's runtime sources and load the renamed account. */
+export const reloadUserCustomSources = async (oldOwner: string, newOwner?: string): Promise<void> => {
+  await disposeLoadedApis(oldOwner)
+  await clearReloadRelatedCaches(oldOwner)
+  for (const key of apiStatus.keys()) {
+    if (key.startsWith(`${oldOwner}_`)) apiStatus.delete(key)
+  }
+  if (newOwner) await initUserApis(newOwner)
 }
 
 // 获取所有已加载的 API

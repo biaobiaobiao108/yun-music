@@ -1,6 +1,16 @@
 export const GENERIC_ERROR_MESSAGE = '请求失败，请稍后重试'
 export const SESSION_EXPIRED_MESSAGE = '登录状态已过期，请重新登录'
 
+export class ApiRequestError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+  }
+}
+
 function hasChinese(text: string): boolean {
   return /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(text)
 }
@@ -37,7 +47,7 @@ export async function requestJson<T>(input: RequestInfo | URL, init: RequestInit
     headers,
   })
   if (!response.ok) {
-    throw new Error(resolveApiError(response.status, await response.text().catch(() => '')))
+    throw new ApiRequestError(resolveApiError(response.status, await response.text().catch(() => '')), response.status)
   }
   if (response.status === 204) return undefined as T
   const text = await response.text()
@@ -51,6 +61,7 @@ export async function requestJson<T>(input: RequestInfo | URL, init: RequestInit
 
 export async function requestBlob(input: RequestInfo | URL, init: RequestInit = {}): Promise<Blob> {
   const response = await fetch(input, { ...init, credentials: init.credentials ?? 'same-origin' })
-  if (!response.ok) throw new Error(resolveApiError(response.status, await response.text().catch(() => '')))
+  if (!response.ok)
+    throw new ApiRequestError(resolveApiError(response.status, await response.text().catch(() => '')), response.status)
   return response.blob()
 }

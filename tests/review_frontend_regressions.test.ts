@@ -4,6 +4,8 @@ import { useAdminStore } from '../frontend/admin/src/react/store'
 import { playerApi } from '../frontend/player/src/react/api'
 import { setSessionScope } from '../frontend/player/src/react/session'
 import { useMediaLibraryStore } from '../frontend/player/src/react/store/media_library'
+import { usePlaybackStore } from '../frontend/player/src/react/store/playback'
+import { useSettingsStore } from '../frontend/player/src/react/store/settings'
 import type { Song } from '../frontend/player/src/react/types'
 
 const existingArtist: Song = { id: 'existing-artist', source: 'wy', name: '既有歌手' }
@@ -83,6 +85,43 @@ test('keeps the admin session active when the server logout request fails', asyn
     await expect(useAdminStore.getState().signOut()).rejects.toThrow('network unavailable')
     expect(useAdminStore.getState().authenticated).toBe(true)
     expect(useAdminStore.getState().status).toEqual({ users: 1 })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('surfaces a settings persistence failure instead of silently accepting it', async () => {
+  const save = spyOn(playerApi, 'saveSettings').mockRejectedValue(new Error('设置同步失败'))
+  const previous = useSettingsStore.getState().settings
+  const previousQuality = usePlaybackStore.getState().quality
+  try {
+    useSettingsStore.setState({ saveError: '' })
+    useSettingsStore.getState().setSetting('preferredQuality', '320k')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(useSettingsStore.getState().saveError).toBe('设置同步失败')
+  } finally {
+    save.mockRestore()
+    useSettingsStore.setState({ settings: previous, saveError: '' })
+    usePlaybackStore.setState({ quality: previousQuality })
+  }
+})
+
+test('shows the admin initialization error instead of treating a network failure as a logged-out session', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = Object.assign(
+    async () => {
+      throw new Error('network unavailable')
+    },
+    { preconnect: () => Promise.resolve() },
+  )
+  try {
+    useAdminStore.setState({ authenticated: false, checking: true, error: '' })
+    await useAdminStore.getState().hydrate()
+    expect(useAdminStore.getState()).toMatchObject({
+      authenticated: false,
+      checking: false,
+      error: 'network unavailable',
+    })
   } finally {
     globalThis.fetch = originalFetch
   }

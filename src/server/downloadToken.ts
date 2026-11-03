@@ -22,15 +22,14 @@ let cachedFor: unknown = null
 const ephemeralSecret = randomBytes(32)
 
 const getSecret = (): Buffer => {
-  if (cachedSecret && cachedFor === null) return cachedSecret
   let db: ReturnType<typeof getDb>
   try {
     db = getDb()
   } catch {
     // A missing/unavailable database must not turn playback into a 500.
-    cachedSecret = ephemeralSecret
-    cachedFor = null
-    return cachedSecret
+    // Do not cache the fallback: the database may recover and tokens should
+    // return to the persistent secret without a restart.
+    return ephemeralSecret
   }
   if (cachedSecret && cachedFor === db) return cachedSecret
   const row = db.query<{ value: string }, [string]>('SELECT value FROM system_info WHERE key = ?').get(SECRET_KEY)

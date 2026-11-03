@@ -551,6 +551,16 @@ export function AudioRuntime() {
         const playback = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current : null
         const playbackUrl = playback?.url || currentSong.url || ''
         const cacheReference = parseCachePlaybackUrl(playbackUrl)
+        if (cacheReference) {
+          void playerApi
+            .cachePlayback({
+              filename: cacheReference.filename,
+              folder: cacheReference.folder,
+              location: cacheReference.location,
+              user: cacheReference.username || '_open',
+            })
+            .catch(() => undefined)
+        }
         const status =
           cacheReference?.folder === 'music'
             ? { message: '下载播放', kind: 'success' as const, key: 'download' }

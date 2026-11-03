@@ -64,6 +64,26 @@ test('concurrent playlist intents preserve all lists and unrelated favorites', a
   expect((await post({ action: 'delete', id: 'second' }, { cookie: '' })).status).toBe(401)
 })
 
+test('refuses to delete built-in playlists through the admin endpoint', async () => {
+  const router = createUserRouter()
+  const manager = getUserSpace('playlist_owner').listManage
+  await manager.listDataManage.restore({
+    defaultList: [{ id: 'builtin-song' }],
+    loveList: [{ id: 'favorite' }],
+    userList: [{ id: 'custom', name: 'Custom', list: [] }],
+  } as unknown as LX.List.ListData)
+  const before = await manager.getListData()
+  const response = await router.handle(
+    new Request('http://localhost/api/data/delete-playlist', {
+      method: 'POST',
+      headers: { cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'playlist_owner', playlistId: 'default' }),
+    }),
+  )
+  expect(response.status).toBe(422)
+  expect(await manager.getListData()).toEqual(before)
+})
+
 test('remote playlist toggle acts atomically on its source identity', async () => {
   const router = createUserRouter()
   const playlist = { id: 'remote', name: 'Remote', source: 'wy', sourceListId: '123', list: [] }

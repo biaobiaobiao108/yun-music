@@ -145,6 +145,9 @@ export const clearLoginFailures = (address: string, domain: LoginDomain = 'admin
 const playerSessions = new Map<string, { createdAt: number }>()
 const adminSessions = new Map<string, number>()
 const MAX_SESSIONS = 10_000
+const MAX_PERSISTED_PLAYER_SESSIONS = 128
+const MAX_PERSISTED_ADMIN_SESSIONS = 16
+const MAX_USER_SESSIONS_PER_ACCOUNT = 16
 export const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000
 const SESSION_PRUNE_INTERVAL_MS = 60 * 1000
 
@@ -188,8 +191,8 @@ export const clearPlayerSessionCache = (): void => {
 }
 
 export const revokeAllPlayerSessions = (): void => {
-  getDb().run('DELETE FROM player_sessions')
   clearPlayerSessionCache()
+  getDb().run('DELETE FROM player_sessions')
 }
 
 export const createPlayerSession = (): string => {
@@ -197,10 +200,18 @@ export const createPlayerSession = (): string => {
   const sessionId = crypto.randomBytes(32).toString('hex')
   const createdAt = Date.now()
   playerSessions.set(sessionId, { createdAt })
-  getDb().run('INSERT OR REPLACE INTO player_sessions (session_hash, created_at) VALUES (?, ?)', [
+  const db = getDb()
+  db.run('INSERT OR REPLACE INTO player_sessions (session_hash, created_at) VALUES (?, ?)', [
     hashSession(sessionId),
     createdAt,
   ])
+  db.run(
+    `DELETE FROM player_sessions
+     WHERE session_hash NOT IN (
+       SELECT session_hash FROM player_sessions ORDER BY created_at DESC, session_hash DESC LIMIT ?
+     )`,
+    [MAX_PERSISTED_PLAYER_SESSIONS],
+  )
   return sessionId
 }
 
@@ -256,10 +267,18 @@ export const createAdminSession = (): string => {
   const sessionId = crypto.randomBytes(32).toString('hex')
   const expiresAt = Date.now() + ADMIN_SESSION_TTL
   try {
-    getDb().run('INSERT OR REPLACE INTO admin_sessions (session_hash, expires_at) VALUES (?, ?)', [
+    const db = getDb()
+    db.run('INSERT OR REPLACE INTO admin_sessions (session_hash, expires_at) VALUES (?, ?)', [
       hashSession(sessionId),
       expiresAt,
     ])
+    db.run(
+      `DELETE FROM admin_sessions
+       WHERE session_hash NOT IN (
+         SELECT session_hash FROM admin_sessions ORDER BY expires_at DESC, session_hash DESC LIMIT ?
+       )`,
+      [MAX_PERSISTED_ADMIN_SESSIONS],
+    )
   } catch (error) {
     console.error('[Auth] 管理员会话持久化失败:', error instanceof Error ? error.message : 'unknown error')
     throw new AdminSessionPersistenceError(error)
@@ -268,17 +287,48 @@ export const createAdminSession = (): string => {
   return sessionId
 }
 
+/** Keep the persistent user-session history bounded for a single account. */
+export const trimUserSessionRows = (username: string): void => {
+  getDb().run(
+    `DELETE FROM user_sessions
+     WHERE user_name = ? AND session_hash NOT IN (
+       SELECT session_hash FROM user_sessions
+       WHERE user_name = ? ORDER BY created_at DESC, session_hash DESC LIMIT ?
+     )`,
+    [username, username, MAX_USER_SESSIONS_PER_ACCOUNT],
+  )
+}
+
 export const removeAdminSession = (sessionId: string): void => {
   adminSessions.delete(sessionId)
-  try {
-    getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)])
-  } catch {}
+  getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)])
 }
 
 export const revokeAllAdminSessions = (): void => {
-  getDb().run('DELETE FROM admin_sessions')
   adminSessions.clear()
   lastAdminSessionPruneAt = 0
+  getDb().run('DELETE FROM admin_sessions')
+}
+
+/** Revoke sessions when a hot reload changes a credential or auth mode. */
+export const revokeSessionsForConfigChange = (
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): void => {
+  // Environment-managed passwords are re-hashed with a new salt on every
+  // config reload. Their hashes therefore differ even when the effective
+  // password is unchanged; those credentials only change on process restart.
+  const adminPasswordChanged =
+    !global.lx.managedCredentials?.adminPassword &&
+    (previous['frontend.passwordHash'] !== next['frontend.passwordHash'] ||
+      previous['frontend.password'] !== next['frontend.password'])
+  const playerAuthChanged =
+    (!global.lx.managedCredentials?.playerPassword &&
+      (previous['player.passwordHash'] !== next['player.passwordHash'] ||
+        previous['player.password'] !== next['player.password'])) ||
+    Boolean(previous['player.enableAuth']) !== Boolean(next['player.enableAuth'])
+  if (adminPasswordChanged) revokeAllAdminSessions()
+  if (playerAuthChanged) revokeAllPlayerSessions()
 }
 
 export const checkAdminSession = (source: HeaderSource): boolean => {

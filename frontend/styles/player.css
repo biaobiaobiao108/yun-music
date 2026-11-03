@@ -1886,6 +1886,32 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
 }
+.react-settings-sync-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.7rem 0.8rem 0.7rem 0.9rem;
+    border: 1px solid color-mix(in srgb, var(--danger, #c0392b) 24%, var(--app-border));
+    border-radius: 0.7rem;
+    background: color-mix(in srgb, var(--danger, #c0392b) 7%, transparent);
+    color: var(--danger, #c0392b);
+    font-size: 0.8rem;
+}
+.react-settings-sync-error button {
+    flex: 0 0 auto;
+    padding: 0.25rem 0.55rem;
+    border: 0;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+}
+.react-settings-sync-error button:hover {
+    background: color-mix(in srgb, var(--danger, #c0392b) 10%, transparent);
+}
 .react-content-card > h2 {
     margin-bottom: 1rem;
     font-size: 1.05rem;
@@ -11018,13 +11044,6 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 
-.react-header-selection-count {
-    align-self: center;
-    color: var(--app-text-muted);
-    font-size: 0.76rem;
-    white-space: nowrap;
-}
-
 .react-playlist-header-actions {
     flex: 0 0 auto;
     flex-wrap: nowrap;
@@ -11057,10 +11076,6 @@ textarea:focus-visible {
 .react-playlist-header-actions > .react-icon-only-button:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--app-accent) 42%, transparent);
     outline-offset: 1px;
-}
-
-.react-playlist-header-actions .react-header-selection-count {
-    min-width: max-content;
 }
 
 @media (max-width: 680px) {
@@ -11162,9 +11177,172 @@ textarea:focus-visible {
     outline-offset: -2px;
 }
 
+/* Selection actions stay reachable while the track list scrolls. The dock floats
+   just above the player footer instead of turning the page header into a
+   temporary toolbar. */
+.react-selection-dock-spacer {
+    block-size: 4.5rem;
+}
+
+.react-selection-dock {
+    position: fixed;
+    z-index: 70;
+    left: calc(50% + (var(--player-sidebar-width, 15rem) / 2));
+    bottom: calc(max(var(--player-footer-reserved-height, 4.75rem), 5.2rem) + max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + 0.7rem);
+    display: flex;
+    align-items: center;
+    gap: 0.18rem;
+    width: max-content;
+    max-width: calc(100vw - var(--player-sidebar-width, 15rem) - 3rem);
+    padding: 0.32rem;
+    transform: translateX(-50%);
+    border: 1px solid color-mix(in srgb, var(--app-border-strong) 62%, transparent);
+    border-radius: 0.85rem;
+    background: color-mix(in srgb, var(--app-surface-solid) 95%, transparent);
+    box-shadow: 0 0.5rem 1.4rem rgb(15 23 42 / 13%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.04);
+    backdrop-filter: blur(14px) saturate(1.04);
+}
+
+.react-selection-count {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    padding: 0.2rem 0.62rem 0.2rem 0.68rem;
+    color: var(--app-text-muted);
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.react-selection-count strong {
+    color: var(--app-text);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+}
+
+.react-selection-divider {
+    width: 1px;
+    height: 1.2rem;
+    margin-inline: 0.2rem;
+    background: var(--app-border);
+}
+
+.react-selection-action,
+.react-selection-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 2.4rem;
+    padding: 0 0.7rem;
+    border: 0;
+    border-radius: 0.62rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.77rem;
+    font-weight: 560;
+    white-space: nowrap;
+    transition:
+        background-color var(--app-motion-fast) ease,
+        color var(--app-motion-fast) ease;
+}
+
+.react-selection-action:hover:not(:disabled),
+.react-selection-close:hover:not(:disabled) {
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+}
+
+.react-selection-action.is-primary {
+    color: var(--app-accent);
+}
+
+.react-selection-action.is-primary:hover:not(:disabled) {
+    background: var(--app-accent-soft);
+}
+
+.react-selection-action.is-danger {
+    color: var(--danger, #c0392b);
+}
+
+.react-selection-action.is-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger, #c0392b) 9%, transparent);
+}
+
+.react-selection-action:disabled,
+.react-selection-close:disabled {
+    cursor: default;
+    opacity: 0.42;
+}
+
+.react-selection-close {
+    width: 2.4rem;
+    padding: 0;
+    margin-left: 0.08rem;
+    border-radius: 50%;
+}
+
+.react-selection-action:focus-visible,
+.react-selection-close:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--app-accent) 50%, transparent);
+    outline-offset: 1px;
+}
+
+@media (max-width: 1024px) {
+    .react-selection-dock {
+        left: 50%;
+        bottom: calc(8rem + max(var(--player-shell-gap, 1rem), env(safe-area-inset-bottom, 0px)) + 0.55rem);
+        width: max-content;
+        max-width: calc(100vw - 1.5rem);
+    }
+}
+
 @media (max-width: 760px) {
     .react-playlist-page .react-song-row.is-selectable {
         grid-template-columns: 2.2rem minmax(0, 1fr) 2.2rem 2.2rem 4rem;
+    }
+
+    .react-selection-dock-spacer {
+        block-size: 4.25rem;
+    }
+
+    .react-selection-action {
+        min-height: 2.75rem;
+        padding-inline: 0.58rem;
+        font-size: 0.72rem;
+    }
+
+    .react-selection-close {
+        width: 2.75rem;
+        min-height: 2.75rem;
+    }
+
+    .react-selection-count {
+        padding-inline: 0.48rem 0.35rem;
+    }
+}
+
+@media (max-width: 520px) {
+    .react-selection-action.is-primary span,
+    .react-selection-action.is-danger span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .react-selection-action.is-primary,
+    .react-selection-action.is-danger {
+        width: 2.75rem;
+        padding-inline: 0;
     }
 }
 

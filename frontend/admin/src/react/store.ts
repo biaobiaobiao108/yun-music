@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { ApiRequestError } from '../../../shared/src/http'
 import {
   adminApi,
   login,
@@ -83,8 +84,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       const status = await verifySession()
       set({ authenticated: true, checking: false, status })
       await get().loadView('dashboard')
-    } catch {
-      set({ authenticated: false, checking: false })
+    } catch (error) {
+      set({
+        authenticated: false,
+        checking: false,
+        error: error instanceof ApiRequestError && error.status === 401 ? '' : messageOf(error),
+      })
     }
   },
   signIn: async password => {
