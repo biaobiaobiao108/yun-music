@@ -244,6 +244,7 @@ export function AudioRuntime() {
   const crossfadeTransition = useRef<{ from: string; to: string } | null>(null)
   const crossfadeIncoming = useRef(false)
   const naturalFadeKey = useRef('')
+  const lastSwitchWasPlaying = useRef(false)
   volumeTarget.current = muted ? 0 : volume
 
   const syncAudioVolume = () => {
@@ -473,7 +474,20 @@ export function AudioRuntime() {
     let retryCancelled = false
     let retryController: AbortController | null = null
     const disconnectAudioCommands = connectAudioCommands({
-      prime: () => {
+      prime: options => {
+        const audioPlaying = Boolean(audio && !audio.paused && !audio.ended && !audio.src.startsWith('data:'))
+        const wasPlaying = Boolean(options ? options.wasPlaying && audioPlaying : audioPlaying)
+        lastSwitchWasPlaying.current = wasPlaying
+        if (!wasPlaying) {
+          audio.pause()
+          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+          audio.loop = true
+          const p = audio.play()
+          if (p !== undefined) {
+            p.catch(() => {})
+          }
+          return
+        }
         try {
           if (!audio.src) {
             audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
@@ -984,8 +998,16 @@ export function AudioRuntime() {
         const transition = crossfadeTransition.current
         const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
         const isBackground = typeof document !== 'undefined' && document.hidden
-        if (transition?.to === songId) {
-          const state = usePlaybackStore.getState()
+        const state = usePlaybackStore.getState()
+        const canCrossfade =
+          crossfadeEnabled &&
+          state.isPlaying &&
+          !isBackground &&
+          !audio.paused &&
+          !audio.ended &&
+          !audio.src.startsWith('data:') &&
+          fadeFactor.current > 0
+        if (transition?.to === songId && canCrossfade) {
           if (crossfadeEnabled && state.isPlaying && !isBackground) {
             if (audio.paused || audio.ended || fadeFactor.current <= 0) fadeFactor.current = 0
             else await animateVolumeFactor(0, CROSSFADE_DURATION_MS)
@@ -1008,7 +1030,7 @@ export function AudioRuntime() {
             }
           } else {
             cancelVolumeAnimation()
-            if (!isBackground) audio.pause()
+            if (transition?.to === songId && !isBackground) audio.pause()
             crossfadeTransition.current = null
             crossfadeIncoming.current = false
             fadeFactor.current = 1
@@ -1077,9 +1099,12 @@ export function AudioRuntime() {
       const preserveTransition = Boolean(
         crossfadeEnabled && state.isPlaying && selectedSongKey === songId && transition?.to === songId,
       )
+      const wasPlayingBeforeSwitch = lastSwitchWasPlaying.current
+      lastSwitchWasPlaying.current = false
       const startTransition = Boolean(
         crossfadeEnabled &&
         state.isPlaying &&
+        wasPlayingBeforeSwitch &&
         selectedSongKey &&
         selectedSongKey !== songId &&
         (resolvedSongKey.current === songId || transition),
@@ -1098,8 +1123,8 @@ export function AudioRuntime() {
         crossfadeIncoming.current = false
         fadeFactor.current = 1
         syncAudioVolume()
+        audio.pause()
         if (!selectedSongKey || !state.isPlaying) {
-          audio.pause()
           audio.removeAttribute('src')
           audio.load()
         }

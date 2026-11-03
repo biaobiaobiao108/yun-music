@@ -128,6 +128,56 @@ describe('lyric playback clock', () => {
   })
 })
 
+describe('playback switch priming and crossfade state', () => {
+  it('reports wasPlaying false when switching while paused or idle', () => {
+    const initialPlayback = usePlaybackStore.getState()
+    const primeCalls: Array<{ wasPlaying?: boolean } | undefined> = []
+    const disconnect = connectAudioCommands({
+      play: () => undefined,
+      pause: () => undefined,
+      seek: () => undefined,
+      volume: () => undefined,
+      prime: options => primeCalls.push(options),
+    })
+    try {
+      usePlaybackStore.setState({
+        currentSong: { source: 'wy', songmid: 'song-1' },
+        isPlaying: false,
+      })
+      usePlaybackStore.getState().playSong({ source: 'wy', songmid: 'song-2' })
+      expect(primeCalls).toHaveLength(1)
+      expect(primeCalls[0]?.wasPlaying).toBe(false)
+    } finally {
+      disconnect()
+      usePlaybackStore.setState(initialPlayback)
+    }
+  })
+
+  it('reports wasPlaying true when switching while actively playing', () => {
+    const initialPlayback = usePlaybackStore.getState()
+    const primeCalls: Array<{ wasPlaying?: boolean } | undefined> = []
+    const disconnect = connectAudioCommands({
+      play: () => undefined,
+      pause: () => undefined,
+      seek: () => undefined,
+      volume: () => undefined,
+      prime: options => primeCalls.push(options),
+    })
+    try {
+      usePlaybackStore.setState({
+        currentSong: { source: 'wy', songmid: 'song-1' },
+        isPlaying: true,
+      })
+      usePlaybackStore.getState().playSong({ source: 'wy', songmid: 'song-2' })
+      expect(primeCalls).toHaveLength(1)
+      expect(primeCalls[0]?.wasPlaying).toBe(true)
+    } finally {
+      disconnect()
+      usePlaybackStore.setState(initialPlayback)
+    }
+  })
+})
+
 describe('service worker cache ownership', () => {
   for (const [app, prefix, otherPrefix] of [
     ['admin', 'yun-yin-admin-react-', 'yun-yin-web-react-'],
