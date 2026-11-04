@@ -2841,12 +2841,17 @@ const findLyricByIdOnDisk = async (
 export const checkLyricCache = async (songInfo: any, username?: string): Promise<LyricCacheResult> => {
   const id = normalizeSongId(songInfo)
   const normalizedUsername = normalizeCacheUsername(username)
+  const candidateUsernames = normalizedUsername === '_open' ? ['_open'] : [normalizedUsername, '_open']
+  const locations = getCacheLocations()
+  const folderTypes: Array<'cache' | 'music'> = ['cache', 'music']
 
   const readLyricForIndexedItem = async (
+    targetUser: string,
     folder: 'cache' | 'music',
     item: CacheItem,
+    location?: string,
   ): Promise<Exclude<LyricCacheResult, { exists: false }> | null> => {
-    const dir = getCacheDir(normalizedUsername, folder === 'music', undefined, false)
+    const dir = getCacheDir(targetUser, folder === 'music', location, false)
     let audioPath: string
     try {
       audioPath = await resolveInsideAsync(dir, item.filename)
@@ -2860,23 +2865,25 @@ export const checkLyricCache = async (songInfo: any, username?: string): Promise
     const companion = indexedLyric ? null : await findCompanionLyricFileAsync(dir, item.filename)
     const lyricFilename = indexedLyric ? item.lyricFilename! : companion?.filename
     if (!lyricFilename) {
-      if (item.hasEmbedLyric) {
-        try {
-          const tagger = new (getMusicTagNative().MusicTagger)()
-          tagger.loadPath(audioPath)
-          const lyricsInTag = tagger.lyrics
-          tagger.dispose()
-          if (lyricsInTag && lyricsInTag.trim().length > 10) {
-            const content = parseLyrics(lyricsInTag)
-            return {
-              exists: true,
-              path: audioPath,
-              content,
-              filename: item.filename,
-            }
+      try {
+        const tagger = new (getMusicTagNative().MusicTagger)()
+        tagger.loadPath(audioPath)
+        const lyricsInTag = tagger.lyrics
+        tagger.dispose()
+        if (lyricsInTag && lyricsInTag.trim().length > 10) {
+          const content = parseLyrics(lyricsInTag)
+          if (!item.hasEmbedLyric) {
+            item.hasEmbedLyric = true
+            indexManager.update(targetUser, item, folder, location)
           }
-        } catch {}
-      }
+          return {
+            exists: true,
+            path: audioPath,
+            content,
+            filename: item.filename,
+          }
+        }
+      } catch {}
       return null
     }
     const lyricContents = indexedLyric || (await readLyricCacheFile(dir, lyricFilename))
@@ -2886,8 +2893,8 @@ export const checkLyricCache = async (songInfo: any, username?: string): Promise
     if (item.hasLyric !== true || item.lyricFilename !== lyricFile.filename) {
       item.hasLyric = true
       item.lyricFilename = lyricFile.filename
-      indexManager.update(normalizedUsername, item, folder)
-      invalidateCacheListSync(normalizedUsername)
+      indexManager.update(targetUser, item, folder, location)
+      invalidateCacheListSync(targetUser)
     }
     return {
       exists: true,
@@ -2900,19 +2907,22 @@ export const checkLyricCache = async (songInfo: any, username?: string): Promise
   // Check every indexed quality first. A download can finish with a quality
   // different from the requested one, and an old index may still say that
   // the lyric is missing even though the companion file is already present.
-  const folderTypes: Array<'cache' | 'music'> = ['cache', 'music']
-  for (const folder of folderTypes) {
-    const candidates = indexManager
-      .getAll(normalizedUsername, folder)
-      .filter(item => item.id === id || normalizeSongId(item) === id)
-      .sort((a, b) => {
-        const requestedQuality = String(songInfo.quality || '')
-        if (!requestedQuality) return 0
-        return (a.quality === requestedQuality ? -1 : 0) - (b.quality === requestedQuality ? -1 : 0)
-      })
-    for (const item of candidates) {
-      const lyric = await readLyricForIndexedItem(folder, item)
-      if (lyric) return lyric
+  for (const targetUser of candidateUsernames) {
+    for (const location of locations) {
+      for (const folder of folderTypes) {
+        const candidates = indexManager
+          .getAll(targetUser, folder, location)
+          .filter(item => item.id === id || normalizeSongId(item) === id)
+          .sort((a, b) => {
+            const requestedQuality = String(songInfo.quality || '')
+            if (!requestedQuality) return 0
+            return (a.quality === requestedQuality ? -1 : 0) - (b.quality === requestedQuality ? -1 : 0)
+          })
+        for (const item of candidates) {
+          const lyric = await readLyricForIndexedItem(targetUser, folder, item, location)
+          if (lyric) return lyric
+        }
+      }
     }
   }
 
@@ -2921,14 +2931,18 @@ export const checkLyricCache = async (songInfo: any, username?: string): Promise
   if (songInfo.name && songInfo.singer) {
     const targetName = String(songInfo.name).toLowerCase()
     const targetSinger = String(songInfo.singer).toLowerCase()
-    for (const folder of folderTypes) {
-      const allItems = indexManager.getAll(normalizedUsername, folder)
-      const matchedItems = allItems.filter(
-        item => item.name.toLowerCase() === targetName && item.singer.toLowerCase() === targetSinger,
-      )
-      for (const matched of matchedItems) {
-        const lyric = await readLyricForIndexedItem(folder, matched)
-        if (lyric) return lyric
+    for (const targetUser of candidateUsernames) {
+      for (const location of locations) {
+        for (const folder of folderTypes) {
+          const allItems = indexManager.getAll(targetUser, folder, location)
+          const matchedItems = allItems.filter(
+            item => item.name.toLowerCase() === targetName && item.singer.toLowerCase() === targetSinger,
+          )
+          for (const matched of matchedItems) {
+            const lyric = await readLyricForIndexedItem(targetUser, folder, matched, location)
+            if (lyric) return lyric
+          }
+        }
       }
     }
   }
@@ -2938,11 +2952,17 @@ export const checkLyricCache = async (songInfo: any, username?: string): Promise
   const targetIds = new Set([id, targetCleanId].filter(Boolean))
   const roots: Array<'cache' | 'music'> = ['cache', 'music']
   const scanBudget = { remainingEntries: LYRIC_CACHE_SCAN_MAX_ENTRIES }
-  for (const folder of roots) {
-    const dirPath = getCacheDir(normalizedUsername, folder === 'music', undefined, false)
-    const result = await findLyricByIdOnDisk(dirPath, targetIds, scanBudget)
-    if (result) {
-      return { exists: true, ...result }
+  for (const targetUser of candidateUsernames) {
+    for (const location of locations) {
+      for (const folder of roots) {
+        const dirPath = getCacheDir(targetUser, folder === 'music', location, false)
+        const result = await findLyricByIdOnDisk(dirPath, targetIds, scanBudget)
+        if (result) {
+          return { exists: true, ...result }
+        }
+        if (scanBudget.remainingEntries <= 0) break
+      }
+      if (scanBudget.remainingEntries <= 0) break
     }
     if (scanBudget.remainingEntries <= 0) break
   }

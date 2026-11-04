@@ -2,7 +2,7 @@ import { requestJson, type RequestPolicy, type RequestPriority } from './data/re
 import { scopedStorageKey } from './session'
 import { readJson, writeJson } from '../../../shared/src/storage'
 import type { RuntimeConfig } from '../../../shared/src/runtime'
-import type { LyricLine, LyricWord, Song } from './types'
+import { songKey, type LyricLine, type LyricWord, type Song } from './types'
 
 export type PlayerConfig = RuntimeConfig & {
   'player.enableAuth'?: boolean
@@ -178,6 +178,8 @@ export const playerApi = {
       method: 'POST',
       body: JSON.stringify({ songInfo }),
       signal,
+      cacheKey: `lyric:${songKey(songInfo)}`,
+      cacheTtlMs: 10 * 60 * 1000,
     }),
   listData: (user?: string, signal?: AbortSignal, policy?: RequestPolicy) =>
     requestJson<UserListData>(user ? `/api/user/list?user=${encodeURIComponent(user)}` : '/api/user/list', {

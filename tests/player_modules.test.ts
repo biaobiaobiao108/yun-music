@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { parseLyric } from '../frontend/player/src/react/api'
+import { formatDate, parseDate } from '../frontend/shared/src/runtime'
 import { buildSongMatchSet, sameSong, songKey, songListId, songMatchSetHas } from '../frontend/player/src/react/types'
 import {
   buildCachePlaybackUrl,
@@ -276,6 +277,27 @@ describe('React player module boundaries', () => {
     expect(buildCachePlaybackUrl(alternateRoot!)).toBe(
       '/api/music/cache/file/steelway108/test.mp3?folder=music&location=data',
     )
+  })
+
+  it('parses and formats date values reliably across Safari date quirks', () => {
+    expect(formatDate(null)).toBe('—')
+    expect(formatDate('')).toBe('—')
+    expect(formatDate('invalid-date')).toBe('—')
+
+    // Safari space-separated timestamp without T
+    const dateFromSpace = parseDate('2026-11-04 12:30:45')
+    expect(dateFromSpace).not.toBeNull()
+    expect(dateFromSpace?.getFullYear()).toBe(2026)
+    expect(formatDate('2026-11-04 12:30:45')).not.toBe('—')
+
+    // Unix timestamp in seconds (10 digits) and ms
+    const dateFromSeconds = parseDate(1730700000)
+    expect(dateFromSeconds).not.toBeNull()
+    expect(dateFromSeconds?.getFullYear()).toBeGreaterThanOrEqual(2024)
+
+    const dateFromMsString = parseDate('1730700000000')
+    expect(dateFromMsString).not.toBeNull()
+    expect(dateFromMsString?.getFullYear()).toBeGreaterThanOrEqual(2024)
   })
 
   it('keeps audio lifecycle lightweight and cache APIs isolated behind services', () => {

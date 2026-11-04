@@ -103,7 +103,37 @@ export function parseByteSize(value: unknown): number | undefined {
   return amount * 1024 ** exponent
 }
 
+export function parseDate(value: unknown): Date | null {
+  if (value == null || value === '') return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null
+    const ms = value < 1e11 ? value * 1000 : value
+    const date = new Date(ms)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  const str = String(value).trim()
+  if (!str) return null
+  if (/^\d+$/.test(str)) {
+    const num = Number(str)
+    if (Number.isFinite(num)) {
+      const ms = num < 1e11 ? num * 1000 : num
+      const date = new Date(ms)
+      if (!Number.isNaN(date.getTime())) return date
+    }
+  }
+  let date = new Date(str)
+  if (!Number.isNaN(date.getTime())) return date
+  if (str.includes(' ') && !str.includes('T')) {
+    date = new Date(str.replace(' ', 'T'))
+    if (!Number.isNaN(date.getTime())) return date
+  }
+  date = new Date(str.replace(/-/g, '/'))
+  if (!Number.isNaN(date.getTime())) return date
+  return null
+}
+
 export function formatDate(value: unknown): string {
-  const date = new Date(typeof value === 'number' ? value : String(value ?? ''))
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { hour12: false })
+  const date = parseDate(value)
+  return !date ? '—' : date.toLocaleString('zh-CN', { hour12: false })
 }

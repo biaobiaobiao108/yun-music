@@ -42,6 +42,9 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return
   if (!event.request.url.startsWith('http')) return
 
+  // Safari / WebKit Range 请求直接放行
+  if (event.request.headers.has('range')) return
+
   // [Fix] Do not cache API requests
   if (event.request.url.includes('/api/')) return
   // [Fix] Do not cache Music Player files (dev mode)

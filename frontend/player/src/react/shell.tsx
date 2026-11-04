@@ -1261,7 +1261,16 @@ export function PlayerShell() {
         return
       }
       if (drawer) return
-      if (!keyboardShortcuts || editing || event.altKey || event.ctrlKey || event.metaKey) return
+      if (
+        !keyboardShortcuts ||
+        editing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.isComposing ||
+        event.keyCode === 229
+      )
+        return
       if (event.key === ' ' || event.key === 'Spacebar') {
         event.preventDefault()
         togglePlayback()

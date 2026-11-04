@@ -76,6 +76,9 @@ self.addEventListener('fetch', event => {
   // 1. 过滤非 http(s) 协议 (如 chrome-extension://)，避免 cache.put 报错
   if (!url.protocol.startsWith('http')) return
 
+  // Safari / WebKit Range 请求直接放行，避免 ServiceWorker 介入导致媒体流播放卡死或错误
+  if (event.request.headers.has('range')) return
+
   // 2. 忽略所有音频请求、下载请求和 API 请求，让浏览器直接处理
   // 拦截下载会导致大文件占用 Cache 且单个失败可能引起 SW state 不良
   const isApiOrAudio =

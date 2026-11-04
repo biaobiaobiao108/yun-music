@@ -611,26 +611,33 @@ export const createCacheRouter = (): Router => {
     const roots: Array<fileCache.CacheFolder> = requestedFolder
       ? [requestedFolder as fileCache.CacheFolder]
       : ['cache', 'music']
+    const candidateUsernames =
+      normalizedUsername !== '_open' && canReadPublicLocalMusic(ctx)
+        ? [normalizedUsername, '_open']
+        : [normalizedUsername]
     let filePath = ''
     let fileStats: fs.Stats | null = null
 
-    for (const loc of locations) {
-      for (const folder of roots) {
-        const dir = fileCache.getCacheDir(normalizedUsername, folder === 'music', loc, false)
-        const safeFilename = decodedFilename.replace(/\\/g, '/')
-        let checkPath: string
-        try {
-          checkPath = await resolveInsideAsync(dir, safeFilename)
-        } catch {
-          continue
+    for (const targetUser of candidateUsernames) {
+      for (const loc of locations) {
+        for (const folder of roots) {
+          const dir = fileCache.getCacheDir(targetUser, folder === 'music', loc, false)
+          const safeFilename = decodedFilename.replace(/\\/g, '/')
+          let checkPath: string
+          try {
+            checkPath = await resolveInsideAsync(dir, safeFilename)
+          } catch {
+            continue
+          }
+          try {
+            fileStats = await fs.promises.stat(checkPath)
+            filePath = checkPath
+            break
+          } catch {
+            // The cache may disappear between index lookup and file delivery.
+          }
         }
-        try {
-          fileStats = await fs.promises.stat(checkPath)
-          filePath = checkPath
-          break
-        } catch {
-          // The cache may disappear between index lookup and file delivery.
-        }
+        if (filePath) break
       }
       if (filePath) break
     }

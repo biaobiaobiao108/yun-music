@@ -5,6 +5,8 @@ import { songKey, type LyricLine, type Song } from '../types'
 
 let lyricController: AbortController | null = null
 let currentLoadedSongKey = ''
+let inFlightSongKey = ''
+let inFlightPromise: Promise<void> | null = null
 const lyricCache = new Map<string, LyricLine[]>()
 const MAX_CACHED_LYRICS = 64
 
@@ -26,6 +28,8 @@ export const useLyricStore = create<LyricState>(set => ({
       lyricController?.abort()
       lyricController = null
       currentLoadedSongKey = ''
+      inFlightSongKey = ''
+      inFlightPromise = null
       set({ lines: [], activeIndex: -1, error: '' })
       return
     }
@@ -35,38 +39,51 @@ export const useLyricStore = create<LyricState>(set => ({
       lyricController?.abort()
       lyricController = null
       currentLoadedSongKey = key
+      inFlightSongKey = ''
+      inFlightPromise = null
       set({ lines: cached, loading: false, error: '', activeIndex: -1 })
       return
     }
     if (currentLoadedSongKey === key && useLyricStore.getState().lines.length > 0) {
       return
     }
+    if (inFlightSongKey === key && inFlightPromise) {
+      return inFlightPromise
+    }
     lyricController?.abort()
     const controller = new AbortController()
     lyricController = controller
+    inFlightSongKey = key
     set({ loading: true, error: '' })
-    try {
-      const payload = await playerApi.lyric(song, controller.signal)
-      if (!controller.signal.aborted) {
-        const lines = parseLyric(payload)
-        if (lines.length > 0) {
-          lyricCache.set(key, lines)
-          while (lyricCache.size > MAX_CACHED_LYRICS) {
-            const oldest = lyricCache.keys().next().value
-            if (oldest !== undefined) lyricCache.delete(oldest)
+    const promise = (async () => {
+      try {
+        const payload = await playerApi.lyric(song, controller.signal)
+        if (!controller.signal.aborted) {
+          const lines = parseLyric(payload)
+          if (lines.length > 0) {
+            lyricCache.set(key, lines)
+            while (lyricCache.size > MAX_CACHED_LYRICS) {
+              const oldest = lyricCache.keys().next().value
+              if (oldest !== undefined) lyricCache.delete(oldest)
+            }
           }
+          currentLoadedSongKey = key
+          set({ lines, activeIndex: -1, error: '' })
         }
-        currentLoadedSongKey = key
-        set({ lines, activeIndex: -1, error: '' })
+      } catch (error) {
+        if (!controller.signal.aborted && !isAbortError(error)) {
+          set({ error: error instanceof Error ? error.message : '歌词加载失败' })
+        }
+      } finally {
+        if (lyricController === controller) {
+          lyricController = null
+          inFlightSongKey = ''
+          inFlightPromise = null
+          set({ loading: false })
+        }
       }
-    } catch (error) {
-      if (!controller.signal.aborted && !isAbortError(error))
-        set({ error: error instanceof Error ? error.message : '歌词加载失败' })
-    } finally {
-      if (lyricController === controller) {
-        lyricController = null
-        set({ loading: false })
-      }
-    }
+    })()
+    inFlightPromise = promise
+    return promise
   },
 }))

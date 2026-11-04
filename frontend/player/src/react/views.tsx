@@ -1837,9 +1837,11 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     const doc = document as Document & {
       webkitFullscreenElement?: Element | null
       webkitExitFullscreen?: () => void
+      webkitFullscreenEnabled?: boolean
     }
     const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void }
-    setFullscreenSupported(Boolean(root.requestFullscreen || root.webkitRequestFullscreen))
+    const fullscreenEnabled = document.fullscreenEnabled ?? doc.webkitFullscreenEnabled ?? true
+    setFullscreenSupported(Boolean(fullscreenEnabled && (root.requestFullscreen || root.webkitRequestFullscreen)))
     const syncFullscreen = () => {
       const active = doc.fullscreenElement ?? doc.webkitFullscreenElement
       setFullscreen(Boolean(active))
@@ -2105,7 +2107,7 @@ export function LyricsDialog(props: ImmersiveLyricsProps) {
 
 function CommentItemView({ item, nested = false }: { item: CommentItem; nested?: boolean }) {
   const replies = Array.isArray(item.reply) ? item.reply : []
-  const timestamp = item.timeStr || (item.time ? new Date(item.time).toLocaleString() : '')
+  const timestamp = item.timeStr || (item.time ? formatDate(item.time) : '')
   return (
     <article className={`react-comment-item ${nested ? 'is-reply' : ''}`}>
       <img

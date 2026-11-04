@@ -59,6 +59,17 @@ function abortError(): DOMException {
   return new DOMException('The operation was aborted.', 'AbortError')
 }
 
+function isSameMediaSource(currentSrc: string, targetUrl: string): boolean {
+  if (!currentSrc || !targetUrl) return false
+  if (currentSrc === targetUrl) return true
+  try {
+    const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
+    return new URL(currentSrc, origin).href === new URL(targetUrl, origin).href
+  } catch {
+    return false
+  }
+}
+
 function setMediaSessionPlaybackState(state: MediaSessionPlaybackState): void {
   if (!('mediaSession' in navigator)) return
   try {
@@ -73,15 +84,31 @@ function syncMediaSessionMetadata(song: Song | null): void {
   if (!song) {
     navigator.mediaSession.metadata = null
     setMediaSessionPlaybackState('none')
+    try {
+      navigator.mediaSession.setPositionState?.()
+    } catch {}
     return
   }
   const artwork = safeImageUrl(songImage(song))
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: songTitle(song),
-    artist: songArtist(song),
-    album: songAlbum(song),
-    artwork: [{ src: new URL(artwork, document.baseURI).href, sizes: '512x512', type: 'image/jpeg' }],
-  })
+  try {
+    const artworkUrl = new URL(artwork, document.baseURI).href
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: songTitle(song),
+      artist: songArtist(song),
+      album: songAlbum(song),
+      artwork: [
+        { src: artworkUrl, sizes: '512x512' },
+        { src: artworkUrl, sizes: '256x256' },
+        { src: artworkUrl, sizes: '128x128' },
+      ],
+    })
+  } catch {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: songTitle(song),
+      artist: songArtist(song),
+      album: songAlbum(song),
+    })
+  }
 }
 
 function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -250,7 +277,13 @@ export function AudioRuntime() {
 
   const syncAudioVolume = () => {
     const audio = audioRef.current
-    if (audio) audio.volume = Math.max(0, Math.min(1, volumeTarget.current * fadeFactor.current))
+    if (audio) {
+      try {
+        audio.volume = Math.max(0, Math.min(1, volumeTarget.current * fadeFactor.current))
+      } catch {
+        // iOS Safari throws or ignores volume modification on HTMLMediaElement
+      }
+    }
   }
 
   const cancelVolumeAnimation = () => {
@@ -484,11 +517,19 @@ export function AudioRuntime() {
         const wasNaturalFade = Boolean(naturalFadeNextSongKey.current && options?.wasPlaying)
         const wasPlaying = Boolean(options ? options.wasPlaying && (audioPlaying || wasNaturalFade) : audioPlaying)
         lastSwitchWasPlaying.current = wasPlaying
-        if (options?.immediateUrl && options?.song) {
+        let immediateUrl = options?.immediateUrl
+        if (!immediateUrl && options?.song) {
+          const key = songUrlCacheKey(options.song, quality)
+          const cached = prefetchedUrls.get(key)
+          if (cached && cached.expiresAt > Date.now()) {
+            immediateUrl = cached.result.url
+          }
+        }
+        if (immediateUrl && options?.song) {
           try {
             audio.loop = false
-            const targetUrl = buildPlaybackUrl(options.immediateUrl, options.song, settings)
-            if (audio.src !== targetUrl) audio.src = targetUrl
+            const targetUrl = buildPlaybackUrl(immediateUrl, options.song, settings)
+            if (!isSameMediaSource(audio.currentSrc || audio.src, targetUrl)) audio.src = targetUrl
             const p = audio.play()
             if (p !== undefined) {
               p.catch(() => {})
@@ -528,7 +569,7 @@ export function AudioRuntime() {
           // A stale play() rejection must not stop a newer source selected by
           // the user. This is especially common when switching songs quickly.
           const activeSource = audio.currentSrc || audio.src
-          if (activeSource !== requestedSource) return
+          if (!isSameMediaSource(activeSource, requestedSource)) return
           setPlaying(false)
           if (error instanceof DOMException && error.name === 'NotAllowedError') {
             notify('浏览器阻止了自动播放，请点击播放按钮')
@@ -735,15 +776,19 @@ export function AudioRuntime() {
         currentSong &&
         'mediaSession' in navigator &&
         navigator.mediaSession.setPositionState &&
+        Number.isFinite(duration) &&
         duration > 0 &&
         (now - lastMediaSessionAt.current >= 1000 || currentTime === 0)
       ) {
         lastMediaSessionAt.current = now
         try {
+          const validDuration = Math.max(0.1, duration)
+          const validPosition = Number.isFinite(currentTime) ? Math.max(0, Math.min(currentTime, validDuration)) : 0
+          const rate = Number.isFinite(audio.playbackRate) && audio.playbackRate > 0 ? audio.playbackRate : 1
           navigator.mediaSession.setPositionState({
-            duration: Math.max(0.1, duration),
-            playbackRate: audio.playbackRate || 1,
-            position: Math.min(currentTime, duration),
+            duration: validDuration,
+            playbackRate: rate,
+            position: validPosition,
           })
         } catch {
           /* browser may reject transient media metadata */
@@ -829,7 +874,7 @@ export function AudioRuntime() {
         fadeFactor.current = 1
         syncAudioVolume()
       }
-      if (nextSong && songKey(nextSong) !== songId) {
+      if (nextSong && songKey(nextSong) !== songId && (!audio.src || audio.src.startsWith('data:'))) {
         // Keep the audio pipeline actively outputting silence so Safari does not
         // suspend the background tab or reject autoplay for the upcoming track.
         try {
@@ -897,7 +942,16 @@ export function AudioRuntime() {
               sourceName: result.sourceName,
             }
             setResolvedUrl(result.url)
-            audio.src = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
+            const targetPlaybackUrl = buildPlaybackUrl(
+              result.url,
+              currentSong,
+              settings,
+              undefined,
+              result.downloadToken,
+            )
+            if (!isSameMediaSource(audio.currentSrc || audio.src, targetPlaybackUrl)) {
+              audio.src = targetPlaybackUrl
+            }
             if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
               notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')
             }
@@ -1103,7 +1157,7 @@ export function AudioRuntime() {
         resolvedSongKey.current = songId
         audio.loop = false
         const targetPlaybackUrl = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
-        if (audio.src !== targetPlaybackUrl) {
+        if (!isSameMediaSource(audio.currentSrc || audio.src, targetPlaybackUrl)) {
           audio.src = targetPlaybackUrl
         }
         if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
@@ -1224,7 +1278,7 @@ export function AudioRuntime() {
     }
     const requestedSource = audio.currentSrc || audio.src
     void audio.play().catch(error => {
-      if ((audio.currentSrc || audio.src) !== requestedSource) return
+      if (!isSameMediaSource(audio.currentSrc || audio.src, requestedSource)) return
       setPlaying(false)
       if (error instanceof DOMException && error.name === 'NotAllowedError')
         notify('浏览器阻止了自动播放，请点击播放按钮')
