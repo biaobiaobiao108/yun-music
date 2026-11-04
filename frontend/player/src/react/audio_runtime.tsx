@@ -175,7 +175,7 @@ function requestSongUrl(
   }
   if (cached) prefetchedUrls.delete(key)
   const pending = pendingSongUrlRequests.get(key)
-  if (pending) return joinSongUrlRequest(pending, signal)
+  if (pending && !pending.controller.signal.aborted) return joinSongUrlRequest(pending, signal)
 
   const performanceName = songUrlPerformanceName(key)
   markPlayerPerformance(`${performanceName}:start`)
@@ -512,6 +512,11 @@ export function AudioRuntime() {
     const getSettings = () => useSettingsStore.getState().settings
     const disconnectAudioCommands = connectAudioCommands({
       prime: options => {
+        if (options?.song && resolvedSongKey.current === songKey(options.song)) {
+          if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) audio.currentTime = 0
+          void audio.play().catch(() => undefined)
+          return
+        }
         const audioPlaying = Boolean(audio && !audio.paused && !audio.ended && !audio.src.startsWith('data:'))
         // A natural outro has already reached `ended` by the time `next()`
         // primes the audio element. Preserve the intent to crossfade into the
@@ -562,8 +567,10 @@ export function AudioRuntime() {
         } catch {}
       },
       play: () => {
+        const selected = usePlaybackStore.getState().currentSong
+        if (!selected || resolvedSongKey.current !== songKey(selected)) return
         const requestedSource = audio.currentSrc || audio.src
-        if (!requestedSource || !currentSong) {
+        if (!requestedSource) {
           setPlaying(false)
           notify('请选择歌曲后再播放')
           return
@@ -611,12 +618,18 @@ export function AudioRuntime() {
     })
     syncAudioVolume()
     const onPlay = () => {
+      const state = usePlaybackStore.getState()
       if (
         audio.paused ||
         resolvedSongKey.current !== songId ||
-        songKey(usePlaybackStore.getState().currentSong ?? {}) !== songId
+        !state.currentSong ||
+        songKey(state.currentSong) !== songId
       )
         return
+      if (!state.isPlaying) {
+        audio.pause()
+        return
+      }
       if (currentSong) syncMediaSessionMetadata(currentSong)
       setMediaSessionPlaybackState('playing')
       emitPlaybackService({ type: 'play' })
@@ -692,6 +705,7 @@ export function AudioRuntime() {
     const onPause = () => {
       if (
         !audio.paused ||
+        audio.ended ||
         resolvedSongKey.current !== songId ||
         songKey(usePlaybackStore.getState().currentSong ?? {}) !== songId
       )
@@ -867,8 +881,15 @@ export function AudioRuntime() {
       emitPlaybackService({ type: 'progress', currentTime, duration })
     }
     const onEnded = () => {
-      if (resolvedSongKey.current !== songId) return
       const state = usePlaybackStore.getState()
+      if (
+        !audio.ended ||
+        !state.isPlaying ||
+        !state.currentSong ||
+        songKey(state.currentSong) !== songId ||
+        resolvedSongKey.current !== songId
+      )
+        return
       if (state.mode === 'single' && !state.priorityNextSongKey) {
         cancelVolumeAnimation()
         naturalFadeKey.current = ''
@@ -926,7 +947,8 @@ export function AudioRuntime() {
       notify(message)
     }
     const onError = () => {
-      if (resolvedSongKey.current !== songId) return
+      const selected = usePlaybackStore.getState().currentSong
+      if (!audio.error || !selected || songKey(selected) !== songId || resolvedSongKey.current !== songId) return
       const activePlayback = resolvedPlayback.current
       const refreshKey = `url-refresh:${songId}:${quality}`
       if (
@@ -1098,6 +1120,10 @@ export function AudioRuntime() {
     if (!audio || !currentSong || !songId) return
     let cancelled = false
     const controller = new AbortController()
+    const isCurrentSelection = () => {
+      const state = usePlaybackStore.getState()
+      return Boolean(state.currentSong && songKey(state.currentSong) === songId && state.quality === quality)
+    }
     setResolvedError('')
     if (playbackTraceName) markPlayerPerformance(`${playbackTraceName}:start`)
     const storedCacheUrl =
@@ -1110,7 +1136,7 @@ export function AudioRuntime() {
         const result = hasStoredCacheUrl
           ? { url: storedCacheUrl, fromCache: true, sourceName: '本地缓存' }
           : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, controller.signal)
-        if (cancelled || controller.signal.aborted) return
+        if (cancelled || controller.signal.aborted || !isCurrentSelection()) return
         const transition = crossfadeTransition.current
         const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
         const isBackground = typeof document !== 'undefined' && document.hidden
@@ -1129,7 +1155,7 @@ export function AudioRuntime() {
           if (crossfadeEnabled && state.isPlaying && !isBackground) {
             if (completedNaturalFade || audio.paused || audio.ended || fadeFactor.current <= 0) fadeFactor.current = 0
             else await animateVolumeFactor(0, CROSSFADE_DURATION_MS)
-            if (cancelled || controller.signal.aborted) return
+            if (cancelled || controller.signal.aborted || !isCurrentSelection()) return
             const latestState = usePlaybackStore.getState()
             if (
               crossfadeTransition.current?.to === songId &&
@@ -1185,7 +1211,12 @@ export function AudioRuntime() {
           try {
             await audio.play()
           } catch (error) {
-            if (cancelled) return
+            if (
+              cancelled ||
+              !usePlaybackStore.getState().isPlaying ||
+              (error instanceof DOMException && error.name === 'AbortError')
+            )
+              return
             if (error instanceof DOMException && error.name === 'NotAllowedError') {
               setPlaying(false)
               notify('歌曲已就绪，请点击播放按钮继续')
@@ -1195,7 +1226,7 @@ export function AudioRuntime() {
           }
         }
       } catch (error) {
-        if (cancelled) return
+        if (cancelled || !isCurrentSelection()) return
         if (crossfadeTransition.current?.to === songId) {
           cancelVolumeAnimation()
           crossfadeTransition.current = null

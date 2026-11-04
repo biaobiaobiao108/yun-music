@@ -220,6 +220,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   // call after the new source is ready.
   playSong: (song, queue = get().queue, index) => {
     const wasPlaying = get().isPlaying
+    const sameCurrentSong = Boolean(get().currentSong && songKey(get().currentSong as Song) === songKey(song))
     const immediateUrl = typeof song.url === 'string' && song.url ? song.url : undefined
     primeCommand?.({ wasPlaying, immediateUrl, song })
     const key = songKey(song)
@@ -239,9 +240,9 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       queue: nextQueue,
       currentIndex: nextIndex,
       currentTime: 0,
-      duration: 0,
+      duration: sameCurrentSong ? state.duration : 0,
       isPlaying: true,
-      resolvedUrl: null,
+      resolvedUrl: sameCurrentSong ? state.resolvedUrl : null,
       error: '',
       priorityNextSongKey,
       randomNextSongKey: null,

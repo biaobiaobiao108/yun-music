@@ -26,6 +26,16 @@ test('switching songs clears the previous playback duration', () => {
   expect(usePlaybackStore.getState().duration).toBe(0)
 })
 
+test('replaying the current song keeps its resolved source and duration', () => {
+  usePlaybackStore.getState().playSong(first, [first], 0)
+  usePlaybackStore.setState({ currentTime: 30, duration: 180, resolvedUrl: '/first.mp3' })
+  usePlaybackStore.getState().playSong(first, [first], 0)
+  const state = usePlaybackStore.getState()
+  expect(state.currentTime).toBe(0)
+  expect(state.duration).toBe(180)
+  expect(state.resolvedUrl).toBe('/first.mp3')
+})
+
 test('playing a song outside the supplied queue keeps the queue index consistent', () => {
   const outside: Song = { id: 'outside', source: 'wy', name: '队列外歌曲' }
   usePlaybackStore.getState().playSong(outside, [first, second])
