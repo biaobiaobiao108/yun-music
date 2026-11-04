@@ -695,7 +695,6 @@ describe('React player module boundaries', () => {
   it('keeps the React-only build free of retired player bridges and jumpy artwork motion', () => {
     const buildScript = read('scripts/build-frontend.ts')
     const assetCheck = read('scripts/check-frontend-assets.ts')
-    const serviceWorker = read('public/music/sw.js')
     const css = read('frontend/styles/player.css')
     const adminCss = read('frontend/styles/admin.css')
 
@@ -703,8 +702,6 @@ describe('React player module boundaries', () => {
     expect(buildScript).not.toContain('phase_vocoder.ts')
     expect(assetCheck).toContain("'vendor-bridge.js'")
     expect(assetCheck).toContain("'phase-vocoder.js'")
-    expect(serviceWorker).not.toContain('vendor-bridge.js')
-    expect(serviceWorker).not.toContain('phase-vocoder.js')
     expect(css).toContain('transform: scale(1.01)')
     expect(css).not.toContain('transform: translateY(-3px)')
     expect(css).not.toMatch(/transition:\s*all/)

@@ -88,12 +88,6 @@ async function build() {
   }
   fs.mkdirSync(path.dirname(pageRuntimeTarget), { recursive: true })
   fs.copyFileSync(pageRuntimeSource, pageRuntimeTarget)
-  for (const [source, target] of [
-    ['../frontend/admin/src/sw.js', path.join(publicRoot, 'sw.js')],
-    ['../frontend/player/src/sw.js', path.join(publicMusicRoot, 'sw.js')],
-  ]) {
-    fs.copyFileSync(path.join(import.meta.dir, source), target)
-  }
 
   const brandIconSource = path.join(import.meta.dir, '../docs/assets/yun-yin.png')
   const faviconSource = path.join(import.meta.dir, '../docs/assets/yun-yin-favicon.png')
@@ -107,6 +101,8 @@ async function build() {
   // local build output so a previous build cannot keep shipping dead runtime
   // resources after the React-only migration.
   for (const stalePath of [
+    path.join(publicRoot, 'sw.js'),
+    path.join(publicMusicRoot, 'sw.js'),
     path.join(publicMusicRoot, 'js/vendor-bridge.js'),
     path.join(publicMusicRoot, 'js/wave.js'),
     path.join(publicMusicRoot, 'js/pitch-shifter'),
@@ -243,8 +239,7 @@ async function main() {
     const iconSources = new Set(['yun-yin.png', 'yun-yin-favicon.png'].map(filename => path.join(iconRoot, filename)))
     const iconFingerprints = new Map([...iconSources].map(filePath => [filePath, fingerprintFile(filePath)] as const))
     const watchRoots = [
-      // Watch each app root so changes to its HTML, manifest, and copied
-      // Service Worker files trigger the same rebuild as source changes.
+      // Watch each app root so HTML and manifest changes trigger a rebuild.
       path.join(import.meta.dir, '../frontend/admin'),
       path.join(import.meta.dir, '../frontend/player'),
       path.join(import.meta.dir, '../frontend/shared'),

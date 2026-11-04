@@ -10,9 +10,9 @@
 - `frontend/player/src/react/login.tsx`：播放器访问密码登录入口。
 - `frontend/admin/src/react/index.tsx`：管理后台入口。
 - `frontend/styles/`：设计令牌、共享主题、播放器和后台样式源文件。
-- `scripts/build-frontend.ts`：构建 hash 入口、代码分割 chunk、Service Worker 引用和发布 HTML。
+- `scripts/build-frontend.ts`：构建 hash 入口、代码分割 chunk 和发布 HTML。
 
-迁移清理边界：当前发布链路只构建三个 React 入口（播放器、播放器登录页、管理后台）。旧命令式播放器入口、旧管理后台 feature 模块、播放器旧管理器、vendor bridge、频谱/音效/变调工作线程及其资源已移除；`player_history.ts` 已归档到 React 目录，因为它仍被当前导航状态使用。构建脚本会清理本地遗留的旧 bundle，资源检查会阻止这些文件重新进入 HTML、Service Worker 或懒加载引用。仍被共享 Markdown 服务使用的 `marked` 等依赖不会因“旧代码”标签误删。
+迁移清理边界：当前发布链路只构建三个 React 入口（播放器、播放器登录页、管理后台）。旧命令式播放器入口、旧管理后台 feature 模块、播放器旧管理器、vendor bridge、频谱/音效/变调工作线程及其资源已移除；`player_history.ts` 已归档到 React 目录，因为它仍被当前导航状态使用。构建脚本会清理本地遗留的旧 bundle，资源检查会阻止这些文件重新进入 HTML 或懒加载引用。仍被共享 Markdown 服务使用的 `marked` 等依赖不会因“旧代码”标签误删。
 
 修改 `frontend/` 或 `frontend/styles/` 后必须运行：
 

@@ -6,8 +6,6 @@ const publicRoot = join(repoRoot, 'public')
 
 const htmlFiles = ['public/index.html', 'public/music/index.html', 'public/music/login.html']
 
-const serviceWorkerFiles = ['public/sw.js', 'public/music/sw.js']
-
 const deletedResourceNames = [
   'ui-utils.js',
   'tailwindcss.js',
@@ -96,17 +94,6 @@ function collectHtmlReferences(file: string): string[] {
   return references
 }
 
-function collectServiceWorkerReferences(file: string): string[] {
-  const content = readText(file)
-  const references: string[] = []
-
-  for (const match of content.matchAll(/["'](\.\/[^"']+)["']/g)) {
-    if (match[1] && !match[1].endsWith('/')) references.push(match[1])
-  }
-
-  return references
-}
-
 function collectLazyReferences(): string[] {
   const references: string[] = []
   const sourceRoot = join(repoRoot, 'frontend')
@@ -144,12 +131,12 @@ const missing: string[] = []
 const deletedReferences: string[] = []
 const checkedReferences = new Set<string>()
 
-for (const file of [...htmlFiles, ...serviceWorkerFiles]) {
+for (const file of htmlFiles) {
   const content = readText(file)
   if (file.endsWith('.html') && forbiddenDomMigrationPatterns.some(pattern => pattern.test(content))) {
     deletedReferences.push(`${file} -> legacy inline DOM handler`)
   }
-  const references = file.endsWith('.html') ? collectHtmlReferences(file) : collectServiceWorkerReferences(file)
+  const references = collectHtmlReferences(file)
 
   for (const reference of references) {
     if (isRuntimeGeneratedResource(reference)) continue
