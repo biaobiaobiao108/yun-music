@@ -589,6 +589,37 @@ describe('React player authentication lifecycle', () => {
 })
 
 describe('React player settings reset', () => {
+  it('saves rapid changes to the same setting in order and drops queued changes after logout', async () => {
+    let finish: (() => void) | undefined
+    const writes: unknown[] = []
+    const save = spyOn(playerApi, 'saveSettings').mockImplementation(settings => {
+      writes.push(settings.preferredQuality)
+      if (writes.length === 1) return new Promise(resolve => (finish = () => resolve(undefined)))
+      return Promise.resolve(undefined)
+    })
+    try {
+      setSessionScope('settings-test')
+      useSettingsStore.getState().setSetting('preferredQuality', '128k')
+      useSettingsStore.getState().setSetting('preferredQuality', '320k')
+      expect(writes).toEqual(['128k'])
+      finish?.()
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(writes).toEqual(['128k', '320k'])
+
+      writes.length = 0
+      useSettingsStore.getState().setSetting('preferredQuality', 'flac')
+      useSettingsStore.getState().setSetting('preferredQuality', 'hires')
+      setSessionScope('other-settings-user')
+      finish?.()
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(writes).toEqual(['flac'])
+    } finally {
+      save.mockRestore()
+      setSessionScope(null)
+      useSettingsStore.getState().reset()
+    }
+  })
+
   it('applies a changed preferred quality to subsequent playback immediately', async () => {
     const save = spyOn(playerApi, 'saveSettings').mockResolvedValue(undefined)
     const previousSettings = useSettingsStore.getState().settings

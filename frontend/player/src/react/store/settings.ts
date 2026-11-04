@@ -8,6 +8,7 @@ import { readThemePreferences, updateThemePreferences } from '../../../../shared
 let settingsRevision = 0
 let settingsHydrationId = 0
 let settingsSaveRevision = 0
+const pendingSettingSaves = new Map<string, Promise<void>>()
 
 export type SettingsState = {
   settings: PlayerSettings
@@ -50,16 +51,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     applyAppearance(settings)
     if (key === 'preferredQuality') usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
     const saveRevision = ++settingsSaveRevision
-    void playerApi
-      .saveSettings({ [key]: value })
+    const sessionGeneration = getSessionGeneration()
+    const saveKey = `${sessionGeneration}:${key}`
+    const save = () =>
+      sessionGeneration === getSessionGeneration() ? playerApi.saveSettings({ [key]: value }) : Promise.resolve()
+    const previous = pendingSettingSaves.get(saveKey)
+    const pending = (previous ? previous.then(save) : save())
       .then(() => {
-        if (saveRevision === settingsSaveRevision) set({ saveError: '' })
+        if (sessionGeneration === getSessionGeneration() && saveRevision === settingsSaveRevision)
+          set({ saveError: '' })
       })
       .catch(error => {
-        if (saveRevision === settingsSaveRevision) {
+        if (sessionGeneration === getSessionGeneration() && saveRevision === settingsSaveRevision) {
           set({ saveError: error instanceof Error ? error.message : '设置同步失败，请稍后重试' })
         }
       })
+      .finally(() => {
+        if (pendingSettingSaves.get(saveKey) === pending) pendingSettingSaves.delete(saveKey)
+      })
+    pendingSettingSaves.set(saveKey, pending)
   },
   clearSaveError: () => set({ saveError: '' }),
   hydrate: async () => {

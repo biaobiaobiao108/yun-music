@@ -76,6 +76,7 @@ export const useCacheStore = create<CacheState>((set, get) => ({
   applyQueue: tasks => set({ tasks, loadedAt: Date.now(), error: '' }),
   enqueue: async (song, quality = 'flac', resolvedUrl, options = {}) => {
     const key = songKey(song)
+    const sessionGeneration = getSessionGeneration()
     await playerApi.queueTasks([
       {
         id: key,
@@ -87,9 +88,10 @@ export const useCacheStore = create<CacheState>((set, get) => ({
         ...(resolvedUrl ? { resolvedUrl } : {}),
       },
     ])
-    await get().load({ force: true })
+    if (sessionGeneration === getSessionGeneration()) await get().load({ force: true })
   },
   enqueueDownloads: async (songs, quality = 'flac') => {
+    const sessionGeneration = getSessionGeneration()
     const uniqueSongs: Song[] = []
     const seen = new Set<string>()
     for (const song of songs) {
@@ -112,6 +114,7 @@ export const useCacheStore = create<CacheState>((set, get) => ({
         embedLyric: true,
       }))
       await playerApi.queueTasks(tasks)
+      if (sessionGeneration !== getSessionGeneration()) throw new Error('登录账户已变化，剩余下载任务未提交')
     }
     await get().load({ force: true })
     return uniqueSongs.length

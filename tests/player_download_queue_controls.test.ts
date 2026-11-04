@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { clearRequestCache } from '../frontend/player/src/react/data/request'
-import type { CacheTask } from '../frontend/player/src/react/api'
+import { playerApi, type CacheTask } from '../frontend/player/src/react/api'
+import { setSessionScope } from '../frontend/player/src/react/session'
 import { useCacheStore } from '../frontend/player/src/react/store/cache'
 import { usePlayerUiStore } from '../frontend/player/src/react/store/ui'
 
@@ -86,6 +87,27 @@ async function withCacheApi<T>(
 }
 
 describe('React player download queue controls', () => {
+  it('does not submit remaining download batches to a different account', async () => {
+    let finish: (() => void) | undefined
+    const queue = spyOn(playerApi, 'queueTasks').mockImplementation(
+      () => new Promise(resolve => (finish = () => resolve({ success: true }))),
+    )
+    try {
+      setSessionScope('download-owner')
+      const songs = Array.from({ length: 101 }, (_, id) => ({ source: 'wy', id: String(id) }))
+      const result = useCacheStore.getState().enqueueDownloads(songs)
+      expect(queue).toHaveBeenCalledTimes(1)
+      setSessionScope('another-user')
+      finish?.()
+      await expect(result).rejects.toThrow('登录账户已变化')
+      expect(queue).toHaveBeenCalledTimes(1)
+    } finally {
+      queue.mockRestore()
+      setSessionScope(null)
+      useCacheStore.getState().reset()
+    }
+  })
+
   it('marks playback caching as background and preserves disabled lyric preferences', async () => {
     await withCacheApi([], async api => {
       const song = { id: 123, source: 'wy', name: '测试歌曲' }
