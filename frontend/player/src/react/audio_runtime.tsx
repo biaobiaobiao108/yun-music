@@ -73,7 +73,7 @@ function isSameMediaSource(currentSrc: string, targetUrl: string): boolean {
 function setMediaSessionPlaybackState(state: MediaSessionPlaybackState): void {
   if (!('mediaSession' in navigator)) return
   try {
-    navigator.mediaSession.playbackState = state
+    if (navigator.mediaSession.playbackState !== state) navigator.mediaSession.playbackState = state
   } catch {
     /* media session may be unavailable in this context */
   }
@@ -90,12 +90,23 @@ function syncMediaSessionMetadata(song: Song | null): void {
     return
   }
   const artwork = safeImageUrl(songImage(song))
+  const title = songTitle(song)
+  const artist = songArtist(song)
+  const album = songAlbum(song)
   try {
     const artworkUrl = new URL(artwork, document.baseURI).href
+    const current = navigator.mediaSession.metadata
+    if (
+      current?.title === title &&
+      current.artist === artist &&
+      current.album === album &&
+      current.artwork[0]?.src === artworkUrl
+    )
+      return
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: songTitle(song),
-      artist: songArtist(song),
-      album: songAlbum(song),
+      title,
+      artist,
+      album,
       artwork: [
         { src: artworkUrl, sizes: '512x512' },
         { src: artworkUrl, sizes: '256x256' },
@@ -104,9 +115,9 @@ function syncMediaSessionMetadata(song: Song | null): void {
     })
   } catch {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: songTitle(song),
-      artist: songArtist(song),
-      album: songAlbum(song),
+      title,
+      artist,
+      album,
     })
   }
 }
