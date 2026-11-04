@@ -80,7 +80,7 @@ function syncMediaSessionMetadata(song: Song | null): void {
     title: songTitle(song),
     artist: songArtist(song),
     album: songAlbum(song),
-    artwork: [{ src: new URL(artwork, document.baseURI).href }],
+    artwork: [{ src: new URL(artwork, document.baseURI).href, sizes: '512x512', type: 'image/jpeg' }],
   })
 }
 
@@ -484,6 +484,18 @@ export function AudioRuntime() {
         const wasNaturalFade = Boolean(naturalFadeNextSongKey.current && options?.wasPlaying)
         const wasPlaying = Boolean(options ? options.wasPlaying && (audioPlaying || wasNaturalFade) : audioPlaying)
         lastSwitchWasPlaying.current = wasPlaying
+        if (options?.immediateUrl && options?.song) {
+          try {
+            audio.loop = false
+            const targetUrl = buildPlaybackUrl(options.immediateUrl, options.song, settings)
+            if (audio.src !== targetUrl) audio.src = targetUrl
+            const p = audio.play()
+            if (p !== undefined) {
+              p.catch(() => {})
+            }
+            return
+          } catch {}
+        }
         if (!wasPlaying) {
           audio.pause()
           audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
@@ -886,7 +898,6 @@ export function AudioRuntime() {
             }
             setResolvedUrl(result.url)
             audio.src = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
-            audio.load()
             if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
               notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')
             }
@@ -1091,12 +1102,14 @@ export function AudioRuntime() {
         setResolvedUrl(result.url)
         resolvedSongKey.current = songId
         audio.loop = false
-        audio.src = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
-        audio.load()
+        const targetPlaybackUrl = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
+        if (audio.src !== targetPlaybackUrl) {
+          audio.src = targetPlaybackUrl
+        }
         if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
           notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')
         }
-        if (usePlaybackStore.getState().isPlaying) {
+        if (usePlaybackStore.getState().isPlaying && audio.paused) {
           try {
             await audio.play()
           } catch (error) {
@@ -1230,20 +1243,16 @@ export function AudioRuntime() {
         /* action is not supported by this browser */
       }
     }
-    const actions: MediaSessionAction[] = [
-      'play',
-      'pause',
-      'previoustrack',
-      'nexttrack',
-      'seekto',
-      'seekbackward',
-      'seekforward',
-    ]
+    const actions: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto', 'stop']
     setActionHandler('play', () => {
       const state = usePlaybackStore.getState()
       if (!state.isPlaying) state.toggle()
     })
     setActionHandler('pause', () => {
+      const state = usePlaybackStore.getState()
+      if (state.isPlaying) state.toggle()
+    })
+    setActionHandler('stop', () => {
       const state = usePlaybackStore.getState()
       if (state.isPlaying) state.toggle()
     })
@@ -1254,17 +1263,16 @@ export function AudioRuntime() {
         usePlaybackStore.getState().seek(details.seekTime)
       }
     })
-    setActionHandler('seekbackward', (details: any) => {
-      const offset = typeof details?.seekOffset === 'number' && details.seekOffset > 0 ? details.seekOffset : 10
-      const cur = audioRef.current?.currentTime || 0
-      usePlaybackStore.getState().seek(Math.max(0, cur - offset))
-    })
-    setActionHandler('seekforward', (details: any) => {
-      const offset = typeof details?.seekOffset === 'number' && details.seekOffset > 0 ? details.seekOffset : 10
-      const cur = audioRef.current?.currentTime || 0
-      usePlaybackStore.getState().seek(cur + offset)
-    })
-    return () => actions.forEach(action => setActionHandler(action, null))
+    // Explicitly unregister seekbackward and seekforward so macOS MediaRemote
+    // classifies this as track-based audio playback (music note badge and track skip buttons)
+    // rather than video/scrubbing controls (15s skip buttons).
+    setActionHandler('seekbackward', null)
+    setActionHandler('seekforward', null)
+    return () => {
+      actions.forEach(action => setActionHandler(action, null))
+      setActionHandler('seekbackward', null)
+      setActionHandler('seekforward', null)
+    }
   }, [])
   useEffect(() => {
     if (!('mediaSession' in navigator)) return

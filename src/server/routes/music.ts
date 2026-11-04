@@ -670,22 +670,68 @@ export const createMusicRouter = (): Router => {
     try {
       let { songInfo } = await ctx.bodyJson<{ songInfo?: any }>(MAX_MUSIC_JSON_BODY_BYTES)
       songInfo = normalizeSongInfo(songInfo)
-      if (!songInfo || !songInfo.source) {
+      if (!songInfo) {
         throw new Error('Invalid songInfo')
       }
+
+      const verifiedUsername = verifyUserAuth(ctx)
+      const lyricUsername = verifiedUsername || '_open'
+      const canReadLocalLyricCache = lyricUsername !== '_open' || canReadPublicLocalMusic(ctx, verifiedUsername)
+      const lyricCacheControl = lyricUsername === '_open' ? 'public, max-age=86400' : 'private, no-store'
+
+      if (canReadLocalLyricCache) {
+        const localLyricResult = await fileCache.checkLyricCache(songInfo, lyricUsername)
+        if (localLyricResult.exists && localLyricResult.content) {
+          return ctx.json({ ...localLyricResult.content, _fromLocalCache: true }, 200, {
+            'Cache-Control': lyricCacheControl,
+          })
+        }
+      }
+
       const source = songInfo.source
+      if (!source || isRetiredOnlineSource(source)) {
+        if (canReadLocalLyricCache) {
+          const fallback = await fileCache.checkLyricCache(songInfo, lyricUsername)
+          if (fallback.exists && fallback.content) {
+            return ctx.json({ ...fallback.content, _fromLocalCache: true }, 200, {
+              'Cache-Control': lyricCacheControl,
+            })
+          }
+        }
+        throw new Error(source ? `Source ${source} not supported` : 'Invalid songInfo')
+      }
+
       const sourceApi = getBuiltinSource(source)
       if (!sourceApi?.getLyric) {
+        if (canReadLocalLyricCache) {
+          const fallback = await fileCache.checkLyricCache(songInfo, lyricUsername)
+          if (fallback.exists && fallback.content) {
+            return ctx.json({ ...fallback.content, _fromLocalCache: true }, 200, {
+              'Cache-Control': lyricCacheControl,
+            })
+          }
+        }
         throw new Error(`Source ${source} not supported`)
       }
-      // musicSdk lyric methods return a CancelableRequest. Serializing that
-      // wrapper produces `{ promise: {} }` in JSON instead of the lyric body.
-      // The GET endpoint already unwraps it; keep the POST contract identical.
-      const requestObj = sourceApi.getLyric(songInfo)
-      const result = await requestObj.promise
-      return ctx.json(result)
+      try {
+        const requestObj = sourceApi.getLyric(songInfo)
+        const result = await requestObj.promise
+        return ctx.json(result, 200, {
+          'Cache-Control': lyricCacheControl,
+        })
+      } catch (upstreamErr: any) {
+        if (canReadLocalLyricCache) {
+          const fallback = await fileCache.checkLyricCache(songInfo, lyricUsername)
+          if (fallback.exists && fallback.content) {
+            return ctx.json({ ...fallback.content, _fromLocalCache: true }, 200, {
+              'Cache-Control': lyricCacheControl,
+            })
+          }
+        }
+        throw upstreamErr
+      }
     } catch (err: any) {
-      console.error(err)
+      console.error('[Lyric] Fetch error (POST):', err?.message || err)
       return ctx.fail(500, toUserMessage(err, '获取数据失败，请稍后重试'))
     }
   })

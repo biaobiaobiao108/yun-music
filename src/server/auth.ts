@@ -359,7 +359,7 @@ export const checkAdminSession = (source: HeaderSource): boolean => {
 }
 
 export const verifyAdminAuth = (source: HeaderSource): boolean => {
-  if (!hasConfiguredPassword(global.lx.config?.['frontend.passwordHash'], global.lx.config?.['frontend.password']))
+  if (!hasConfiguredPassword(global.lx?.config?.['frontend.passwordHash'], global.lx?.config?.['frontend.password']))
     return false
   return checkAdminSession(source)
 }

@@ -2859,7 +2859,26 @@ export const checkLyricCache = async (songInfo: any, username?: string): Promise
     const indexedLyric = item.lyricFilename ? await readLyricCacheFile(dir, item.lyricFilename) : null
     const companion = indexedLyric ? null : await findCompanionLyricFileAsync(dir, item.filename)
     const lyricFilename = indexedLyric ? item.lyricFilename! : companion?.filename
-    if (!lyricFilename) return null
+    if (!lyricFilename) {
+      if (item.hasEmbedLyric) {
+        try {
+          const tagger = new (getMusicTagNative().MusicTagger)()
+          tagger.loadPath(audioPath)
+          const lyricsInTag = tagger.lyrics
+          tagger.dispose()
+          if (lyricsInTag && lyricsInTag.trim().length > 10) {
+            const content = parseLyrics(lyricsInTag)
+            return {
+              exists: true,
+              path: audioPath,
+              content,
+              filename: item.filename,
+            }
+          }
+        } catch {}
+      }
+      return null
+    }
     const lyricContents = indexedLyric || (await readLyricCacheFile(dir, lyricFilename))
     const lyricFile = lyricContents ? { filename: lyricFilename, ...lyricContents } : null
     if (!lyricFile) return null

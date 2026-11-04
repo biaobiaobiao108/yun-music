@@ -1378,3 +1378,54 @@ test('/api/music/lyric does not read public lyric cache when public local music 
     global.lx = previousLx
   }
 })
+
+test('/api/music/lyric POST returns local lyric cache when available', async () => {
+  const previousLx = global.lx
+  global.lx = createMinimalLxFixture(true)
+  const checkLyricCacheSpy = spyOn(fileCache, 'checkLyricCache').mockReturnValue({
+    exists: true,
+    content: { lyric: '[00:01.00]Local Cached Lyric' },
+  } as any)
+  try {
+    const response = await createMusicRouter().handle(
+      new Request('http://localhost/api/music/lyric', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songInfo: { source: 'wy', songmid: '123' } }),
+      }),
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.lyric).toBe('[00:01.00]Local Cached Lyric')
+    expect(data._fromLocalCache).toBe(true)
+    expect(checkLyricCacheSpy).toHaveBeenCalled()
+  } finally {
+    checkLyricCacheSpy.mockRestore()
+    global.lx = previousLx
+  }
+})
+
+test('/api/music/lyric POST falls back to local lyric cache when upstream source is unsupported', async () => {
+  const previousLx = global.lx
+  global.lx = createMinimalLxFixture(true)
+  const checkLyricCacheSpy = spyOn(fileCache, 'checkLyricCache').mockReturnValue({
+    exists: true,
+    content: { lyric: '[00:02.00]Fallback Lyric' },
+  } as any)
+  try {
+    const response = await createMusicRouter().handle(
+      new Request('http://localhost/api/music/lyric', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songInfo: { source: 'local', songmid: 'offline-song' } }),
+      }),
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.lyric).toBe('[00:02.00]Fallback Lyric')
+    expect(data._fromLocalCache).toBe(true)
+  } finally {
+    checkLyricCacheSpy.mockRestore()
+    global.lx = previousLx
+  }
+})

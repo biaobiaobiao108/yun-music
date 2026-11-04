@@ -642,10 +642,11 @@ export const createCacheRouter = (): Router => {
     const bunFile = Bun.file(filePath)
     const size = fileStats.size
     const mtime = fileStats.mtimeMs
-    const etag = `W/"${size}-${mtime}"`
+    const etag = `"${size}-${mtime}"`
     const lastModified = new Date(mtime).toUTCString()
 
     const rangeHeader = ctx.headers.get('range')
+    const ifRange = ctx.headers.get('if-range')
     const ifNoneMatch = ctx.headers.get('if-none-match')
     const ifModifiedSince = ctx.headers.get('if-modified-since')
     const cacheControl = normalizedUsername === '_open' ? 'public, max-age=86400' : 'private, no-store'
@@ -664,7 +665,12 @@ export const createCacheRouter = (): Router => {
     // A media client may combine validators with a Range request. Return the
     // requested partial content in that case instead of a 304 response that
     // cannot satisfy the media element's byte-range demand.
-    if (!rangeHeader && (ifNoneMatch === etag || (ifModifiedSince && ifModifiedSince === lastModified))) {
+    const isEtagMatch = (headerValue: string | null): boolean => {
+      if (!headerValue) return false
+      const trimmed = headerValue.trim()
+      return trimmed === '*' || trimmed === etag || trimmed === `W/${etag}`
+    }
+    if (!rangeHeader && (isEtagMatch(ifNoneMatch) || (ifModifiedSince && ifModifiedSince === lastModified))) {
       return new Response(null, {
         status: 304,
         headers: {
@@ -704,7 +710,17 @@ export const createCacheRouter = (): Router => {
               ? 'audio/aac'
               : bunFile.type || 'audio/mpeg')
 
-    if (rangeHeader) {
+    let ifRangeMismatch = false
+    if (rangeHeader && ifRange) {
+      const trimmed = ifRange.trim()
+      if (trimmed.startsWith('"') || trimmed.startsWith('W/')) {
+        ifRangeMismatch = trimmed !== etag && trimmed !== `W/${etag}`
+      } else {
+        ifRangeMismatch = trimmed !== lastModified
+      }
+    }
+
+    if (rangeHeader && !ifRangeMismatch) {
       const match = rangeHeader.trim().match(/^bytes=(\d*)-(\d*)$/)
       if (match && (match[1] || match[2])) {
         let start: number
