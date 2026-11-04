@@ -72,7 +72,7 @@ export const securityHeadersMiddleware: Middleware = async (ctx, next) => {
         "frame-ancestors 'none'",
         "form-action 'self'",
         "img-src 'self' data: blob: https:",
-        "media-src 'self' data: blob: https:",
+        "media-src 'self' blob: https:",
         "connect-src 'self' https: wss:",
         "style-src 'self' 'unsafe-inline'",
         "script-src 'self'",

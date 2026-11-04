@@ -18,10 +18,6 @@ import { getSessionGeneration } from './session'
 import { clearPlayerPerformanceMark, markPlayerPerformance, measurePlayerPerformance } from './performance'
 
 const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
-// 100 ms of 8 kHz, 8-bit PCM silence; Safari cannot decode a single-sample WAV.
-const SILENT_AUDIO_URL = `data:audio/wav;base64,${btoa(
-  atob('UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAAA=') + '\x80'.repeat(800),
-)}`
 type SongUrlResult = {
   url: string
   quality?: string
@@ -521,7 +517,7 @@ export function AudioRuntime() {
           void audio.play().catch(() => undefined)
           return
         }
-        const audioPlaying = Boolean(audio && !audio.paused && !audio.ended && !audio.src.startsWith('data:'))
+        const audioPlaying = !audio.paused && !audio.ended
         // A natural outro has already reached `ended` by the time `next()`
         // primes the audio element. Preserve the intent to crossfade into the
         // selected next track even though the outgoing element is no longer
@@ -549,26 +545,6 @@ export function AudioRuntime() {
             return
           } catch {}
         }
-        if (!wasPlaying) {
-          audio.pause()
-          audio.src = SILENT_AUDIO_URL
-          audio.loop = true
-          const p = audio.play()
-          if (p !== undefined) {
-            p.catch(() => {})
-          }
-          return
-        }
-        try {
-          if (!audio.src) {
-            audio.src = SILENT_AUDIO_URL
-            audio.loop = true
-          }
-          const p = audio.play()
-          if (p !== undefined) {
-            p.catch(() => {})
-          }
-        } catch {}
       },
       play: () => {
         const selected = usePlaybackStore.getState().currentSong
@@ -924,15 +900,6 @@ export function AudioRuntime() {
         fadeFactor.current = 1
         syncAudioVolume()
       }
-      if (nextSong && songKey(nextSong) !== songId && (!audio.src || audio.src.startsWith('data:'))) {
-        // Keep the audio pipeline actively outputting silence so Safari does not
-        // suspend the background tab or reject autoplay for the upcoming track.
-        try {
-          audio.src = SILENT_AUDIO_URL
-          audio.loop = true
-          void audio.play().catch(() => undefined)
-        } catch {}
-      }
     }
     const reportPlaybackError = () => {
       if (getSettings().enableAutoDegradeQuality && currentSong && !currentSong.url) {
@@ -1153,7 +1120,6 @@ export function AudioRuntime() {
           !isBackground &&
           !audio.paused &&
           !audio.ended &&
-          !audio.src.startsWith('data:') &&
           fadeFactor.current > 0
         const completedNaturalFade = naturalFadeNextSongKey.current === songId
         if (completedNaturalFade) naturalFadeKey.current = ''
