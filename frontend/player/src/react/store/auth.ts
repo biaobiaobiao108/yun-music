@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { playerApi, type PlayerConfig } from '../api'
-import { invalidateRequestCache } from '../data/request'
+import { invalidateRequestCache, setUnauthorizedHandler } from '../data/request'
 import { setSessionScope } from '../session'
 import { writeString } from '../../../../shared/src/storage'
 import { browserStorage, initialUserName } from './shared'
@@ -99,7 +99,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ playerAuthenticated: true, error: '' })
   },
   logout: async () => {
-    await playerApi.logout()
+    try {
+      await playerApi.logout()
+    } catch {
+      // The local session must still close when the server is unreachable.
+    }
     invalidateRequestCache()
     set({ playerAuthenticated: false })
   },
@@ -113,7 +117,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     refreshUserScopedStores()
   },
   userLogout: async () => {
-    await playerApi.userLogout()
+    try {
+      await playerApi.userLogout()
+    } catch {
+      // Clear local user state even if the server session already expired.
+    }
     invalidateRequestCache()
     setSessionScope(null)
     resetUserScopedStores()
@@ -121,3 +129,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ userName: null, userAuthenticated: false })
   },
 }))
+
+// A 401 after the initial hydration means the server-side session was revoked
+// or expired. Close the local gate instead of leaving the UI in a logged-in
+// state where every subsequent request fails.
+setUnauthorizedHandler(pathname => {
+  if (pathname === '/api/user/login' || pathname === '/api/music/auth' || pathname === '/api/admin/verify') return
+  const state = useAuthStore.getState()
+  if (pathname.startsWith('/api/music/')) {
+    if (state.playerAuthenticated) useAuthStore.setState({ playerAuthenticated: false })
+    return
+  }
+  if (pathname.startsWith('/api/user/') || pathname === '/api/users') {
+    if (!state.userAuthenticated) return
+    invalidateRequestCache()
+    setSessionScope(null)
+    resetUserScopedStores()
+    writeString(browserStorage(), 'lx_user_name', '')
+    useAuthStore.setState({ userName: null, userAuthenticated: false })
+  }
+})

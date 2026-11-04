@@ -11,7 +11,10 @@ function normalizeSessionScope(username: unknown): string {
 function migrateLegacyStorage(scope: string): void {
   if (typeof localStorage === 'undefined') return
   try {
-    if (localStorage.getItem(SCOPED_STORAGE_MIGRATION_KEY)) return
+    // Scope the marker as well: the first anonymous visit must not consume the
+    // one-time migration before the user logs in.
+    const markerKey = `${SCOPED_STORAGE_MIGRATION_KEY}:${scope}`
+    if (localStorage.getItem(markerKey)) return
     for (const baseKey of LEGACY_SCOPED_STORAGE_KEYS) {
       const legacyValue = localStorage.getItem(baseKey)
       const scopedKey = `${baseKey}:${encodeURIComponent(scope)}`
@@ -19,7 +22,7 @@ function migrateLegacyStorage(scope: string): void {
         localStorage.setItem(scopedKey, legacyValue)
       }
     }
-    localStorage.setItem(SCOPED_STORAGE_MIGRATION_KEY, '1')
+    localStorage.setItem(markerKey, '1')
   } catch {
     // Retry on the next session transition if storage is temporarily unavailable or full.
   }

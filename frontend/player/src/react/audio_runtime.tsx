@@ -507,6 +507,9 @@ export function AudioRuntime() {
     if (!audio) return
     let retryCancelled = false
     let retryController: AbortController | null = null
+    // Read settings at callback time so volume/setting changes do not tear down
+    // and rebuild the whole audio pipeline (which also cancels URL retries).
+    const getSettings = () => useSettingsStore.getState().settings
     const disconnectAudioCommands = connectAudioCommands({
       prime: options => {
         const audioPlaying = Boolean(audio && !audio.paused && !audio.ended && !audio.src.startsWith('data:'))
@@ -528,7 +531,7 @@ export function AudioRuntime() {
         if (immediateUrl && options?.song) {
           try {
             audio.loop = false
-            const targetUrl = buildPlaybackUrl(immediateUrl, options.song, settings)
+            const targetUrl = buildPlaybackUrl(immediateUrl, options.song, getSettings())
             if (!isSameMediaSource(audio.currentSrc || audio.src, targetUrl)) audio.src = targetUrl
             const p = audio.play()
             if (p !== undefined) {
@@ -644,7 +647,7 @@ export function AudioRuntime() {
         historyRecordedKey.current = historyKey
         recordRecent(currentSong, quality)
       }
-      if (settings.enableServerCache && currentSong) {
+      if (getSettings().enableServerCache && currentSong) {
         const cacheKey = `${songKey(currentSong)}:${quality}`
         const playback = resolvedPlayback.current
         const cacheUrl =
@@ -659,8 +662,8 @@ export function AudioRuntime() {
           // Reuse the URL that started playback. Resolving the source again
           // here would consume a second custom-source quota for the same song.
           void enqueueCache(currentSong, quality, cacheUrl, {
-            cacheLyric: settings.enableServerLyricCache !== false,
-            embedLyric: settings.embedLyricToFile !== false,
+            cacheLyric: getSettings().enableServerLyricCache !== false,
+            embedLyric: getSettings().embedLyricToFile !== false,
           }).catch(() => cacheQueued.current.delete(cacheKey))
         }
       }
@@ -742,7 +745,7 @@ export function AudioRuntime() {
       const currentTime = samplePosition() ?? 0
       const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0
       const isBackground = typeof document !== 'undefined' && document.hidden
-      if (settings.enableCrossfade && duration > 0 && currentTime < duration && !isBackground) {
+      if (getSettings().enableCrossfade && duration > 0 && currentTime < duration && !isBackground) {
         const nextSong = getCrossfadeNextSong()
         const remaining = duration - currentTime
         if (nextSong && songKey(nextSong) !== songId && remaining <= CROSSFADE_DURATION_MS / 1000 && remaining > 0) {
@@ -831,7 +834,7 @@ export function AudioRuntime() {
       }
       emitPlaybackService({ type: 'loaded', duration })
       const shouldResume =
-        settings.autoResume &&
+        getSettings().autoResume &&
         duration > 0 &&
         resumeTime > 0 &&
         resumeTime < duration &&
@@ -858,7 +861,12 @@ export function AudioRuntime() {
         fadeFactor.current = 1
         syncAudioVolume()
         audio.currentTime = 0
-        void audio.play()
+        void audio.play().catch(error => {
+          if (error instanceof DOMException && error.name === 'NotAllowedError') {
+            setPlaying(false)
+            notify('浏览器阻止了自动播放，请点击播放按钮')
+          }
+        })
         return
       }
       const expectedNaturalFadeTarget = naturalFadeNextSongKey.current
@@ -880,12 +888,12 @@ export function AudioRuntime() {
         try {
           audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
           audio.loop = true
-          void audio.play()
+          void audio.play().catch(() => undefined)
         } catch {}
       }
     }
     const reportPlaybackError = () => {
-      if (settings.enableAutoDegradeQuality && currentSong && !currentSong.url) {
+      if (getSettings().enableAutoDegradeQuality && currentSong && !currentSong.url) {
         const currentQualityIndex = QUALITY_FALLBACKS.indexOf(quality)
         const nextQuality = currentQualityIndex >= 0 ? QUALITY_FALLBACKS[currentQualityIndex + 1] : undefined
         const attemptKey = `${songId}:${quality}`
@@ -922,7 +930,7 @@ export function AudioRuntime() {
         const wasPlaying = usePlaybackStore.getState().isPlaying
         setResolvedError('')
         notifyPlayback('刷新播放链接')
-        void requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, signal, 'high', true)
+        void requestSongUrl(currentSong, quality, getSettings().enableAutoSwitchSource !== false, signal, 'high', true)
           .then(async result => {
             const state = usePlaybackStore.getState()
             if (
@@ -992,21 +1000,17 @@ export function AudioRuntime() {
       audio.removeEventListener('error', onError)
     }
   }, [
-    currentSong,
     enqueueCache,
     notify,
     notifyPlayback,
     playbackTraceName,
     quality,
     recordRecent,
-    settings,
     setPlaying,
     setQuality,
     setResolvedUrl,
     songId,
     userName,
-    volume,
-    muted,
   ])
 
   useEffect(() => {
@@ -1238,7 +1242,6 @@ export function AudioRuntime() {
       }
     }
   }, [
-    currentSong,
     notify,
     notifyPlayback,
     playbackTraceName,

@@ -325,7 +325,10 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
   seek: time => {
     if (!Number.isFinite(time)) return
     const duration = get().duration
-    time = Math.max(0, duration > 0 ? Math.min(time, duration) : time)
+    // Before metadata arrives the audio element ignores seeks; publishing the
+    // requested position only makes the UI jump and then snap back.
+    if (!(duration > 0)) return
+    time = Math.max(0, Math.min(time, duration))
     seekCommand(time)
     set({ currentTime: time })
   },

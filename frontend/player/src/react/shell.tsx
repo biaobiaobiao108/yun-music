@@ -1479,6 +1479,7 @@ export function PlayerApp() {
   const checking = useAuthStore(state => state.checking)
   const required = useAuthStore(state => state.playerAuthRequired)
   const authenticated = useAuthStore(state => state.playerAuthenticated)
+  const startupError = useAuthStore(state => state.error)
   const hydrate = useAuthStore(state => state.hydrate)
   useEffect(() => {
     const root = document.documentElement
@@ -1499,6 +1500,17 @@ export function PlayerApp() {
     return (
       <main className="react-player-loading">
         <Loading label="正在准备播放器…" />
+      </main>
+    )
+  if (startupError)
+    return (
+      <main className="react-player-loading">
+        <p className="react-error" role="alert">
+          {startupError}
+        </p>
+        <Button variant="primary" onClick={() => void hydrate()}>
+          重新加载
+        </Button>
       </main>
     )
   if (required && !authenticated) return <PlayerAuthGate />

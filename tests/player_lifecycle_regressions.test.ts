@@ -58,6 +58,23 @@ describe('playback sleep deadline', () => {
   })
 })
 
+describe('seek before metadata', () => {
+  it('ignores seeks without a known duration and clamps to the duration', () => {
+    const initialPlayback = usePlaybackStore.getState()
+    try {
+      usePlaybackStore.setState({ currentTime: 5, duration: 0 })
+      usePlaybackStore.getState().seek(10)
+      expect(usePlaybackStore.getState().currentTime).toBe(5)
+
+      usePlaybackStore.setState({ duration: 100 })
+      usePlaybackStore.getState().seek(120)
+      expect(usePlaybackStore.getState().currentTime).toBe(100)
+    } finally {
+      usePlaybackStore.setState(initialPlayback)
+    }
+  })
+})
+
 describe('lyric playback clock', () => {
   it('uses confirmed media time instead of elapsed wall time', () => {
     const initialPlayback = usePlaybackStore.getState()

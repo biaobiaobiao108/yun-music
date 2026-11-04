@@ -136,8 +136,8 @@ export function ConfigView() {
         <Panel title="代理与请求">
           <div className="admin-config-grid">
             <ConfigToggle
-              label="启用代理请求"
-              description="为音频和外部资源请求使用代理"
+              label="信任反向代理请求头"
+              description="信任 X-Forwarded-For / X-Forwarded-Proto；这不是出站代理"
               checked={boolValue(draft, 'proxy.enabled')}
               onChange={checked => update('proxy.enabled', checked)}
             />
@@ -146,6 +146,25 @@ export function ConfigView() {
                 value={String(draft['proxy.header'] ?? '')}
                 onChange={event => update('proxy.header', event.target.value)}
                 placeholder="可选"
+              />
+            </ConfigField>
+            <ConfigField label="可信代理地址" description="只有来自这些 IP 的转发头才可信，多个地址用逗号分隔">
+              <input
+                value={
+                  Array.isArray(draft['proxy.trustedAddresses'])
+                    ? draft['proxy.trustedAddresses'].join(', ')
+                    : String(draft['proxy.trustedAddresses'] ?? '')
+                }
+                onChange={event =>
+                  update(
+                    'proxy.trustedAddresses',
+                    event.target.value
+                      .split(',')
+                      .map(value => value.trim())
+                      .filter(Boolean),
+                  )
+                }
+                placeholder="127.0.0.1, ::1"
               />
             </ConfigField>
             <ConfigToggle
@@ -158,7 +177,7 @@ export function ConfigView() {
               <input
                 value={String(draft['proxy.all.address'] ?? '')}
                 onChange={event => update('proxy.all.address', event.target.value)}
-                placeholder="http://127.0.0.1:7890"
+                placeholder="http://proxy.example.com:8080"
               />
             </ConfigField>
           </div>

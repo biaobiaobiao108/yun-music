@@ -44,6 +44,32 @@ function pruneExpiredCache(): void {
 type PendingRequest = { promise: Promise<unknown>; controller: AbortController; consumers: number; settled: boolean }
 const inFlight = new Map<string, PendingRequest>()
 
+type UnauthorizedHandler = (pathname: string) => void
+let unauthorizedHandler: UnauthorizedHandler | null = null
+
+/** Registered by the auth store so an expired session can close the gate. */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler
+}
+
+const requestPathname = (input: RequestInfo | URL): string => {
+  const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  try {
+    return new URL(raw, typeof window === 'undefined' ? 'http://localhost' : window.location.origin).pathname
+  } catch {
+    return raw
+  }
+}
+
+function notifyUnauthorized(input: RequestInfo | URL): void {
+  if (!unauthorizedHandler) return
+  try {
+    unauthorizedHandler(requestPathname(input))
+  } catch {
+    // An auth-state hook must never mask the original API error.
+  }
+}
+
 function abortError(): DOMException {
   return new DOMException('The operation was aborted.', 'AbortError')
 }
@@ -149,6 +175,7 @@ export async function requestJson<T>(input: RequestInfo | URL, init: PlayerReque
     })
     if (!response.ok) {
       const body = await response.text().catch(() => '')
+      if (response.status === 401) notifyUnauthorized(input)
       throw new ApiRequestError(resolveApiError(response.status, body), response.status, String(input), body)
     }
     if (response.status === 204) return undefined as T
