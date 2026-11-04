@@ -7935,26 +7935,6 @@ textarea:focus-visible {
     }
 }
 
-.react-footer-cover-button {
-    position: relative;
-}
-
-.react-footer-cover-equalizer {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.42);
-    border-radius: inherit;
-    color: #ffffff;
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
-    pointer-events: none;
-    transition: opacity var(--app-motion-fast, 140ms) ease;
-}
-
-.react-footer-cover-equalizer .react-song-equalizer span,
 .react-queue-current-cover .react-song-equalizer span {
     background: #ffffff;
 }

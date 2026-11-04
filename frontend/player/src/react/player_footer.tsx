@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { playerApi } from './api'
-import { Icon, SafeImage, SongEqualizer, Time } from './components'
+import { Icon, SafeImage, Time } from './components'
 import { SongActionsPopover } from './song_actions'
 import {
   isSongInLoveList,
@@ -586,11 +586,6 @@ export function PlayerFooterBar({
                   disabled={!currentSong}
                 >
                   <SafeImage src={songImage(currentSong)} width="48" height="48" alt="" />
-                  {currentSong && isPlaying && (
-                    <span className="react-footer-cover-equalizer" aria-label="正在播放">
-                      <SongEqualizer size="sm" />
-                    </span>
-                  )}
                 </button>
                 {mobileViewport ? (
                   <button
