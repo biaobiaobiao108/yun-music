@@ -670,6 +670,11 @@ export function AudioRuntime() {
         historyRecordedKey.current = historyKey
         recordRecent(currentSong, quality)
       }
+    }
+    const onPlaying = () => {
+      if (resolvedSongKey.current !== songId) return
+      const state = usePlaybackStore.getState()
+      if (audio.paused || !state.isPlaying || !state.currentSong || songKey(state.currentSong) !== songId) return
       if (getSettings().enableServerCache && currentSong) {
         const cacheKey = `${songKey(currentSong)}:${quality}`
         const playback = resolvedPlayback.current
@@ -690,9 +695,6 @@ export function AudioRuntime() {
           }).catch(() => cacheQueued.current.delete(cacheKey))
         }
       }
-    }
-    const onPlaying = () => {
-      if (resolvedSongKey.current !== songId) return
       if (crossfadeIncoming.current) {
         crossfadeIncoming.current = false
         void animateVolumeFactor(1, CROSSFADE_DURATION_MS)
