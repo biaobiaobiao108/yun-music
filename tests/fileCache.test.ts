@@ -1714,6 +1714,72 @@ describe('File Cache Path Traversal Defense', () => {
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('keeps a freshly downloaded file when an older played entry can satisfy the quota', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-new-download-cleanup-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    const dbPath = path.join(root, 'yun-yin.db')
+    try {
+      closeDb()
+      ;(global as any).lx = {
+        dataPath,
+        config: {
+          'user.enableCacheSizeLimit': true,
+          'user.cacheSizeLimit': 0.001,
+        },
+      }
+      initDatabase(dbPath)
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const username = 'test-new-download-user'
+      const cacheDir = fileCache.getCacheDir(username, false)
+      const oldFile = path.join(cacheDir, 'old_played.mp3')
+      const newFile = path.join(cacheDir, 'fresh_download.mp3')
+      fs.writeFileSync(oldFile, Buffer.alloc(1500, 1))
+      fs.writeFileSync(newFile, Buffer.alloc(800, 2))
+      const past = new Date(Date.now() - 100000)
+      fs.utimesSync(oldFile, past, past)
+
+      const baseItem = {
+        name: 'Test',
+        singer: 'Singer',
+        albumName: 'Album',
+        source: 'wy',
+        quality: '128k',
+        folder: 'cache' as const,
+        ext: 'mp3',
+      }
+      fileCache.indexManager.update(
+        username,
+        {
+          ...baseItem,
+          id: 'wy_old_played',
+          filename: 'old_played.mp3',
+          mtime: past.getTime(),
+          size: 1500,
+          lastPlayedAt: 1,
+        },
+        'cache',
+      )
+      // No lastPlayedAt: this is the state right after a download completes.
+      fileCache.indexManager.update(
+        username,
+        { ...baseItem, id: 'wy_fresh', filename: 'fresh_download.mp3', mtime: Date.now(), size: 800 },
+        'cache',
+      )
+
+      await fileCache.checkAndCleanupCache(username)
+
+      expect(fs.existsSync(oldFile)).toBe(false)
+      expect(fs.existsSync(newFile)).toBe(true)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('linkFileWithoutOverwrite', () => {

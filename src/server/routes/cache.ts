@@ -13,7 +13,7 @@ import { assertSafeRemoteHttpUrl } from '../networkSecurity'
 import { resolveInsideAsync } from '@/utils/pathSecurity'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
-import { canReadPublicLocalMusic } from '../localMusicAccess'
+import { canReadPublicLocalMusic, isPublicLocalMusicAnonymous } from '../localMusicAccess'
 
 /** 辅助获取缓存与下载任务的目标用户名 */
 const getCacheRequestUsername = (ctx: HttpContext): string | null => {
@@ -656,7 +656,8 @@ export const createCacheRouter = (): Router => {
     const ifRange = ctx.headers.get('if-range')
     const ifNoneMatch = ctx.headers.get('if-none-match')
     const ifModifiedSince = ctx.headers.get('if-modified-since')
-    const cacheControl = normalizedUsername === '_open' ? 'public, max-age=86400' : 'private, no-store'
+    const cacheControl =
+      normalizedUsername === '_open' && isPublicLocalMusicAnonymous() ? 'public, max-age=86400' : 'private, no-store'
     const unsatisfiableRangeResponse = () =>
       new Response(null, {
         status: 416,
@@ -955,7 +956,8 @@ export const createCacheRouter = (): Router => {
         status: 200,
         headers: {
           'Content-Type': cover.mime || 'image/jpeg',
-          'Cache-Control': username === '_open' ? 'public, max-age=86400' : 'private, no-store',
+          'Cache-Control':
+            username === '_open' && isPublicLocalMusicAnonymous() ? 'public, max-age=86400' : 'private, no-store',
         },
       })
     }
@@ -1178,15 +1180,19 @@ export const createCacheRouter = (): Router => {
       for (const filename of filenames) {
         let filePath = ''
         let folder: 'cache' | 'music' = 'cache'
+        let location = fileCache.getCacheLocation()
 
-        for (const f of ['cache', 'music'] as const) {
-          const dir = fileCache.getCacheDir(username, f === 'music')
-          const candidate = fileCache.resolveCacheRelativePath(dir, filename)
-          if (!candidate) continue
-          if (fs.existsSync(candidate)) {
-            filePath = candidate
-            folder = f
-            break
+        search: for (const candidateLocation of fileCache.getCacheLocations()) {
+          for (const f of ['cache', 'music'] as const) {
+            const dir = fileCache.getCacheDir(username, f === 'music', candidateLocation)
+            const candidate = fileCache.resolveCacheRelativePath(dir, filename)
+            if (!candidate) continue
+            if (fs.existsSync(candidate)) {
+              filePath = candidate
+              folder = f
+              location = candidateLocation
+              break search
+            }
           }
         }
 
@@ -1197,7 +1203,7 @@ export const createCacheRouter = (): Router => {
         }
 
         try {
-          const indexItem = fileCache.getIndexItemByFilename(filename, username) as any
+          const indexItem = fileCache.getIndexItemByFilename(filename, username, location) as any
           if (indexItem?.metadataWritable === false) {
             details.push({
               filename,
@@ -1227,12 +1233,18 @@ export const createCacheRouter = (): Router => {
             })
           } catch (checkError: any) {
             const unsupportedStatus = fileCache.getAudioMetadataUnsupportedStatus(filePath)
-            fileCache.setIndexEmbedLyric(filename, username, false, {
-              audioContainer: unsupportedStatus.audioContainer,
-              metadataWritable: false,
-              metadataError: unsupportedStatus.error,
-              embedLyricError: unsupportedStatus.error,
-            })
+            fileCache.setIndexEmbedLyric(
+              filename,
+              username,
+              false,
+              {
+                audioContainer: unsupportedStatus.audioContainer,
+                metadataWritable: false,
+                metadataError: unsupportedStatus.error,
+                embedLyricError: unsupportedStatus.error,
+              },
+              location,
+            )
             details.push({
               filename,
               status: 'fail',
@@ -1252,7 +1264,7 @@ export const createCacheRouter = (): Router => {
           const ext = path.extname(filename)
           const baseName = filename.slice(0, filename.length - ext.length)
           const lrcFilename = baseName + '.lrc'
-          const dir = fileCache.getCacheDir(username, folder === 'music')
+          const dir = fileCache.getCacheDir(username, folder === 'music', location)
           const lrcPath = fileCache.resolveCacheRelativePath(dir, lrcFilename)
 
           let lyricText: string | null = null
@@ -1279,12 +1291,18 @@ export const createCacheRouter = (): Router => {
           const embedResult = await fileCache.withCachePostProcess(undefined, 'embed lyric file', async () => {
             return fileCache.embedLyricsIntoFile(filePath, lyricText)
           })
-          fileCache.setIndexEmbedLyric(filename, username, embedResult.hasEmbedLyric, {
-            audioContainer: embedResult.audioContainer,
-            metadataWritable: embedResult.metadataWritable,
-            metadataError: embedResult.metadataWritable ? undefined : embedResult.error,
-            embedLyricError: embedResult.error,
-          })
+          fileCache.setIndexEmbedLyric(
+            filename,
+            username,
+            embedResult.hasEmbedLyric,
+            {
+              audioContainer: embedResult.audioContainer,
+              metadataWritable: embedResult.metadataWritable,
+              metadataError: embedResult.metadataWritable ? undefined : embedResult.error,
+              embedLyricError: embedResult.error,
+            },
+            location,
+          )
           if (!embedResult.success) {
             details.push({
               filename,

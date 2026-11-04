@@ -657,6 +657,17 @@ test('cache file routes honor the requested folder and keep personal media priva
     expect(enabledPublicResponse.status).toBe(200)
     expect(enabledPublicResponse.headers.get('cache-control')).toBe('public, max-age=86400')
     expect(await enabledPublicResponse.text()).toBe('music-file')
+
+    // Logged-in users may read _open when anonymous access is disabled, but
+    // that response must not be cacheable by a shared proxy.
+    global.lx.config['user.enablePublicNonAdminLocalMusic'] = false
+    const signedInPublicResponse = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
+    expect(signedInPublicResponse.status).toBe(200)
+    expect(signedInPublicResponse.headers.get('cache-control')).toBe('private, no-store')
   } finally {
     getCacheDir.mockRestore()
     getCacheLocation.mockRestore()

@@ -16,3 +16,7 @@ export const canReadPublicLocalMusic = (
   const admin = isAdmin === undefined ? verifyAdminAuth(ctx.request) : isAdmin
   return Boolean(username) || admin
 }
+
+/** True only when anonymous visitors may read _open storage. */
+export const isPublicLocalMusicAnonymous = (): boolean =>
+  global.lx?.config?.['user.enablePublicNonAdminLocalMusic'] === true

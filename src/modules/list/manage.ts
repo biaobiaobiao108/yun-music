@@ -48,8 +48,15 @@ export class ListManage {
    * If snapshot persistence fails, restore the previous lists so a failed
    * request cannot leave a phantom change that disappears after restart.
    */
+  /** Serialize an operation with list mutations without creating a snapshot. */
+  runSerialized = <T>(operation: () => Promise<T> | T): Promise<T> => {
+    const task = this.operationQueue.then(operation)
+    this.operationQueue = task.catch(() => undefined)
+    return task
+  }
+
   runWithSnapshot = <T>(operation: () => Promise<T> | T): Promise<T> => {
-    const task = this.operationQueue.then(async (): Promise<T> => {
+    return this.runSerialized(async () => {
       const previous = JSON.parse(JSON.stringify(await this.getListData())) as LX.List.ListData
       try {
         const result = await operation()
@@ -64,8 +71,6 @@ export class ListManage {
         throw error
       }
     })
-    this.operationQueue = task.catch(() => undefined)
-    return task
   }
 
   getCurrentListInfoKey = async () => {
@@ -91,9 +96,13 @@ export class ListManage {
   restoreSnapshot = async (name: string) => {
     const listData = await this.snapshotDataManage.getSnapshot(name)
     if (!listData) throw new Error('Snapshot not found')
-    await this.listDataManage.restore(listData)
-
-    this.snapshotDataManage.setLatest(name)
+    // Serialize with add/delete mutations so a concurrent write cannot be
+    // overwritten by the full-list restore, then point the latest pointer at
+    // the restored snapshot instead of creating a duplicate history entry.
+    await this.runSerialized(async () => {
+      await this.listDataManage.restore(listData)
+      this.snapshotDataManage.setLatest(name)
+    })
   }
 
   removeSnapshot = async (name: string) => {

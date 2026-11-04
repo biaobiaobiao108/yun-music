@@ -415,6 +415,11 @@ export const createDownloadProxyRouter = (): Router => {
 
             const proxyReq = lib.request(targetUrl, options, (proxyRes: any) => {
               activeProxyResponse = proxyRes
+              // A paused inline stream applies backpressure and can leave the
+              // upstream socket idle for minutes. The request-level timeout is
+              // a socket idle timer that survives the response, so clear it now
+              // and keep it only for non-streaming downloads/tagging.
+              if (isInline && !isTaggingMode) proxyReq.setTimeout?.(0)
               if (proxyAgent) proxyRes.once('close', () => proxyAgent.destroy())
               if (!isInline || isTaggingMode) {
                 proxyRes.setTimeout?.(30_000, () => proxyRes.destroy(new Error('Remote response timed out')))
@@ -722,6 +727,10 @@ export const createDownloadProxyRouter = (): Router => {
                     if (ctx.request.signal.aborted || responseSettled) return
 
                     headers['Content-Length'] = fs.statSync(tempPath).size.toString()
+                    // The tagged payload is always a complete 200 response, even
+                    // when the upstream answered the probe with 206.
+                    delete headers['Content-Range']
+                    delete headers['Accept-Ranges']
                     finishProgress()
                     settleTaggedResponse(createTempFileResponse(), false, true)
                   } catch (e: any) {
@@ -731,9 +740,17 @@ export const createDownloadProxyRouter = (): Router => {
                       markProgressError(tempStreamError.message || 'Download stream failed')
                       settleTaggedResponse(ctx.fail(502, '下载处理失败，请重试'))
                     } else if (fs.existsSync(tempPath)) {
-                      finishProgress()
-                      if (!headers['Content-Length']) headers['Content-Length'] = fs.statSync(tempPath).size.toString()
-                      settleTaggedResponse(createTempFileResponse(), false, true)
+                      if (fs.statSync(tempPath).size < 100) {
+                        markProgressError('下载内容无效或为空')
+                        settleTaggedResponse(ctx.fail(502, '下载内容无效，请重试'))
+                      } else {
+                        finishProgress()
+                        if (!headers['Content-Length'])
+                          headers['Content-Length'] = fs.statSync(tempPath).size.toString()
+                        delete headers['Content-Range']
+                        delete headers['Accept-Ranges']
+                        settleTaggedResponse(createTempFileResponse(), false, true)
+                      }
                     } else {
                       markProgressError(e?.message || 'Download processing failed')
                       settleTaggedResponse(ctx.fail(502, '下载处理失败，请重试'))

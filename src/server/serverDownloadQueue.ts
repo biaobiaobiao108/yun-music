@@ -72,6 +72,9 @@ const controllers = new Map<string, AbortController>()
 const activeTasks = new Map<string, ServerDownloadTask>()
 const suspendedUsers = new Set<string>()
 let allUsersSuspended = false
+// Tasks paused by an instance-wide suspension are restored on release; tasks
+// the user paused explicitly are not.
+const suspendAllPausedKeys = new Set<string>()
 const activeSettled = new Map<string, Promise<void>>()
 const concurrencyByUser = new Map<string, number>()
 const taskIdentityIndex = new Map<string, string>()
@@ -1092,7 +1095,9 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
   saveNow()
   notifyQueueListeners(username)
   void processQueue()
-  return added.map(task => getPublicTask(task))
+  // saveNow() de-duplicates the batch; do not return tasks that were merged
+  // away, or the client will hold ids that the queue no longer recognises.
+  return added.filter(task => tasks.get(taskMapKey(task.username, task.id)) === task).map(task => getPublicTask(task))
 }
 
 export const list = (username: string) => {
@@ -1240,12 +1245,27 @@ export const suspendAll = async () => {
   for (const task of tasks.values()) users.add(task.username)
   for (const task of activeTasks.values()) users.add(task.username)
   users.add('_open')
+  for (const [key, task] of tasks) {
+    if (['waiting', 'downloading', 'tagging'].includes(task.status)) suspendAllPausedKeys.add(key)
+  }
   await Promise.all(Array.from(users).map(u => suspendUser(u)))
 }
 
 export const releaseAll = () => {
+  const resumedUsers = new Set<string>()
   allUsersSuspended = false
   suspendedUsers.clear()
+  for (const key of suspendAllPausedKeys) {
+    const task = tasks.get(key)
+    if (!task || task.status !== 'paused') continue
+    task.status = 'waiting'
+    task.errorMsg = ''
+    task.updatedAt = Date.now()
+    resumedUsers.add(task.username)
+  }
+  suspendAllPausedKeys.clear()
+  for (const username of resumedUsers) notifyQueueListeners(username)
+  if (resumedUsers.size > 0) void saveNow()
   void processQueue()
 }
 

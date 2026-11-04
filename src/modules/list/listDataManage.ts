@@ -1,4 +1,4 @@
-import { arrPush, arrPushByPosition, arrUnshift } from '@/utils/common'
+import { arrPush, arrUnshift } from '@/utils/common'
 import { LIST_IDS } from '@/constants'
 import { type SnapshotDataManage } from './snapshotDataManage'
 import { assertListData } from './listDataValidation'
@@ -364,21 +364,6 @@ export class ListDataManage {
     return [listId]
   }
 
-  listMusicMove = async (
-    fromId: string,
-    toId: string,
-    musicInfos: LX.Music.MusicInfo[],
-    addMusicLocationType: LX.AddMusicLocationType,
-  ): Promise<string[]> => {
-    return [
-      ...(await this.listMusicRemove(
-        fromId,
-        musicInfos.map(musicInfo => musicInfo.id),
-      )),
-      ...(await this.listMusicAdd(toId, musicInfos, addMusicLocationType)),
-    ]
-  }
-
   listMusicUpdateInfo = async (musicInfos: LX.List.ListActionMusicUpdate): Promise<string[]> => {
     await this.initPromise
     const updateListIds = new Set<string>()
@@ -400,39 +385,6 @@ export class ListDataManage {
       updateListIds.add(id)
     }
     return Array.from(updateListIds)
-  }
-
-  listMusicUpdatePosition = async (listId: string, position: number, ids: string[]): Promise<string[]> => {
-    await this.initPromise
-    let targetList = await this.getListMusics(listId)
-
-    // const infos = Array(ids.length)
-    // for (let i = targetList.length; i--;) {
-    //   const item = targetList[i]
-    //   const index = ids.indexOf(item.id)
-    //   if (index < 0) continue
-    //   infos.splice(index, 1, targetList.splice(i, 1)[0])
-    // }
-    // targetList.splice(Math.min(position, targetList.length - 1), 0, ...infos)
-
-    // console.time('ts')
-
-    // const list = createSortedList(targetList, position, ids)
-    const infos: LX.Music.MusicInfo[] = []
-    const map = new Map<string, LX.Music.MusicInfo>()
-    for (const item of targetList) map.set(item.id, item)
-    for (const id of ids) {
-      infos.push(map.get(id) as LX.Music.MusicInfo)
-      map.delete(id)
-    }
-    const list = targetList.filter(mInfo => map.has(mInfo.id))
-    arrPushByPosition(list, infos, Math.min(position, list.length))
-
-    targetList.splice(0, targetList.length)
-    arrPush(targetList, list)
-
-    // console.timeEnd('ts')
-    return [listId]
   }
 
   listMusicClear = async (ids: string[]): Promise<string[]> => {
