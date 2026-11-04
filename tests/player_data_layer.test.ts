@@ -15,12 +15,32 @@ import { useAuthStore } from '../frontend/player/src/react/store/auth'
 import { selectLoveList, selectUserLists, useLibraryStore } from '../frontend/player/src/react/store/library'
 import { useSearchStore } from '../frontend/player/src/react/store/search'
 import { useMediaLibraryStore } from '../frontend/player/src/react/store/media_library'
+import { useCommentStore } from '../frontend/player/src/react/store/comments'
+import { useLyricStore } from '../frontend/player/src/react/store/lyric'
 import type { Song } from '../frontend/player/src/react/types'
 
 const mockFetch = (handler: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>): typeof fetch =>
   Object.assign(handler, { preconnect: () => Promise.resolve() })
 
 describe('React player data request lifecycle', () => {
+  it('starts a fresh cached read after its only caller cancels', async () => {
+    clearRequestCache()
+    const controller = new AbortController()
+    let finishOld: ((response: Response) => void) | undefined
+    let calls = 0
+    const fetcher = mockFetch(() => {
+      calls += 1
+      if (calls === 1) return new Promise(resolve => (finishOld = resolve))
+      return Promise.resolve(new Response('{"value":"fresh"}'))
+    })
+    const first = requestJson('/api/test', { cacheKey: 'cancelled-read', signal: controller.signal, fetcher })
+    controller.abort()
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' })
+    expect(await requestJson('/api/test', { cacheKey: 'cancelled-read', fetcher })).toEqual({ value: 'fresh' })
+    expect(calls).toBe(2)
+    finishOld?.(new Response('{"value":"old"}'))
+    clearRequestCache()
+  })
   it('deduplicates concurrent reads and serves a short-lived cache', async () => {
     clearRequestCache()
     let calls = 0
@@ -184,6 +204,37 @@ describe('React player data request lifecycle', () => {
       }),
     ).toEqual({ fresh: true })
     expect(calls).toBe(2)
+  })
+})
+
+describe('song detail request lifecycle', () => {
+  it('does not restore old comments after clearing the song', async () => {
+    let finish: ((value: unknown) => void) | undefined
+    const request = spyOn(playerApi, 'comments').mockImplementation(() => new Promise(resolve => (finish = resolve)))
+    try {
+      const loading = useCommentStore.getState().load({ source: 'wy', id: 'old' })
+      await useCommentStore.getState().load(null)
+      finish?.({ comments: [{ text: 'old' }] })
+      await loading
+      expect(useCommentStore.getState()).toMatchObject({ song: null, items: [], loading: false })
+    } finally {
+      request.mockRestore()
+    }
+  })
+
+  it('clears lyric loading and ignores the previous song when reset', async () => {
+    let finish: ((value: Record<string, unknown>) => void) | undefined
+    const request = spyOn(playerApi, 'lyric').mockImplementation(() => new Promise(resolve => (finish = resolve)))
+    try {
+      const loading = useLyricStore.getState().load({ source: 'wy', id: 'old' })
+      await useLyricStore.getState().load(null)
+      finish?.({ lyric: '[00:01.00]old' })
+      await loading
+      expect(useLyricStore.getState()).toMatchObject({ lines: [], loading: false, error: '' })
+    } finally {
+      request.mockRestore()
+      useLyricStore.getState().reset()
+    }
   })
 })
 
@@ -481,6 +532,29 @@ describe('React player media library refresh', () => {
 })
 
 describe('React player authentication lifecycle', () => {
+  it('clears search, comments and lyric cache on user logout', async () => {
+    const logout = spyOn(playerApi, 'userLogout').mockResolvedValue(undefined)
+    const lyric = spyOn(playerApi, 'lyric').mockResolvedValue({ lyric: '[00:01.00]first' })
+    const song = { source: 'wy', id: 'session-song' }
+    try {
+      useSearchStore.setState({ query: 'private', results: [song] })
+      useCommentStore.setState({ song, items: [{ text: 'private' }] })
+      await useLyricStore.getState().load(song)
+      expect(useLyricStore.getState().lines).toHaveLength(1)
+      await useAuthStore.getState().userLogout()
+      expect(useSearchStore.getState()).toMatchObject({ query: '', results: [] })
+      expect(useCommentStore.getState()).toMatchObject({ song: null, items: [] })
+      expect(useLyricStore.getState()).toMatchObject({ lines: [], loading: false })
+      await useLyricStore.getState().load(song)
+      expect(lyric).toHaveBeenCalledTimes(2)
+    } finally {
+      logout.mockRestore()
+      lyric.mockRestore()
+      useLyricStore.getState().reset()
+      useSearchStore.getState().reset()
+    }
+  })
+
   it('does not run the initial session reset twice under StrictMode', async () => {
     const originalFetch = globalThis.fetch
     const calls: string[] = []

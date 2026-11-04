@@ -675,10 +675,12 @@ export const createCacheRouter = (): Router => {
     // cannot satisfy the media element's byte-range demand.
     const isEtagMatch = (headerValue: string | null): boolean => {
       if (!headerValue) return false
-      const trimmed = headerValue.trim()
-      return trimmed === '*' || trimmed === etag || trimmed === `W/${etag}`
+      return headerValue.split(',').some(value => {
+        const trimmed = value.trim()
+        return trimmed === '*' || trimmed === etag || trimmed === `W/${etag}`
+      })
     }
-    if (!rangeHeader && (isEtagMatch(ifNoneMatch) || (ifModifiedSince && ifModifiedSince === lastModified))) {
+    if (!rangeHeader && (ifNoneMatch ? isEtagMatch(ifNoneMatch) : ifModifiedSince === lastModified)) {
       return new Response(null, {
         status: 304,
         headers: {
@@ -722,7 +724,7 @@ export const createCacheRouter = (): Router => {
     if (rangeHeader && ifRange) {
       const trimmed = ifRange.trim()
       if (trimmed.startsWith('"') || trimmed.startsWith('W/')) {
-        ifRangeMismatch = trimmed !== etag && trimmed !== `W/${etag}`
+        ifRangeMismatch = trimmed !== etag
       } else {
         ifRangeMismatch = trimmed !== lastModified
       }

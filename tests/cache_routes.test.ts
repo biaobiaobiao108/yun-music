@@ -595,6 +595,18 @@ test('cache file routes honor the requested folder and keep personal media priva
     expect(await response.text()).toBe('music-file')
 
     const etag = response.headers.get('etag')
+    const conditional = (headers: Record<string, string>) =>
+      createCacheRouter().handle(
+        new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
+          headers: { cookie: `lx_user_session=${sessionId}`, ...headers },
+        }),
+      )
+    expect((await conditional({ 'if-none-match': `"other", ${etag}` })).status).toBe(304)
+    expect(
+      (await conditional({ 'if-none-match': '"other"', 'if-modified-since': response.headers.get('last-modified')! }))
+        .status,
+    ).toBe(200)
+    expect((await conditional({ range: 'bytes=0-3', 'if-range': `W/${etag}` })).status).toBe(200)
     const clampedRange = await createCacheRouter().handle(
       new Request(`http://localhost/api/music/cache/file/${username}/song.mp3?folder=music`, {
         headers: { cookie: `lx_user_session=${sessionId}`, range: 'bytes=0-999' },

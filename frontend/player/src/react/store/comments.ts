@@ -43,6 +43,8 @@ export const useCommentStore = create<CommentState>((set, get) => ({
   error: '',
   load: async (song, type = get().type, page = 1) => {
     if (!song) {
+      commentController?.abort()
+      commentController = null
       set({ song: null, items: [], total: 0, maxPage: 1, page, loading: false, error: '' })
       return
     }

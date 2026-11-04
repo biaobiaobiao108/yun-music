@@ -10,6 +10,9 @@ import { useMediaLibraryStore } from './media_library'
 import { usePlaybackStore } from './playback'
 import { useRecentStore } from './recent'
 import { useSettingsStore } from './settings'
+import { useSearchStore } from './search'
+import { useLyricStore } from './lyric'
+import { useCommentStore } from './comments'
 
 // React StrictMode intentionally re-runs mount effects in development. Keep
 // the initial session check single-flight so a second effect cannot reset the
@@ -38,6 +41,9 @@ function resetUserScopedStores(): void {
   useMediaLibraryStore.getState().reset()
   useCacheStore.getState().reset()
   useSettingsStore.getState().reset()
+  useSearchStore.getState().reset()
+  useLyricStore.getState().reset()
+  void useCommentStore.getState().load(null)
 }
 
 function refreshUserScopedStores(): void {

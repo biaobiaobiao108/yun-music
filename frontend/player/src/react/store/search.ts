@@ -22,6 +22,7 @@ export type SearchState = {
   setType: (type: SearchType) => void
   search: (query?: string, page?: number, options?: { force?: boolean }) => Promise<void>
   invalidate: () => void
+  reset: () => void
 }
 
 export const useSearchStore = create<SearchState>((set, get) => ({
@@ -95,6 +96,23 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     searchRequestId += 1
     invalidateRequestCache('search:')
     set({ loadedAt: 0 })
+  },
+  reset: () => {
+    searchController?.abort()
+    searchController = null
+    searchRequestId += 1
+    set({
+      query: '',
+      source: 'wy',
+      type: 'song',
+      page: 1,
+      results: [],
+      loading: false,
+      refreshing: false,
+      error: '',
+      tips: [],
+      loadedAt: 0,
+    })
   },
 }))
 

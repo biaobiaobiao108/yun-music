@@ -157,7 +157,7 @@ export async function requestJson<T>(input: RequestInfo | URL, init: PlayerReque
 
   if (!force && requestCacheKey) {
     const pending = inFlight.get(requestCacheKey)
-    if (pending) return joinPending<T>(pending, requestInit.signal ?? undefined)
+    if (pending && !pending.controller.signal.aborted) return joinPending<T>(pending, requestInit.signal ?? undefined)
   }
 
   const requestController = requestCacheKey ? new AbortController() : null

@@ -16,6 +16,7 @@ export type LyricState = {
   error: string
   activeIndex: number
   load: (song: Song | null) => Promise<void>
+  reset: () => void
 }
 
 export const useLyricStore = create<LyricState>(set => ({
@@ -30,7 +31,7 @@ export const useLyricStore = create<LyricState>(set => ({
       currentLoadedSongKey = ''
       inFlightSongKey = ''
       inFlightPromise = null
-      set({ lines: [], activeIndex: -1, error: '' })
+      set({ lines: [], loading: false, activeIndex: -1, error: '' })
       return
     }
     const key = songKey(song)
@@ -54,7 +55,7 @@ export const useLyricStore = create<LyricState>(set => ({
     const controller = new AbortController()
     lyricController = controller
     inFlightSongKey = key
-    set({ loading: true, error: '' })
+    set({ lines: [], activeIndex: -1, loading: true, error: '' })
     const promise = (async () => {
       try {
         const payload = await playerApi.lyric(song, controller.signal)
@@ -85,5 +86,14 @@ export const useLyricStore = create<LyricState>(set => ({
     })()
     inFlightPromise = promise
     return promise
+  },
+  reset: () => {
+    lyricController?.abort()
+    lyricController = null
+    currentLoadedSongKey = ''
+    inFlightSongKey = ''
+    inFlightPromise = null
+    lyricCache.clear()
+    set({ lines: [], loading: false, error: '', activeIndex: -1 })
   },
 }))
