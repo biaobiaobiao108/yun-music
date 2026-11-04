@@ -1364,19 +1364,23 @@ export function AudioRuntime() {
       const state = usePlaybackStore.getState()
       if (state.isPlaying) state.toggle()
     })
-    setActionHandler('previoustrack', () => usePlaybackStore.getState().previous())
-    setActionHandler('nexttrack', () => usePlaybackStore.getState().next())
     setActionHandler('seekto', (details: any) => {
       if (typeof details?.seekTime === 'number' && Number.isFinite(details.seekTime)) {
         usePlaybackStore.getState().seek(details.seekTime)
       }
     })
-    // Explicitly unregister seekbackward and seekforward so macOS MediaRemote
-    // classifies this as track-based audio playback (music note badge and track skip buttons)
-    // rather than video/scrubbing controls (15s skip buttons).
-    setActionHandler('seekbackward', null)
-    setActionHandler('seekforward', null)
+    const registerTrackActions = () => {
+      setActionHandler('seekbackward', null)
+      setActionHandler('seekforward', null)
+      setActionHandler('previoustrack', () => usePlaybackStore.getState().previous())
+      setActionHandler('nexttrack', () => usePlaybackStore.getState().next())
+    }
+    // Safari can publish its default seek commands when playback becomes active.
+    const audio = audioRef.current
+    audio?.addEventListener('playing', registerTrackActions)
+    registerTrackActions()
     return () => {
+      audio?.removeEventListener('playing', registerTrackActions)
       actions.forEach(action => setActionHandler(action, null))
       setActionHandler('seekbackward', null)
       setActionHandler('seekforward', null)
