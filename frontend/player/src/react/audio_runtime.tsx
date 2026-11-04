@@ -18,6 +18,10 @@ import { getSessionGeneration } from './session'
 import { clearPlayerPerformanceMark, markPlayerPerformance, measurePlayerPerformance } from './performance'
 
 const QUALITY_FALLBACKS = ['hires', 'flac', '320k', '128k']
+// 100 ms of 8 kHz, 8-bit PCM silence; Safari cannot decode a single-sample WAV.
+const SILENT_AUDIO_URL = `data:audio/wav;base64,${btoa(
+  atob('UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAAA=') + '\x80'.repeat(800),
+)}`
 type SongUrlResult = {
   url: string
   quality?: string
@@ -547,7 +551,7 @@ export function AudioRuntime() {
         }
         if (!wasPlaying) {
           audio.pause()
-          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+          audio.src = SILENT_AUDIO_URL
           audio.loop = true
           const p = audio.play()
           if (p !== undefined) {
@@ -557,7 +561,7 @@ export function AudioRuntime() {
         }
         try {
           if (!audio.src) {
-            audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+            audio.src = SILENT_AUDIO_URL
             audio.loop = true
           }
           const p = audio.play()
@@ -924,7 +928,7 @@ export function AudioRuntime() {
         // Keep the audio pipeline actively outputting silence so Safari does not
         // suspend the background tab or reject autoplay for the upcoming track.
         try {
-          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+          audio.src = SILENT_AUDIO_URL
           audio.loop = true
           void audio.play().catch(() => undefined)
         } catch {}
@@ -1391,7 +1395,7 @@ export function AudioRuntime() {
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
     syncMediaSessionMetadata(currentSong)
-    if (currentSong) setMediaSessionPlaybackState(audioRef.current && !audioRef.current.paused ? 'playing' : 'paused')
+    if (currentSong) setMediaSessionPlaybackState(usePlaybackStore.getState().isPlaying ? 'playing' : 'paused')
   }, [currentSong])
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
