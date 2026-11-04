@@ -255,6 +255,7 @@ describe('Core Router & HttpContext', () => {
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin')
     expect(res.headers.get('X-Frame-Options')).toBe('DENY')
+    expect(res.headers.get('Content-Security-Policy')).toContain("media-src 'self' data: blob: https:")
   })
 
   test('Context cookie and query parsing', async () => {
