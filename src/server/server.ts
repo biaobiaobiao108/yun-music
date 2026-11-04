@@ -13,15 +13,16 @@ let bunServerInstance: Server<Record<string, never>> | null = null
  */
 const startHttp = async (port = 9527, bindIp = '127.0.0.1'): Promise<void> => {
   const rootRouter = createRootRouter()
-  // Behind TLS-terminating reverse proxies the session cookie only gets
-  // `Secure` when X-Forwarded-Proto arrives (see HttpContext.isSecure) and the
-  // proxy address is trusted. Warn once instead of silently downgrading.
+  // A TLS-terminating reverse proxy rewrites the peer address, so without
+  // trusted forwarding every client shares one rate-limit bucket. The default
+  // trusted list is never empty, so check the actual auth mode as well.
   const exposed = bindIp === '0.0.0.0' || bindIp === '::'
+  const proxyEnabled = Boolean(global.lx?.config?.['proxy.enabled'])
   const trustedProxies = (global.lx?.config?.['proxy.trustedAddresses'] as string[] | undefined) ?? []
-  if (exposed && trustedProxies.length === 0) {
+  if (exposed && (!proxyEnabled || trustedProxies.length === 0)) {
     startupLog.warn(
-      'BIND_IP 暴露在所有网卡上，但没有配置 proxy.trustedAddresses：' +
-        '反向代理的 X-Forwarded-Proto/X-Forwarded-For 会被忽略，HTTPS 部署下 Cookie 将不带 Secure、限流也按代理 IP 统计。',
+      'BIND_IP 监听所有网卡。若前方有反向代理，请启用 proxy.enabled 并把代理地址加入 proxy.trustedAddresses；' +
+        '否则所有客户端共用代理 IP，登录限流会互相牵连，HTTPS 反代下的客户端 IP 也无法还原。',
     )
   }
   bunServerInstance = Bun.serve({

@@ -157,6 +157,32 @@ export const isPrivateAddress = (value: string): boolean => {
   return isPrivateIpv6(value)
 }
 
+/**
+ * Outbound proxy addresses may be hostnames. They cannot be resolved during
+ * synchronous config validation, so reject obvious local names here and let
+ * the proxy resolve dotted public hostnames. IP literals keep the full private
+ * range check. ALLOW_PRIVATE_PROXY=1 is handled by the caller.
+ */
+export const isPrivateProxyTarget = (hostname: string): boolean => {
+  const normalized = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+  if (isIP(normalized) !== 0) return isPrivateAddress(normalized)
+  return (
+    normalized === 'localhost' ||
+    normalized === 'local' ||
+    normalized.endsWith('.localhost') ||
+    normalized.endsWith('.local') ||
+    normalized.endsWith('.lan') ||
+    normalized.endsWith('.internal') ||
+    normalized.endsWith('.intranet') ||
+    normalized.endsWith('.home') ||
+    normalized.endsWith('.corp') ||
+    !normalized.includes('.')
+  )
+}
+
 /** Return the configured global proxy, if enabled. */
 export const getConfiguredOutboundProxy = (): string | null => {
   const config = global.lx?.config as unknown as Record<string, unknown> | undefined

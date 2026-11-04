@@ -116,7 +116,10 @@ export class Router {
 
   /** 路由匹配判断 */
   private matchRoute(route: RouteEntry, method: string, pathname: string): boolean {
-    if (route.method !== '*' && route.method !== method) return false
+    // HEAD is GET without the response body; serving the GET handler keeps
+    // probes and CDN checks from turning into 404s.
+    const effectiveMethod = method === 'HEAD' ? 'GET' : method
+    if (route.method !== '*' && route.method !== method && route.method !== effectiveMethod) return false
     if (route.isPrefix) {
       if (route.pattern === '' || route.pattern === '/') return true
       return pathname === route.pattern || pathname.startsWith(`${route.pattern}/`)
@@ -129,6 +132,8 @@ export class Router {
    * 通配方法路由与具体方法路由按注册顺序归并，保持原有匹配语义。
    */
   private getRouteCandidates(method: string): RouteEntry[] {
+    // HEAD follows GET; reuse the same candidate list and matching rule.
+    const effectiveMethod = method === 'HEAD' ? 'GET' : method
     if (this.routeIndexDirty) {
       this.routesByMethod.clear()
       for (const route of this.routes) {
@@ -140,17 +145,17 @@ export class Router {
       this.routeCandidatesByMethod.clear()
     }
 
-    const cached = this.routeCandidatesByMethod.get(method)
+    const cached = this.routeCandidatesByMethod.get(effectiveMethod)
     if (cached) return cached
 
-    const methodRoutes = this.routesByMethod.get(method) || []
+    const methodRoutes = this.routesByMethod.get(effectiveMethod) || []
     const wildcardRoutes = this.routesByMethod.get('*') || []
     if (wildcardRoutes.length === 0) {
-      this.routeCandidatesByMethod.set(method, methodRoutes)
+      this.routeCandidatesByMethod.set(effectiveMethod, methodRoutes)
       return methodRoutes
     }
     if (methodRoutes.length === 0) {
-      this.routeCandidatesByMethod.set(method, wildcardRoutes)
+      this.routeCandidatesByMethod.set(effectiveMethod, wildcardRoutes)
       return wildcardRoutes
     }
 
@@ -169,7 +174,7 @@ export class Router {
       }
     }
 
-    this.routeCandidatesByMethod.set(method, merged)
+    this.routeCandidatesByMethod.set(effectiveMethod, merged)
     return merged
   }
 
@@ -196,8 +201,14 @@ export class Router {
       // 所有中间件执行完毕，匹配路由
       for (const route of this.getRouteCandidates(ctx.method)) {
         if (this.matchRoute(route, ctx.method, ctx.pathname)) {
-          const res = await route.handler(ctx)
-          if (res instanceof Response) return res
+          try {
+            const res = await route.handler(ctx)
+            if (res instanceof Response) return res
+          } catch (err: unknown) {
+            // Catch at the innermost layer so the response still unwinds
+            // through security/CORS/no-store middleware.
+            return this.internalError(ctx, err)
+          }
         }
       }
 
@@ -211,15 +222,19 @@ export class Router {
     try {
       return await dispatch(0)
     } catch (err: unknown) {
-      const detail = err instanceof Error ? err.message : String(err)
-      console.error(`[Router Error] ${ctx.requestId} ${ctx.method} ${ctx.pathname}:`, err)
-      return ctx.fail(500, '服务器内部错误，请稍后重试', {
-        requestId: ctx.requestId,
-        // Only opt in explicitly. Treating anything but 'production' as debug
-        // leaked absolute paths and raw SQLite/SDK errors in `bun run start`
-        // and pm2 setups that never set NODE_ENV.
-        detail: process.env.NODE_ENV === 'development' ? detail : undefined,
-      })
+      return this.internalError(ctx, err)
     }
+  }
+
+  private internalError(ctx: HttpContext, err: unknown): Response {
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error(`[Router Error] ${ctx.requestId} ${ctx.method} ${ctx.pathname}:`, err)
+    return ctx.fail(500, '服务器内部错误，请稍后重试', {
+      requestId: ctx.requestId,
+      // Only opt in explicitly. Treating anything but 'production' as debug
+      // leaked absolute paths and raw SQLite/SDK errors in `bun run start`
+      // and pm2 setups that never set NODE_ENV.
+      detail: process.env.NODE_ENV === 'development' ? detail : undefined,
+    })
   }
 }

@@ -19,10 +19,13 @@ const getHeader = (source: HeaderSource, name: string): string | null => {
 export const getCookieValue = (source: HeaderSource, name: string): string | null => {
   const cookieHeader = getHeader(source, 'cookie')
   if (!cookieHeader) return null
+  // Match HttpContext.cookies: the last duplicate wins. Logout and auth must
+  // agree on which session cookie is authoritative.
   const item = cookieHeader
     .split(';')
     .map(value => value.trim())
-    .find(value => value.startsWith(`${name}=`))
+    .filter(value => value.startsWith(`${name}=`))
+    .pop()
   if (!item) return null
   try {
     return decodeURIComponent(item.slice(name.length + 1))
@@ -98,40 +101,40 @@ export type LoginDomain = 'admin' | 'user' | 'player'
 // separate keys so their successful logins cannot clear the admin budget.
 const loginFailureKey = (ip: string, domain: LoginDomain): string => (domain === 'admin' ? ip : `${domain}:${ip}`)
 
-export const isLoginRateLimited = (address: string, domain: LoginDomain = 'admin'): boolean => {
-  const ip = loginFailureKey(address, domain)
-  const now = Date.now()
-  try {
-    const row = getDb()
-      .query<{ count: number }, [string, number]>(
-        'SELECT COUNT(*) AS count FROM login_failures WHERE ip = ? AND failed_at > ?',
-      )
-      .get(ip, now - LOGIN_WINDOW_MS)
-    return Number(row?.count || 0) >= MAX_LOGIN_FAILURES
-  } catch {
-    // Keep a bounded in-memory fallback for database recovery/startup errors.
-  }
-  pruneLoginFailures(now)
-  const failures = getActiveLoginFailures(ip, now)
-  return failures.length >= MAX_LOGIN_FAILURES
-}
-
-export const recordLoginFailure = (address: string, domain: LoginDomain = 'admin'): void => {
+/**
+ * Atomically check the failure budget and reserve one attempt.
+ *
+ * The previous flow checked the count before an async password verification
+ * and recorded the failure afterwards, so a concurrent burst could all pass
+ * the check before any failure landed. Reserving first keeps the limit even
+ * under concurrent requests; a successful login clears the reservation.
+ */
+export const reserveLoginAttempt = (address: string, domain: LoginDomain = 'admin'): boolean => {
   const ip = loginFailureKey(address, domain)
   const now = Date.now()
   try {
     const db = getDb()
-    db.run('INSERT INTO login_failures (ip, failed_at) VALUES (?, ?)', [ip, now])
-    db.run('DELETE FROM login_failures WHERE failed_at <= ?', [now - LOGIN_WINDOW_MS])
-    return
+    return db.transaction(() => {
+      const row = db
+        .query<{ count: number }, [string, number]>(
+          'SELECT COUNT(*) AS count FROM login_failures WHERE ip = ? AND failed_at > ?',
+        )
+        .get(ip, now - LOGIN_WINDOW_MS)
+      if (Number(row?.count || 0) >= MAX_LOGIN_FAILURES) return false
+      db.run('INSERT INTO login_failures (ip, failed_at) VALUES (?, ?)', [ip, now])
+      db.run('DELETE FROM login_failures WHERE failed_at <= ?', [now - LOGIN_WINDOW_MS])
+      return true
+    })()
   } catch {
     // Keep a bounded in-memory fallback for database recovery/startup errors.
   }
   pruneLoginFailures(now)
   const failures = getActiveLoginFailures(ip, now)
+  if (failures.length >= MAX_LOGIN_FAILURES) return false
   failures.push(now)
   loginFailures.set(ip, failures)
   trimLoginFailureKeys()
+  return true
 }
 
 export const clearLoginFailures = (address: string, domain: LoginDomain = 'admin'): void => {

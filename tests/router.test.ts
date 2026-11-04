@@ -168,6 +168,19 @@ describe('Core Router & HttpContext', () => {
         { remoteAddress: '127.0.0.1' },
       )
       expect(forwardedHeader.status).toBe(200)
+
+      const appendedProxyHeaders = await router.handle(
+        new Request('http://127.0.0.1:9527/api/data', {
+          headers: {
+            Host: '127.0.0.1:9527',
+            Origin: 'https://music.example.com',
+            'X-Forwarded-Host': 'attacker.example, music.example.com',
+            'X-Forwarded-Proto': 'http, https',
+          },
+        }),
+        { remoteAddress: '127.0.0.1' },
+      )
+      expect(appendedProxyHeaders.status).toBe(200)
     } finally {
       ;(global as any).lx = previousLx
     }
@@ -336,5 +349,27 @@ describe('Core Router & HttpContext', () => {
     const second = await router.handle(new Request('http://localhost:9527/late'))
     expect(second.status).toBe(200)
     expect(await second.text()).toBe('found')
+  })
+
+  test('serves HEAD through the matching GET route', async () => {
+    const router = new Router()
+    router.get('/api/ping', ctx => ctx.json({ ok: true }))
+
+    const res = await router.handle(new Request('http://localhost:9527/api/ping', { method: 'HEAD' }))
+    expect(res.status).toBe(200)
+  })
+
+  test('route exceptions still unwind through security middleware', async () => {
+    const router = new Router()
+    router.use(securityHeadersMiddleware)
+    router.get('/api/boom', () => {
+      throw new Error('boom')
+    })
+
+    const res = await router.handle(new Request('http://localhost:9527/api/boom'))
+    expect(res.status).toBe(500)
+    expect(res.headers.get('x-request-id')).toBeTruthy()
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(res.headers.get('content-security-policy')).toContain("default-src 'self'")
   })
 })

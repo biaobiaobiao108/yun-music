@@ -27,7 +27,7 @@ import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
 import { hashPassword, isPasswordHash } from '@/utils/passwordHash'
 import { temporaryFileStream } from '../temporaryFileStream'
 import { getProcessMemorySnapshot } from '../memoryMaintenance'
-import { isPrivateAddress } from '../networkSecurity'
+import { isPrivateProxyTarget } from '../networkSecurity'
 import { getResourceBudgetStats } from '../resourceBudget'
 import { getSourceMatchCacheStats } from '../services/musicResolver'
 import { getSingerCacheStats } from '../utils/singer'
@@ -335,8 +335,8 @@ const normalizeProxyAddress = (value: unknown): string => {
   // literals are how an admin session gets turned into an internal port scanner
   // (`test-proxy` reports the status code and latency back).
   const host = url.hostname.replace(/^\[|\]$/g, '')
-  if (isPrivateAddress(host) && process.env.ALLOW_PRIVATE_PROXY !== '1') {
-    throw new Error('代理地址不能是内网或回环地址（如需内网代理请设置 ALLOW_PRIVATE_PROXY=1）')
+  if (isPrivateProxyTarget(host) && process.env.ALLOW_PRIVATE_PROXY !== '1') {
+    throw new Error('代理地址不能是本机、内网或回环地址（如需本机代理请设置 ALLOW_PRIVATE_PROXY=1）')
   }
   return address
 }

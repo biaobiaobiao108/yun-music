@@ -16,8 +16,7 @@ import {
   USER_SESSION_COOKIE_NAME,
   USER_SESSION_TTL,
   clearLoginFailures,
-  isLoginRateLimited,
-  recordLoginFailure,
+  reserveLoginAttempt,
   verifyConfiguredPassword,
   getCookieValue,
   trimUserSessionRows,
@@ -151,11 +150,11 @@ const configuredUsers = (): LX.Config['users'] => global.lx.config.users ?? []
 const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
   try {
     const ip = ctx.remoteAddress || 'unknown'
-    if (isLoginRateLimited(ip)) return loginRateLimitedResponse(ctx)
     const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
     if (typeof password !== 'string' || password.length > 1024) {
       return ctx.fail(400, '密码格式错误')
     }
+    if (!reserveLoginAttempt(ip)) return loginRateLimitedResponse(ctx)
     if (
       !(await verifyConfiguredPassword(
         password,
@@ -163,7 +162,6 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
         global.lx.config['frontend.password'],
       ))
     ) {
-      recordLoginFailure(ip)
       loginLog.warn(`Admin login failed from ${ctx.remoteAddress}`)
       return ctx.fail(401, '管理员密码错误')
     }
@@ -224,7 +222,6 @@ export const createAuthRouter = (): Router => {
   router.post('/api/user/login', async ctx => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
-      if (isLoginRateLimited(ip, 'user')) return loginRateLimitedResponse(ctx)
       const { username, password } = await ctx.bodyJson<{ username?: string; password?: string }>(64 * 1024)
       if (
         typeof username !== 'string' ||
@@ -234,6 +231,7 @@ export const createAuthRouter = (): Router => {
       ) {
         return ctx.fail(400, '用户名或密码格式错误')
       }
+      if (!reserveLoginAttempt(ip, 'user')) return loginRateLimitedResponse(ctx)
       // Hash first, look up second: an unknown username must cost the same as a
       // wrong password, otherwise the response time enumerates accounts.
       const storedRow = getDb()
@@ -246,7 +244,6 @@ export const createAuthRouter = (): Router => {
       )
       const user = matchedUser && passwordOk ? matchedUser : undefined
       if (!user) {
-        recordLoginFailure(ip, 'user')
         loginLog.warn(`User login failed: ${escapeLogControls(username || '[unknown]')} from ${ctx.remoteAddress}`)
         return ctx.fail(401, '用户名或密码错误')
       }
@@ -285,11 +282,11 @@ export const createAuthRouter = (): Router => {
   router.post('/api/music/auth', async ctx => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
-      if (isLoginRateLimited(ip, 'player')) return loginRateLimitedResponse(ctx)
       const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
       if (typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '密码格式错误')
       }
+      if (!reserveLoginAttempt(ip, 'player')) return loginRateLimitedResponse(ctx)
       if (
         !(await verifyConfiguredPassword(
           password,
@@ -297,7 +294,6 @@ export const createAuthRouter = (): Router => {
           global.lx.config['player.password'],
         ))
       ) {
-        recordLoginFailure(ip, 'player')
         loginLog.warn(`Player login failed from ${ctx.remoteAddress}`)
         return ctx.fail(401, '播放器密码错误，请重新输入')
       }

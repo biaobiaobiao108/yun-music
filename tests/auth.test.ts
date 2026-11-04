@@ -15,7 +15,8 @@ const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-auth-test-'))
   },
 }
 
-const { verifyAdminAuth, createAdminSession, ADMIN_SESSION_COOKIE_NAME } = await import('../src/server/auth')
+const { verifyAdminAuth, createAdminSession, getCookieValue, ADMIN_SESSION_COOKIE_NAME } =
+  await import('../src/server/auth')
 
 describe('Admin Authentication Security (verifyAdminAuth)', () => {
   beforeEach(() => {
@@ -70,6 +71,13 @@ describe('Admin Authentication Security (verifyAdminAuth)', () => {
     expect(verifyAdminAuth(mockReq)).toBe(false)
     expect(verifyAdminAuth({ headers: {} } as any)).toBe(false)
     expect(verifyAdminAuth({ headers: { cookie: urlWithAuth.searchParams.toString() } } as any)).toBe(false)
+  })
+
+  it('uses the last duplicate session cookie consistently with logout', () => {
+    const request = new Request('http://localhost:9527/api/admin', {
+      headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=first; ${ADMIN_SESSION_COOKIE_NAME}=second` },
+    })
+    expect(getCookieValue(request, ADMIN_SESSION_COOKIE_NAME)).toBe('second')
   })
 
   afterAll(() => {

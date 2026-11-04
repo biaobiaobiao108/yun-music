@@ -9,12 +9,20 @@ import {
   assertSafeRemoteHttpUrl,
   createSafeRemoteProxyAgent,
   fetchSafeRemote,
+  isPrivateProxyTarget,
   type SafeRemoteHttpUrl,
 } from '@/server/networkSecurity'
 import { createCacheRouter } from '@/server/routes/cache'
 import { issueDownloadToken } from '@/server/downloadToken'
 
 describe('Outbound URL network boundaries', () => {
+  test('private proxy target detection distinguishes hostnames from IP literals', () => {
+    for (const host of ['127.0.0.1', '10.0.0.1', '::1', 'fe80::1', 'localhost', 'foo.localhost', 'nas.local', 'proxy'])
+      expect(isPrivateProxyTarget(host)).toBe(true)
+    for (const host of ['proxy.example.com', 'proxy.example.com.', '8.8.8.8', '2001:4860:4860::8888'])
+      expect(isPrivateProxyTarget(host)).toBe(false)
+  })
+
   test.each([
     '127.0.0.1',
     '10.0.0.1',

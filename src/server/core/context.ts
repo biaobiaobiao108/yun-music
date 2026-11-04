@@ -10,6 +10,12 @@ const firstHeaderValue = (value: string | null): string | null => {
   return first || null
 }
 
+const lastHeaderValue = (value: string | null): string | null => {
+  const parts = value?.split(',')
+  const last = parts?.[parts.length - 1]?.trim()
+  return last || null
+}
+
 const forwardedParameter = (header: string | null, name: string): string | null => {
   const firstEntry = firstHeaderValue(header)
   if (!firstEntry) return null
@@ -49,6 +55,10 @@ const HTTP_TOKEN_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
 // arrive. This bounds aggregate buffered input without charging every small
 // request for its route's full maximum body size.
 const MAX_BUFFERED_REQUEST_BODY_BYTES = 128 * 1024 * 1024
+// The buffered bytes are not the peak: joining the chunks, decoding UTF-8 and
+// parsing JSON retain roughly twice the wire size. Reserve that overhead so a
+// 256 MiB container cannot be OOMed by concurrent maximum-size JSON bodies.
+const BUFFERED_BODY_OVERHEAD_FACTOR = 2
 let bufferedRequestBodyBudgetBytes = 0
 
 /** Validate configuration values that are later passed to Headers.get(). */
@@ -95,10 +105,10 @@ export const resolveRequestOrigin = (
   if (!trustForwardedHeaders) return internalUrl.origin
 
   const forwardedProtocol =
-    firstHeaderValue(request.headers.get('x-forwarded-proto')) ||
+    lastHeaderValue(request.headers.get('x-forwarded-proto')) ||
     (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'proto') : null)
   const forwardedHost =
-    (trustForwardedHost ? firstHeaderValue(request.headers.get('x-forwarded-host')) : null) ||
+    (trustForwardedHost ? lastHeaderValue(request.headers.get('x-forwarded-host')) : null) ||
     (trustForwardedHost ? forwardedParameter(request.headers.get('forwarded'), 'host') : null) ||
     firstHeaderValue(request.headers.get('host'))
 
@@ -198,11 +208,10 @@ export class HttpContext {
       if (forwarded) {
         const forwardedValues = forwarded.split(',')
         // A trusted reverse proxy commonly appends the peer address to an
-        // incoming X-Forwarded-For chain. The rightmost value is therefore the
-        // address supplied by that proxy, while the leftmost may be client-
-        // controlled. Do not fall back to an earlier value if it is malformed.
-        const value =
-          headerName === 'x-forwarded-for' ? forwardedValues[forwardedValues.length - 1] : forwardedValues[0]
+        // incoming chain. The rightmost value is supplied by that proxy, while
+        // the leftmost may be client-controlled. This also applies to custom
+        // single-value headers such as X-Real-IP when a proxy appends.
+        const value = forwardedValues[forwardedValues.length - 1]
         const normalized = normalizeForwardedAddress(value?.trim())
         if (normalized) return normalized
       }
@@ -272,13 +281,14 @@ export class HttpContext {
   }
 
   private reserveBodyBufferBudget(totalBytes: number): void {
-    const additionalBytes = totalBytes - this._reservedBodyBudgetBytes
+    const weightedBytes = totalBytes * BUFFERED_BODY_OVERHEAD_FACTOR
+    const additionalBytes = weightedBytes - this._reservedBodyBudgetBytes
     if (additionalBytes <= 0) return
     if (bufferedRequestBodyBudgetBytes + additionalBytes > MAX_BUFFERED_REQUEST_BODY_BYTES) {
       throw new Error('Concurrent request body buffering limit exceeded')
     }
     bufferedRequestBodyBudgetBytes += additionalBytes
-    this._reservedBodyBudgetBytes = totalBytes
+    this._reservedBodyBudgetBytes = weightedBytes
   }
 
   private async readBodyBytes(maxBytes = 20 * 1024 * 1024): Promise<Uint8Array> {
