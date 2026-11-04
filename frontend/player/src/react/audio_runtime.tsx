@@ -572,7 +572,12 @@ export function AudioRuntime() {
           // A stale play() rejection must not stop a newer source selected by
           // the user. This is especially common when switching songs quickly.
           const activeSource = audio.currentSrc || audio.src
-          if (!isSameMediaSource(activeSource, requestedSource)) return
+          if (
+            !isSameMediaSource(activeSource, requestedSource) ||
+            !usePlaybackStore.getState().isPlaying ||
+            (error instanceof DOMException && error.name === 'AbortError')
+          )
+            return
           setPlaying(false)
           if (error instanceof DOMException && error.name === 'NotAllowedError') {
             notify('浏览器阻止了自动播放，请点击播放按钮')
@@ -606,10 +611,15 @@ export function AudioRuntime() {
     })
     syncAudioVolume()
     const onPlay = () => {
+      if (
+        audio.paused ||
+        resolvedSongKey.current !== songId ||
+        songKey(usePlaybackStore.getState().currentSong ?? {}) !== songId
+      )
+        return
       if (currentSong) syncMediaSessionMetadata(currentSong)
       setMediaSessionPlaybackState('playing')
       emitPlaybackService({ type: 'play' })
-      if (resolvedSongKey.current !== songId) return
       if (currentSong) {
         const playback = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current : null
         const playbackUrl = playback?.url || currentSong.url || ''
@@ -680,7 +690,12 @@ export function AudioRuntime() {
       measurePlayerPerformance(`${playbackTraceName}:playing`, `${playbackTraceName}:start`, endMark)
     }
     const onPause = () => {
-      if (resolvedSongKey.current !== songId) return
+      if (
+        !audio.paused ||
+        resolvedSongKey.current !== songId ||
+        songKey(usePlaybackStore.getState().currentSong ?? {}) !== songId
+      )
+        return
       setMediaSessionPlaybackState(currentSong ? 'paused' : 'none')
       emitPlaybackService({ type: 'pause' })
     }
@@ -927,7 +942,6 @@ export function AudioRuntime() {
         retryController?.abort()
         retryController = new AbortController()
         const signal = retryController.signal
-        const wasPlaying = usePlaybackStore.getState().isPlaying
         setResolvedError('')
         notifyPlayback('刷新播放链接')
         void requestSongUrl(currentSong, quality, getSettings().enableAutoSwitchSource !== false, signal, 'high', true)
@@ -963,7 +977,7 @@ export function AudioRuntime() {
             if (!parseCachePlaybackUrl(result.url) && !result.fromCache) {
               notifyPlayback(result.sourceName ? `连接 · ${result.sourceName}` : '连接在线音源')
             }
-            if (wasPlaying || state.isPlaying) await audio.play()
+            if (state.isPlaying) await audio.play()
           })
           .catch(error => {
             if (retryCancelled || signal.aborted) return
@@ -1257,8 +1271,9 @@ export function AudioRuntime() {
 
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio || !currentSong || !isPlaying || resolvedSongKey.current !== songId) {
-      if (audio && !isPlaying) {
+    const state = usePlaybackStore.getState()
+    if (!audio || !state.currentSong || !state.isPlaying || resolvedSongKey.current !== songKey(state.currentSong)) {
+      if (audio && !state.isPlaying) {
         audio.pause()
         if (naturalFadeKey.current) {
           naturalFadeKey.current = ''
@@ -1281,7 +1296,12 @@ export function AudioRuntime() {
     }
     const requestedSource = audio.currentSrc || audio.src
     void audio.play().catch(error => {
-      if (!isSameMediaSource(audio.currentSrc || audio.src, requestedSource)) return
+      if (
+        !isSameMediaSource(audio.currentSrc || audio.src, requestedSource) ||
+        !usePlaybackStore.getState().isPlaying ||
+        (error instanceof DOMException && error.name === 'AbortError')
+      )
+        return
       setPlaying(false)
       if (error instanceof DOMException && error.name === 'NotAllowedError')
         notify('浏览器阻止了自动播放，请点击播放按钮')
