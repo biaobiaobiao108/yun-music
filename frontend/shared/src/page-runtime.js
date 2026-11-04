@@ -9,6 +9,24 @@
   }
 
   if ('serviceWorker' in navigator) {
+    const userAgent = navigator.userAgent
+    const webKit =
+      /AppleWebKit/i.test(userAgent) &&
+      (/iPhone|iPad|iPod/i.test(userAgent) || !/Chrome|Chromium|Edg|OPR/i.test(userAgent))
+    const player = document.currentScript?.hasAttribute('data-player')
+    if (player && webKit) {
+      // WebKit can delay media requests even when the worker does not intercept them.
+      const scope = new URL('.', document.baseURI).href
+      navigator.serviceWorker
+        .getRegistration(scope)
+        .then(async registration => {
+          if (!registration || registration.scope !== scope) return
+          const controlled = navigator.serviceWorker.controller?.scriptURL === new URL('sw.js', scope).href
+          if ((await registration.unregister()) && controlled) window.location.reload()
+        })
+        .catch(error => console.warn('无法移除播放器 Service Worker', error))
+      return
+    }
     window.addEventListener(
       'load',
       () => {
