@@ -236,6 +236,12 @@ export const createStaticRouter = (): Router => {
       if (res) return res
     }
 
+    // A custom admin path must not leave the admin entry available through
+    // the generic root-file fallback.
+    if (effectiveAdminPath !== '/' && ctx.pathname === '/index.html') {
+      return ctx.fail(404, '资源不存在')
+    }
+
     // (C) 默认根静态文件回退 (例如 favicon.ico)
     const generalFilePath = path.join(staticRoot, ctx.pathname.startsWith('/') ? ctx.pathname.slice(1) : ctx.pathname)
     const res = await serveStaticFile(ctx, generalFilePath)

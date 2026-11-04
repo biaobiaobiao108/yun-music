@@ -18,6 +18,8 @@ import { useCommentStore } from './comments'
 // the initial session check single-flight so a second effect cannot reset the
 // user-scoped stores after the first library hydration has completed.
 let authHydrationPromise: Promise<void> | null = null
+let unauthorizedSessionCheck: Promise<void> | null = null
+let authStateRevision = 0
 
 export type AuthState = {
   config: PlayerConfig | null
@@ -56,6 +58,49 @@ function refreshUserScopedStores(): void {
   ])
 }
 
+function clearUserSession(): void {
+  authStateRevision += 1
+  invalidateRequestCache()
+  setSessionScope(null)
+  resetUserScopedStores()
+  writeString(browserStorage(), 'lx_user_name', '')
+  useAuthStore.setState({ userName: null, userAuthenticated: false })
+}
+
+function reconcileUnauthorizedSessions(): Promise<void> {
+  if (unauthorizedSessionCheck) return unauthorizedSessionCheck
+
+  const state = useAuthStore.getState()
+  if (state.checking || (!state.playerAuthenticated && !state.userAuthenticated)) return Promise.resolve()
+
+  const revision = authStateRevision
+  const check = (async () => {
+    try {
+      const [playerSession, userSession] = await Promise.all([
+        state.playerAuthRequired && state.playerAuthenticated ? playerApi.verify() : Promise.resolve(null),
+        state.userAuthenticated ? playerApi.userVerify() : Promise.resolve(null),
+      ])
+
+      if (revision !== authStateRevision) return
+
+      if (playerSession && !playerSession.valid) {
+        authStateRevision += 1
+        useAuthStore.setState({ playerAuthenticated: false })
+      }
+      if (userSession && !userSession.valid) clearUserSession()
+    } catch {
+      // Keep the current state when the verification request itself fails.
+    }
+  })()
+
+  unauthorizedSessionCheck = check
+  const clearCheck = () => {
+    if (unauthorizedSessionCheck === check) unauthorizedSessionCheck = null
+  }
+  void check.then(clearCheck, clearCheck)
+  return check
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   config: null,
   playerAuthRequired: false,
@@ -67,12 +112,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hydrate: () => {
     if (authHydrationPromise) return authHydrationPromise
 
+    authStateRevision += 1
     const promise = (async () => {
       set({ checking: true, error: '' })
       try {
         const config = await playerApi.config()
         const [playerSession, userSession] = await Promise.all([playerApi.verify(), playerApi.userVerify()])
         const authenticatedUserName = userSession.valid ? userSession.username || get().userName : null
+        authStateRevision += 1
         setSessionScope(authenticatedUserName)
         resetUserScopedStores()
         set({
@@ -102,6 +149,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   login: async password => {
     await playerApi.login(password)
+    authStateRevision += 1
     set({ playerAuthenticated: true, error: '' })
   },
   logout: async () => {
@@ -110,11 +158,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // The local session must still close when the server is unreachable.
     }
+    authStateRevision += 1
     invalidateRequestCache()
     set({ playerAuthenticated: false })
   },
   userLogin: async (username, password) => {
     const result = await playerApi.userLogin(username, password)
+    authStateRevision += 1
     invalidateRequestCache()
     setSessionScope(result.username)
     resetUserScopedStores()
@@ -128,11 +178,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Clear local user state even if the server session already expired.
     }
-    invalidateRequestCache()
-    setSessionScope(null)
-    resetUserScopedStores()
-    writeString(browserStorage(), 'lx_user_name', '')
-    set({ userName: null, userAuthenticated: false })
+    clearUserSession()
   },
 }))
 
@@ -143,15 +189,11 @@ setUnauthorizedHandler(pathname => {
   if (pathname === '/api/user/login' || pathname === '/api/music/auth' || pathname === '/api/admin/verify') return
   const state = useAuthStore.getState()
   if (pathname.startsWith('/api/music/')) {
-    if (state.playerAuthenticated) useAuthStore.setState({ playerAuthenticated: false })
+    void reconcileUnauthorizedSessions()
     return
   }
   if (pathname.startsWith('/api/user/') || pathname === '/api/users') {
     if (!state.userAuthenticated) return
-    invalidateRequestCache()
-    setSessionScope(null)
-    resetUserScopedStores()
-    writeString(browserStorage(), 'lx_user_name', '')
-    useAuthStore.setState({ userName: null, userAuthenticated: false })
+    clearUserSession()
   }
 })
