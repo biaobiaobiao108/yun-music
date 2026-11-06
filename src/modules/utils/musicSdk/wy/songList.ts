@@ -286,14 +286,18 @@ export default {
     return `https://music.163.com/#/playlist?id=${id}`
   },
 
-  search(text: any, page: any, limit: any = 20) {
-    return eapiRequest('/api/cloudsearch/pc', {
-      s: text,
-      type: 1000, // 1: 单曲, 10: 专辑, 100: 歌手, 1000: 歌单, 1002: 用户, 1004: MV, 1006: 歌词, 1009: 电台, 1014: 视频
-      limit,
-      total: page == 1,
-      offset: limit * (page - 1),
-    }).promise.then(({ body }: any) => {
+  search(text: any, page: any, limit: any = 20, signal?: AbortSignal) {
+    return eapiRequest(
+      '/api/cloudsearch/pc',
+      {
+        s: text,
+        type: 1000, // 1: 单曲, 10: 专辑, 100: 歌手, 1000: 歌单, 1002: 用户, 1004: MV, 1006: 歌词, 1009: 电台, 1014: 视频
+        limit,
+        total: page == 1,
+        offset: limit * (page - 1),
+      },
+      signal,
+    ).promise.then(({ body }: any) => {
       if (body.code != this.successCode) throw new Error('filed')
       // console.log(body)
       return {

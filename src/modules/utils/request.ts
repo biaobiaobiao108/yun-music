@@ -19,6 +19,7 @@ export interface HttpOptions extends Record<string, any> {
   formData?: any
   format?: string
   timeout?: number
+  signal?: AbortSignal
   /** Maximum response size retained in memory for one upstream API call. */
   maxBytes?: number
   json?: boolean
@@ -392,6 +393,9 @@ const fetchData = async (
 
 const buildHttpPromise = <T = any>(url: string, options: HttpOptions): HttpPromiseObject<T> => {
   const controller = new AbortController()
+  const abortFromCaller = () => controller.abort()
+  if (options.signal?.aborted) abortFromCaller()
+  else options.signal?.addEventListener('abort', abortFromCaller, { once: true })
   const obj: HttpPromiseObject<T> = {
     isCancelled: false,
     requestObj: controller,
@@ -425,6 +429,7 @@ const buildHttpPromise = <T = any>(url: string, options: HttpOptions): HttpPromi
     )
       .catch(() => undefined)
       .finally(() => {
+        options.signal?.removeEventListener('abort', abortFromCaller)
         obj.requestObj = null
         obj.cancelFn = null
       })

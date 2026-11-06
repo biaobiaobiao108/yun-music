@@ -906,6 +906,9 @@ function cacheTaskProgress(task: CacheTask): number | null {
   return Math.min(100, Math.max(0, Math.round(value)))
 }
 
+const CACHE_TASK_ROW_HEIGHT = 72
+const CACHE_TASK_VIRTUAL_THRESHOLD = 180
+
 function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const tasks = useCacheStore(state => state.tasks)
   const stats = useCacheStore(state => state.stats)
@@ -922,6 +925,12 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const resumeAll = useCacheStore(state => state.resumeAll)
   const remove = useCacheStore(state => state.remove)
   const removeCompleted = useCacheStore(state => state.removeCompleted)
+  const taskListRef = useRef<HTMLUListElement>(null)
+  const [taskWindow, setTaskWindow] = useState({
+    scrollTop: 0,
+    viewportHeight: 0,
+    rowHeight: CACHE_TASK_ROW_HEIGHT,
+  })
   const notify = usePlayerUiStore(state => state.notify)
   const setTab = usePlayerUiStore(state => state.setTab)
   const eventsConnected = useCacheEvents({
@@ -931,6 +940,53 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
       void load({ force: true })
     },
   })
+  useLayoutEffect(() => {
+    const list = taskListRef.current
+    if (!list) return
+    let frame = 0
+    const measure = () => {
+      setTaskWindow(current => {
+        const rowHeightValue = getComputedStyle(list).getPropertyValue('--react-cache-task-row-height').trim()
+        const parsedRowHeight = Number.parseFloat(rowHeightValue)
+        const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+        const rowHeight =
+          rowHeightValue.endsWith('rem') && Number.isFinite(rootFontSize) && rootFontSize > 0
+            ? parsedRowHeight * rootFontSize
+            : Number.isFinite(parsedRowHeight) && parsedRowHeight > 0
+              ? parsedRowHeight
+              : CACHE_TASK_ROW_HEIGHT
+        const next = { scrollTop: list.scrollTop, viewportHeight: list.clientHeight, rowHeight }
+        return current.scrollTop === next.scrollTop &&
+          current.viewportHeight === next.viewportHeight &&
+          current.rowHeight === next.rowHeight
+          ? current
+          : next
+      })
+    }
+    const onScroll = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        setTaskWindow(current => {
+          const scrollTop = list.scrollTop
+          const currentFirst = Math.floor(current.scrollTop / current.rowHeight)
+          const nextFirst = Math.floor(scrollTop / current.rowHeight)
+          return currentFirst === nextFirst ? current : { ...current, scrollTop }
+        })
+      })
+    }
+    measure()
+    list.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(list)
+    return () => {
+      list.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [open, tasks.length])
   useEffect(() => {
     if (open) void load({ force: true })
   }, [load, open])
@@ -945,6 +1001,11 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
   const batchAction = hasPausableTasks ? 'pause' : hasResumableTasks ? 'resume' : null
   const visibleBatchAction =
     pendingBatchAction === 'pause' || pendingBatchAction === 'resume' ? pendingBatchAction : batchAction
+  const virtualizedTasks = tasks.length > CACHE_TASK_VIRTUAL_THRESHOLD
+  const firstTask = virtualizedTasks ? Math.max(0, Math.floor(taskWindow.scrollTop / taskWindow.rowHeight) - 6) : 0
+  const taskViewportRows =
+    taskWindow.viewportHeight > 0 ? Math.ceil(taskWindow.viewportHeight / taskWindow.rowHeight) : 24
+  const lastTask = virtualizedTasks ? Math.min(tasks.length, firstTask + taskViewportRows + 12) : tasks.length
   const openSearch = () => {
     onClose()
     setTab('search')
@@ -1024,8 +1085,20 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
           onAction={() => void load({ force: true })}
         />
       ) : tasks.length ? (
-        <ul className="react-cache-task-list" aria-label="缓存与下载任务">
-          {tasks.map((task, index) => {
+        <ul
+          ref={taskListRef}
+          className={`react-cache-task-list${virtualizedTasks ? ' is-virtualized' : ''}`}
+          aria-label="缓存与下载任务"
+        >
+          {virtualizedTasks && (
+            <li
+              className="react-cache-task-spacer"
+              aria-hidden="true"
+              style={{ height: `${tasks.length * taskWindow.rowHeight}px` }}
+            />
+          )}
+          {tasks.slice(firstTask, lastTask).map((task, offset) => {
+            const index = firstTask + offset
             const taskId = String(task.id ?? task.songKey ?? '')
             const key = taskId || `${cacheTaskName(task)}-${index}`
             const name = cacheTaskName(task)
@@ -1050,7 +1123,14 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                       ? '重试'
                       : '继续'
             return (
-              <li key={key} className={`react-cache-task${pending ? ' is-busy' : ''}`} aria-busy={Boolean(pending)}>
+              <li
+                key={key}
+                className={`react-cache-task${pending ? ' is-busy' : ''}`}
+                aria-busy={Boolean(pending)}
+                aria-setsize={virtualizedTasks ? tasks.length : undefined}
+                aria-posinset={virtualizedTasks ? index + 1 : undefined}
+                style={virtualizedTasks ? { top: `${index * taskWindow.rowHeight}px` } : undefined}
+              >
                 <span className="react-cache-cover" aria-hidden="true">
                   <SafeImage
                     src={task.songInfo ? songImage(task.songInfo) : undefined}
@@ -1066,7 +1146,11 @@ function CacheDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
                     {artist ? `${artist} · ${status}` : status}
                     {progress === null ? '' : ` · ${progress}%`}
                   </small>
-                  {taskError && <small className="react-cache-error-detail">{taskError}</small>}
+                  {taskError && (
+                    <small className="react-cache-error-detail" title={taskError}>
+                      {taskError}
+                    </small>
+                  )}
                   {progress !== null && (
                     <progress className="react-task-progress" max="100" value={progress} aria-label={`${name}下载进度`}>
                       {progress}%

@@ -577,8 +577,11 @@ export function LocalMusicView() {
         setCacheLoading(true)
         setCacheError('')
       }
+      const syncPromise = sync
+        ? playerApi.cacheSync(userName || undefined, controller.signal).catch(() => undefined)
+        : undefined
+      let syncRefreshScheduled = false
       try {
-        if (sync) await playerApi.cacheSync(userName || undefined, controller.signal).catch(() => undefined)
         const result = await playerApi.cacheList(userName || undefined, controller.signal)
         if (controller.signal.aborted) return
         const nextItems = result.data ?? []
@@ -592,6 +595,30 @@ export function LocalMusicView() {
           if (next.size === current.size && [...current].every(key => next.has(key))) return current
           return next
         })
+        if (syncPromise) {
+          syncRefreshScheduled = true
+          void syncPromise
+            .then(async () => {
+              if (controller.signal.aborted) return
+              const refreshed = await playerApi.cacheList(userName || undefined, controller.signal)
+              if (controller.signal.aborted) return
+              const refreshedItems = refreshed.data ?? []
+              setCacheItems(current => (sameCacheItems(current, refreshedItems) ? current : refreshedItems))
+              setCacheDataScope(userName || '')
+              setCacheError('')
+              setCacheErrorScope(null)
+              setSelected(current => {
+                const available = new Set(refreshedItems.map(item => localCacheItemKey(item, userName)))
+                const next = new Set([...current].filter(key => available.has(key)))
+                if (next.size === current.size && [...current].every(key => next.has(key))) return current
+                return next
+              })
+            })
+            .catch(() => undefined)
+            .finally(() => {
+              if (cacheController.current === controller) cacheController.current = null
+            })
+        }
       } catch (error) {
         if (!controller.signal.aborted && !silent) {
           setCacheError(error instanceof Error ? error.message : '本地音乐加载失败')
@@ -599,9 +626,15 @@ export function LocalMusicView() {
         }
       } finally {
         if (cacheController.current === controller) {
-          cacheController.current = null
-          if (!silent) setCacheLoading(false)
+          if (syncPromise && !syncRefreshScheduled) {
+            void syncPromise.finally(() => {
+              if (cacheController.current === controller) cacheController.current = null
+            })
+          } else if (!syncPromise) {
+            cacheController.current = null
+          }
         }
+        if (!silent) setCacheLoading(false)
       }
     },
     [userName],

@@ -2,7 +2,7 @@ import { httpFetch } from '../../request'
 
 const MUSICU_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg'
 
-const createSearchFetch = (str: any, searchType: any, resultNum: any, pageNum: any) => {
+const createSearchFetch = (str: any, searchType: any, resultNum: any, pageNum: any, signal?: AbortSignal) => {
   return httpFetch(MUSICU_URL, {
     method: 'post',
     headers: {
@@ -23,6 +23,7 @@ const createSearchFetch = (str: any, searchType: any, resultNum: any, pageNum: a
         },
       },
     },
+    signal,
   })
 }
 
@@ -33,8 +34,8 @@ export default {
    * @param {number} page 页码
    * @param {number} limit 每页数量
    */
-  searchSinger(str: any, page: any = 1, limit: any = 20) {
-    return createSearchFetch(str, 1, limit, page).promise.then(({ body }: any) => {
+  searchSinger(str: any, page: any = 1, limit: any = 20, signal?: AbortSignal) {
+    return createSearchFetch(str, 1, limit, page, signal).promise.then(({ body }: any) => {
       if (body.code !== 0) throw new Error('TX singer search failed: ' + body.code)
       // searchType=1 时，singer 结果在 body.req.data.body.singer
       const singerData = body.req?.data?.body?.singer
@@ -56,8 +57,8 @@ export default {
    * @param {number} page 页码
    * @param {number} limit 每页数量
    */
-  searchAlbum(str: any, page: any = 1, limit: any = 20) {
-    return createSearchFetch(str, 2, limit, page).promise.then(({ body }: any) => {
+  searchAlbum(str: any, page: any = 1, limit: any = 20, signal?: AbortSignal) {
+    return createSearchFetch(str, 2, limit, page, signal).promise.then(({ body }: any) => {
       if (body.code !== 0) throw new Error('TX album search failed: ' + body.code)
       // searchType=2 时，album 结果在 body.req.data.body.album
       const albumData = body.req?.data?.body?.album

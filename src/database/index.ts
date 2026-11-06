@@ -162,6 +162,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     );
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_login_failures_lookup ON login_failures(ip, failed_at);')
+  db.run('CREATE INDEX IF NOT EXISTS idx_login_failures_failed_at ON login_failures(failed_at);')
 
   // 10. 缓存与下载元数据索引表
   db.run(`
@@ -178,7 +179,9 @@ export const initDatabase = (customDbPath?: string): Database => {
       PRIMARY KEY (location, user_name, folder, song_id, quality)
     );
   `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_cache_query ON cache_index(location, user_name, folder, song_id);')
+  // The primary key already starts with these four columns; a second copy
+  // adds write and storage cost without improving the cache lookup prefix.
+  db.run('DROP INDEX IF EXISTS idx_cache_query;')
 
   // v3 -> v4: keep frequently aggregated file sizes outside the JSON blob.
   // The JSON remains the compatibility source for the complete CacheItem.

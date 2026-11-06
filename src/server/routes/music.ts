@@ -244,30 +244,50 @@ export const createMusicRouter = (): Router => {
         const maxPages = Math.max(fetchPages, pagesNeeded)
         let allSongs: any[] = []
 
-        for (let offset = 0; offset < maxPages; offset++) {
-          const searchData = await sourceApi.musicSearch!.search(name, firstUpstreamPage + offset, UPSTREAM_PAGE_SIZE)
-          const pageList: any[] = searchData.list || []
-          allSongs = allSongs.concat(pageList)
-          if (pageList.length < UPSTREAM_PAGE_SIZE || allSongs.length >= offsetInFirstPage + limit) break
+        const firstSearch = await sourceApi.musicSearch!.search(
+          name,
+          firstUpstreamPage,
+          UPSTREAM_PAGE_SIZE,
+          ctx.request.signal,
+        )
+        const firstList: any[] = firstSearch.list || []
+        allSongs = allSongs.concat(firstList)
+        if (firstList.length >= UPSTREAM_PAGE_SIZE && allSongs.length < offsetInFirstPage + limit) {
+          const remainingPages = Math.min(maxPages - 1, pagesNeeded - 1, 4)
+          const pageResults = await Promise.all(
+            Array.from({ length: remainingPages }, (_, offset) =>
+              sourceApi.musicSearch!.search(
+                name,
+                firstUpstreamPage + offset + 1,
+                UPSTREAM_PAGE_SIZE,
+                ctx.request.signal,
+              ),
+            ),
+          )
+          for (const searchData of pageResults) {
+            const pageList: any[] = searchData.list || []
+            allSongs = allSongs.concat(pageList)
+            if (pageList.length < UPSTREAM_PAGE_SIZE || allSongs.length >= offsetInFirstPage + limit) break
+          }
         }
         result = allSongs.slice(offsetInFirstPage, offsetInFirstPage + limit)
       } else if (type === 'singer') {
         if (!sourceApi.extendSearch?.searchSinger) {
           throw new Error(`Source ${source} does not support singer search`)
         }
-        const searchData = await sourceApi.extendSearch.searchSinger(name, page, limit)
+        const searchData = await sourceApi.extendSearch.searchSinger(name, page, limit, ctx.request.signal)
         result = searchData.list || []
       } else if (type === 'album') {
         if (!sourceApi.extendSearch?.searchAlbum) {
           throw new Error(`Source ${source} does not support album search`)
         }
-        const searchData = await sourceApi.extendSearch.searchAlbum(name, page, limit)
+        const searchData = await sourceApi.extendSearch.searchAlbum(name, page, limit, ctx.request.signal)
         result = searchData.list || []
       } else if (type === 'playlist') {
         if (!sourceApi.extendSearch?.searchPlaylist) {
           throw new Error(`Source ${source} does not support playlist search`)
         }
-        const searchData = await sourceApi.extendSearch.searchPlaylist(name, page, limit)
+        const searchData = await sourceApi.extendSearch.searchPlaylist(name, page, limit, ctx.request.signal)
         result = searchData.list || []
       } else {
         throw new Error(`Invalid search type: ${type}`)
@@ -275,6 +295,7 @@ export const createMusicRouter = (): Router => {
 
       return ctx.json(result)
     } catch (err: any) {
+      if (ctx.request.signal.aborted) return new Response(null, { status: 499 })
       console.error(err)
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
     }
@@ -911,9 +932,10 @@ export const createMusicRouter = (): Router => {
       if (!sourceApi?.songList?.search) {
         throw new Error(`Source ${source} does not support songList`)
       }
-      const result = await sourceApi.songList.search(text, page, limit)
+      const result = await sourceApi.songList.search(text, page, limit, ctx.request.signal)
       return ctx.json(result)
     } catch (err: any) {
+      if (ctx.request.signal.aborted) return new Response(null, { status: 499 })
       return ctx.fail(500, toUserMessage(err, '搜索歌单失败'))
     }
   })

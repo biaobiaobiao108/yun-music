@@ -577,6 +577,7 @@ const QUEUE_BROADCAST_INTERVAL = 250
 const notifyQueueListeners = (username: string): void => {
   const listeners = queueListeners.get(username)
   if (!listeners?.size) return
+  scheduleQueueBroadcast()
 
   const snapshot = list(username)
   const serialized = JSON.stringify(snapshot)
@@ -591,14 +592,18 @@ const notifyQueueListeners = (username: string): void => {
   }
 }
 
+const getActiveQueueUsernames = (): Set<string> => new Set(Array.from(activeTasks.values(), task => task.username))
+
 const broadcastQueueSnapshots = (): void => {
   queueBroadcastTimer = null
-  for (const username of queueListeners.keys()) notifyQueueListeners(username)
-  if (queueListeners.size > 0) scheduleQueueBroadcast()
+  if (activeTasks.size === 0) return
+  for (const username of getActiveQueueUsernames()) notifyQueueListeners(username)
+  scheduleQueueBroadcast()
 }
 
 const scheduleQueueBroadcast = (): void => {
-  if (queueBroadcastTimer || queueListeners.size === 0) return
+  if (queueBroadcastTimer || activeTasks.size === 0) return
+  if (![...getActiveQueueUsernames()].some(username => queueListeners.get(username)?.size)) return
   queueBroadcastTimer = setTimeout(broadcastQueueSnapshots, QUEUE_BROADCAST_INTERVAL)
   ;(queueBroadcastTimer as any)?.unref?.()
 }
@@ -1101,7 +1106,6 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
 }
 
 export const list = (username: string) => {
-  if (deduplicateTasksInMemory()) saveNow()
   return Array.from(tasks.values())
     .filter(task => task.username === username)
     .sort((a, b) => a.createdAt - b.createdAt)

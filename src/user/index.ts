@@ -48,6 +48,7 @@ export const getUserSpace = (userName: string) => {
       }),
     )
   }
+  seartDelayReleaseTimeout(userName)
   return user
 }
 

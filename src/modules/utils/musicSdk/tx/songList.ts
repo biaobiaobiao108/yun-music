@@ -275,7 +275,7 @@ export default {
     return `https://y.qq.com/n/ryqq/playlist/${id}`
   },
 
-  search(text: any, page: any, limit: any = 20, retryNum: any = 0): Promise<any> {
+  search(text: any, page: any, limit: any = 20, signal?: AbortSignal, retryNum: any = 0): Promise<any> {
     if (retryNum > 5) throw new Error('max retry')
     return httpFetch(
       `http://c.y.qq.com/soso/fcgi-bin/client_music_search_songlist?page_no=${page - 1}&num_per_page=${limit}&format=json&query=${encodeURIComponent(text)}&remoteplace=txt.yqq.playlist&inCharset=utf8&outCharset=utf-8`,
@@ -284,9 +284,10 @@ export default {
           'User-Agent': 'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)',
           Referer: 'http://y.qq.com/portal/search.html',
         },
+        signal,
       },
     ).promise.then(({ body }: any) => {
-      if (body.code != 0) return this.search(text, page, limit, ++retryNum)
+      if (body.code != 0) return this.search(text, page, limit, signal, ++retryNum)
       // console.log(body.data.list)
       return {
         list: body.data.list.map((item: any) => {

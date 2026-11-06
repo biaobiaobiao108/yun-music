@@ -129,6 +129,7 @@ const cacheListSyncState = new NativeLruCache<string, { lastSync: number; pendin
   max: 2048,
   ttl: 10 * 60 * 1000,
 })
+const lyricMissCache = new NativeLruCache<string, true>({ max: 4096, ttl: 15_000 })
 type CacheChangeListener = (username: string) => void
 const cacheChangeListeners = new Set<CacheChangeListener>()
 
@@ -956,6 +957,7 @@ export const resolveCompanionLyricFilename = (root: string, audioFilename: strin
 
 const invalidateCacheListSync = (username?: string) => {
   const normalizedUsername = normalizeCacheUsername(username)
+  lyricMissCache.clear()
   for (const location of [CACHE_ROOTS.ROOT, CACHE_ROOTS.DATA]) {
     cacheListSyncState.delete(`${location}:${normalizedUsername}`)
   }
@@ -1481,7 +1483,9 @@ const sanitize = (str: any) => String(str || '').replace(/[\\/:*?"<>|]/g, '_')
 /**
  * Sync disk files with index database
  */
-export const syncCacheIndex = async (username?: string, roots: Array<'cache' | 'music'> = ['cache', 'music']) => {
+const pendingCacheIndexSyncs = new Map<string, Promise<void>>()
+
+const runCacheIndexSync = async (username?: string, roots: Array<'cache' | 'music'> = ['cache', 'music']) => {
   const normalizedUsername = normalizeCacheUsername(username)
   const extensions = ['.mp3', '.flac', '.m4a', '.ogg', '.wav']
 
@@ -1615,7 +1619,9 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
           existing.coverCheckedSize !== stats.size ||
           existing.hasCover === undefined ||
           (existing.coverType === 'cached' && !hasCachedCover(file, normalizedUsername, stats))
-        const currentAudioContainer = existing?.audioContainer || detectAudioContainer(filePath)
+        const metadataFileChanged = !!existing && (existing.size !== stats.size || existing.mtime !== stats.mtimeMs)
+        const currentAudioContainer =
+          existing?.audioContainer && !metadataFileChanged ? existing.audioContainer : detectAudioContainer(filePath)
         const qualityCorrectionNeeded = !!existing && needsQualityCorrection(existing.quality, currentAudioContainer)
 
         // Update or add to index if anything changed (size, mtime, lyric status, or cover status)
@@ -1664,50 +1670,52 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
             }
 
             // If interval or quality/bitrate is missing/unknown, or hasEmbedLyric not yet detected, try to extract it
-            if (
+            const metadataNeedsInspection =
               !existing.interval ||
               existing.quality === 'unknown' ||
               !existing.bitrate ||
               existing.hasEmbedLyric === undefined ||
               existing.metadataWritable === undefined ||
               qualityCorrectionNeeded
-            ) {
-              let tagger: any
-              try {
-                tagger = new (getMusicTagNative().MusicTagger)()
-                tagger.loadPath(filePath)
-                const dur = tagger.duration
-                if (dur && !existing.interval) existing.interval = formatPlayTime(dur / 1000)
-                existing.bitrate = tagger.bitRate
-                existing.sampleRate = tagger.sampleRate
-                existing.bitDepth = tagger.bitDepth
-                if (!existing.quality || existing.quality === 'unknown' || qualityCorrectionNeeded) {
-                  const detectedQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
-                  existing.quality = resolveInspectedQuality(
-                    existing.quality,
-                    detectedQuality,
-                    currentAudioContainer,
-                    tagger,
-                  )
-                }
-                // [新增] 检测是否已嵌入歌词 USLT 标签
-                if (existing.hasEmbedLyric === undefined) {
-                  const lyricsInTag = tagger.lyrics
-                  existing.hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
-                }
-                existing.audioContainer = currentAudioContainer
-                existing.metadataWritable = true
-                existing.metadataError = undefined
-              } catch (e: any) {
-                existing.audioContainer = currentAudioContainer
-                existing.metadataWritable = false
-                existing.metadataError = getMetadataUnsupportedMessage(existing.audioContainer)
-                existing.hasEmbedLyric = false
-              } finally {
+            if (metadataNeedsInspection && (existing.metadataWritable !== false || metadataFileChanged)) {
+              const metadataItem = existing
+              await withCachePostProcess(undefined, 'index metadata scan', async () => {
+                let tagger: any
                 try {
-                  if (tagger) tagger.dispose()
-                } catch (e) {}
-              }
+                  tagger = new (getMusicTagNative().MusicTagger)()
+                  tagger.loadPath(filePath)
+                  const dur = tagger.duration
+                  if (dur && !metadataItem.interval) metadataItem.interval = formatPlayTime(dur / 1000)
+                  metadataItem.bitrate = tagger.bitRate
+                  metadataItem.sampleRate = tagger.sampleRate
+                  metadataItem.bitDepth = tagger.bitDepth
+                  if (!metadataItem.quality || metadataItem.quality === 'unknown' || qualityCorrectionNeeded) {
+                    const detectedQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
+                    metadataItem.quality = resolveInspectedQuality(
+                      metadataItem.quality,
+                      detectedQuality,
+                      currentAudioContainer,
+                      tagger,
+                    )
+                  }
+                  if (metadataItem.hasEmbedLyric === undefined) {
+                    const lyricsInTag = tagger.lyrics
+                    metadataItem.hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
+                  }
+                  metadataItem.audioContainer = currentAudioContainer
+                  metadataItem.metadataWritable = true
+                  metadataItem.metadataError = undefined
+                } catch {
+                  metadataItem.audioContainer = currentAudioContainer
+                  metadataItem.metadataWritable = false
+                  metadataItem.metadataError = getMetadataUnsupportedMessage(metadataItem.audioContainer)
+                  metadataItem.hasEmbedLyric = false
+                } finally {
+                  try {
+                    tagger?.dispose()
+                  } catch {}
+                }
+              })
             }
             finalQuality = existing.quality
           } else {
@@ -1721,31 +1729,33 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
             let metadataError: string | undefined
             const audioContainer = detectAudioContainer(filePath)
 
-            try {
-              const tagger = new (getMusicTagNative().MusicTagger)()
-              tagger.loadPath(filePath)
-              if (tagger.title && !songName) songName = tagger.title
-              if (tagger.artist && !singer) singer = tagger.artist
-              if (tagger.album && !albumName) albumName = tagger.album
-              if (hasValidEmbeddedCover(tagger.pictures)) hasCover = true
+            await withCachePostProcess(undefined, 'index metadata scan', async () => {
+              let tagger: any
+              try {
+                tagger = new (getMusicTagNative().MusicTagger)()
+                tagger.loadPath(filePath)
+                if (tagger.title && !songName) songName = tagger.title
+                if (tagger.artist && !singer) singer = tagger.artist
+                if (tagger.album && !albumName) albumName = tagger.album
+                if (hasValidEmbeddedCover(tagger.pictures)) hasCover = true
 
-              const dur = tagger.duration
-              interval = dur ? formatPlayTime(dur / 1000) : ''
-
-              bitrate = tagger.bitRate
-              sampleRate = tagger.sampleRate
-              bitDepth = tagger.bitDepth
-              finalQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
-
-              // [新增] 检测是否已嵌入歌词 USLT 标签
-              const lyricsInTag = tagger.lyrics
-              hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
-              metadataWritable = true
-
-              tagger.dispose()
-            } catch (e: any) {
-              metadataError = getMetadataUnsupportedMessage(audioContainer)
-            }
+                const dur = tagger.duration
+                interval = dur ? formatPlayTime(dur / 1000) : ''
+                bitrate = tagger.bitRate
+                sampleRate = tagger.sampleRate
+                bitDepth = tagger.bitDepth
+                finalQuality = detectQualityFromBitrate(tagger.bitRate, ext, tagger)
+                const lyricsInTag = tagger.lyrics
+                hasEmbedLyric = !!(lyricsInTag && lyricsInTag.trim().length > 10)
+                metadataWritable = true
+              } catch {
+                metadataError = getMetadataUnsupportedMessage(audioContainer)
+              } finally {
+                try {
+                  tagger?.dispose()
+                } catch {}
+              }
+            })
             const hasExternalCover = !hasCover && hasCachedCover(file, normalizedUsername, stats)
             if (hasExternalCover) hasCover = true
             const coverType: CacheItem['coverType'] =
@@ -1852,6 +1862,21 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
     const syncState = cacheListSyncState.get(syncKey) || { lastSync: 0 }
     syncState.lastSync = Date.now()
     cacheListSyncState.set(syncKey, syncState)
+  }
+}
+
+export const syncCacheIndex = async (username?: string, roots: Array<'cache' | 'music'> = ['cache', 'music']) => {
+  const normalizedUsername = normalizeCacheUsername(username)
+  const syncKey = `${currentCacheLocation}:${normalizedUsername}:${roots.join(',')}`
+  const pending = pendingCacheIndexSyncs.get(syncKey)
+  if (pending) return pending
+
+  const sync = runCacheIndexSync(normalizedUsername, roots)
+  pendingCacheIndexSyncs.set(syncKey, sync)
+  try {
+    await sync
+  } finally {
+    if (pendingCacheIndexSyncs.get(syncKey) === sync) pendingCacheIndexSyncs.delete(syncKey)
   }
 }
 
@@ -2404,6 +2429,7 @@ export const removeCacheFile = (
   username?: string,
   requestedFolder?: CacheFolder,
   requestedLocation?: string,
+  knownItem?: CacheItem,
 ): RemoveCacheFileResult => {
   if (!filename || typeof filename !== 'string') throw new Error('Invalid filename')
   if (requestedFolder && requestedFolder !== 'cache' && requestedFolder !== 'music') throw new Error('Invalid folder')
@@ -2463,8 +2489,10 @@ export const removeCacheFile = (
     }
   }
 
-  const items = indexManager.getAll(normalizedUsername, folder, location)
-  const item = items.find(i => i.filename === filename)
+  const item =
+    knownItem?.filename === filename
+      ? knownItem
+      : indexManager.getAll(normalizedUsername, folder, location).find(i => i.filename === filename)
   if (item) indexManager.remove(normalizedUsername, item.id, folder, item.quality, location)
   invalidateCacheListSync(normalizedUsername)
 
@@ -2849,6 +2877,8 @@ const findLyricByIdOnDisk = async (
 export const checkLyricCache = async (songInfo: any, username?: string): Promise<LyricCacheResult> => {
   const id = normalizeSongId(songInfo)
   const normalizedUsername = normalizeCacheUsername(username)
+  const missKey = id ? `${normalizedUsername}\u0000${getCacheLocations().join(',')}\u0000${id}` : ''
+  if (missKey && lyricMissCache.has(missKey)) return { exists: false }
   const candidateUsernames = normalizedUsername === '_open' ? ['_open'] : [normalizedUsername, '_open']
   const locations = getCacheLocations()
   const folderTypes: Array<'cache' | 'music'> = ['cache', 'music']
@@ -2986,6 +3016,7 @@ export const checkLyricCache = async (songInfo: any, username?: string): Promise
     if (scanBudget.remainingEntries <= 0) break
   }
 
+  if (missKey) lyricMissCache.set(missKey, true)
   return { exists: false }
 }
 
@@ -4466,28 +4497,7 @@ export const checkAndCleanupCache = async (username?: string) => {
   const config = (global as any).lx.config
   if (!config || !config['user.enableCacheSizeLimit']) return
   const normalizedUsername = normalizeCacheUsername(username)
-
-  // 清理超时的孤儿临时文件 (.tmp)，无需等待超出容量限制
-  for (const location of getCacheLocations()) {
-    const dir = getCacheDir(normalizedUsername, false, location, false)
-    if (!fs.existsSync(dir)) continue
-    for (const filePath of getCacheFilesRecursively(dir)) {
-      if (filePath.endsWith('.tmp')) {
-        try {
-          const fileStat = fs.statSync(filePath)
-          if (Date.now() - fileStat.mtime.getTime() > 3600_000) {
-            fs.unlinkSync(filePath)
-          }
-        } catch {}
-      }
-    }
-  }
-
   scheduleCacheIndexSync(normalizedUsername)
-  const stats = await scanCacheStatsAsync(normalizedUsername)
-  const cacheSize = stats.cache?.totalSize ?? 0
-  const limitBytes = (config['user.cacheSizeLimit'] || 2000) * 1024 * 1024
-  if (cacheSize <= limitBytes) return
 
   type CleanupCandidate = {
     path: string
@@ -4497,11 +4507,35 @@ export const checkAndCleanupCache = async (username?: string) => {
     lastPlayedAt: number
     id?: string
     quality?: string
+    item?: CacheItem
   }
   const allFiles: CleanupCandidate[] = []
+  let cacheSize = 0
   for (const location of getCacheLocations()) {
     const dir = getCacheDir(normalizedUsername, false, location, false)
-    if (!fs.existsSync(dir)) continue
+    const files = new Map<string, { size: number; mtime: number; ext: string }>()
+    const companionLyrics = new Map<string, string>()
+    for await (const filePath of walkCacheFilesAsync(dir)) {
+      const ext = path.extname(filePath).toLowerCase()
+      try {
+        const fileStat = await fs.promises.stat(filePath)
+        if (ext === '.tmp') {
+          if (Date.now() - fileStat.mtime.getTime() > 3600_000) await fs.promises.unlink(filePath)
+          continue
+        }
+        if (!CACHE_SIZE_EXTENSIONS.has(ext) || !fileStat.isFile()) continue
+        const file = { size: fileStat.size, mtime: fileStat.mtime.getTime(), ext }
+        files.set(filePath, file)
+        cacheSize += file.size
+        if (ext === '.lrc') {
+          const key = path.join(path.dirname(filePath), path.basename(filePath, path.extname(filePath)).toLowerCase())
+          companionLyrics.set(key, filePath)
+        }
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') console.error(`[fileCache] failed to read cache size: ${filePath}`, error)
+      }
+    }
+
     const indexedFiles = new Set<string>()
     const indexedItems = indexManager.getAll(normalizedUsername, 'cache', location)
 
@@ -4509,61 +4543,52 @@ export const checkAndCleanupCache = async (username?: string) => {
     // 后删音频时出现索引状态和实际占用不一致。
     for (const item of indexedItems) {
       const audioPath = resolveCacheRelativePath(dir, item.filename)
-      if (!audioPath || !fs.existsSync(audioPath)) continue
-      if (!CACHE_SIZE_EXTENSIONS.has(path.extname(audioPath).toLowerCase())) continue
+      const audioFile = audioPath ? files.get(audioPath) : undefined
+      if (!audioPath || !audioFile || audioFile.ext === '.lrc') continue
 
-      const relatedPaths = [audioPath]
-      const lyricFilename = item.lyricFilename || resolveCompanionLyricFilename(dir, item.filename)
-      const lyricPath = lyricFilename ? resolveCacheRelativePath(dir, lyricFilename) : null
-      if (lyricPath && fs.existsSync(lyricPath)) relatedPaths.push(lyricPath)
-
-      let size = 0
-      let mtime = Number.POSITIVE_INFINITY
-      for (const relatedPath of relatedPaths) {
-        try {
-          const fileStat = fs.statSync(relatedPath)
-          size += fileStat.size
-          mtime = Math.min(mtime, fileStat.mtime.getTime())
-          indexedFiles.add(relatedPath)
-        } catch (e) {}
-      }
-      if (size > 0) {
-        const lastPlayedAt = Number(item.lastPlayedAt)
-        // A file that was just downloaded has no playback record yet. Treat
-        // "never played" as its mtime, not as 0, otherwise every quota cleanup
-        // deletes the newest download before any older played track.
-        const effectivePlayedAt = Number.isFinite(lastPlayedAt) && lastPlayedAt > 0 ? lastPlayedAt : mtime
-        allFiles.push({
-          path: audioPath,
-          location,
-          size,
-          mtime: Number.isFinite(mtime) ? mtime : 0,
-          lastPlayedAt: effectivePlayedAt,
-          id: item.id,
-          quality: item.quality,
-        })
-      }
+      const lyricPath = item.lyricFilename
+        ? resolveCacheRelativePath(dir, item.lyricFilename)
+        : companionLyrics.get(
+            path.join(path.dirname(audioPath), path.basename(audioPath, path.extname(audioPath)).toLowerCase()),
+          )
+      const lyricFile = lyricPath ? files.get(lyricPath) : undefined
+      indexedFiles.add(audioPath)
+      if (lyricFile && lyricPath) indexedFiles.add(lyricPath)
+      const size = audioFile.size + (lyricFile?.size || 0)
+      const mtime = Math.min(audioFile.mtime, lyricFile?.mtime ?? Number.POSITIVE_INFINITY)
+      const lastPlayedAt = Number(item.lastPlayedAt)
+      // A file that was just downloaded has no playback record yet. Treat
+      // "never played" as its mtime, not as 0, otherwise every quota cleanup
+      // deletes the newest download before any older played track.
+      const effectivePlayedAt = Number.isFinite(lastPlayedAt) && lastPlayedAt > 0 ? lastPlayedAt : mtime
+      allFiles.push({
+        path: audioPath,
+        location,
+        size,
+        mtime,
+        lastPlayedAt: effectivePlayedAt,
+        id: item.id,
+        quality: item.quality,
+        item,
+      })
     }
 
-    // 没有索引的历史文件也要纳入清理，并按从未播放处理。
-    for (const filePath of getCacheFilesRecursively(dir)) {
-      if (filePath.endsWith('.tmp')) {
-        continue
-      }
+    // Unindexed legacy files, including orphan lyrics, remain eligible and
+    // are treated as never played.
+    for (const [filePath, fileStat] of files) {
       if (indexedFiles.has(filePath)) continue
-      if (!CACHE_SIZE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue
-      try {
-        const fileStat = fs.statSync(filePath)
-        allFiles.push({
-          path: filePath,
-          location,
-          size: fileStat.size,
-          mtime: fileStat.mtime.getTime(),
-          lastPlayedAt: fileStat.mtime.getTime(),
-        })
-      } catch (e) {}
+      allFiles.push({
+        path: filePath,
+        location,
+        size: fileStat.size,
+        mtime: fileStat.mtime,
+        lastPlayedAt: fileStat.mtime,
+      })
     }
   }
+
+  const limitBytes = (config['user.cacheSizeLimit'] || 2000) * 1024 * 1024
+  if (cacheSize <= limitBytes) return
 
   allFiles.sort((a, b) => a.lastPlayedAt - b.lastPlayedAt || a.mtime - b.mtime)
   let currentSize = cacheSize
@@ -4578,7 +4603,7 @@ export const checkAndCleanupCache = async (username?: string) => {
     try {
       const dir = getCacheDir(normalizedUsername, false, file.location, false)
       const relPath = path.relative(dir, file.path).replace(/\\/g, '/')
-      const res = removeCacheFile(relPath, normalizedUsername, 'cache', file.location)
+      const res = removeCacheFile(relPath, normalizedUsername, 'cache', file.location, file.item)
       if (res.deleted) {
         currentSize -= file.size
         deletedCount++
@@ -4588,9 +4613,11 @@ export const checkAndCleanupCache = async (username?: string) => {
         fs.unlinkSync(file.path)
         const dir = getCacheDir(normalizedUsername, false, file.location, false)
         const relPath = path.relative(dir, file.path).replace(/\\/g, '/')
-        const item = indexManager
-          .getAll(normalizedUsername, 'cache', file.location)
-          .find(candidate => candidate.filename === relPath)
+        const item =
+          file.item ||
+          indexManager
+            .getAll(normalizedUsername, 'cache', file.location)
+            .find(candidate => candidate.filename === relPath)
         if (item) indexManager.remove(normalizedUsername, item.id, 'cache', item.quality, file.location)
         currentSize -= file.size
         deletedCount++
@@ -4620,6 +4647,16 @@ export const switchFolder = async (
   const moved: Array<{ filename: string; from: CacheFolder; to: CacheFolder }> = []
 
   const locations = requestedLocation ? [requestedLocation] : getCacheLocations()
+  const itemsByFolder = new Map<string, Map<string, CacheItem>>()
+  for (const location of locations) {
+    for (const folder of ['cache', 'music'] as const) {
+      const byFilename = new Map<string, CacheItem>()
+      for (const item of indexManager.getAll(normalizedUsername, folder, location)) {
+        byFilename.set(item.filename, item)
+      }
+      itemsByFolder.set(`${location}:${folder}`, byFilename)
+    }
+  }
 
   for (const filename of filenames) {
     let sourceFolder: 'cache' | 'music' | null = null
@@ -4633,8 +4670,7 @@ export const switchFolder = async (
       : ['cache', 'music']
     for (const candidate of sourceCandidates) {
       for (const location of locations) {
-        const index = indexManager.load(normalizedUsername, candidate, location)
-        const found = Array.from(index.values()).find(entry => entry.filename === filename)
+        const found = itemsByFolder.get(`${location}:${candidate}`)?.get(filename)
         if (found) {
           sourceFolder = candidate
           sourceLocation = location
@@ -4656,9 +4692,7 @@ export const switchFolder = async (
     }
 
     const targetFolder: CacheFolder = requestedTargetFolder || (sourceFolder === 'cache' ? 'music' : 'cache')
-    const targetItem = indexManager
-      .getAll(normalizedUsername, targetFolder, sourceLocation)
-      .find(entry => entry.filename === filename)
+    const targetItem = itemsByFolder.get(`${sourceLocation}:${targetFolder}`)?.get(filename)
     if (targetItem && isCacheEntryProcessing(targetItem.id, targetItem.quality, normalizedUsername)) {
       failCount++
       continue
@@ -4691,9 +4725,7 @@ export const switchFolder = async (
 
         // Check collision in target folder
         if (fs.existsSync(targetPath)) {
-          const targetItem = indexManager
-            .getAll(normalizedUsername, targetFolder, sourceLocation)
-            .find(entry => entry.filename === filename)
+          const targetItem = itemsByFolder.get(`${sourceLocation}:${targetFolder}`)?.get(filename)
           const sameIndexedSong =
             targetItem &&
             targetItem.quality === item.quality &&
@@ -4703,8 +4735,9 @@ export const switchFolder = async (
             // target is verified as the same song/quality, keep
             // the durable download and remove only the duplicate
             // private cache entry.
-            const removedDuplicate = removeCacheFile(filename, normalizedUsername, sourceFolder, sourceLocation)
+            const removedDuplicate = removeCacheFile(filename, normalizedUsername, sourceFolder, sourceLocation, item)
             if (removedDuplicate.deleted) {
+              itemsByFolder.get(`${sourceLocation}:${sourceFolder}`)?.delete(filename)
               successCount++
               moved.push({ filename, from: sourceFolder, to: targetFolder })
               continue
@@ -4803,9 +4836,11 @@ export const switchFolder = async (
         }
 
         // Update Index
-        const removed = indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLocation)
+        indexManager.remove(normalizedUsername, item.id, sourceFolder, item.quality, sourceLocation)
+        itemsByFolder.get(`${sourceLocation}:${sourceFolder}`)?.delete(filename)
         item.folder = targetFolder
         indexManager.update(normalizedUsername, item, targetFolder, sourceLocation)
+        itemsByFolder.get(`${sourceLocation}:${targetFolder}`)?.set(filename, item)
         cacheChanged = true
         successCount++
         moved.push({ filename, from: sourceFolder, to: targetFolder })

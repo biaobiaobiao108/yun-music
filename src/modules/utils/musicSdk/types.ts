@@ -53,13 +53,13 @@ export interface CancelableRequest<T> {
 }
 
 export interface MusicSearchApi {
-  search: (keyword: string, page: number, limit: number) => Promise<MusicSearchResult>
+  search: (keyword: string, page: number, limit: number, signal?: AbortSignal) => Promise<MusicSearchResult>
 }
 
 export interface ExtendSearchApi {
-  searchSinger?: (keyword: string, page: number, limit: number) => Promise<MusicSearchResult>
-  searchAlbum?: (keyword: string, page: number, limit: number) => Promise<MusicSearchResult>
-  searchPlaylist?: (keyword: string, page: number, limit: number) => Promise<MusicSearchResult>
+  searchSinger?: (keyword: string, page: number, limit: number, signal?: AbortSignal) => Promise<MusicSearchResult>
+  searchAlbum?: (keyword: string, page: number, limit: number, signal?: AbortSignal) => Promise<MusicSearchResult>
+  searchPlaylist?: (keyword: string, page: number, limit: number, signal?: AbortSignal) => Promise<MusicSearchResult>
 }
 
 export interface ExtendDetailApi {
@@ -74,7 +74,7 @@ export interface SongListApi {
   getTags?: () => Promise<any>
   getList?: (sortId: string, tagId: string, page: number) => Promise<MusicSearchResult>
   getListDetail?: (id: string, page: number, limit?: number) => Promise<MusicSearchResult>
-  search?: (text: string, page: number, limit?: number) => Promise<MusicSearchResult>
+  search?: (text: string, page: number, limit?: number, signal?: AbortSignal) => Promise<MusicSearchResult>
 }
 
 export interface LeaderboardApi {

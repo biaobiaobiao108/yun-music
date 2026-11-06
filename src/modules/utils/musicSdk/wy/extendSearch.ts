@@ -9,17 +9,21 @@ export default {
    * @param {*} limit 每页数量
    * @param {*} retryNum 重试次数
    */
-  searchSinger(str: any, page: any = 1, limit: any = 20, retryNum: any = 0): Promise<any> {
+  searchSinger(str: any, page: any = 1, limit: any = 20, signal?: AbortSignal, retryNum: any = 0): Promise<any> {
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))
-    const searchRequest = eapiRequest('/api/cloudsearch/pc', {
-      s: str,
-      type: 100, // 歌手类型
-      limit,
-      total: page === 1, // 仅第一页返回总数
-      offset: limit * (page - 1),
-    })
+    const searchRequest = eapiRequest(
+      '/api/cloudsearch/pc',
+      {
+        s: str,
+        type: 100, // 歌手类型
+        limit,
+        total: page === 1, // 仅第一页返回总数
+        offset: limit * (page - 1),
+      },
+      signal,
+    )
     return searchRequest.promise.then(({ body: result }) => {
-      if (!result || result.code !== 200) return this.searchSinger(str, page, limit, retryNum)
+      if (!result || result.code !== 200) return this.searchSinger(str, page, limit, signal, retryNum)
       const list = this.handleSingerResult(result.result.artists)
       return {
         list,
@@ -38,17 +42,21 @@ export default {
    * @param {*} limit 每页数量
    * @param {*} retryNum 重试次数
    */
-  searchAlbum(str: any, page: any = 1, limit: any = 20, retryNum: any = 0): Promise<any> {
+  searchAlbum(str: any, page: any = 1, limit: any = 20, signal?: AbortSignal, retryNum: any = 0): Promise<any> {
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))
-    const searchRequest = eapiRequest('/api/cloudsearch/pc', {
-      s: str,
-      type: 10, // 专辑类型
-      limit,
-      total: page === 1,
-      offset: limit * (page - 1),
-    })
+    const searchRequest = eapiRequest(
+      '/api/cloudsearch/pc',
+      {
+        s: str,
+        type: 10, // 专辑类型
+        limit,
+        total: page === 1,
+        offset: limit * (page - 1),
+      },
+      signal,
+    )
     return searchRequest.promise.then(({ body: result }) => {
-      if (!result || result.code !== 200) return this.searchAlbum(str, page, limit, retryNum)
+      if (!result || result.code !== 200) return this.searchAlbum(str, page, limit, signal, retryNum)
       const list = this.handleAlbumResult(result.result.albums)
       return {
         list,
@@ -67,17 +75,21 @@ export default {
    * @param {*} limit 每页数量
    * @param {*} retryNum 重试次数
    */
-  searchPlaylist(str: any, page: any = 1, limit: any = 20, retryNum: any = 0): Promise<any> {
+  searchPlaylist(str: any, page: any = 1, limit: any = 20, signal?: AbortSignal, retryNum: any = 0): Promise<any> {
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))
-    const searchRequest = eapiRequest('/api/cloudsearch/pc', {
-      s: str,
-      type: 1000, // 歌单类型
-      limit,
-      total: page === 1,
-      offset: limit * (page - 1),
-    })
+    const searchRequest = eapiRequest(
+      '/api/cloudsearch/pc',
+      {
+        s: str,
+        type: 1000, // 歌单类型
+        limit,
+        total: page === 1,
+        offset: limit * (page - 1),
+      },
+      signal,
+    )
     return searchRequest.promise.then(({ body: result }) => {
-      if (!result || result.code !== 200) return this.searchPlaylist(str, page, limit, retryNum)
+      if (!result || result.code !== 200) return this.searchPlaylist(str, page, limit, signal, retryNum)
       const list = this.handlePlaylistResult(result.result.playlists)
       return {
         list,

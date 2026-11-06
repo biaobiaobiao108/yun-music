@@ -15,6 +15,9 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 import { identifyLocalSong } from '../utils/identify'
 import { canReadPublicLocalMusic, isPublicLocalMusicAnonymous } from '../localMusicAccess'
 
+const MAX_CACHE_EVENT_STREAMS = 256
+let activeCacheEventStreams = 0
+
 /** 辅助获取缓存与下载任务的目标用户名 */
 const getCacheRequestUsername = (ctx: HttpContext): string | null => {
   const requested = ctx.query.get('user')?.trim() || ''
@@ -75,12 +78,18 @@ const resolveCacheTarget = (ctx: HttpContext, options: { publicWrite?: boolean }
   return { ok: true, username: verified }
 }
 
-const createCacheEventsStream = (username: string, request: Request): ReadableStream<Uint8Array> => {
+const createCacheEventsStream = (
+  username: string,
+  request: Request,
+  release: () => void,
+): ReadableStream<Uint8Array> => {
   const encoder = new TextEncoder()
   let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
   let closed = false
   let heartbeat: ReturnType<typeof setInterval> | null = null
   let cacheChangeTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingQueueEvent: Uint8Array | null = null
+  let pendingCacheEvent: Uint8Array | null = null
   let unsubscribeQueue = () => {}
   let unsubscribeCache = () => {}
 
@@ -91,6 +100,9 @@ const createCacheEventsStream = (username: string, request: Request): ReadableSt
     heartbeat = null
     if (cacheChangeTimer) clearTimeout(cacheChangeTimer)
     cacheChangeTimer = null
+    pendingQueueEvent = null
+    pendingCacheEvent = null
+    release()
     unsubscribeQueue()
     unsubscribeCache()
     request.signal.removeEventListener('abort', close)
@@ -104,7 +116,31 @@ const createCacheEventsStream = (username: string, request: Request): ReadableSt
   const send = (event: string, payload: unknown) => {
     if (closed || !streamController) return
     try {
-      streamController.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`))
+      const message = encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
+      if ((streamController.desiredSize ?? 1) <= 0) {
+        if (event === 'queue') pendingQueueEvent = message
+        else if (event === 'cache') pendingCacheEvent = message
+        return
+      }
+      if (event === 'queue') pendingQueueEvent = null
+      else if (event === 'cache') pendingCacheEvent = null
+      streamController.enqueue(message)
+    } catch {
+      close()
+    }
+  }
+
+  const flushPendingEvents = () => {
+    if (closed || !streamController) return
+    try {
+      if (pendingQueueEvent && (streamController.desiredSize ?? 1) > 0) {
+        streamController.enqueue(pendingQueueEvent)
+        pendingQueueEvent = null
+      }
+      if (pendingCacheEvent && (streamController.desiredSize ?? 1) > 0) {
+        streamController.enqueue(pendingCacheEvent)
+        pendingCacheEvent = null
+      }
     } catch {
       close()
     }
@@ -127,6 +163,9 @@ const createCacheEventsStream = (username: string, request: Request): ReadableSt
       heartbeat = setInterval(() => send('heartbeat', { at: Date.now() }), 15_000)
       ;(heartbeat as any)?.unref?.()
       if (request.signal.aborted) close()
+    },
+    pull() {
+      flushPendingEvents()
     },
     cancel() {
       close()
@@ -332,7 +371,15 @@ export const createCacheRouter = (): Router => {
   router.get('/api/music/cache/events', ctx => {
     const username = getCacheRequestUsername(ctx)
     if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
-    return new Response(createCacheEventsStream(username, ctx.request), {
+    if (activeCacheEventStreams >= MAX_CACHE_EVENT_STREAMS) return ctx.fail(503, '实时连接繁忙，请稍后重试')
+    activeCacheEventStreams++
+    let released = false
+    const release = () => {
+      if (released) return
+      released = true
+      activeCacheEventStreams = Math.max(0, activeCacheEventStreams - 1)
+    }
+    return new Response(createCacheEventsStream(username, ctx.request, release), {
       status: 200,
       headers: {
         'Content-Type': 'text/event-stream; charset=utf-8',

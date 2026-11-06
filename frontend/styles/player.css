@@ -8420,7 +8420,7 @@ textarea:focus-visible {
 
 .react-immersive-footer .react-play-button {
     width: 3.35rem;
-    height: 3.35rem;
+    height: 4.2rem;
     background: var(--app-text);
     color: var(--app-bg);
     box-shadow: 0 0.7rem 1.6rem rgb(0 0 0 / 24%);
@@ -12219,6 +12219,34 @@ textarea:focus-visible {
     list-style: none;
     overscroll-behavior: contain;
     scrollbar-width: thin;
+}
+
+.react-cache-task-list.is-virtualized {
+    display: block;
+    position: relative;
+    --react-cache-task-row-height: 4.5rem;
+}
+
+.react-cache-task-spacer {
+    display: block;
+    width: 100%;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.react-cache-task-list.is-virtualized > .react-cache-task {
+    position: absolute;
+    right: 0;
+    left: 0;
+    box-sizing: border-box;
+    height: calc(var(--react-cache-task-row-height) - 0.15rem);
+    overflow: hidden;
+}
+
+.react-cache-task-list.is-virtualized .react-cache-error-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .react-cache-task {

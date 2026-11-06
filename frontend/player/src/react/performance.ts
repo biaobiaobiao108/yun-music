@@ -17,7 +17,12 @@ export function markPlayerPerformance(name: string): void {
 export function measurePlayerPerformance(name: string, startMark: string, endMark: string, clearStart = true): void {
   if (typeof performance === 'undefined' || typeof performance.measure !== 'function') return
   try {
+    performance.clearMeasures(name)
     performance.measure(name, startMark, endMark)
+    const measures = performance.getEntriesByType('measure')
+    if (measures.length > 100) {
+      for (const entry of measures.slice(0, measures.length - 100)) performance.clearMeasures(entry.name)
+    }
     if (clearStart) performance.clearMarks(startMark)
     performance.clearMarks(endMark)
   } catch {

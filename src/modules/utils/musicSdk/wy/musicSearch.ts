@@ -10,7 +10,7 @@ export default {
   total: 0,
   page: 0,
   allPage: 1,
-  musicSearch(str: any, page: any, limit: any): Promise<any> {
+  musicSearch(str: any, page: any, limit: any, signal?: AbortSignal): Promise<any> {
     // const searchRequest = eapiRequest('/api/cloudsearch/pc', {
     //   s: str,
     //   type: 1, // 1: 单曲, 10: 专辑, 100: 歌手, 1000: 歌单, 1002: 用户, 1004: MV, 1006: 歌词, 1009: 电台, 1014: 视频
@@ -18,15 +18,19 @@ export default {
     //   total: page == 1,
     //   offset: limit * (page - 1),
     // })
-    const searchRequest = eapiRequest('/api/search/song/list/page', {
-      keyword: str,
-      needCorrect: '1',
-      channel: 'typing',
-      offset: limit * (page - 1),
-      scene: 'normal',
-      total: page == 1,
-      limit,
-    })
+    const searchRequest = eapiRequest(
+      '/api/search/song/list/page',
+      {
+        keyword: str,
+        needCorrect: '1',
+        channel: 'typing',
+        offset: limit * (page - 1),
+        scene: 'normal',
+        total: page == 1,
+        limit,
+      },
+      signal,
+    )
     return searchRequest.promise.then(({ body }: any) => body)
   },
   getSinger(singers: any) {
@@ -59,16 +63,16 @@ export default {
       }
     })
   },
-  search(str: any, page: any = 1, limit: any, retryNum: any = 0): Promise<any> {
+  search(str: any, page: any = 1, limit: any, signal?: AbortSignal, retryNum: any = 0): Promise<any> {
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))
     if (limit == null) limit = this.limit
-    return this.musicSearch(str, page, limit).then((result: any) => {
+    return this.musicSearch(str, page, limit, signal).then((result: any) => {
       // console.log(result)
-      if (!result || result.code !== 200) return this.search(str, page, limit, retryNum)
+      if (!result || result.code !== 200) return this.search(str, page, limit, signal, retryNum)
       let list = this.handleResult(result.data.resources || [])
       // console.log(list)
 
-      if (list == null) return this.search(str, page, limit, retryNum)
+      if (list == null) return this.search(str, page, limit, signal, retryNum)
 
       this.total = result.data.totalCount || 0
       this.page = page

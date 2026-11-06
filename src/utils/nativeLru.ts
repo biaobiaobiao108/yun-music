@@ -98,12 +98,12 @@ export class NativeLruCache<K, V> {
   }
 
   /** One unref'ed timer per cache releases cold entries even without another lookup. */
-  private scheduleExpiry(): void {
-    let earliest = Number.POSITIVE_INFINITY
-    if (this.ttl > 0) {
+  private scheduleExpiry(candidateExpiryAt?: number): void {
+    if (this.expiryTimer && (!candidateExpiryAt || candidateExpiryAt >= this.nextExpiryAt)) return
+    let earliest = candidateExpiryAt ?? Number.POSITIVE_INFINITY
+    if (!candidateExpiryAt && this.ttl > 0) {
       for (const entry of this.entries.values()) earliest = Math.min(earliest, entry.expiresAt)
     }
-    if (this.expiryTimer && earliest === this.nextExpiryAt) return
     if (this.expiryTimer) clearTimeout(this.expiryTimer)
     this.expiryTimer = undefined
     this.nextExpiryAt = 0
@@ -152,12 +152,12 @@ export class NativeLruCache<K, V> {
     const bytes =
       this.maxBytes === Number.POSITIVE_INFINITY ? 0 : 64 + estimateCacheBytes(key, this.maxBytes) + valueBytes
     if (!Number.isFinite(bytes) || valueBytes < 0 || bytes > this.maxBytes) {
-      this.scheduleExpiry()
       return this
     }
+    const expiresAt = this.ttl > 0 ? Date.now() + this.ttl : Number.POSITIVE_INFINITY
     this.entries.set(key, {
       value,
-      expiresAt: this.ttl > 0 ? Date.now() + this.ttl : Number.POSITIVE_INFINITY,
+      expiresAt,
       bytes,
     })
     this.bytes += bytes
@@ -167,7 +167,7 @@ export class NativeLruCache<K, V> {
       if (oldest === undefined) break
       this.remove(oldest)
     }
-    this.scheduleExpiry()
+    if (this.ttl > 0) this.scheduleExpiry(expiresAt)
     return this
   }
 
@@ -182,15 +182,17 @@ export class NativeLruCache<K, V> {
   }
 
   delete(key: K): boolean {
-    const deleted = this.remove(key)
-    if (deleted) this.scheduleExpiry()
-    return deleted
+    // The current timer may fire early if this was the oldest entry. Let it
+    // recalculate once instead of scanning all entries on every deletion.
+    return this.remove(key)
   }
 
   clear(): void {
     this.entries.clear()
     this.bytes = 0
-    this.scheduleExpiry()
+    if (this.expiryTimer) clearTimeout(this.expiryTimer)
+    this.expiryTimer = undefined
+    this.nextExpiryAt = 0
   }
 
   keys(): IterableIterator<K> {
