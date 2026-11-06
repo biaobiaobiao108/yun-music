@@ -14874,6 +14874,14 @@ body,
     padding-block-end: 4rem;
 }
 
+/* The home view has a small, bounded number of artwork cards. Reserving a
+   fixed intrinsic height for these responsive cards makes Safari correct
+   each grid row's height as it enters the viewport, shifting the scroll. */
+.react-home-page .react-artwork-card {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
+}
+
 .react-home-section {
     min-width: 0;
     margin: 0;
