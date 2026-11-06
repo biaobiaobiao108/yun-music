@@ -416,7 +416,7 @@ export function LeaderboardView() {
   const [songsLoading, setSongsLoading] = useState(false)
   const [boardsError, setBoardsError] = useState('')
   const [songsError, setSongsError] = useState('')
-  const detailRef = useRef<HTMLElement | null>(null)
+  const loadedBoardRef = useRef('')
   useEffect(() => {
     const controller = new AbortController()
     let active = true
@@ -459,11 +459,11 @@ export function LeaderboardView() {
       setSongs([])
       setTotal(0)
       setSongsLoading(false)
+      loadedBoardRef.current = ''
       return
     }
     const controller = new AbortController()
-    setSongs([])
-    setTotal(0)
+    if (loadedBoardRef.current !== selected) setTotal(0)
     setSongsLoading(true)
     setSongsError('')
     void playerApi
@@ -481,13 +481,13 @@ export function LeaderboardView() {
       .then(payload => {
         if (controller.signal.aborted) return
         const result = extractLeaderboardPage(payload, page)
+        loadedBoardRef.current = selected
         setSongs(result.songs)
         setTotal(result.total)
         setLimit(result.limit)
       })
       .catch(cause => {
         if (!controller.signal.aborted) {
-          setSongs([])
           setTotal(0)
           setSongsError(cause instanceof Error ? cause.message : '排行榜歌曲加载失败')
         }
@@ -504,14 +504,11 @@ export function LeaderboardView() {
     setSelected(boardId)
     setPage(1)
     selectLeaderboardBoard(boardId)
-    const behavior: ScrollBehavior =
-      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-    window.requestAnimationFrame(() => detailRef.current?.scrollIntoView({ block: 'start', behavior }))
   }
   return (
     <ViewFrame title="排行榜" viewId="react-view-leaderboard">
       <div className="react-leaderboard-layout">
-        <aside className="react-leaderboard-index" aria-label="排行榜列表">
+        <aside className="react-leaderboard-index custom-scrollbar" aria-label="排行榜列表">
           {boardsError ? (
             <p className="react-error" role="alert">
               {boardsError}
@@ -545,7 +542,7 @@ export function LeaderboardView() {
           )}
         </aside>
         {selectedBoard ? (
-          <section className="react-leaderboard-detail" ref={detailRef}>
+          <section className="react-leaderboard-detail">
             <header className="react-leaderboard-header">
               <span className="react-leaderboard-cover">
                 {selectedBoard.image ? (
@@ -559,6 +556,11 @@ export function LeaderboardView() {
                 <p>
                   {musicSourceLabel(source)}
                   {total > 0 ? ` · 共 ${total} 首` : ''}
+                  {songsLoading && (
+                    <span className="react-leaderboard-busy" role="status">
+                      正在更新
+                    </span>
+                  )}
                 </p>
               </div>
               {songs.length > 0 && !songsLoading && (
@@ -568,16 +570,25 @@ export function LeaderboardView() {
                 </Button>
               )}
             </header>
-            <div className="react-content-card t-bg-panel react-leaderboard-content">
-              {songsError ? (
-                <p className="react-error" role="alert">
-                  {songsError}
-                </p>
-              ) : songsLoading ? (
-                <Loading />
-              ) : (
-                <SongList songs={songs} empty="暂无排行榜歌曲" />
+            <div
+              className={`react-content-card t-bg-panel react-leaderboard-content ${songsLoading ? 'is-loading' : ''} ${songsError ? 'has-error' : ''}`}
+              aria-busy={songsLoading}
+            >
+              {songsError && (
+                <div className="react-leaderboard-error" role="alert">
+                  <Icon name="triangle-exclamation" />
+                  <p>{songsError}</p>
+                </div>
               )}
+              {songsLoading && !songs.length ? (
+                <Loading />
+              ) : songs.length ? (
+                <div className="react-leaderboard-songs">
+                  <SongList songs={songs} empty="暂无排行榜歌曲" />
+                </div>
+              ) : !songsError ? (
+                <SongList songs={songs} empty="暂无排行榜歌曲" />
+              ) : null}
               {total > limit && (
                 <div className="react-pagination react-pagination-bottom">
                   <button
@@ -604,7 +615,7 @@ export function LeaderboardView() {
             </div>
           </section>
         ) : (
-          <section className="react-content-card t-bg-panel react-leaderboard-empty" ref={detailRef}>
+          <section className="react-content-card t-bg-panel react-leaderboard-empty">
             {boardsLoading ? (
               <Loading label="正在加载榜单…" />
             ) : (

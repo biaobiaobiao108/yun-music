@@ -55,11 +55,13 @@ describe('Player leaderboard and default source', () => {
     const css = read('frontend/styles/player.css')
     const leaderboardView = section(heavyViews, 'export function LeaderboardView()', 'function localCacheItemKey(')
     expect(leaderboardView).toContain('className="react-leaderboard-layout"')
-    expect(leaderboardView).toContain('className="react-leaderboard-index"')
+    expect(leaderboardView).toContain('className="react-leaderboard-index custom-scrollbar"')
     expect(leaderboardView).toContain('className="react-leaderboard-detail"')
     expect(heavyViews).toContain('LEADERBOARD_PAGE_SIZE = 100')
     expect(leaderboardView).toContain('total > limit')
     expect(leaderboardView).toContain('page >= pageCount')
+    expect(leaderboardView).toContain('loadedBoardRef.current !== selected')
+    expect(leaderboardView).not.toContain('scrollIntoView')
     expect(libraryViews).toContain("image: safeImageUrl(item.img ?? item.coverImgUrl ?? item.picUrl, '')")
     expect(libraryViews).toContain('<SafeImage src={chart.image}')
     const leaderboardCss = css.slice(css.indexOf('.react-leaderboard-layout'))
@@ -71,6 +73,7 @@ describe('Player leaderboard and default source', () => {
     expect(leaderboardCss).toMatch(
       /\.react-leaderboard-layout\s*\{[^}]*grid-template-columns:\s*minmax\(13rem, 16rem\)/s,
     )
+    expect(leaderboardCss).not.toContain('inset 2px 0 var(--app-accent)')
     expect(mobileCss).toContain('.react-leaderboard-index {')
     expect(mobileCss).toContain('overflow-x: auto;')
   })
