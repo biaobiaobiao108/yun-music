@@ -154,9 +154,15 @@ export const adminApi = {
       { signal },
     ),
   removeCache: (items: Array<{ filename: string; folder?: 'cache' | 'music'; location?: string; user?: string }>) =>
-    adminRequest('/api/music/cache/remove', { method: 'POST', body: JSON.stringify({ items }) }),
-  moveCache: (items: Array<{ filename: string; location?: string; user?: string }>) =>
-    adminRequest('/api/music/cache/move', { method: 'POST', body: JSON.stringify({ items }) }),
+    adminRequest<{ deletedCount: number; failedCount: number }>('/api/music/cache/remove', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+  moveCache: (items: Array<{ filename: string; location?: string; user?: string }>, targetFolder: 'cache' | 'music') =>
+    adminRequest<{ successCount: number; failCount: number }>('/api/music/cache/move', {
+      method: 'POST',
+      body: JSON.stringify({ items, targetFolder }),
+    }),
   clearCache: (user: string) =>
     adminRequest(`/api/music/cache/clear?user=${encodeURIComponent(user)}`, { method: 'POST' }),
   addUser: (name: string, password: string) =>

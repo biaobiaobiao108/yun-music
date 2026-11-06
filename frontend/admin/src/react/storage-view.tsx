@@ -181,7 +181,7 @@ export function StorageView() {
   const remove = async (items: StorageItem[]) => {
     if (!items.length) return
     try {
-      await adminApi.removeCache(
+      const result = await adminApi.removeCache(
         items
           .map(item => ({
             filename: String(item.filename ?? ''),
@@ -192,7 +192,7 @@ export function StorageView() {
           .filter(item => item.filename),
       )
       setSelected(new Set())
-      notify(`已删除 ${items.length} 个文件`)
+      notify(`已删除 ${result.deletedCount} 个文件${result.failedCount ? `，${result.failedCount} 个失败` : ''}`)
       await loadView('storage')
     } catch (error) {
       notify(error instanceof Error ? error.message : '删除失败')
@@ -202,7 +202,7 @@ export function StorageView() {
   const move = async (items: StorageItem[]) => {
     if (!items.length) return
     try {
-      await adminApi.moveCache(
+      const result = await adminApi.moveCache(
         items
           .map(item => ({
             filename: String(item.filename ?? ''),
@@ -210,9 +210,10 @@ export function StorageView() {
             user: String(item.rawUsername ?? '_open'),
           }))
           .filter(item => item.filename),
+        folder === 'cache' ? 'music' : 'cache',
       )
       setSelected(new Set())
-      notify(`已移动 ${items.length} 个文件`)
+      notify(`已移动 ${result.successCount} 个文件${result.failCount ? `，${result.failCount} 个失败` : ''}`)
       await loadView('storage')
     } catch (error) {
       notify(error instanceof Error ? error.message : '移动失败')

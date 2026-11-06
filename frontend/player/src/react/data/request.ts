@@ -150,6 +150,7 @@ function readCached<T>(key: string): T | undefined {
  */
 export async function requestJson<T>(input: RequestInfo | URL, init: PlayerRequestInit = {}): Promise<T> {
   const { cacheKey, cacheTtlMs = 0, force = false, fetcher = fetch, priority, ...requestInit } = init
+  const sessionGeneration = getSessionGeneration()
   const requestCacheKey = cacheKey ? `${cacheKey}@${getSessionGeneration()}` : undefined
   if (requestInit.signal?.aborted) throw abortError()
   const cached = !force && requestCacheKey ? readCached<T>(requestCacheKey) : undefined
@@ -175,7 +176,7 @@ export async function requestJson<T>(input: RequestInfo | URL, init: PlayerReque
     })
     if (!response.ok) {
       const body = await response.text().catch(() => '')
-      if (response.status === 401) notifyUnauthorized(input)
+      if (response.status === 401 && sessionGeneration === getSessionGeneration()) notifyUnauthorized(input)
       throw new ApiRequestError(resolveApiError(response.status, body), response.status, String(input), body)
     }
     if (response.status === 204) return undefined as T

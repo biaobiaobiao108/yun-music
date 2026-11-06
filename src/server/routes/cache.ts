@@ -1390,9 +1390,13 @@ export const createCacheRouter = (): Router => {
     if (!target.ok) return target.error
 
     try {
-      const { filename, songInfo } = await ctx.bodyJson<{ filename?: string; songInfo?: any }>()
+      const { filename, songInfo, location } = await ctx.bodyJson<{
+        filename?: string
+        songInfo?: any
+        location?: string
+      }>()
       if (!filename || !songInfo) return ctx.fail(400, '缺少必要参数：filename、songInfo')
-      const result = await fileCache.linkLocalFile(filename, songInfo, target.username)
+      const result = await fileCache.linkLocalFile(filename, songInfo, target.username, location)
       return ctx.json(result)
     } catch (e: any) {
       return ctx.fail(500, toUserMessage(e, '关联本地文件失败，请稍后重试'))
@@ -1404,12 +1408,23 @@ export const createCacheRouter = (): Router => {
     if (!target.ok) return target.error
 
     try {
-      const { filename, folder } = await ctx.bodyJson<{ filename?: string; folder?: 'cache' | 'music' }>()
+      const { filename, folder, location } = await ctx.bodyJson<{
+        filename?: string
+        folder?: 'cache' | 'music'
+        location?: string
+      }>()
       if (!filename) return ctx.fail(400, '缺少必要参数：filename')
-      const dir = fileCache.getCacheDir(target.username, folder === 'music')
-      const filePath = fileCache.resolveCacheRelativePath(dir, filename)
-      if (!filePath) throw new Error('文件名不合法')
-      if (!fs.existsSync(filePath)) throw new Error(`文件不存在：${filename}`)
+      if (location && !fileCache.getCacheLocations().includes(location)) throw new Error('缓存位置不合法')
+      const paths = (location ? [location] : fileCache.getCacheLocations())
+        .map(loc => {
+          const dir = fileCache.getCacheDir(target.username, folder === 'music', loc)
+          return fileCache.resolveCacheRelativePath(dir, filename)
+        })
+        .filter((candidate): candidate is string => !!candidate && fs.existsSync(candidate))
+      const uniquePaths = [...new Set(paths)]
+      if (uniquePaths.length === 0) throw new Error(`文件不存在：${filename}`)
+      if (uniquePaths.length > 1) throw new Error('文件存在多个位置，请指定缓存位置')
+      const filePath = uniquePaths[0]!
       const results = await identifyLocalSong(filePath)
       return ctx.json({ success: true, results })
     } catch (e: any) {

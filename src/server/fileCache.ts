@@ -2081,13 +2081,18 @@ export const batchRenameCacheFiles = async (username: string | undefined) => {
 /**
  * Batch update ID3 metadata (title, artist, album, cover) from index to physical files
  */
-export const batchUpdateMetadata = async (filenames: string[], username: string | undefined) => {
+export const batchUpdateMetadata = async (
+  filenames: string[],
+  username: string | undefined,
+  requestedLocation?: string,
+  requestedFolder?: CacheFolder,
+) => {
   const normalizedUsername = normalizeCacheUsername(username)
   let successCount = 0
   let failCount = 0
 
-  const allItems = getCacheLocations().flatMap(location =>
-    (['cache', 'music'] as const).flatMap(folder =>
+  const allItems = (requestedLocation ? [requestedLocation] : getCacheLocations()).flatMap(location =>
+    (requestedFolder ? [requestedFolder] : (['cache', 'music'] as const)).flatMap(folder =>
       indexManager.getAll(normalizedUsername, folder, location).map(item => ({ item, location })),
     ),
   )
@@ -2185,19 +2190,28 @@ export const batchUpdateMetadata = async (filenames: string[], username: string 
 /**
  * Link an unindexed local file to a specific online song identity
  */
-export const linkLocalFile = async (oldFilename: string, songInfo: any, username: string | undefined) => {
+export const linkLocalFile = async (
+  oldFilename: string,
+  songInfo: any,
+  username: string | undefined,
+  requestedLocation?: string,
+) => {
   const normalizedUsername = normalizeCacheUsername(username)
-
-  // Find the item in all possible folders
-  const allItems = [
-    ...indexManager.getAll(normalizedUsername, 'cache'),
-    ...indexManager.getAll(normalizedUsername, 'music'),
-  ]
-  const item = allItems.find(i => i.filename === oldFilename)
-  if (!item) throw new Error('File not found in index')
+  if (requestedLocation && !getCacheLocations().includes(requestedLocation)) throw new Error('Invalid cache location')
+  const matches = (requestedLocation ? [requestedLocation] : getCacheLocations()).flatMap(location =>
+    (['cache', 'music'] as const).flatMap(folder =>
+      indexManager
+        .getAll(normalizedUsername, folder, location)
+        .filter(item => item.filename === oldFilename)
+        .map(item => ({ item, location })),
+    ),
+  )
+  if (matches.length === 0) throw new Error('File not found in index')
+  if (matches.length > 1) throw new Error('文件存在多个位置，请指定唯一文件')
+  const { item, location } = matches[0]!
 
   const folder = item.folder as 'cache' | 'music'
-  const dir = getCacheDir(normalizedUsername, folder === 'music')
+  const dir = getCacheDir(normalizedUsername, folder === 'music', location)
   const oldPath = resolveCacheRelativePath(dir, item.filename)
   if (!oldPath || !fs.existsSync(oldPath)) throw new Error('Physical file not found')
 
@@ -2230,7 +2244,13 @@ export const linkLocalFile = async (oldFilename: string, songInfo: any, username
         : newBaseName + '.lrc'
       const newLrcPath = resolveCacheRelativePath(dir, newLrcFilename)
       if (oldLrcPath && newLrcPath && fs.existsSync(oldLrcPath)) {
-        fs.renameSync(oldLrcPath, newLrcPath)
+        try {
+          if (fs.existsSync(newLrcPath)) throw new Error('Target lyric already exists')
+          fs.renameSync(oldLrcPath, newLrcPath)
+        } catch (error) {
+          fs.renameSync(newPath, oldPath)
+          throw error
+        }
         item.lyricFilename = newLrcFilename
       }
     }
@@ -2238,7 +2258,7 @@ export const linkLocalFile = async (oldFilename: string, songInfo: any, username
 
   // 2. Update Index
   // Remove old entry (keyed by old ID and quality)
-  indexManager.remove(normalizedUsername, item.id, folder, item.quality)
+  indexManager.remove(normalizedUsername, item.id, folder, item.quality, location)
 
   // Update item properties
   item.id = newId
@@ -2253,10 +2273,10 @@ export const linkLocalFile = async (oldFilename: string, songInfo: any, username
   item.mtime = Date.now()
 
   // Add back to index with new identity
-  indexManager.update(normalizedUsername, item, folder)
+  indexManager.update(normalizedUsername, item, folder, location)
 
   // 3. Post-link processing: Update ID3 tags and cover
-  await batchUpdateMetadata([newFilename], normalizedUsername)
+  await batchUpdateMetadata([newFilename], normalizedUsername, location, folder)
 
   return {
     success: true,
