@@ -11,6 +11,7 @@ import {
   LocalBackupTooLargeError,
   MAX_LOCAL_BACKUP_BYTES,
   restoreLocalBackup,
+  runArchiveCommand,
 } from '@/server/localBackupService'
 import { getUserDirname, syncUsersToDatabase } from '@/user'
 import { createSystemRouter } from '@/server/routes/system'
@@ -90,6 +91,19 @@ describe('backup archive reader detection', () => {
       ])
     })
   }
+
+  test('kills an archive command that exceeds its wall-clock timeout', async () => {
+    const startedAt = Date.now()
+    await expect(runArchiveCommand(['sleep', '5'], 1024, 100)).rejects.toThrow('备份工具执行超时')
+    expect(Date.now() - startedAt).toBeLessThan(2000)
+  })
+
+  test('keeps the timeout error when archive tool fallback also fails', async () => {
+    const runner = async () => {
+      throw new Error('备份工具执行超时')
+    }
+    await expect(detectArchiveTool('/backup.zip', runner)).rejects.toThrow('备份工具执行超时')
+  })
 })
 
 describe('Local backup restore', () => {

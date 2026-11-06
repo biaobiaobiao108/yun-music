@@ -373,6 +373,48 @@ describe('cache list user scope', () => {
     }
   })
 
+  test('rejects a cache owner override from a non-admin removal request', async () => {
+    const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'cache' })
+    try {
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/remove', {
+          method: 'POST',
+          headers: {
+            cookie: `lx_user_session=${sessionId}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ items: [{ filename: 'song.mp3', folder: 'cache', user: 'other-user' }] }),
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect(removeCacheFile).not.toHaveBeenCalled()
+    } finally {
+      removeCacheFile.mockRestore()
+    }
+  })
+
+  test('accepts the authenticated user as an explicit cache owner', async () => {
+    const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'cache' })
+    try {
+      const response = await createCacheRouter().handle(
+        new Request('http://localhost/api/music/cache/remove', {
+          method: 'POST',
+          headers: {
+            cookie: `lx_user_session=${sessionId}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ items: [{ filename: 'song.mp3', folder: 'cache', user: username }] }),
+        }),
+      )
+
+      expect(response.status).toBe(200)
+      expect(removeCacheFile).toHaveBeenCalledWith('song.mp3', username, 'cache')
+    } finally {
+      removeCacheFile.mockRestore()
+    }
+  })
+
   test('keeps an explicit public cache removal protected for personal sessions', async () => {
     const removeCacheFile = spyOn(fileCache, 'removeCacheFile').mockReturnValue({ deleted: true, folder: 'music' })
     try {
@@ -411,6 +453,24 @@ describe('cache list user scope', () => {
       expect(response.headers.get('cache-control')).toBe('private, no-store')
       expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('cover'))
       expect(getCacheCover).toHaveBeenCalledWith('album/song.mp3', username)
+    } finally {
+      getCacheCover.mockRestore()
+    }
+  })
+
+  test('rejects an invalid admin cache owner before reading a cover', async () => {
+    const getCacheCover = spyOn(fileCache, 'getCacheCover')
+    try {
+      const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+      const response = await createCacheRouter().handle(
+        new Request(
+          `http://localhost/api/music/cache/cover?user=${encodeURIComponent('../escape')}&filename=cover.jpg`,
+          { headers: { cookie: adminCookie } },
+        ),
+      )
+
+      expect(response.status).toBe(400)
+      expect(getCacheCover).not.toHaveBeenCalled()
     } finally {
       getCacheCover.mockRestore()
     }

@@ -127,3 +127,22 @@ export function buildPlaybackUrl(
   if (downloadToken) params.set('token', downloadToken)
   return `/api/music/download?${params.toString()}`
 }
+
+export type PlaybackSource = {
+  url: string
+  downloadToken?: string
+}
+
+/** Pick the URL the audio element should start with before the normal URL request settles. */
+export function selectImmediatePlaybackSource(
+  immediateUrl: string | undefined,
+  immediateDownloadToken: string | undefined,
+  cached: { result: PlaybackSource; expiresAt: number } | undefined,
+  now = Date.now(),
+): PlaybackSource | undefined {
+  if (immediateUrl) return { url: immediateUrl, downloadToken: immediateDownloadToken }
+  if (cached && cached.expiresAt > now) {
+    return { url: cached.result.url, downloadToken: cached.result.downloadToken }
+  }
+  return undefined
+}

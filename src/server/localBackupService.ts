@@ -25,6 +25,7 @@ const MAX_LOCAL_BACKUP_ENTRIES = 20_000
 const MAX_LOCAL_BACKUP_EXTRACTED_BYTES = 512 * 1024 * 1024
 const MAX_UNZIP_OUTPUT_BYTES = 32 * 1024 * 1024
 const MAX_LOCAL_BACKUP_CONFIG_BYTES = 1 * 1024 * 1024
+export const ARCHIVE_COMMAND_TIMEOUT_MS = 30 * 1000
 
 export class LocalBackupTooLargeError extends Error {
   constructor(maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES) {
@@ -79,17 +80,34 @@ const readLimitedStream = async (
   return result
 }
 
-const runArchiveCommand = async (args: string[], maxOutputBytes = MAX_UNZIP_OUTPUT_BYTES): Promise<string> => {
-  const child = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe' })
+export const runArchiveCommand = async (
+  args: string[],
+  maxOutputBytes = MAX_UNZIP_OUTPUT_BYTES,
+  timeoutMs = ARCHIVE_COMMAND_TIMEOUT_MS,
+): Promise<string> => {
+  let terminatedForLimit = false
+  const child = Bun.spawn(args, {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: timeoutMs,
+    killSignal: 'SIGKILL',
+  })
   const terminate = () => {
     if (!child.killed) child.kill('SIGKILL')
   }
-  const stdoutPromise = readLimitedStream(child.stdout, maxOutputBytes, terminate)
-  const stderrPromise = readLimitedStream(child.stderr, Math.min(maxOutputBytes, 512 * 1024), terminate)
+  const stopForLimit = () => {
+    terminatedForLimit = true
+    terminate()
+  }
+  const stdoutPromise = readLimitedStream(child.stdout, maxOutputBytes, stopForLimit)
+  const stderrPromise = readLimitedStream(child.stderr, Math.min(maxOutputBytes, 512 * 1024), stopForLimit)
   try {
     const [stdoutBytes, stderrBytes, exitCode] = await Promise.all([stdoutPromise, stderrPromise, child.exited])
     const stdout = new TextDecoder().decode(stdoutBytes)
     const stderr = new TextDecoder().decode(stderrBytes)
+    if (!terminatedForLimit && (child.signalCode === 'SIGKILL' || child.signalCode === 9)) {
+      throw new Error('备份工具执行超时')
+    }
     if (exitCode !== 0) {
       throw new Error(stderr.trim().slice(0, 512) || '备份压缩包无法读取')
     }
@@ -110,9 +128,11 @@ export const detectArchiveTool = async (
   archivePath: string,
   run: ArchiveCommandRunner = runArchiveCommand,
 ): Promise<{ tool: ArchiveTool; entries: string }> => {
+  let unzipError: unknown
   try {
     return { tool: 'unzip', entries: await run(['unzip', '-Z1', archivePath]) }
-  } catch {
+  } catch (error) {
+    unzipError = error
     // macOS ships a libarchive-based tar that can read ZIPs. Testing the actual
     // archive keeps that path while rejecting GNU/BusyBox tar, which only
     // report a successful --version despite lacking ZIP support.
@@ -120,7 +140,9 @@ export const detectArchiveTool = async (
 
   try {
     return { tool: 'tar', entries: await run(['tar', '-tf', archivePath]) }
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === '备份工具执行超时') throw error
+    if (unzipError instanceof Error && unzipError.message === '备份工具执行超时') throw unzipError
     throw new Error('服务器缺少可读取 ZIP 备份的 unzip 或兼容 tar')
   }
 }
@@ -224,8 +246,15 @@ const extractBackupEntry = async (
   maxBytes: number,
 ): Promise<number> => {
   const command = archiveTool === 'unzip' ? ['unzip', '-p', archivePath, entry] : ['tar', '-xOf', archivePath, entry]
-  const child = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' })
+  let terminatedForLimit = false
+  const child = Bun.spawn(command, {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: ARCHIVE_COMMAND_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
+  })
   const stderrPromise = readLimitedStream(child.stderr, 512 * 1024, () => {
+    terminatedForLimit = true
     if (!child.killed) child.kill('SIGKILL')
   })
   const output = fs.createWriteStream(destination, { flags: 'wx', mode: 0o600 })
@@ -245,6 +274,7 @@ const extractBackupEntry = async (
       const chunk = value instanceof Uint8Array ? value : new Uint8Array(value)
       total += chunk.byteLength
       if (total > maxBytes) {
+        terminatedForLimit = true
         if (!child.killed) child.kill('SIGKILL')
         throw new Error('备份解压后的数据量超出限制')
       }
@@ -256,6 +286,9 @@ const extractBackupEntry = async (
     await finishWrite(output)
     if (outputError) throw outputError
     const [stderrBytes, exitCode] = await Promise.all([stderrPromise, child.exited])
+    if (!terminatedForLimit && (child.signalCode === 'SIGKILL' || child.signalCode === 9)) {
+      throw new Error('备份条目解压超时')
+    }
     if (exitCode !== 0) {
       throw new Error(new TextDecoder().decode(stderrBytes).trim().slice(0, 512) || '备份条目无法读取')
     }

@@ -12,7 +12,12 @@ import {
 import { songAlbum, songArtist, songImage, songKey, songTitle, type Song } from './types'
 import { safeImageUrl } from '../../../shared/src/runtime'
 import { emitPlaybackService } from './playback_service'
-import { buildPlaybackUrl, normalizeCachePlaybackUrl, parseCachePlaybackUrl } from './media_url'
+import {
+  buildPlaybackUrl,
+  normalizeCachePlaybackUrl,
+  parseCachePlaybackUrl,
+  selectImmediatePlaybackSource,
+} from './media_url'
 import { beginSeek, isSeekSettled, readMediaClock, resolveMediaClock, type SeekHold } from './media_clock'
 import { getSessionGeneration } from './session'
 import { clearPlayerPerformanceMark, markPlayerPerformance, measurePlayerPerformance } from './performance'
@@ -536,18 +541,22 @@ export function AudioRuntime() {
         const wasNaturalFade = Boolean(naturalFadeNextSongKey.current && options?.wasPlaying)
         const wasPlaying = Boolean(options ? options.wasPlaying && (audioPlaying || wasNaturalFade) : audioPlaying)
         lastSwitchWasPlaying.current = wasPlaying
-        let immediateUrl = options?.immediateUrl
-        if (!immediateUrl && options?.song) {
+        let cached: CachedSongUrl | undefined
+        if (!options?.immediateUrl && options?.song) {
           const key = songUrlCacheKey(options.song, quality)
-          const cached = prefetchedUrls.get(key)
-          if (cached && cached.expiresAt > Date.now()) {
-            immediateUrl = cached.result.url
-          }
+          cached = prefetchedUrls.get(key)
         }
-        if (immediateUrl && options?.song) {
+        const immediate = selectImmediatePlaybackSource(options?.immediateUrl, options?.immediateDownloadToken, cached)
+        if (immediate && options?.song) {
           try {
             audio.loop = false
-            const targetUrl = buildPlaybackUrl(immediateUrl, options.song, getSettings())
+            const targetUrl = buildPlaybackUrl(
+              immediate.url,
+              options.song,
+              getSettings(),
+              undefined,
+              immediate.downloadToken,
+            )
             if (!isSameMediaSource(audio.currentSrc || audio.src, targetUrl)) audio.src = targetUrl
             const p = audio.play()
             if (p !== undefined) {

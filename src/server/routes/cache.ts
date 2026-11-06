@@ -967,7 +967,11 @@ export const createCacheRouter = (): Router => {
     if (isPublicAlias) {
       username = '_open'
     } else if (reqUsername && isAdmin) {
-      username = reqUsername
+      try {
+        username = assertSafePathSegment(reqUsername, 'user name')
+      } catch {
+        return ctx.fail(400, '用户名不合法')
+      }
     } else if (reqUsername && (!verified || verified !== reqUsername)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
@@ -1049,16 +1053,20 @@ export const createCacheRouter = (): Router => {
         ) {
           throw new Error('Invalid location')
         }
+        const requestedUser =
+          typeof item.user === 'string' && item.user
+            ? item.user
+            : typeof item.rawUsername === 'string' && item.rawUsername
+              ? item.rawUsername
+              : undefined
+        if (!isAdmin && requestedUser && requestedUser !== username) {
+          throw new Error('普通用户不能指定其他缓存所有者')
+        }
         return {
           filename: item.filename,
           folder: item.folder,
           location: item.location,
-          user:
-            typeof item.user === 'string' && item.user
-              ? item.user
-              : typeof item.rawUsername === 'string' && item.rawUsername
-                ? item.rawUsername
-                : undefined,
+          user: requestedUser,
         }
       })
 

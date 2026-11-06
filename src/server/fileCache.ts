@@ -4426,10 +4426,19 @@ export const clearOnlyAudioCache = (username?: string) => {
 
 export const clearAllUsersAudioCache = () => {
   const result: CacheCleanupResult = { deletedCount: 0, freedSize: 0 }
-  const usernames = new Set<string>(['_open'])
+  const usernames = new Set<string>()
+  const addUsername = (value: unknown) => {
+    if (typeof value !== 'string' || !value) return
+    try {
+      usernames.add(normalizeCacheUsername(value))
+    } catch {
+      // Stale directories or legacy aliases are not valid cache users.
+    }
+  }
+  addUsername('_open')
   const configuredUsers = global.lx?.config?.users || []
   for (const u of configuredUsers) {
-    if (u?.name) usernames.add(u.name)
+    addUsername(u?.name)
   }
   for (const location of getCacheLocations()) {
     let baseDir = ''
@@ -4444,14 +4453,18 @@ export const clearAllUsersAudioCache = () => {
         const entries = fs.readdirSync(baseDir, { withFileTypes: true })
         for (const entry of entries) {
           if (entry.isDirectory() && !entry.isSymbolicLink()) {
-            usernames.add(entry.name)
+            addUsername(entry.name)
           }
         }
       } catch {}
     }
   }
   for (const u of usernames) {
-    addCleanupResult(result, clearOnlyAudioCache(u))
+    try {
+      addCleanupResult(result, clearOnlyAudioCache(u))
+    } catch (error) {
+      console.warn(`[FileCache] Failed to clear audio cache for ${JSON.stringify(u)}:`, error)
+    }
   }
   invalidateGlobalCacheStats()
   return result

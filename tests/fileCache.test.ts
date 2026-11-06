@@ -2194,4 +2194,40 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('keeps clearing valid users when the cache root contains a reserved legacy directory', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-clear-all-cache-'))
+    const previousLx = (global as any).lx
+    const dataPath = path.join(root, 'data')
+    try {
+      closeDb()
+      ;(global as any).lx = {
+        appPath: root,
+        dataPath,
+        config: {
+          users: [{ name: 'default' }, { name: 'user1' }],
+        },
+      }
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+
+      const legacyDir = path.join(dataPath, 'cache', 'default')
+      const validDir = path.join(dataPath, 'cache', 'user1')
+      fs.mkdirSync(legacyDir, { recursive: true })
+      fs.mkdirSync(validDir, { recursive: true })
+      const legacyFile = path.join(legacyDir, 'legacy.mp3')
+      const validFile = path.join(validDir, 'valid.mp3')
+      fs.writeFileSync(legacyFile, Buffer.alloc(10))
+      fs.writeFileSync(validFile, Buffer.alloc(10))
+
+      expect(() => fileCache.clearAllUsersAudioCache()).not.toThrow()
+      expect(fs.existsSync(validFile)).toBe(false)
+      expect(fs.existsSync(legacyFile)).toBe(true)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })

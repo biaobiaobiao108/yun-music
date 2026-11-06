@@ -9,6 +9,7 @@ import {
   buildPlaybackUrl,
   normalizeCachePlaybackUrl,
   parseCachePlaybackUrl,
+  selectImmediatePlaybackSource,
 } from '../frontend/player/src/react/media_url'
 import { connectAudioCommands, normalizePlayHistory, usePlaybackStore } from '../frontend/player/src/react/store'
 import { getSessionScope, scopedStorageKey, setSessionScope } from '../frontend/player/src/react/session'
@@ -277,6 +278,25 @@ describe('React player module boundaries', () => {
     expect(buildCachePlaybackUrl(alternateRoot!)).toBe(
       '/api/music/cache/file/steelway108/test.mp3?folder=music&location=data',
     )
+  })
+
+  it('keeps the signed download token from a prefetched playback source', () => {
+    const now = 1_000
+    const cached = {
+      result: { url: 'https://media.example.test/song.mp3', downloadToken: 'signed-token' },
+      expiresAt: now + 1,
+    }
+    const song = { source: 'wy', songmid: 'song-1', name: '测试歌曲', singer: '测试歌手' }
+
+    expect(selectImmediatePlaybackSource(undefined, undefined, cached, now)).toEqual(cached.result)
+    expect(selectImmediatePlaybackSource('https://direct.example.test/song.mp3', 'direct-token', cached, now)).toEqual({
+      url: 'https://direct.example.test/song.mp3',
+      downloadToken: 'direct-token',
+    })
+    expect(selectImmediatePlaybackSource(undefined, undefined, cached, cached.expiresAt)).toBeUndefined()
+    expect(
+      buildPlaybackUrl('https://media.example.test/song.mp3', song, {}, 'http://localhost:9527', 'signed-token'),
+    ).toContain('token=signed-token')
   })
 
   it('parses and formats date values reliably across Safari date quirks', () => {

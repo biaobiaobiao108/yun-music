@@ -65,6 +65,7 @@ let playbackPersistHandle: PlaybackPersistHandle | null = null
 export type AudioCommandOptions = {
   wasPlaying?: boolean
   immediateUrl?: string
+  immediateDownloadToken?: string
   song?: Song
 }
 
