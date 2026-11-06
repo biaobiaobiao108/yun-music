@@ -195,6 +195,12 @@ export const playerApi = {
       body: JSON.stringify({ items }),
       signal,
     }),
+  savePlayHistoryEvents: (events: { id: string; song: PlayHistoryItem }[], signal?: AbortSignal) =>
+    requestJson<PlayHistoryData>('/api/user/play-history/events', {
+      method: 'POST',
+      body: JSON.stringify({ events }),
+      signal,
+    }),
   mutatePlaylist: (
     mutation:
       | { action: 'create' | 'toggle'; playlist: UserPlaylist }

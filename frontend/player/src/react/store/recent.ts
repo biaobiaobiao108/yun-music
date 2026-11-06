@@ -61,33 +61,65 @@ function writePlayHistory(items: RecentSong[]): void {
   writeJson(storage, historyStorageKey(), items)
 }
 
-function readPendingPlayHistory(): RecentSong[] {
+type PendingEvent = { id: string; song: RecentSong }
+const pendingMemory = new Map<string, PendingEvent>()
+let listenersInstalled = false
+let historyRevision = 0
+
+function eventPrefix(): string {
+  return `${scopedStorageKey('play_history_event')}:`
+}
+
+function newEventId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+  )
+}
+
+function savePendingEvent(event: PendingEvent): void {
+  const key = eventPrefix() + event.id
+  try {
+    localStorage.setItem(key, JSON.stringify(event))
+  } catch (error) {
+    pendingMemory.set(key, event)
+    console.warn('[Recent] 无法持久保存待同步记录：', error)
+  }
+}
+
+function readPendingEvents(): PendingEvent[] {
+  const prefix = eventPrefix()
+  const events = new Map<string, PendingEvent>()
+  for (const [key, event] of pendingMemory) if (key.startsWith(prefix)) events.set(key, event)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key?.startsWith(prefix)) continue
+      const event = readJson<PendingEvent | null>(localStorage, key, null)
+      if (event && typeof event.id === 'string' && event.song && typeof event.song === 'object') events.set(key, event)
+    }
+  } catch (error) {
+    console.warn('[Recent] 无法读取待同步记录：', error)
+  }
+  return [...events.values()].sort((a, b) => Number(a.song.playedAt || 0) - Number(b.song.playedAt || 0))
+}
+
+function migratePendingHistory(): void {
   const storage = typeof localStorage === 'undefined' ? null : localStorage
-  const value = readJson<unknown>(storage, pendingHistoryStorageKey(), [])
-  if (!Array.isArray(value)) return []
-  const itemsByKey = new Map(readPlayHistory().map(song => [songKey(song), song]))
-  return value.flatMap(mark => {
-    if (!mark || typeof mark !== 'object' || Array.isArray(mark)) return []
-    const record = mark as Record<string, unknown>
-    if (typeof record.key !== 'string' || typeof record.playedAt !== 'number') return []
-    const song = itemsByKey.get(record.key)
-    return song && Number(song.playedAt || 0) >= record.playedAt ? [song] : []
-  })
-}
-
-function writePendingPlayHistory(items: RecentSong[]): void {
-  const storage = typeof localStorage === 'undefined' ? null : localStorage
-  const marks = normalizePlayHistory(items).map(song => ({ key: songKey(song), playedAt: Number(song.playedAt || 0) }))
-  writeJson(storage, pendingHistoryStorageKey(), marks)
-}
-
-function historyEntryVersion(song: RecentSong): string {
-  return `${songKey(song)}\u0000${Number(song.playedAt || 0)}`
-}
-
-function removeSyncedPendingItems(items: RecentSong[]): void {
-  const synced = new Set(items.map(historyEntryVersion))
-  writePendingPlayHistory(readPendingPlayHistory().filter(song => !synced.has(historyEntryVersion(song))))
+  if (!storage) return
+  const marks = readJson<unknown>(storage, pendingHistoryStorageKey(), [])
+  if (!Array.isArray(marks) || !marks.length) return
+  const songs = new Map(readPlayHistory().map(song => [songKey(song), song]))
+  for (const mark of marks) {
+    if (!mark || typeof mark !== 'object' || typeof mark.key !== 'string') continue
+    const song = songs.get(mark.key)
+    if (song && Number(song.playedAt || 0) >= Number(mark.playedAt || 0)) savePendingEvent({ id: newEventId(), song })
+  }
+  try {
+    storage.removeItem(pendingHistoryStorageKey())
+  } catch (error) {
+    console.warn('[Recent] 迁移待同步记录失败：', error)
+  }
 }
 
 function isAccountSession(): boolean {
@@ -95,7 +127,7 @@ function isAccountSession(): boolean {
 }
 
 function scheduleHistorySync(): void {
-  if (!isAccountSession() || readPendingPlayHistory().length === 0) return
+  if (!isAccountSession() || readPendingEvents().length === 0) return
   if (historySyncTimer) clearTimeout(historySyncTimer)
   historySyncTimer = setTimeout(() => {
     historySyncTimer = null
@@ -103,25 +135,42 @@ function scheduleHistorySync(): void {
   }, HISTORY_SYNC_DELAY_MS)
 }
 
+function applyRemoteHistory(items: RecentSong[]): void {
+  const merged = mergePlayHistory(
+    items,
+    readPendingEvents().map(event => event.song),
+  )
+  writePlayHistory(merged)
+  useRecentStore.setState({ items: merged })
+}
+
 function flushPendingPlayHistory(): Promise<void> {
   if (historySyncPromise) return historySyncPromise
   const scope = getSessionScope()
   if (!scope.startsWith('user:')) return Promise.resolve()
-  const pending = readPendingPlayHistory()
-  if (pending.length === 0) return Promise.resolve()
-
+  const pending = readPendingEvents().slice(0, 50)
+  if (!pending.length) return Promise.resolve()
+  const prefix = eventPrefix()
   const controller = new AbortController()
   historySyncController = controller
   let succeeded = false
   let promise!: Promise<void>
   promise = playerApi
-    .savePlayHistory(pending, controller.signal)
+    .savePlayHistoryEvents(pending, controller.signal)
     .then(result => {
       if (controller.signal.aborted || getSessionScope() !== scope) return
       succeeded = true
-      removeSyncedPendingItems(pending)
-      const remaining = readPendingPlayHistory()
-      writePlayHistory(mergePlayHistory(result.items, remaining))
+      historyRevision++
+      for (const event of pending) {
+        const key = prefix + event.id
+        pendingMemory.delete(key)
+        try {
+          localStorage.removeItem(key)
+        } catch (error) {
+          console.warn('[Recent] 清除待同步记录失败：', error)
+        }
+      }
+      applyRemoteHistory(result.items)
     })
     .catch(error => {
       if (!controller.signal.aborted && getSessionScope() === scope)
@@ -131,7 +180,7 @@ function flushPendingPlayHistory(): Promise<void> {
       if (historySyncPromise === promise) {
         historySyncPromise = null
         historySyncController = null
-        if (succeeded && readPendingPlayHistory().length > 0) scheduleHistorySync()
+        if (succeeded && readPendingEvents().length > 0) scheduleHistorySync()
       }
     })
   historySyncPromise = promise
@@ -139,31 +188,47 @@ function flushPendingPlayHistory(): Promise<void> {
 }
 
 async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Promise<void> {
-  const localItems = readPlayHistory()
-  setItems(localItems)
+  setItems(readPlayHistory())
   const scope = getSessionScope()
   historyController?.abort()
   const requestId = ++historyRequestId
   if (!scope.startsWith('user:')) return
-
+  migratePendingHistory()
+  scheduleHistorySync()
   const controller = new AbortController()
   historyController = controller
+  const revision = historyRevision
   try {
     const remote = await playerApi.playHistory(controller.signal)
-    if (controller.signal.aborted || requestId !== historyRequestId || getSessionScope() !== scope) return
-
-    const pending = readPendingPlayHistory()
-    const merged = mergePlayHistory(remote.items, pending)
-    writePlayHistory(merged)
-    setItems(merged)
-    if (pending.length > 0) scheduleHistorySync()
+    if (
+      controller.signal.aborted ||
+      requestId !== historyRequestId ||
+      getSessionScope() !== scope ||
+      revision !== historyRevision
+    )
+      return
+    applyRemoteHistory(remote.items)
   } catch (error) {
-    if (controller.signal.aborted || requestId !== historyRequestId || getSessionScope() !== scope) return
-    // Keep the local cache visible offline, but don't upload it as account history.
-    console.warn('[Recent] 云端播放历史读取失败，已保留本地记录：', error)
+    if (!controller.signal.aborted && requestId === historyRequestId && getSessionScope() === scope)
+      console.warn('[Recent] 云端播放历史读取失败，已保留本地记录：', error)
   } finally {
     if (historyController === controller) historyController = null
   }
+}
+
+function installHistoryListeners(): void {
+  if (listenersInstalled || typeof window === 'undefined') return
+  listenersInstalled = true
+  const refresh = () => {
+    if (!isAccountSession() || document.visibilityState === 'hidden') return
+    void useRecentStore.getState().hydrate()
+  }
+  window.addEventListener('online', refresh)
+  document.addEventListener('visibilitychange', refresh)
+  window.addEventListener('storage', event => {
+    if (isAccountSession() && event.key?.startsWith(eventPrefix())) scheduleHistorySync()
+  })
+  window.setInterval(refresh, 30000)
 }
 
 export function appendPlayHistory(song: Song, quality?: string): RecentSong[] {
@@ -201,13 +266,16 @@ export type RecentState = {
 
 export const useRecentStore = create<RecentState>((set, get) => ({
   items: [],
-  hydrate: () => hydratePlayHistory(items => set({ items })),
+  hydrate: () => {
+    installHistoryListeners()
+    return hydratePlayHistory(items => set({ items }))
+  },
   record: (song, quality) => {
     const items = recordRecentItem(get().items, song, quality)
     set({ items })
     if (!isAccountSession()) return
     const latest = items.find(item => songKey(item) === songKey(song))
-    if (latest) writePendingPlayHistory(mergePlayHistory(readPendingPlayHistory(), [latest]))
+    if (latest) savePendingEvent({ id: newEventId(), song: latest })
     scheduleHistorySync()
   },
   reset: () => {

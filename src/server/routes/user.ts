@@ -616,6 +616,71 @@ export const createUserRouter = (): Router => {
     }
   })
 
+  // Playback events are idempotent so retries and multiple tabs cannot reorder a song twice.
+  router.post('/api/user/play-history/events', async ctx => {
+    const username = verifyUserAuth(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
+    try {
+      const body = await ctx.bodyJson<{ events?: unknown }>(MAX_USER_SETTING_BODY_BYTES)
+      if (!Array.isArray(body?.events) || body.events.length > 50) throw new Error('播放记录格式错误')
+      const events = body.events.map((event: unknown) => {
+        if (!isRecord(event) || typeof event.id !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(event.id))
+          throw new Error('播放记录标识无效')
+        return { id: event.id, song: validatePlayHistoryItems([event.song])[0]! }
+      })
+      const db = getDb()
+      const items = db.transaction(() => {
+        const getSetting = (key: string) =>
+          db
+            .query<{ value: string }, [string, string]>(
+              'SELECT value FROM user_settings WHERE user_name = ? AND key = ?',
+            )
+            .get(username, key)?.value
+        const previous = getSetting(PLAY_HISTORY_SETTING_KEY)
+        let history = previous ? validatePlayHistoryItems(JSON.parse(previous)) : []
+        const now = Date.now()
+        const dedupRaw = getSetting('play_history_events')
+        const seen: Record<string, number> = dedupRaw ? JSON.parse(dedupRaw) : {}
+        for (const [id, time] of Object.entries(seen)) if (time < now - 30 * 86400000) delete seen[id]
+        let changed = false
+        for (const event of events) {
+          if (Object.hasOwn(seen, event.id)) continue
+          seen[event.id] = now
+          const song = { ...event.song, playedAt: now }
+          history = [song, ...history.filter(item => playHistorySongKey(item) !== playHistorySongKey(song))].slice(
+            0,
+            MAX_PLAY_HISTORY_ITEMS,
+          )
+          changed = true
+        }
+        if (changed) {
+          const save = (key: string, value: unknown) =>
+            db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+              username,
+              key,
+              JSON.stringify(value),
+              now,
+            ])
+          save(PLAY_HISTORY_SETTING_KEY, history)
+          save(
+            'play_history_events',
+            Object.fromEntries(
+              Object.entries(seen)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5000),
+            ),
+          )
+        }
+        return history
+      })()
+      return ctx.json({ items })
+    } catch (err: any) {
+      return ctx.fail(400, toUserMessage(err, '播放历史保存失败'))
+    }
+  })
+
   // 3. 用户曲库：歌手与专辑 (GET & POST)
   router.get('/api/user/library/artists', ctx => {
     const username = resolveTargetUsername(ctx, false)

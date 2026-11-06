@@ -127,6 +127,38 @@ describe('User data routes', () => {
     expect(anonymousSave.status).toBe(401)
   })
 
+  test('merges playback events across devices and ignores retries', async () => {
+    const router = createUserRouter()
+    const endpoint = 'http://localhost/api/user/play-history/events'
+    const save = (events: unknown[]) =>
+      router.handle(
+        new Request(endpoint, {
+          method: 'POST',
+          headers: { ...userHeaders, 'content-type': 'application/json' },
+          body: JSON.stringify({ events }),
+        }),
+      )
+    const song = (id: string, playedAt: number) => ({ id, source: 'wy', name: id, playedAt })
+    const first = { id: 'event-one', song: song('one', 9999999999999) }
+    const second = { id: 'event-two', song: song('two', 1) }
+    const results = await Promise.all([save([first]), save([second])])
+    expect(results.map(result => result.status)).toEqual([200, 200])
+    const read = async () =>
+      (
+        await (
+          await router.handle(new Request('http://localhost/api/user/play-history', { headers: userHeaders }))
+        ).json()
+      ).items
+    const beforeRetry = await read()
+    expect(beforeRetry.map((item: { id: string }) => item.id)).toEqual(['two', 'one'])
+    expect(beforeRetry[0].playedAt).toBeGreaterThan(1)
+    expect(beforeRetry[1].playedAt).toBeLessThan(9999999999999)
+    expect((await save([first])).status).toBe(200)
+    expect(await read()).toEqual(beforeRetry)
+    expect((await save([{ id: 'event-three', song: song('one', 0) }])).status).toBe(200)
+    expect((await read()).map((item: { id: string }) => item.id)).toEqual(['one', 'two'])
+  })
+
   test('does not lose the first favorite or playlist write during user-space initialization', async () => {
     const router = createUserRouter()
     releaseUserSpace(username, true)
