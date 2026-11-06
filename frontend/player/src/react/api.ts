@@ -44,6 +44,8 @@ export type UserPlaylist = Record<string, unknown> & {
   image?: string
 }
 export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: UserPlaylist[] }
+export type PlayHistoryItem = Song & { playedAt?: number; quality?: string }
+export type PlayHistoryData = { exists: boolean; items: PlayHistoryItem[] }
 export type CacheTask = Record<string, unknown> & {
   id?: string
   songKey?: string
@@ -185,6 +187,13 @@ export const playerApi = {
     requestJson<UserListData>(user ? `/api/user/list?user=${encodeURIComponent(user)}` : '/api/user/list', {
       signal,
       ...policy,
+    }),
+  playHistory: (signal?: AbortSignal) => requestJson<PlayHistoryData>('/api/user/play-history', { signal }),
+  savePlayHistory: (items: PlayHistoryItem[], signal?: AbortSignal) =>
+    requestJson<PlayHistoryData>('/api/user/play-history', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+      signal,
     }),
   mutatePlaylist: (
     mutation:

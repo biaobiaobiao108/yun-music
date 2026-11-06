@@ -30,8 +30,50 @@ import { releaseDataOperation, tryAcquireDataOperation } from '../dataOperationL
 let accountChangeInProgress = false
 
 const MAX_USER_SETTING_BODY_BYTES = 2 * 1024 * 1024
+const MAX_PLAY_HISTORY_ITEMS = 50
+const PLAY_HISTORY_SETTING_KEY = 'play_history'
 const RESERVED_USER_NAMES = new Set(['default', 'open', '_open'])
 const isReservedUserName = (name: string) => RESERVED_USER_NAMES.has(name.trim().toLowerCase())
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+
+function playHistorySongKey(song: Record<string, unknown>): string {
+  return `${String(song.source || 'unknown')}:${String(song.songmid ?? song.id ?? song.hash ?? song.name ?? '')}`
+}
+
+function validatePlayHistoryItems(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value) || value.length > MAX_PLAY_HISTORY_ITEMS) {
+    throw new Error(`播放历史最多保存 ${MAX_PLAY_HISTORY_ITEMS} 首歌曲`)
+  }
+  return value.map(item => {
+    if (!isRecord(item)) throw new Error('播放历史数据格式错误')
+    const id = item.songmid ?? item.id ?? item.hash ?? item.name
+    if (
+      (typeof id !== 'string' && typeof id !== 'number') ||
+      !String(id).trim() ||
+      (item.source !== undefined && typeof item.source !== 'string') ||
+      (item.playedAt !== undefined &&
+        (typeof item.playedAt !== 'number' || !Number.isFinite(item.playedAt) || item.playedAt < 0))
+    ) {
+      throw new Error('播放历史歌曲信息无效')
+    }
+    return item
+  })
+}
+
+function mergePlayHistory(...histories: Record<string, unknown>[][]): Record<string, unknown>[] {
+  const bySong = new Map<string, Record<string, unknown>>()
+  for (const history of histories) {
+    for (const song of history) {
+      const key = playHistorySongKey(song)
+      const previous = bySong.get(key)
+      if (!previous || Number(song.playedAt || 0) >= Number(previous.playedAt || 0)) bySong.set(key, song)
+    }
+  }
+  return [...bySong.values()]
+    .sort((a, b) => Number(b.playedAt || 0) - Number(a.playedAt || 0))
+    .slice(0, MAX_PLAY_HISTORY_ITEMS)
+}
 
 /** 辅助获取请求的目标用户空间名称 */
 const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | null => {
@@ -526,6 +568,55 @@ export const createUserRouter = (): Router => {
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
+    }
+  })
+
+  // 用户最近播放历史按账户保存，与收藏/歌单分开写入，避免播放时生成歌单快照。
+  router.get('/api/user/play-history', ctx => {
+    const username = verifyUserAuth(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+
+    try {
+      const row = getDb()
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(username, PLAY_HISTORY_SETTING_KEY)
+      const items = row ? validatePlayHistoryItems(JSON.parse(row.value)) : []
+      return new Response(JSON.stringify({ exists: Boolean(row), items }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      })
+    } catch (err: any) {
+      return ctx.fail(500, toUserMessage(err, '播放历史读取失败'))
+    }
+  })
+
+  router.post('/api/user/play-history', async ctx => {
+    const username = verifyUserAuth(ctx)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
+
+    try {
+      const body = await ctx.bodyJson<{ items?: unknown }>(MAX_USER_SETTING_BODY_BYTES)
+      const incoming = validatePlayHistoryItems(body?.items)
+      const db = getDb()
+      const previous = db
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(username, PLAY_HISTORY_SETTING_KEY)
+      const existing = previous ? validatePlayHistoryItems(JSON.parse(previous.value)) : []
+      const items = mergePlayHistory(existing, incoming)
+      db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+        username,
+        PLAY_HISTORY_SETTING_KEY,
+        JSON.stringify(items),
+        Date.now(),
+      ])
+      return ctx.json({ exists: true, items })
+    } catch (err: any) {
+      return ctx.fail(400, toUserMessage(err, '播放历史保存失败'))
     }
   })
 

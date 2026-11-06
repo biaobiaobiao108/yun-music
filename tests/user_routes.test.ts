@@ -99,6 +99,51 @@ describe('User snapshot permissions', () => {
     expect((await save({ theme: 'light' }, 'http://localhost/api/user/settings?user=other')).status).toBe(403)
   })
 
+  test('play history is account-bound, merges repeated songs and survives a user-space reload', async () => {
+    const router = createUserRouter()
+    const endpoint = 'http://localhost/api/user/play-history'
+    expect((await router.handle(new Request(endpoint))).status).toBe(401)
+
+    const first = { id: 'recent-1', songmid: 'recent-1', name: 'Recent 1', source: 'wy', playedAt: 100 }
+    const latest = { ...first, quality: 'flac', playedAt: 200 }
+    const save = (items: unknown[]) =>
+      router.handle(
+        new Request(endpoint, {
+          method: 'POST',
+          headers: { ...userHeaders, 'content-type': 'application/json' },
+          body: JSON.stringify({ items }),
+        }),
+      )
+
+    const initialSave = await save([first, latest])
+    expect(initialSave.status).toBe(200)
+    expect((await initialSave.json()).items).toEqual([latest])
+
+    const second = { id: 'recent-2', songmid: 'recent-2', name: 'Recent 2', source: 'tx', playedAt: 300 }
+    const mergedSave = await save([second])
+    expect(mergedSave.status).toBe(200)
+    expect((await mergedSave.json()).items).toEqual([second, latest])
+
+    releaseUserSpace(username, true)
+    const read = await router.handle(new Request(`${endpoint}?user=_open`, { headers: userHeaders }))
+    expect(read.status).toBe(200)
+    expect(await read.json()).toEqual({ exists: true, items: [second, latest] })
+    expect(
+      getDb()
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(username, 'play_history')?.value,
+    ).toBe(JSON.stringify([second, latest]))
+
+    const anonymousSave = await router.handle(
+      new Request(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ items: [second] }),
+      }),
+    )
+    expect(anonymousSave.status).toBe(401)
+  })
+
   test('public readers cannot upload, restore or delete snapshots through any public alias', async () => {
     const router = createUserRouter()
     for (const headers of [{}, userHeaders]) {
