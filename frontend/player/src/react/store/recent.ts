@@ -20,10 +20,6 @@ function historyStorageKey(): string {
   return scopedStorageKey('play_history')
 }
 
-function pendingHistoryStorageKey(): string {
-  return scopedStorageKey('play_history_pending')
-}
-
 export function normalizePlayHistory(value: unknown): RecentSong[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<string>()
@@ -83,11 +79,10 @@ function newEventId(): string {
   )
 }
 
-function savePendingEvent(event: PendingEvent): boolean {
+function savePendingEvent(event: PendingEvent): void {
   const key = eventPrefix() + event.id
   try {
     localStorage.setItem(key, JSON.stringify(event))
-    return true
   } catch (error) {
     pendingMemory.set(key, event)
     console.warn('[Recent] 无法持久保存待同步记录：', error)
@@ -95,7 +90,6 @@ function savePendingEvent(event: PendingEvent): boolean {
       storageWarningShown = true
       usePlayerUiStore.getState().notifyPlayback('无法保存离线播放记录，关闭页面后可能丢失', 'warning')
     }
-    return false
   }
 }
 
@@ -114,44 +108,6 @@ function readPendingEvents(): PendingEvent[] {
     console.warn('[Recent] 无法读取待同步记录：', error)
   }
   return [...events.values()].sort((a, b) => Number(a.song.playedAt || 0) - Number(b.song.playedAt || 0))
-}
-
-function migratePendingHistory(): void {
-  const storage = typeof localStorage === 'undefined' ? null : localStorage
-  if (!storage) return
-  const marks = readJson<unknown>(storage, pendingHistoryStorageKey(), [])
-  if (!Array.isArray(marks) || !marks.length) return
-  const songs = new Map(readPlayHistory().map(song => [songKey(song), song]))
-  let migrated = true
-  for (const mark of marks) {
-    if (
-      !mark ||
-      typeof mark !== 'object' ||
-      typeof mark.key !== 'string' ||
-      typeof mark.playedAt !== 'number' ||
-      !Number.isFinite(mark.playedAt)
-    )
-      continue
-    const song = songs.get(mark.key)
-    if (song && Number(song.playedAt || 0) >= Number(mark.playedAt || 0)) {
-      // Stable across tabs so concurrent migration cannot submit the same old mark twice.
-      const input = `${mark.key}:${String(mark.playedAt)}`
-      let a = 2166136261
-      let b = 0x9e3779b9
-      for (let i = 0; i < input.length; i++) {
-        a = Math.imul(a ^ input.charCodeAt(i), 16777619)
-        b = Math.imul(b ^ input.charCodeAt(i), 2246822519)
-      }
-      const id = `legacy-${(a >>> 0).toString(16)}-${(b >>> 0).toString(16)}-${String(mark.playedAt).replace(/[^0-9]/g, '')}`
-      if (!savePendingEvent({ id, song })) migrated = false
-    }
-  }
-  if (!migrated) return
-  try {
-    storage.removeItem(pendingHistoryStorageKey())
-  } catch (error) {
-    console.warn('[Recent] 迁移待同步记录失败：', error)
-  }
 }
 
 function isAccountSession(): boolean {
@@ -236,7 +192,6 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
   historyController?.abort()
   const requestId = ++historyRequestId
   if (!scope.startsWith('user:')) return
-  migratePendingHistory()
   scheduleHistorySync()
   const controller = new AbortController()
   historyController = controller

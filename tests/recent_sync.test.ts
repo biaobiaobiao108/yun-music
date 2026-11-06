@@ -71,20 +71,19 @@ describe('recent playback synchronization', () => {
     expect(useRecentStore.getState().items.map(song => song.id)).toEqual(['restored'])
   })
 
-  test('migrates an old pending mark to the same event even when migration repeats', async () => {
+  test('does not import old browser playback history or pending marks', async () => {
     const song = { id: 'old', source: 'wy', name: 'Old', playedAt: 123 }
-    const pendingKey = scopedStorageKey('play_history_pending')
-    const marks = JSON.stringify([{ key: 'wy:old', playedAt: 123 }])
-    localStorage.setItem(scopedStorageKey('play_history'), JSON.stringify([song]))
-    localStorage.setItem(pendingKey, marks)
+    localStorage.setItem('play_history', JSON.stringify([song]))
+    setSessionScope('no-old-history')
+    expect(localStorage.getItem(scopedStorageKey('play_history'))).toBeNull()
+    localStorage.setItem(scopedStorageKey('play_history_pending'), JSON.stringify([{ key: 'wy:old', playedAt: 123 }]))
     globalThis.fetch = (async () => json({ revision: 1, items: [] })) as unknown as typeof fetch
     await useRecentStore.getState().hydrate()
-    localStorage.setItem(pendingKey, marks)
-    await useRecentStore.getState().hydrate()
+    expect(useRecentStore.getState().items).toEqual([])
     const events = [...Array(localStorage.length)]
       .map((_, i) => localStorage.key(i))
       .filter(key => key?.startsWith(scopedStorageKey('play_history_event') + ':'))
-    expect(events).toHaveLength(1)
+    expect(events).toEqual([])
   })
 
   test('ignores an old read arriving after a successful playback upload', async () => {

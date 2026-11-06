@@ -334,7 +334,7 @@ describe('React player module boundaries', () => {
     expect(api).toContain("'/api/music/lyric'")
   })
 
-  it('keeps recent playback compatible with the legacy play_history contract', () => {
+  it('deduplicates and limits recent playback', () => {
     const items = Array.from({ length: 55 }, (_, index) => ({
       source: 'wy',
       songmid: String(index),

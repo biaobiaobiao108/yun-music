@@ -1,6 +1,6 @@
 let sessionScope = 'guest'
 let sessionGeneration = 0
-const LEGACY_SCOPED_STORAGE_KEYS = ['lx_settings', 'lx_playback_state', 'play_history'] as const
+const LEGACY_SCOPED_STORAGE_KEYS = ['lx_settings', 'lx_playback_state'] as const
 const SCOPED_STORAGE_MIGRATION_KEY = 'yun-music:scoped-storage-migration:v1'
 
 function normalizeSessionScope(username: unknown): string {
