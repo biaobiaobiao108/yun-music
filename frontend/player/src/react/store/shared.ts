@@ -1,5 +1,12 @@
 import { applyThemePreferences } from '../../../../shared/src/theme'
 import { readString } from '../../../../shared/src/storage'
+import {
+  MUSIC_SOURCE_OPTIONS,
+  normalizeMusicSource,
+  PLAYBACK_SETTINGS_DEFAULTS,
+} from '../../../../shared/src/playback-settings'
+
+export { MUSIC_SOURCE_OPTIONS, normalizeMusicSource } from '../../../../shared/src/playback-settings'
 
 export function browserStorage(): Storage | null {
   return typeof localStorage === 'undefined' ? null : localStorage
@@ -9,8 +16,7 @@ export const DEFAULT_SETTINGS = {
   appearance: 'system',
   themeColor: 'netease',
   defaultEntry: 'favorites',
-  defaultSource: 'wy',
-  preferredQuality: 'flac',
+  ...PLAYBACK_SETTINGS_DEFAULTS,
   defaultDownloadTarget: 'server',
   defaultDownloadQuality: 'flac',
   enablePublicSources: true,
@@ -25,8 +31,6 @@ export const DEFAULT_SETTINGS = {
   enableKeyboardShortcuts: true,
   showLyricTranslation: true,
   showLyricRoma: false,
-  enableAutoSwitchSource: true,
-  enableAutoDegradeQuality: true,
   enablePreloader: true,
   enableLyricGlow: true,
   playerBackground: 'blur',
@@ -36,24 +40,12 @@ export const DEFAULT_SETTINGS = {
   switchPlaylistOnSearchPlay: true,
   switchPlaylistOnSongListPlay: true,
   enableOnlyDownloadMode: true,
-  enableServerCache: true,
-  enableServerLyricCache: true,
-  embedLyricToFile: true,
   enableLyricCache: true,
   enableSongUrlCache: true,
   preferServerCache: true,
 } as const
 
-export type MusicSource = 'wy' | 'tx'
-
-export const MUSIC_SOURCE_OPTIONS: ReadonlyArray<{ value: MusicSource; label: string }> = [
-  { value: 'wy', label: '网易云音乐' },
-  { value: 'tx', label: 'QQ 音乐' },
-]
-
-export function normalizeMusicSource(value: unknown): MusicSource {
-  return value === 'tx' ? 'tx' : 'wy'
-}
+export type MusicSource = (typeof MUSIC_SOURCE_OPTIONS)[number]['value']
 
 export function musicSourceLabel(value: unknown): string {
   const source = normalizeMusicSource(value)

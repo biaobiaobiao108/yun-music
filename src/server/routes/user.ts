@@ -23,6 +23,7 @@ import { initUserApis, reloadUserCustomSources } from '../userApi'
 import { removeUserSourceData } from '@/user/sourceStorage'
 import { LIST_IDS } from '@/constants'
 import { releaseDataOperation, tryAcquireDataOperation } from '../dataOperationLock'
+import { normalizePlaybackSettings } from '../../../frontend/shared/src/playback-settings'
 
 let accountChangeInProgress = false
 
@@ -166,6 +167,20 @@ const resolveSettingsUsername = (ctx: HttpContext, write = false): string | Resp
 
 const isSettingsRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
+
+function readSettingsRecord(username: string): Record<string, unknown> {
+  try {
+    const row = getDb()
+      .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+      .get(username, 'settings')
+    if (!row) return {}
+    const parsed: unknown = JSON.parse(row.value)
+    return isSettingsRecord(parsed) ? parsed : {}
+  } catch (error) {
+    console.error('Failed to get user settings from DB:', error)
+    return {}
+  }
+}
 
 /** 注册用户歌单、账户管理、偏好与曲库数据管理路由 */
 export const createUserRouter = (): Router => {
@@ -735,23 +750,13 @@ export const createUserRouter = (): Router => {
   router.get('/api/user/settings', ctx => {
     const resolvedUsername = resolveSettingsUsername(ctx)
     if (resolvedUsername instanceof Response) return resolvedUsername
+    return ctx.json(readSettingsRecord(resolvedUsername))
+  })
 
-    try {
-      const db = getDb()
-      const row = db
-        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
-        .get(resolvedUsername, 'settings')
-
-      if (row) {
-        return new Response(row.value, {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-    } catch (e) {
-      console.error('Failed to get user settings from DB:', e)
-    }
-    return ctx.json({})
+  router.get('/api/user/playback-settings', ctx => {
+    const resolvedUsername = resolveSettingsUsername(ctx)
+    if (resolvedUsername instanceof Response) return resolvedUsername
+    return ctx.json(normalizePlaybackSettings(readSettingsRecord(resolvedUsername)))
   })
 
   router.post('/api/user/settings', async ctx => {

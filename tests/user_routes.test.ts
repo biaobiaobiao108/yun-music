@@ -82,6 +82,36 @@ describe('User data routes', () => {
     expect((await save({ theme: 'light' }, 'http://localhost/api/user/settings?user=other')).status).toBe(403)
   })
 
+  test('playback settings merge saved values with the web player defaults', async () => {
+    const router = createUserRouter()
+    const saved = await router.handle(
+      new Request('http://localhost/api/user/settings', {
+        method: 'POST',
+        headers: { ...userHeaders, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          defaultSource: 'tx',
+          preferredQuality: '320k',
+          enableServerCache: false,
+          enableAutoDegradeQuality: false,
+        }),
+      }),
+    )
+    expect(saved.status).toBe(200)
+
+    const response = await router.handle(
+      new Request('http://localhost/api/user/playback-settings', { headers: userHeaders }),
+    )
+    expect(await response.json()).toEqual({
+      defaultSource: 'tx',
+      preferredQuality: '320k',
+      enableAutoSwitchSource: true,
+      enableAutoDegradeQuality: false,
+      enableServerCache: false,
+      enableServerLyricCache: true,
+      embedLyricToFile: true,
+    })
+  })
+
   test('play history events are account-bound and survive a user-space reload', async () => {
     const router = createUserRouter()
     const endpoint = 'http://localhost/api/user/play-history'
