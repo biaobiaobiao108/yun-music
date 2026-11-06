@@ -40,18 +40,6 @@ export function normalizePlayHistory(value: unknown): RecentSong[] {
     .slice(0, MAX_RECENT_SONGS)
 }
 
-export function mergePlayHistory(...histories: unknown[]): RecentSong[] {
-  const bySong = new Map<string, RecentSong>()
-  for (const history of histories) {
-    for (const song of normalizePlayHistory(history)) {
-      const key = songKey(song)
-      const previous = bySong.get(key)
-      if (!previous || Number(song.playedAt || 0) >= Number(previous.playedAt || 0)) bySong.set(key, song)
-    }
-  }
-  return normalizePlayHistory([...bySong.values()])
-}
-
 // The server list is already ordered; client clocks must not reorder it.
 function orderedPlayHistory(value: unknown): RecentSong[] {
   if (!Array.isArray(value)) return []
@@ -225,7 +213,7 @@ function flushPendingPlayHistory(): Promise<void> {
           console.warn('[Recent] 清除待同步记录失败：', error)
         }
       }
-      if (!applyRemoteHistory(result.items, result.revision ?? 0)) void useRecentStore.getState().hydrate()
+      if (!applyRemoteHistory(result.items, result.revision)) void useRecentStore.getState().hydrate()
     })
     .catch(error => {
       if (!controller.signal.aborted && getSessionScope() === scope)
@@ -263,7 +251,7 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
     )
       return
     if (remote.unchanged) return
-    if (!applyRemoteHistory(remote.items, remote.revision ?? 0)) {
+    if (!applyRemoteHistory(remote.items, remote.revision)) {
       // A restored backup can legitimately move the server revision backwards.
       // Confirm with a fresh read before accepting a lower revision.
       const storage = typeof localStorage === 'undefined' ? null : localStorage
@@ -277,10 +265,10 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
       )
         return
       const after = readJson<{ revision: number; items: RecentSong[] } | null>(storage, snapshotKey(), null)
-      if (after && after.revision > (before?.revision ?? 0) && after.revision > (confirmed.revision ?? 0)) {
+      if (after && after.revision > (before?.revision ?? 0) && after.revision > confirmed.revision) {
         applyRemoteHistory(after.items, after.revision, false)
       } else {
-        applyRemoteHistory(confirmed.items, confirmed.revision ?? 0, true, true)
+        applyRemoteHistory(confirmed.items, confirmed.revision, true, true)
       }
     }
   } catch (error) {

@@ -82,49 +82,32 @@ describe('User data routes', () => {
     expect((await save({ theme: 'light' }, 'http://localhost/api/user/settings?user=other')).status).toBe(403)
   })
 
-  test('play history is account-bound, merges repeated songs and survives a user-space reload', async () => {
+  test('play history events are account-bound and survive a user-space reload', async () => {
     const router = createUserRouter()
     const endpoint = 'http://localhost/api/user/play-history'
     expect((await router.handle(new Request(endpoint))).status).toBe(401)
-
-    const first = { id: 'recent-1', songmid: 'recent-1', name: 'Recent 1', source: 'wy', playedAt: 100 }
-    const latest = { ...first, quality: 'flac', playedAt: 200 }
-    const save = (items: unknown[]) =>
+    const event = { id: 'event-one', song: { id: 'recent-1', name: 'Recent 1', source: 'wy' } }
+    const save = (headers: Record<string, string>) =>
       router.handle(
-        new Request(endpoint, {
+        new Request(`${endpoint}/events`, {
           method: 'POST',
-          headers: { ...userHeaders, 'content-type': 'application/json' },
-          body: JSON.stringify({ items }),
+          headers: { ...headers, 'content-type': 'application/json' },
+          body: JSON.stringify({ events: [event] }),
         }),
       )
-
-    const initialSave = await save([first, latest])
-    expect(initialSave.status).toBe(200)
-    expect((await initialSave.json()).items).toEqual([latest])
-
-    const second = { id: 'recent-2', songmid: 'recent-2', name: 'Recent 2', source: 'tx', playedAt: 300 }
-    const mergedSave = await save([second])
-    expect(mergedSave.status).toBe(200)
-    expect((await mergedSave.json()).items).toEqual([second, latest])
-
+    expect((await save({})).status).toBe(401)
+    const saved = await save(userHeaders)
+    expect(saved.status).toBe(200)
+    const savedHistory = await saved.json()
     releaseUserSpace(username, true)
     const read = await router.handle(new Request(`${endpoint}?user=_open`, { headers: userHeaders }))
     expect(read.status).toBe(200)
-    expect(await read.json()).toEqual({ items: [second, latest] })
+    expect(await read.json()).toEqual(savedHistory)
     expect(
       getDb()
         .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
         .get(username, 'play_history')?.value,
-    ).toBe(JSON.stringify([second, latest]))
-
-    const anonymousSave = await router.handle(
-      new Request(endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ items: [second] }),
-      }),
-    )
-    expect(anonymousSave.status).toBe(401)
+    ).toBe(JSON.stringify(savedHistory.items))
   })
 
   test('merges playback events across devices and ignores retries', async () => {
@@ -189,23 +172,11 @@ describe('User data routes', () => {
     ).toBeNull()
     const created = await (await save([{ id: 'new-event', song }])).json()
     const unchanged = await router.handle(
-      new Request(`http://localhost/api/user/play-history?v=2&since=${created.revision}`, { headers: userHeaders }),
+      new Request(`http://localhost/api/user/play-history?since=${created.revision}`, { headers: userHeaders }),
     )
     expect(await unchanged.json()).toEqual({ items: [], revision: created.revision, unchanged: true })
     const retry = await (await save([{ id: 'new-event', song }])).json()
     expect(retry).toEqual(created)
-  })
-
-  test('legacy clients cannot write future playback times', async () => {
-    const router = createUserRouter()
-    const response = await router.handle(
-      new Request('http://localhost/api/user/play-history', {
-        method: 'POST',
-        headers: { ...userHeaders, 'content-type': 'application/json' },
-        body: JSON.stringify({ items: [{ id: 'future', source: 'wy', playedAt: 9999999999999 }] }),
-      }),
-    )
-    expect((await response.json()).items[0].playedAt).toBeLessThanOrEqual(Date.now())
   })
 
   test('does not lose the first favorite or playlist write during user-space initialization', async () => {

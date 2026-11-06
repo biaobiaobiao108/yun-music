@@ -45,7 +45,7 @@ export type UserPlaylist = Record<string, unknown> & {
 }
 export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: UserPlaylist[] }
 export type PlayHistoryItem = Song & { playedAt?: number; quality?: string }
-export type PlayHistoryData = { items: PlayHistoryItem[]; revision?: number; unchanged?: boolean }
+export type PlayHistoryData = { items: PlayHistoryItem[]; revision: number; unchanged?: boolean }
 export type CacheTask = Record<string, unknown> & {
   id?: string
   songKey?: string
@@ -189,13 +189,7 @@ export const playerApi = {
       ...policy,
     }),
   playHistory: (signal?: AbortSignal, revision?: number) =>
-    requestJson<PlayHistoryData>(`/api/user/play-history?v=2${revision === undefined ? '' : `&since=${revision}`}`, {
-      signal,
-    }),
-  savePlayHistory: (items: PlayHistoryItem[], signal?: AbortSignal) =>
-    requestJson<PlayHistoryData>('/api/user/play-history', {
-      method: 'POST',
-      body: JSON.stringify({ items }),
+    requestJson<PlayHistoryData>(`/api/user/play-history${revision === undefined ? '' : `?since=${revision}`}`, {
       signal,
     }),
   savePlayHistoryEvents: (events: { id: string; song: PlayHistoryItem }[], signal?: AbortSignal) =>

@@ -58,20 +58,6 @@ function validatePlayHistoryItems(value: unknown): Record<string, unknown>[] {
   })
 }
 
-function mergePlayHistory(...histories: Record<string, unknown>[][]): Record<string, unknown>[] {
-  const bySong = new Map<string, Record<string, unknown>>()
-  for (const history of histories) {
-    for (const song of history) {
-      const key = playHistorySongKey(song)
-      const previous = bySong.get(key)
-      if (!previous || Number(song.playedAt || 0) >= Number(previous.playedAt || 0)) bySong.set(key, song)
-    }
-  }
-  return [...bySong.values()]
-    .sort((a, b) => Number(b.playedAt || 0) - Number(a.playedAt || 0))
-    .slice(0, MAX_PLAY_HISTORY_ITEMS)
-}
-
 /** 辅助获取请求的目标用户空间名称 */
 const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | null => {
   const config = (global.lx?.config ?? {}) as any
@@ -579,56 +565,17 @@ export const createUserRouter = (): Router => {
         )
         .get(username, PLAY_HISTORY_SETTING_KEY)
       const revision = row?.updated_at ?? 0
-      const unchanged = ctx.query.get('v') === '2' && ctx.query.get('since') === String(revision)
+      const unchanged = ctx.query.get('since') === String(revision)
       const items = unchanged ? [] : row ? validatePlayHistoryItems(JSON.parse(row.value)) : []
-      return new Response(
-        JSON.stringify(
-          ctx.query.get('v') === '2' ? { items, revision, ...(unchanged ? { unchanged: true } : {}) } : { items },
-        ),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-          },
+      return new Response(JSON.stringify({ items, revision, ...(unchanged ? { unchanged: true } : {}) }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
-      )
+      })
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '播放历史读取失败'))
-    }
-  })
-
-  router.post('/api/user/play-history', async ctx => {
-    const username = verifyUserAuth(ctx)
-    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
-    const unavailable = rejectUnavailableDataWrite(ctx, username)
-    if (unavailable) return unavailable
-
-    try {
-      const body = await ctx.bodyJson<{ items?: unknown }>(MAX_USER_SETTING_BODY_BYTES)
-      const incoming = validatePlayHistoryItems(body?.items)
-      const db = getDb()
-      const previous = db
-        .query<{ value: string; updated_at: number }, [string, string]>(
-          'SELECT value, updated_at FROM user_settings WHERE user_name = ? AND key = ?',
-        )
-        .get(username, PLAY_HISTORY_SETTING_KEY)
-      const now = Date.now()
-      const clampTime = (song: Record<string, unknown>) => ({
-        ...song,
-        playedAt: Math.min(Number(song.playedAt || 0), now),
-      })
-      const existing = previous ? validatePlayHistoryItems(JSON.parse(previous.value)).map(clampTime) : []
-      const items = mergePlayHistory(existing, incoming.map(clampTime))
-      db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
-        username,
-        PLAY_HISTORY_SETTING_KEY,
-        JSON.stringify(items),
-        Math.max(now, (previous?.updated_at ?? 0) + 1),
-      ])
-      return ctx.json({ items })
-    } catch (err: any) {
-      return ctx.fail(400, toUserMessage(err, '播放历史保存失败'))
     }
   })
 
