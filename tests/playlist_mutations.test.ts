@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { closeDb, getDb, initDatabase } from '@/database'
+import { closeDb, initDatabase } from '@/database'
 import { getUserSpace, releaseUserSpace, syncUsersToDatabase } from '@/user'
 import { createUserRouter } from '@/server/routes/user'
 import { createAdminSession } from '@/server/auth'
@@ -101,7 +101,7 @@ test('remote playlist toggle acts atomically on its source identity', async () =
   expect((await getUserSpace('playlist_owner').listManage.getListData()).userList).toEqual([])
 })
 
-test('invalid list replacements and imported snapshots preserve current favorites', async () => {
+test('invalid list replacements preserve current favorites', async () => {
   const router = createUserRouter()
   const manager = getUserSpace('playlist_owner').listManage
   const initial: LX.List.ListData = {
@@ -119,8 +119,6 @@ test('invalid list replacements and imported snapshots preserve current favorite
     ],
   }
   await manager.listDataManage.restore(initial)
-  await manager.createSnapshot()
-  const originalSnapshots = await manager.getSnapshotList()
   const invalidBodies = [{}, { ...initial, userList: [{ id: 'broken', name: 'Broken', list: null }] }]
   for (const body of invalidBodies) {
     const response = await router.handle(
@@ -132,25 +130,6 @@ test('invalid list replacements and imported snapshots preserve current favorite
     )
     expect(response.ok).toBe(false)
     expect(await manager.getListData()).toEqual(initial)
-    const upload = await router.handle(
-      new Request('http://localhost/api/data/upload-snapshot?user=playlist_owner&filename=invalid', {
-        method: 'POST',
-        headers: { cookie, 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      }),
-    )
-    expect(upload.ok).toBe(false)
   }
-  expect(await manager.getSnapshotList()).toEqual(originalSnapshots)
-  // Invalid historical/database data must also be rejected when restoring.
-  getDb().run('INSERT INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
-    'invalid',
-    'playlist_owner',
-    'list',
-    '{}',
-    2,
-    Date.now(),
-  ])
-  await expect(manager.restoreSnapshot('invalid')).rejects.toThrow('Snapshot not found')
   expect(await manager.getListData()).toEqual(initial)
 })

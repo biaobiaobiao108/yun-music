@@ -211,14 +211,7 @@ const margeConfig = (p: string, preserveUsers = false) => {
 
   console.log('Load config: ' + p)
   if (!preserveUsers && newConfig.users.length) {
-    const users: LX.UserConfig[] = []
-    for (const user of newConfig.users) {
-      users.push({
-        ...user,
-        dataPath: '',
-      })
-    }
-    newConfig.users = users
+    newConfig.users = newConfig.users.map(user => ({ ...user, dataPath: '' }))
   }
   global.lx.config = newConfig
 
@@ -257,10 +250,6 @@ const applyEnvironmentConfig = () => {
     global.lx.config['proxy.trustedAddresses'] = envParams.TRUSTED_PROXY_ADDRESSES.split(',')
       .map(value => value.trim())
       .filter(Boolean)
-  }
-  if (envParams.MAX_SNAPSHOT_NUM) {
-    const num = parseInt(envParams.MAX_SNAPSHOT_NUM)
-    if (!isNaN(num)) global.lx.config.maxSnapshotNum = Math.min(Math.max(num, 1), 100)
   }
   if (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {
     switch (envParams.LIST_ADD_MUSIC_LOCATION_TYPE) {

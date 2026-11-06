@@ -1,48 +1,60 @@
 import { SPLIT_CHAR } from '@/constants'
-import { type SnapshotDataManage } from './snapshotDataManage'
+import { getDb } from '@/database'
+import { type UserDataManage } from '@/user/data'
 import { filterRules } from './utils'
 
-const filterRulesToString = (rules: string) => {
-  return Array.from(filterRules(rules)).join('\n')
-}
+const filterRulesToString = (rules: string) => Array.from(filterRules(rules)).join('\n')
 
 export class DislikeDataManage {
-  snapshotDataManage: SnapshotDataManage
+  readonly userDataManage: UserDataManage
   dislikeRules = ''
-  private ready: Promise<void>
+  private ready: Promise<void> | null = null
 
-  constructor(snapshotDataManage: SnapshotDataManage) {
-    this.snapshotDataManage = snapshotDataManage
+  constructor(userDataManage: UserDataManage) {
+    this.userDataManage = userDataManage
+  }
 
-    this.ready = this.snapshotDataManage
-      .getSnapshotInfo()
-      .then(async snapshotInfo => {
-        const dislikeRules = snapshotInfo.latest ? await this.snapshotDataManage.getSnapshot(snapshotInfo.latest) : ''
-        this.dislikeRules = dislikeRules || ''
+  private ensureReady = (): Promise<void> => {
+    if (!this.ready) {
+      this.ready = Promise.resolve().then(() => {
+        const row = getDb()
+          .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+          .get(this.userDataManage.userName, 'dislike_rules')
+        if (row) this.dislikeRules = filterRulesToString(row.value)
       })
-      .catch(error => {
-        console.error('[Dislike] 快照初始化失败:', error)
-      })
+    }
+    return this.ready
+  }
+
+  private save = (): void => {
+    getDb().run(
+      `INSERT INTO user_settings (user_name, key, value, updated_at)
+       VALUES (?, 'dislike_rules', ?, ?)
+       ON CONFLICT(user_name, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [this.userDataManage.userName, this.dislikeRules, Date.now()],
+    )
   }
 
   getDislikeRules = async (): Promise<LX.Dislike.DislikeRules> => {
-    await this.ready
+    await this.ensureReady()
     return this.dislikeRules
   }
 
   addDislikeInfo = async (infos: LX.Dislike.DislikeMusicInfo[]) => {
-    await this.ready
+    await this.ensureReady()
     this.dislikeRules = filterRulesToString(
       this.dislikeRules +
         '\n' +
         infos.map(info => `${info.name ?? ''}${SPLIT_CHAR.DISLIKE_NAME}${info.singer ?? ''}`).join('\n'),
     )
+    this.save()
     return this.dislikeRules
   }
 
   overwirteDislikeInfo = async (rules: string) => {
-    await this.ready
+    await this.ensureReady()
     this.dislikeRules = filterRulesToString(rules)
+    this.save()
     return this.dislikeRules
   }
 }

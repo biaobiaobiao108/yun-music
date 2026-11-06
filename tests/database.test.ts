@@ -14,9 +14,8 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     ;(global as any).lx = {
       dataPath: testDataDir,
       config: {
-        maxSnapshotNum: 5,
         'list.addMusicLocationType': 'bottom',
-        users: [{ name: 'testuser', password: 'pwd', maxSnapshotNum: 5, 'list.addMusicLocationType': 'bottom' }],
+        users: [{ name: 'testuser', password: 'pwd', 'list.addMusicLocationType': 'bottom' }],
       },
     }
     closeDb()
@@ -79,57 +78,45 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     const db = getDb()
     const now = Date.now()
     db.run(
-      'INSERT OR REPLACE INTO users (name, password_hash, max_snapshot_num, add_music_location_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ['alice', await hashUserPassword('secret'), 10, 'top', now, now],
+      'INSERT OR REPLACE INTO users (name, password_hash, add_music_location_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      ['alice', await hashUserPassword('secret'), 'top', now, now],
     )
 
-    const user = db.query('SELECT name, password_hash, max_snapshot_num FROM users WHERE name = ?').get('alice') as any
+    const user = db.query('SELECT name, password_hash FROM users WHERE name = ?').get('alice') as any
 
     expect(user).toBeDefined()
     expect(user?.name).toBe('alice')
     expect(user?.password_hash).not.toBe('secret')
     expect(await verifyUserPassword(user?.password_hash, 'secret')).toBe(true)
-    expect(user?.max_snapshot_num).toBe(10)
   })
 
-  it('should store and query snapshots correctly', () => {
+  it('does not create snapshot history tables or per-user snapshot settings', () => {
     const db = getDb()
-    const now = Date.now()
-    const testData = JSON.stringify({ defaultList: [], userList: [] })
-    db.run(
-      'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ['snap_1', 'alice', 'list', testData, testData.length, now],
-    )
-
-    const snap = db
-      .query('SELECT id, data FROM snapshots WHERE user_name = ? AND module = ? AND id = ?')
-      .get('alice', 'list', 'snap_1') as any
-
-    expect(snap).toBeDefined()
-    expect(snap?.id).toBe('snap_1')
-    expect(JSON.parse(snap.data)).toEqual({ defaultList: [], userList: [] })
+    expect(
+      db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('snapshots', 'snapshot_meta')").all(),
+    ).toEqual([])
+    expect(
+      db
+        .query('PRAGMA table_info(users)')
+        .all()
+        .map((column: any) => column.name),
+    ).not.toContain('max_snapshot_num')
   })
 
   it('refreshes Web user metadata without persisting passwords', async () => {
     const db = getDb()
-    const users = [
-      { name: 'paired_user', password: 'secret', maxSnapshotNum: 5, dataPath: path.join(testDataDir, 'paired_user') },
-    ]
+    const users = [{ name: 'paired_user', password: 'secret', dataPath: path.join(testDataDir, 'paired_user') }]
     await syncUsersToDatabase(users)
     db.run('UPDATE users SET created_at = 123 WHERE name = ?', ['paired_user'])
 
-    users[0].maxSnapshotNum = 20
     await syncUsersToDatabase([
       ...users,
-      { name: 'new_user', password: 'another', maxSnapshotNum: 10, dataPath: path.join(testDataDir, 'new_user') },
+      { name: 'new_user', password: 'another', dataPath: path.join(testDataDir, 'new_user') },
     ])
     await syncUsersToDatabase(users)
 
-    const persisted = db
-      .query('SELECT created_at, max_snapshot_num, password_hash FROM users WHERE name = ?')
-      .get('paired_user') as any
+    const persisted = db.query('SELECT created_at, password_hash FROM users WHERE name = ?').get('paired_user') as any
     expect(persisted?.created_at).toBe(123)
-    expect(persisted?.max_snapshot_num).toBe(20)
     expect(persisted?.password_hash).not.toBe('secret')
     expect(await verifyUserPassword(persisted?.password_hash, 'secret')).toBe(true)
     expect(db.query('SELECT name FROM users WHERE name = ?').get('new_user')).toEqual({ name: 'new_user' })
@@ -178,12 +165,14 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     const db = getDb()
     const payload = 'x'.repeat(128 * 1024)
     const now = Date.now()
-    db.run(
-      'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      ['large_snapshot', 'testuser', 'list', payload, payload.length, now],
-    )
+    db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+      'testuser',
+      'large_setting',
+      payload,
+      now,
+    ])
     const beforeDelete = getDatabaseStorageStats()
-    db.run('DELETE FROM snapshots WHERE id = ?', ['large_snapshot'])
+    db.run('DELETE FROM user_settings WHERE user_name = ? AND key = ?', ['testuser', 'large_setting'])
     const result = vacuumDatabase()
 
     expect(beforeDelete.totalBytes).toBeGreaterThan(0)

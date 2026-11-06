@@ -25,12 +25,7 @@ export const getUserDirname = (userName: string): string => {
   return `${filterFileName(userName)}_${toMD5(userName).substring(0, 6)}`
 }
 
-const validateStoredUserRow = (row: {
-  name: string
-  password_hash: string
-  max_snapshot_num: number
-  add_music_location_type: string
-}): void => {
+const validateStoredUserRow = (row: { name: string; password_hash: string; add_music_location_type: string }): void => {
   if (isReservedUserAlias(row.name)) throw new Error('SQLite 用户表包含系统保留用户名 default/open/_open')
   try {
     assertSafePathSegment(row.name, 'user name')
@@ -39,9 +34,6 @@ const validateStoredUserRow = (row: {
   }
   if (!isPasswordHash(row.password_hash)) {
     throw new Error('SQLite 用户表包含不合法的密码哈希')
-  }
-  if (!Number.isInteger(row.max_snapshot_num) || row.max_snapshot_num < 1 || row.max_snapshot_num > 10000) {
-    throw new Error('SQLite 用户表包含不合法的快照数量配置')
   }
   if (row.add_music_location_type !== 'top' && row.add_music_location_type !== 'bottom') {
     throw new Error('SQLite 用户表包含不合法的歌单配置')
@@ -55,7 +47,6 @@ export const verifyUserPassword = verifyPasswordHash
 type PreparedUser = {
   user: LX.Config['users'][number]
   passwordHash: string
-  maxSnapshotNum: number
   addMusicLocationType: LX.AddMusicLocationType
 }
 type StoredUserPassword = { name: string; password_hash: string }
@@ -82,11 +73,7 @@ const prepareUsersForDatabase = async (
   for (const user of users) {
     assertPrivateUserNameNotReserved(user.name)
     assertSafePathSegment(user.name, 'user name')
-    const maxSnapshotNum = user.maxSnapshotNum ?? global.lx.config.maxSnapshotNum ?? 10
     const addMusicLocationType = user['list.addMusicLocationType'] ?? 'bottom'
-    if (!Number.isInteger(maxSnapshotNum) || maxSnapshotNum < 1 || maxSnapshotNum > 10000) {
-      throw new Error(`用户 ${user.name} 的快照数量配置无效`)
-    }
     if (addMusicLocationType !== 'top' && addMusicLocationType !== 'bottom') {
       throw new Error(`用户 ${user.name} 的歌单配置无效`)
     }
@@ -95,7 +82,7 @@ const prepareUsersForDatabase = async (
     if (typeof passwordHash !== 'string' || !PASSWORD_HASH_PATTERN.test(passwordHash)) {
       throw new Error(`用户 ${user.name} 缺少有效密码`)
     }
-    preparedUsers.push({ user, passwordHash, maxSnapshotNum, addMusicLocationType })
+    preparedUsers.push({ user, passwordHash, addMusicLocationType })
   }
   return { db, existingRows, preparedUsers }
 }
@@ -110,9 +97,7 @@ const writePreparedUsersToDatabase = (
   const currentNames = new Set(preparedUsers.map(({ user }) => user.name))
   // Names whose structured data must be destroyed together with the account.
   // Everything else (e.g. an entry removed by hand from config.js) keeps its
-  // playlists and settings: the users row is dropped, but snapshots,
-  // snapshot_meta and user_settings stay so that recreating a user with the
-  // same name restores them. Deleting them silently was the P0 in CODE_REVIEW.
+  // playlists and settings so recreating the same account restores them.
   const purgeNames = new Set(options.purgeMissingData ?? [])
   if (options.removeMissing) {
     for (const row of existingRows) {
@@ -130,17 +115,16 @@ const writePreparedUsersToDatabase = (
     }
   }
   const stmt = db.prepare(`
-      INSERT INTO users (name, password_hash, max_snapshot_num, add_music_location_type, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO users (name, password_hash, add_music_location_type, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(name) DO UPDATE SET
         password_hash = excluded.password_hash,
-        max_snapshot_num = excluded.max_snapshot_num,
         add_music_location_type = excluded.add_music_location_type,
         updated_at = excluded.updated_at
   `)
   try {
-    for (const { user, passwordHash, maxSnapshotNum, addMusicLocationType } of preparedUsers) {
-      stmt.run(user.name, passwordHash, maxSnapshotNum, addMusicLocationType, now, now)
+    for (const { user, passwordHash, addMusicLocationType } of preparedUsers) {
+      stmt.run(user.name, passwordHash, addMusicLocationType, now, now)
     }
   } finally {
     stmt.finalize()
@@ -176,11 +160,10 @@ export const initializeUsersFromDatabase = async (bootstrapUsers: LX.Config['use
       {
         name: string
         password_hash: string
-        max_snapshot_num: number
         add_music_location_type: string
       },
       []
-    >('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users ORDER BY name')
+    >('SELECT name, password_hash, add_music_location_type FROM users ORDER BY name')
     .all()
 
   const initialized = db
@@ -204,7 +187,6 @@ const applyUsersFromDatabase = (
   rows: Array<{
     name: string
     password_hash: string
-    max_snapshot_num: number
     add_music_location_type: string
   }>,
   configuredUsers: LX.Config['users'],
@@ -221,11 +203,6 @@ const applyUsersFromDatabase = (
       'list.addMusicLocationType': row.add_music_location_type as LX.AddMusicLocationType,
       dataPath: path.join(global.lx.userPath, getUserDirname(row.name)),
     }
-    // only keep an explicit per-user override. Copying the stored value into
-    // the runtime object made `POST /api/config` (global maxSnapshotNum) a
-    // no-op for every existing account, because the DB row always won.
-    if (configured?.maxSnapshotNum !== undefined) user.maxSnapshotNum = configured.maxSnapshotNum
-    else delete user.maxSnapshotNum
     return user
   })
   for (const user of global.lx.config.users) {
@@ -240,11 +217,10 @@ export const refreshUsersFromDatabase = (): void => {
       {
         name: string
         password_hash: string
-        max_snapshot_num: number
         add_music_location_type: string
       },
       []
-    >('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users ORDER BY name')
+    >('SELECT name, password_hash, add_music_location_type FROM users ORDER BY name')
     .all()
   if (rows.length === 0) {
     global.lx.config.users = []
@@ -255,40 +231,10 @@ export const refreshUsersFromDatabase = (): void => {
 
 /** 在调用方的事务内删除该用户的全部结构化数据（含 users 行）。 */
 const purgeUserRows = (db: ReturnType<typeof getDb>, userName: string): void => {
-  db.run('DELETE FROM snapshots WHERE user_name = ?', [userName])
-  db.run('DELETE FROM snapshot_meta WHERE user_name = ?', [userName])
   db.run('DELETE FROM user_settings WHERE user_name = ?', [userName])
   db.run('DELETE FROM user_sessions WHERE user_name = ?', [userName])
   db.run('DELETE FROM cache_index WHERE user_name = ?', [userName])
   db.run('DELETE FROM users WHERE name = ?', [userName])
-}
-
-/**
- * 快照数量上限的解析顺序：用户级显式覆盖 → 数据库值 → 全局配置 → 10。
- *
- * 不抛 "user not found"：账号删除后如果保留了歌单数据（deleteData=false），
- * 之后的历史列表/裁剪仍需要读这个值，否则每次请求都会 500。
- */
-export const resolveMaxSnapshotNum = (userName: string, storedValue?: number): number => {
-  const user = global.lx.config.users?.find(item => item.name === userName)
-  const candidates: Array<number | undefined> = [user?.maxSnapshotNum, storedValue, global.lx.config.maxSnapshotNum, 10]
-  for (const candidate of candidates) {
-    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 1) return Math.min(candidate, 100)
-  }
-  return 10
-}
-
-export const getMaxSnapshotNum = (userName: string): number => {
-  const row = getDb()
-    .query<{ max_snapshot_num: number }, [string]>('SELECT max_snapshot_num FROM users WHERE name = ?')
-    .get(userName)
-  return resolveMaxSnapshotNum(userName, row?.max_snapshot_num)
-}
-
-/** Update users that still use the previous global default, preserving overrides. */
-export const updateStoredSnapshotLimitDefault = (previous: number, next: number): void => {
-  if (!Number.isInteger(previous) || !Number.isInteger(next) || previous === next) return
-  getDb().run('UPDATE users SET max_snapshot_num = ? WHERE max_snapshot_num = ?', [next, previous])
 }
 
 /** 重命名用户时同步 SQLite 归属和文件夹；不保留旧协议状态。 */
@@ -319,8 +265,6 @@ export const migrateUserData = (oldName: string, newName: string): string => {
       // before changing the primary key.
       db.run('DELETE FROM user_sessions WHERE user_name = ?', [oldName])
       db.run('UPDATE users SET name = ?, updated_at = ? WHERE name = ?', [newName, now, oldName])
-      db.run('UPDATE snapshots SET user_name = ? WHERE user_name = ?', [newName, oldName])
-      db.run('UPDATE snapshot_meta SET user_name = ? WHERE user_name = ?', [newName, oldName])
       db.run('UPDATE user_settings SET user_name = ? WHERE user_name = ?', [newName, oldName])
       db.run('UPDATE cache_index SET user_name = ? WHERE user_name = ?', [newName, oldName])
     })()

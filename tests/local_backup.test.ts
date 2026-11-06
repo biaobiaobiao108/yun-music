@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
-import { closeDb, createDatabaseSnapshot, getDb, initDatabase } from '@/database'
+import { closeDb, createDatabaseBackupCopy, getDb, initDatabase } from '@/database'
 import {
   createLocalBackup,
   detectArchiveTool,
@@ -124,7 +124,7 @@ describe('Local backup restore', () => {
 
   test('restores database and user files while dropping media cache index', async () => {
     const backupDbPath = path.join(tempDir, 'backup-source.db')
-    createDatabaseSnapshot(backupDbPath)
+    createDatabaseBackupCopy(backupDbPath)
     getDb().run(
       'INSERT INTO cache_index (location, user_name, folder, song_id, quality, data, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ['root', 'backup-user', 'cache', 'cached-song', '320k', '{}', Date.now()],
@@ -154,7 +154,7 @@ describe('Local backup restore', () => {
 
   test('failed backup configuration persistence restores the original runtime accounts and database', async () => {
     const backupDbPath = path.join(tempDir, 'backup-source.db')
-    createDatabaseSnapshot(backupDbPath)
+    createDatabaseBackupCopy(backupDbPath)
     const archive = await createZip([
       { name: 'database/yun-yin.db', sourcePath: backupDbPath },
       { name: 'config.js', content: 'module.exports = {"serverName":"restored"}\n' },
@@ -163,7 +163,6 @@ describe('Local backup restore', () => {
       {
         name: 'current-user',
         password: 'current-secret',
-        maxSnapshotNum: 3,
         dataPath: path.join(global.lx.userPath, getUserDirname('current-user')),
       },
     ]
@@ -199,7 +198,7 @@ describe('Local backup restore', () => {
 
   test('keeps recovery copies when restoring the original user directory fails', async () => {
     const backupDbPath = path.join(tempDir, 'backup-source.db')
-    createDatabaseSnapshot(backupDbPath)
+    createDatabaseBackupCopy(backupDbPath)
     const archive = await createZip([{ name: 'database/yun-yin.db', sourcePath: backupDbPath }])
     const originalRename = fs.renameSync
     const renameSpy = spyOn(fs, 'renameSync').mockImplementation((source, destination) => {

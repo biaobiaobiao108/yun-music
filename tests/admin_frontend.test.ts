@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { adminSongId, normalizeAdminData } from '../frontend/admin/src/react/api'
 import { reorderCustomSourceIds } from '../frontend/admin/src/react/custom-source-order'
 
 const root = path.join(import.meta.dir, '..')
@@ -21,72 +20,6 @@ describe('React admin frontend', () => {
     expect(reorderCustomSourceIds(['a', 'b', 'c', 'd'], 'b', 'c', true)).toEqual(['a', 'c', 'b', 'd'])
     expect(reorderCustomSourceIds(['a', 'b'], 'a', 'a', false)).toBeNull()
     expect(reorderCustomSourceIds(['a', 'b'], 'x', 'b', false)).toBeNull()
-  })
-
-  it('normalizes persisted song metadata for snapshot exports', () => {
-    const data = normalizeAdminData({
-      data: {
-        defaultList: [
-          {
-            id: 7,
-            name: '试听歌曲',
-            singer: '歌手',
-            albumName: '专辑',
-            album: '旧专辑字段',
-            meta: { picUrl: 'https://example.com/cover.jpg', songId: 7 },
-          },
-        ],
-        loveList: [],
-        userList: [
-          {
-            id: 12,
-            name: '夜间歌单',
-            list: [{ songmid: 88, title: '另一首歌', artist: '另一位歌手', albumName: '另一张专辑' }],
-          },
-        ],
-      },
-    })
-    expect(data.defaultList?.[0]).toMatchObject({
-      id: '7',
-      name: '试听歌曲',
-      singer: '歌手',
-      albumName: '专辑',
-      img: 'https://example.com/cover.jpg',
-    })
-    expect('album' in (data.defaultList?.[0] ?? {})).toBe(false)
-    expect(data.userList?.[0]).toMatchObject({ id: '12', name: '夜间歌单' })
-    expect(data.userList?.[0]?.list[0]).toMatchObject({
-      id: '88',
-      name: '另一首歌',
-      singer: '另一位歌手',
-      albumName: '另一张专辑',
-    })
-    expect(adminSongId(data.userList?.[0]?.list[0] ?? {}, '0')).toBe('88')
-  })
-
-  it('normalizes legacy nested duration, format and quality size fields', () => {
-    const data = normalizeAdminData({
-      loveList: [
-        {
-          title: '旧歌曲',
-          artist: '旧歌手',
-          meta: {
-            album: { name: '旧专辑' },
-            interval: '03:21',
-            ext: 'flac',
-            qualitys: [{ type: 'flac', size: '5 MB' }],
-          },
-        },
-      ],
-    })
-    expect(data.loveList?.[0]).toMatchObject({
-      name: '旧歌曲',
-      singer: '旧歌手',
-      albumName: '旧专辑',
-      interval: '03:21',
-      format: 'flac',
-      size: '5 MB',
-    })
   })
 
   it('publishes a minimal shell with a hashed React module entry', () => {
@@ -112,7 +45,7 @@ describe('React admin frontend', () => {
       'StorageView',
       'ConfigView',
       'LogsView',
-      'SnapshotsView',
+      'BackupView',
       'CustomSourcesView',
     ])
       expect(sources).toContain(view)
@@ -120,6 +53,7 @@ describe('React admin frontend', () => {
     expect(store).toContain("from 'zustand'")
     expect(sources).toContain('<dialog')
     expect(sources).toContain('role="alert"')
+    expect(sources).not.toContain('SnapshotsView')
     expect(sources).not.toMatch(/window\.app\s*=/)
     expect(sources).not.toMatch(/data-admin-action/)
     expect(sources).not.toMatch(/\bon(click|change|submit)\s*=/)
@@ -174,7 +108,7 @@ describe('React admin frontend', () => {
     expect(source).toContain('缓存歌曲')
     expect(source).toContain('下载歌曲')
     expect(source).toContain('cacheStats')
-    expect(source).toContain('normalizeAdminData')
+    expect(source).not.toContain('/api/data/snapshots')
     expect(source).toContain('admin-config-toggle-grid')
     expect(source).toContain('logType')
     expect(css).toContain(':focus-visible')

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { Transform } from 'node:stream'
-import { createDatabaseSnapshot, getDb, restoreDatabaseSnapshot } from '@/database'
+import { createDatabaseBackupCopy, getDb, restoreDatabaseBackupCopy } from '@/database'
 import { releaseDataOperation, tryAcquireDataOperation } from './dataOperationLock'
 import { releaseAll, suspendAll } from './serverDownloadQueue'
 
@@ -374,7 +374,7 @@ const createBackupConfig = (): string => {
 
 /**
  * 创建仅供管理员下载的本地备份。
- * 备份包含 SQLite 一致性快照、运行时配置和用户业务文件，不包含媒体缓存与日志。
+ * 备份包含 SQLite 一致性副本、运行时配置和用户业务文件，不包含媒体缓存与日志。
  */
 export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES): Promise<string> => {
   if (!Number.isSafeInteger(maxArchiveBytes) || maxArchiveBytes <= 0 || maxArchiveBytes > MAX_LOCAL_BACKUP_BYTES) {
@@ -397,7 +397,7 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
   const archivePath = path.join(global.lx.dataPath, archiveName)
 
   try {
-    createDatabaseSnapshot(databasePath)
+    createDatabaseBackupCopy(databasePath)
 
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(archivePath, { flags: 'wx', mode: 0o600 })
@@ -535,11 +535,11 @@ export const restoreLocalBackup = async (
 
     const databasePath = path.join(extractDir, 'database', 'yun-yin.db')
     if (!fs.existsSync(databasePath) || !fs.statSync(databasePath).isFile()) {
-      throw new Error('备份缺少数据库快照')
+      throw new Error('备份缺少数据库文件')
     }
     const restoredConfig = parseBackupConfig(path.join(extractDir, 'config.js'))
 
-    createDatabaseSnapshot(previousDbPath)
+    createDatabaseBackupCopy(previousDbPath)
     if (fs.existsSync(global.lx.userPath)) {
       fs.renameSync(global.lx.userPath, previousUsersPath)
       previousUsersMoved = true
@@ -550,7 +550,7 @@ export const restoreLocalBackup = async (
     else fs.mkdirSync(global.lx.userPath, { recursive: true, mode: 0o700 })
     restoredUsersInstalled = true
 
-    restoreDatabaseSnapshot(databasePath)
+    restoreDatabaseBackupCopy(databasePath)
     databaseRestored = true
     getDb().run('DELETE FROM cache_index')
     await options.onRestored?.(restoredConfig)
@@ -558,7 +558,7 @@ export const restoreLocalBackup = async (
   } catch (error) {
     if (databaseRestored && fs.existsSync(previousDbPath)) {
       try {
-        restoreDatabaseSnapshot(previousDbPath)
+        restoreDatabaseBackupCopy(previousDbPath)
       } catch (rollbackError) {
         preserveRecoveryFiles = true
         console.error('[Backup] 数据库恢复回滚失败:', rollbackError)

@@ -16,11 +16,6 @@ declare namespace LX {
     passwordHash?: string
 
     /**
-     * 最大备份快照数
-     */
-    maxSnapshotNum?: number
-
-    /**
      * 添加歌曲到我的列表时的方式
      */
     'list.addMusicLocationType'?: AddMusicLocationType
@@ -105,11 +100,6 @@ declare namespace LX {
      * 缓存空间限制大小 (MB)
      */
     'user.cacheSizeLimit'?: number
-
-    /**
-     * 公共最大备份快照数
-     */
-    maxSnapshotNum: number
 
     /**
      * 公共添加歌曲到我的列表时的方式 top | bottom，参考客户端的设置-列表设置-添加歌曲到我的列表时的方式

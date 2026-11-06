@@ -6,7 +6,73 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
 let activeDbPath: string | null = null
-const DATABASE_VERSION = 5
+const DATABASE_VERSION = 6
+
+type LegacyUserSetting = { user_name: string; key: string; value: string }
+
+const tableExists = (db: Database, name: string): boolean =>
+  Boolean(
+    db.query<{ name: string }, [string]>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(name),
+  )
+
+/** Read only the old current value; imported history is intentionally discarded. */
+const readLegacyCurrentSettings = (db: Database): LegacyUserSetting[] => {
+  if (!tableExists(db, 'snapshots') || !tableExists(db, 'snapshot_meta')) return []
+  const snapshotColumns = db
+    .query<{ name: string }, []>('PRAGMA table_info(snapshots)')
+    .all()
+    .map(column => column.name)
+  if (!['id', 'user_name', 'module', 'data', 'created_at'].every(column => snapshotColumns.includes(column))) return []
+
+  const orderTime = snapshotColumns.includes('stored_at')
+    ? 'CASE WHEN s.stored_at > 0 THEN s.stored_at ELSE s.created_at END'
+    : 's.created_at'
+  const latestById = db.query<{ data: string }, [string, string, string]>(
+    'SELECT data FROM snapshots WHERE user_name = ? AND module = ? AND id = ?',
+  )
+  const latestByTime = db.query<{ data: string }, [string, string]>(
+    `SELECT data FROM snapshots s WHERE user_name = ? AND module = ? ORDER BY ${orderTime} DESC, s.created_at DESC, s.id DESC LIMIT 1`,
+  )
+  const settings: LegacyUserSetting[] = []
+  for (const row of db
+    .query<{ user_name: string; module: string; latest_id: string | null }, []>(
+      'SELECT user_name, module, latest_id FROM snapshot_meta',
+    )
+    .all()) {
+    const key = row.module === 'list' ? 'library_lists' : row.module === 'dislike' ? 'dislike_rules' : null
+    if (!key) continue
+    const snapshot = row.latest_id
+      ? latestById.get(row.user_name, row.module, row.latest_id)
+      : latestByTime.get(row.user_name, row.module)
+    const fallback = snapshot ?? latestByTime.get(row.user_name, row.module)
+    if (fallback) settings.push({ user_name: row.user_name, key, value: fallback.data })
+  }
+  return settings
+}
+
+const migrateLegacySnapshots = (db: Database): void => {
+  const settings = readLegacyCurrentSettings(db)
+  db.transaction(() => {
+    const insert = db.prepare(
+      'INSERT OR IGNORE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
+    )
+    try {
+      for (const setting of settings) insert.run(setting.user_name, setting.key, setting.value, Date.now())
+    } finally {
+      insert.finalize()
+    }
+
+    db.run('DROP INDEX IF EXISTS idx_snapshots_lookup')
+    db.run('DROP INDEX IF EXISTS idx_snapshots_storage_order')
+    db.run('DROP TABLE IF EXISTS snapshot_meta')
+    db.run('DROP TABLE IF EXISTS snapshots')
+    const userColumns = db
+      .query<{ name: string }, []>('PRAGMA table_info(users)')
+      .all()
+      .map(column => column.name)
+    if (userColumns.includes('max_snapshot_num')) db.run('ALTER TABLE users DROP COLUMN max_snapshot_num')
+  })()
+}
 
 export const getDbPath = (): string => {
   const dataPath = global.lx?.dataPath ?? path.join(process.cwd(), 'data')
@@ -22,7 +88,7 @@ export const getDbPath = (): string => {
  * 单例被 closeDb() 之后，任何无参 getDb() 都会重新走 getDbPath()，即
  * `${global.lx.dataPath}/yun-yin.db`。测试里 dataPath 常被设成 process.cwd()，
  * 于是 `bun test` 会静默写进开发者本地库（曾导致 admin_sessions 增长、
- * 以及 restoreDatabaseSnapshot 这类全表重写的用例有清库风险）。
+ * 以及 restoreDatabaseBackupCopy 这类全表重写的用例有清库风险）。
  * 这里让污染变成一次响亮的失败，而不是等到数据丢了才发现。
  */
 const assertTestDatabasePath = (dbPath: string): void => {
@@ -51,7 +117,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     .all()
     .map(row => row.name)
   const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
-  if (currentVersion !== 0 && currentVersion !== 3 && currentVersion !== 4 && currentVersion !== DATABASE_VERSION) {
+  if (currentVersion !== 0 && ![3, 4, 5, DATABASE_VERSION].includes(currentVersion)) {
     db.close()
     throw new Error('数据库版本不兼容，请先执行 bun run reset:instance')
   }
@@ -79,41 +145,12 @@ export const initDatabase = (customDbPath?: string): Database => {
     CREATE TABLE IF NOT EXISTS users (
       name TEXT PRIMARY KEY,
       password_hash TEXT NOT NULL,
-      max_snapshot_num INTEGER DEFAULT 10,
       add_music_location_type TEXT DEFAULT 'bottom',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
   `)
-  // 3. 快照数据表 (歌单、黑名单)
-  // created_at 是展示用的时间（导入备份时等于文件 mtime）；stored_at 是实际
-  // 写入时间，裁剪历史时按它排序，否则导入的旧备份会被自己的裁剪逻辑立刻删掉。
-  db.run(`
-    CREATE TABLE IF NOT EXISTS snapshots (
-      id TEXT NOT NULL,
-      user_name TEXT NOT NULL,
-      module TEXT NOT NULL,
-      data TEXT NOT NULL,
-      size INTEGER NOT NULL,
-      created_at INTEGER NOT NULL,
-      stored_at INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (user_name, module, id)
-    );
-  `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_snapshots_lookup ON snapshots(user_name, module, created_at DESC);')
-
-  // 4. 快照元信息表 (记录最新快照)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS snapshot_meta (
-      user_name TEXT NOT NULL,
-      module TEXT NOT NULL,
-      latest_id TEXT,
-      updated_at INTEGER NOT NULL,
-      PRIMARY KEY (user_name, module)
-    );
-  `)
-
-  // 5. 用户设置与偏好表 (扩展配置、音效、曲库等)
+  // 3. 用户设置与偏好表 (扩展配置、音效、曲库等)
   db.run(`
     CREATE TABLE IF NOT EXISTS user_settings (
       user_name TEXT NOT NULL,
@@ -124,7 +161,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     );
   `)
 
-  // 6. 用户登录会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
+  // 4. 用户登录会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
   db.run(`
     CREATE TABLE IF NOT EXISTS user_sessions (
       session_hash TEXT PRIMARY KEY,
@@ -136,7 +173,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_created_at ON user_sessions(created_at);')
   db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_user_name ON user_sessions(user_name);')
 
-  // 7. 播放器访问会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
+  // 5. 播放器访问会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
   db.run(`
     CREATE TABLE IF NOT EXISTS player_sessions (
       session_hash TEXT PRIMARY KEY,
@@ -145,7 +182,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_player_sessions_created_at ON player_sessions(created_at);')
 
-  // 8. 管理后台会话：持久化哈希后支持多实例/重启恢复，明文会话 ID 不落盘
+  // 6. 管理后台会话：持久化哈希后支持多实例/重启恢复，明文会话 ID 不落盘
   db.run(`
     CREATE TABLE IF NOT EXISTS admin_sessions (
       session_hash TEXT PRIMARY KEY,
@@ -154,7 +191,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);')
 
-  // 9. 登录失败记录：按 IP 共享限流状态，避免多实例各自计数
+  // 7. 登录失败记录：按 IP 共享限流状态，避免多实例各自计数
   db.run(`
     CREATE TABLE IF NOT EXISTS login_failures (
       ip TEXT NOT NULL,
@@ -164,7 +201,7 @@ export const initDatabase = (customDbPath?: string): Database => {
   db.run('CREATE INDEX IF NOT EXISTS idx_login_failures_lookup ON login_failures(ip, failed_at);')
   db.run('CREATE INDEX IF NOT EXISTS idx_login_failures_failed_at ON login_failures(failed_at);')
 
-  // 10. 缓存与下载元数据索引表
+  // 8. 缓存与下载元数据索引表
   db.run(`
     CREATE TABLE IF NOT EXISTS cache_index (
       location TEXT NOT NULL,
@@ -235,25 +272,9 @@ export const initDatabase = (customDbPath?: string): Database => {
     'CREATE INDEX IF NOT EXISTS idx_cache_stats ON cache_index(user_name, folder, location, audio_size, lyric_size);',
   )
 
-  // v4 -> v5: separate "when it was stored" from "the timestamp it displays".
-  // Legacy rows fall back to created_at; the whole step is idempotent so a
-  // crash between ALTER and PRAGMA user_version is safe to retry.
-  if (currentVersion !== 0 && currentVersion < DATABASE_VERSION) {
-    const snapshotColumns = db
-      .query<{ name: string }, []>('PRAGMA table_info(snapshots)')
-      .all()
-      .map(column => column.name)
-    db.transaction(() => {
-      if (!snapshotColumns.includes('stored_at')) {
-        db.run('ALTER TABLE snapshots ADD COLUMN stored_at INTEGER NOT NULL DEFAULT 0')
-      }
-      db.run('UPDATE snapshots SET stored_at = created_at WHERE stored_at = 0')
-    })()
-  }
-
-  db.run(
-    'CREATE INDEX IF NOT EXISTS idx_snapshots_storage_order ON snapshots(user_name, module, stored_at DESC, created_at DESC, id DESC);',
-  )
+  // v3-v5 stored active playlists and dislike rules in snapshot history. Keep
+  // each current value in user_settings, then remove the history schema.
+  if (currentVersion !== 0 && currentVersion < DATABASE_VERSION) migrateLegacySnapshots(db)
 
   db.run(`PRAGMA user_version = ${DATABASE_VERSION}`)
 
@@ -343,20 +364,18 @@ export const vacuumDatabase = (): {
   return { before, after, reclaimedBytes: Math.max(0, before.totalBytes - after.totalBytes) }
 }
 
-/** VACUUM INTO produces a consistent standalone snapshot including committed WAL data. */
-export const createDatabaseSnapshot = (destination: string): void => {
+/** VACUUM INTO produces a consistent standalone database copy including committed WAL data. */
+export const createDatabaseBackupCopy = (destination: string): void => {
   getDb().run('VACUUM INTO ?', [destination])
 }
 
 /** Copy known data tables transactionally; never replace an open database or execute backup schema. */
-export const restoreDatabaseSnapshot = (sourcePath: string): void => {
+export const restoreDatabaseBackupCopy = (sourcePath: string): void => {
   const source = new Database(sourcePath, { readonly: true })
   const target = getDb()
   const tables = [
     'system_info',
     'users',
-    'snapshots',
-    'snapshot_meta',
     'user_settings',
     'player_sessions',
     'user_sessions',
@@ -366,11 +385,8 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
   ]
   const optionalTables = new Set(['admin_sessions', 'login_failures'])
   // Columns introduced after a backup may have been produced. They are filled
-  // with defaults during the copy, so older snapshots stay restorable.
-  const missingAllowedByTable = new Map<string, Set<string>>([
-    ['cache_index', new Set(['audio_size', 'lyric_size'])],
-    ['snapshots', new Set(['stored_at'])],
-  ])
+  // with defaults during the copy, so older backups stay restorable.
+  const missingAllowedByTable = new Map<string, Set<string>>([['cache_index', new Set(['audio_size', 'lyric_size'])]])
   try {
     source.run('PRAGMA trusted_schema = OFF')
     const check = source.query<{ quick_check: string }, []>('PRAGMA quick_check').get()
@@ -396,15 +412,15 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
           .map(column => column.name)
         const missingColumns = targetColumns.filter(column => !backupColumns.includes(column))
         const allowedMissingColumns = missingAllowedByTable.get(table) ?? new Set<string>()
-        if (
-          backupColumns.some(column => !targetColumns.includes(column)) ||
-          missingColumns.some(column => !allowedMissingColumns.has(column))
-        ) {
+        if (missingColumns.some(column => !allowedMissingColumns.has(column))) {
           throw new Error('备份数据库版本不兼容')
         }
-        return { table, columns: backupColumns }
+        // Ignore columns removed by newer schemas, such as max_snapshot_num.
+        return { table, columns: backupColumns.filter(column => targetColumns.includes(column)) }
       })
       .filter((schema): schema is { table: string; columns: string[] } => schema !== null)
+
+    const legacySettings = readLegacyCurrentSettings(source)
 
     // The database is copied into runtime state, so validate values that later
     // become filesystem names or authentication material before mutating the
@@ -415,11 +431,10 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
         {
           name: string
           password_hash: string
-          max_snapshot_num: number
           add_music_location_type: string
         },
         []
-      >('SELECT name, password_hash, max_snapshot_num, add_music_location_type FROM users')
+      >('SELECT name, password_hash, add_music_location_type FROM users')
       .iterate()) {
       if (row.name === '_open') throw new Error('备份数据库包含保留用户')
       try {
@@ -429,9 +444,6 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
       }
       if (typeof row.password_hash !== 'string' || !/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i.test(row.password_hash)) {
         throw new Error('备份数据库包含不合法的密码哈希')
-      }
-      if (!Number.isInteger(row.max_snapshot_num) || row.max_snapshot_num < 1 || row.max_snapshot_num > 10000) {
-        throw new Error('备份数据库包含不合法的快照数量配置')
       }
       if (row.add_music_location_type !== 'top' && row.add_music_location_type !== 'bottom') {
         throw new Error('备份数据库包含不合法的歌单配置')
@@ -451,9 +463,15 @@ export const restoreDatabaseSnapshot = (sourcePath: string): void => {
           insert.finalize()
         }
       }
-      // Backups from before v5 have no stored_at; fall back to their display
-      // timestamp so pruning still has a meaningful recency order.
-      target.run('UPDATE snapshots SET stored_at = created_at WHERE stored_at = 0')
+      const insertSetting = target.prepare(
+        'INSERT OR IGNORE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)',
+      )
+      try {
+        for (const setting of legacySettings)
+          insertSetting.run(setting.user_name, setting.key, setting.value, Date.now())
+      } finally {
+        insertSetting.finalize()
+      }
       // Sessions from a historical backup must not revive logged-out credentials.
       target.run('DELETE FROM user_sessions')
       target.run('DELETE FROM player_sessions')

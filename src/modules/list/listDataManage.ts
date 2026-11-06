@@ -1,6 +1,7 @@
 import { arrPush, arrUnshift } from '@/utils/common'
 import { LIST_IDS } from '@/constants'
-import { type SnapshotDataManage } from './snapshotDataManage'
+import { getDb } from '@/database'
+import { type UserDataManage } from '@/user/data'
 import { assertListData } from './listDataValidation'
 
 export type PlaylistMutation =
@@ -23,18 +24,29 @@ function musicInfoId(musicInfo: LX.Music.MusicInfo): string {
 }
 
 export class ListDataManage {
-  snapshotDataManage: SnapshotDataManage
+  userDataManage: UserDataManage
   userLists: LX.List.UserListInfo[] = []
   allMusicList = new Map<string, LX.Music.MusicInfo[]>()
   initPromise: Promise<void>
 
-  constructor(snapshotDataManage: SnapshotDataManage) {
-    this.snapshotDataManage = snapshotDataManage
+  constructor(userDataManage: UserDataManage) {
+    this.userDataManage = userDataManage
 
-    let listData: LX.List.ListData | null
-    this.initPromise = this.snapshotDataManage.getSnapshotInfo().then(async snapshotInfo => {
-      if (snapshotInfo.latest) listData = await this.snapshotDataManage.getSnapshot(snapshotInfo.latest)
-      if (!listData) listData = { defaultList: [], loveList: [], userList: [] }
+    this.initPromise = Promise.resolve().then(() => {
+      const row = getDb()
+        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .get(userDataManage.userName, 'library_lists')
+      let listData: LX.List.ListData = { defaultList: [], loveList: [], userList: [] }
+      if (row) {
+        try {
+          const parsed: unknown = JSON.parse(row.value)
+          assertListData(parsed)
+          listData = parsed
+        } catch {
+          // Match the previous persisted-data loader: malformed data opens
+          // as an empty library instead of blocking all user routes.
+        }
+      }
       this.allMusicList.set(LIST_IDS.DEFAULT, listData.defaultList)
       this.allMusicList.set(LIST_IDS.LOVE, listData.loveList)
       this.userLists.push(
@@ -47,8 +59,7 @@ export class ListDataManage {
   }
   restore = async (listData: LX.List.ListData) => {
     assertListData(listData)
-    // Wait for the asynchronous snapshot load. Otherwise the initializer can
-    // finish after this mutation and overwrite it with the old snapshot.
+    // Wait for the initial database read before publishing a replacement.
     await this.initPromise
     const nextMusicList = new Map<string, LX.Music.MusicInfo[]>([
       [LIST_IDS.DEFAULT, listData.defaultList],
@@ -70,8 +81,18 @@ export class ListDataManage {
     }
   }
 
+  save = async (): Promise<void> => {
+    const value = JSON.stringify(await this.getListData())
+    getDb().run(
+      `INSERT INTO user_settings (user_name, key, value, updated_at)
+       VALUES (?, 'library_lists', ?, ?)
+       ON CONFLICT(user_name, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [this.userDataManage.userName, value, Date.now()],
+    )
+  }
+
   /** Apply one intent to the current state, without replacing unrelated lists
-   * or favorites with a browser's potentially stale full snapshot. */
+   * or favorites with a browser's potentially stale full playlist payload. */
   mutatePlaylist = async (mutation: PlaylistMutation): Promise<{ added: boolean } | null> => {
     await this.initPromise
     if (mutation.action === 'create' || mutation.action === 'toggle') {

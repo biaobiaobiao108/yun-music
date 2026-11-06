@@ -115,7 +115,6 @@ export const createStaticRouter = (): Router => {
       'user.enableLoginCacheRestriction': config['user.enableLoginCacheRestriction'] || false,
       'user.enableCacheSizeLimit': config['user.enableCacheSizeLimit'] || false,
       'user.cacheSizeLimit': config['user.cacheSizeLimit'] || 2000,
-      maxSnapshotNum: config.maxSnapshotNum,
       'list.addMusicLocationType': config['list.addMusicLocationType'],
       'player.enableAuth': config['player.enableAuth'] || false,
       'admin.path': config['admin.path'] ?? '',

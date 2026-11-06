@@ -2,7 +2,7 @@ type DataOperation = 'account-change' | 'backup'
 
 let activeOperation: DataOperation | null = null
 
-/** Coordinate account directory changes with backup snapshots in this single-process server. */
+/** Coordinate account directory changes with database copies used by backups in this single-process server. */
 export const tryAcquireDataOperation = (operation: DataOperation): boolean => {
   if (activeOperation !== null) return false
   activeOperation = operation

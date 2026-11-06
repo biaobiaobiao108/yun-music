@@ -5,7 +5,7 @@
 ## 目录边界
 
 - `src/server/core/`：HTTP 路由与上下文；业务路由位于 `src/server/routes/`，服务实现位于 `src/server/`。
-- `src/database/`：SQLite 结构化数据访问；`src/modules/snapshotStorage.ts`：歌单与黑名单快照。
+- `src/database/`：SQLite 结构化数据访问；歌单、收藏和屏蔽规则保存在 `user_settings`。
 - `frontend/`：前端源码；`public/`：构建产物，禁止手动修改。
 - 前端状态、请求和播放边界详见 [`docs/frontend-react.md`](docs/frontend-react.md)。部署与实例限制详见 [`README.md`](README.md)。
 
@@ -25,7 +25,7 @@
 ## 关键实现约束
 
 - HTTP 使用项目自有 `Router` / `HttpContext` 和 Web 标准 `Request`、`Response`；CORS 由全局中间件处理。
-- 账户、会话、配置、快照和缓存索引等结构化数据通过 SQLite 管理；媒体、封面和歌词文件保存在文件系统。快照读写遵循 `snapshotStorage` 的单条、数量和总量限制。
+- 账户、会话、配置、歌单、屏蔽规则和缓存索引等结构化数据通过 SQLite 管理；媒体、封面和歌词文件保存在文件系统。
 - 缓存可能位于应用根目录和 `DATA_PATH` 两处。统计、清理、账号删除或改名需同步处理两处文件及索引；用户主动下载到 `music/` 的文件不受缓存 LRU 清理。
 - 服务端写回配置前先比较内容；无变化时不要写盘，以免触发 `bun --watch` 重启循环。
 - 对静态文件和媒体路径做基准目录边界校验；鉴权不得接受空密码；日志和响应不得泄露密码、令牌或密钥。

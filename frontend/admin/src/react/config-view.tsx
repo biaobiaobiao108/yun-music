@@ -104,15 +104,6 @@ export function ConfigView() {
                 onChange={event => update('player.path', event.target.value)}
               />
             </ConfigField>
-            <ConfigField label="最大快照数量">
-              <input
-                type="number"
-                min="1"
-                max="10000"
-                value={Number(draft.maxSnapshotNum ?? 20)}
-                onChange={event => update('maxSnapshotNum', Number(event.target.value))}
-              />
-            </ConfigField>
             <div className="admin-config-field">
               <span>新歌加入位置</span>
               <SelectMenu

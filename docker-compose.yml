@@ -24,7 +24,7 @@ services:
     env_file:
       - .env
     volumes:
-      # 数据目录：SQLite 数据库、账户、歌单快照、config.js 与日志
+      # 数据目录：SQLite 数据库、账户数据、config.js 与日志
       - ./data:/server/data
       # 歌曲缓存目录。默认缓存根目录是 <工作目录>/cache，即容器内的 /server/cache，
       # 不在 /server/data 之下；未挂载时容器重建会丢失全部已缓存歌曲。

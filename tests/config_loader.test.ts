@@ -26,10 +26,9 @@ describe('parseConfigFile (Safe Config Loader without require)', () => {
 
   test('parses .json file', () => {
     const file = path.join(tmpDir, 'test3.json')
-    fs.writeFileSync(file, JSON.stringify({ serverName: 'json-name', maxSnapshotNum: 5 }))
+    fs.writeFileSync(file, JSON.stringify({ serverName: 'json-name' }))
     const parsed = parseConfigFile(file)
     expect(parsed.serverName).toBe('json-name')
-    expect(parsed.maxSnapshotNum).toBe(5)
   })
 
   test('parses module.exports with default export', () => {

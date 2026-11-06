@@ -44,7 +44,6 @@ const createMinimalLxFixture = (enablePublicLocalMusic: boolean): typeof global.
     'proxy.trustedAddresses': [],
     bindIP: '127.0.0.1',
     port: 9527,
-    maxSnapshotNum: 10,
     'list.addMusicLocationType': 'bottom',
     users: [],
     'singer.sourcePriority': ['tx', 'wy'],

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { adminApi, type AdminStatus, type AdminUser, type Snapshot } from './api'
+import { adminApi, type AdminStatus, type AdminUser } from './api'
 import {
   Button,
   ConfirmDialog,
@@ -14,7 +14,7 @@ import {
   formatUptime,
 } from './components'
 import { useAdminStore, type AdminView } from './store'
-import { formatBytes, formatDate } from '../../../shared/src/runtime'
+import { formatBytes } from '../../../shared/src/runtime'
 import { ViewFrame } from './view_frame'
 
 function downloadBlob(blob: Blob, filename: string): void {
@@ -410,85 +410,11 @@ export function LogsView() {
   )
 }
 
-export function SnapshotsView() {
-  const users = useAdminStore(state => state.users)
-  const selectedUser = useAdminStore(state => state.selectedUser)
-  const setSelectedUser = useAdminStore(state => state.setSelectedUser)
-  const snapshots = useAdminStore(state => state.snapshots)
-  const loadView = useAdminStore(state => state.loadView)
+export function BackupView() {
   const notify = useAdminStore(state => state.notify)
-  const [snapshotFile, setSnapshotFile] = useState<File | null>(null)
   const [backupFile, setBackupFile] = useState<File | null>(null)
   const [busyAction, setBusyAction] = useState('')
   const [confirmation, setConfirmation] = useState<ConfirmRequest | null>(null)
-
-  const upload = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!snapshotFile || !selectedUser) return
-    setBusyAction('upload-snapshot')
-    try {
-      await adminApi.uploadSnapshot(selectedUser, snapshotFile)
-      notify('快照已上传')
-      setSnapshotFile(null)
-      await loadView('snapshots')
-    } catch (error) {
-      notify(error instanceof Error ? error.message : '上传失败')
-    } finally {
-      setBusyAction('')
-    }
-  }
-
-  const downloadSnapshot = async (id: string) => {
-    if (!selectedUser) return
-    setBusyAction(`download-${id}`)
-    try {
-      const data = await adminApi.snapshot(selectedUser, id)
-      const backup = {
-        type: 'playList_v2',
-        data: [
-          { id: 'default', name: 'list__name_default', list: data.defaultList ?? [] },
-          { id: 'love', name: 'list__name_love', list: data.loveList ?? [] },
-          ...(data.userList ?? []),
-        ],
-      }
-      downloadBlob(
-        new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }),
-        `lx_backup_${selectedUser}_${id.slice(0, 8)}.json`,
-      )
-    } catch (error) {
-      notify(error instanceof Error ? error.message : '导出失败')
-    } finally {
-      setBusyAction('')
-    }
-  }
-
-  const restoreSnapshot = async (id: string) => {
-    if (!selectedUser) return
-    setBusyAction(`restore-${id}`)
-    try {
-      await adminApi.restoreSnapshot(selectedUser, id)
-      notify('快照已恢复')
-      await loadView('snapshots')
-    } catch (error) {
-      notify(error instanceof Error ? error.message : '恢复失败')
-    } finally {
-      setBusyAction('')
-    }
-  }
-
-  const deleteSnapshot = async (id: string) => {
-    if (!selectedUser) return
-    setBusyAction(`delete-${id}`)
-    try {
-      await adminApi.deleteSnapshot(selectedUser, id)
-      notify('快照已删除')
-      await loadView('snapshots')
-    } catch (error) {
-      notify(error instanceof Error ? error.message : '删除失败')
-    } finally {
-      setBusyAction('')
-    }
-  }
 
   const downloadBackup = async () => {
     setBusyAction('download-backup')
@@ -527,20 +453,6 @@ export function SnapshotsView() {
     }
   }
 
-  const requestRestoreSnapshot = (id: string) =>
-    setConfirmation({
-      title: '恢复快照',
-      message: '确定将用户歌单恢复到此快照吗？当前未保存的修改会丢失。',
-      confirmLabel: '恢复快照',
-      onConfirm: () => restoreSnapshot(id),
-    })
-  const requestDeleteSnapshot = (id: string) =>
-    setConfirmation({
-      title: '删除快照',
-      message: '确定永久删除此快照吗？此操作不可恢复。',
-      confirmLabel: '永久删除',
-      onConfirm: () => deleteSnapshot(id),
-    })
   const requestDownloadBackup = () =>
     setConfirmation({
       title: '下载全量备份',
@@ -568,114 +480,35 @@ export function SnapshotsView() {
 
   return (
     <ViewFrame>
-      <Panel
-        title="快照列表"
-        actions={
-          <div className="admin-react-toolbar admin-snapshot-toolbar">
-            <label className="admin-react-inline-label admin-snapshot-user-field">
-              用户
-              <SelectMenu
-                label="快照用户"
-                value={selectedUser}
-                options={[
-                  { value: '', label: '请选择' },
-                  ...users.filter(user => user.name !== '_open').map(user => ({ value: user.name, label: user.name })),
-                ]}
-                onChange={setSelectedUser}
+      <Panel title="全量备份">
+        <div className="admin-backup-toolbar">
+          <Button onClick={requestDownloadBackup} disabled={Boolean(busyAction)}>
+            <Icon name="download" />
+            下载备份
+          </Button>
+          <form onSubmit={requestRestoreBackup} className="admin-react-upload-form admin-backup-upload">
+            <label className="admin-react-file-picker">
+              <Icon name="file-zipper" />
+              <span>{backupFile?.name ?? '选择备份 ZIP'}</span>
+              <input
+                className="admin-react-file-input"
+                type="file"
+                accept=".zip,application/zip"
+                onChange={event => setBackupFile(event.target.files?.[0] ?? null)}
+                aria-label="选择全量备份文件"
               />
             </label>
-            <form onSubmit={upload} className="admin-react-upload-form admin-snapshot-upload">
-              <label className="admin-react-file-picker">
-                <Icon name="file-lines" />
-                <span>{snapshotFile?.name ?? '选择快照'}</span>
-                <input
-                  className="admin-react-file-input"
-                  type="file"
-                  accept="application/json,.json"
-                  onChange={event => setSnapshotFile(event.target.files?.[0] ?? null)}
-                  aria-label="选择快照文件"
-                />
-              </label>
-              <Button variant="primary" type="submit" disabled={!snapshotFile || !selectedUser || Boolean(busyAction)}>
-                上传
-              </Button>
-            </form>
-            <Button className="admin-snapshot-action" onClick={requestDownloadBackup} disabled={Boolean(busyAction)}>
-              <Icon name="download" />
-              下载备份
+            <Button variant="danger" type="submit" disabled={!backupFile || Boolean(busyAction)}>
+              恢复
             </Button>
-            <form onSubmit={requestRestoreBackup} className="admin-react-upload-form admin-snapshot-upload">
-              <label className="admin-react-file-picker">
-                <Icon name="file-zipper" />
-                <span>{backupFile?.name ?? '选择备份 ZIP'}</span>
-                <input
-                  className="admin-react-file-input"
-                  type="file"
-                  accept=".zip,application/zip"
-                  onChange={event => setBackupFile(event.target.files?.[0] ?? null)}
-                  aria-label="选择全量备份文件"
-                />
-              </label>
-              <Button variant="danger" type="submit" disabled={!backupFile || Boolean(busyAction)}>
-                恢复
-              </Button>
-            </form>
-            <Button className="admin-snapshot-action" onClick={requestRestart} disabled={Boolean(busyAction)}>
-              <Icon name="rotate" />
-              重启服务
-            </Button>
-          </div>
-        }
-      >
-        {snapshots.length ? (
-          <div className="admin-react-table-wrap">
-            <table className="admin-react-table">
-              <caption className="sr-only">快照列表</caption>
-              <thead>
-                <tr>
-                  <th scope="col">快照</th>
-                  <th scope="col">大小</th>
-                  <th scope="col">时间</th>
-                  <th scope="col">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snapshots.map((snapshot, index) => {
-                  const id = String(snapshot.id ?? snapshot.name ?? index)
-                  return (
-                    <tr key={id}>
-                      <th scope="row">{id}</th>
-                      <td>{formatBytes(snapshot.size)}</td>
-                      <td>{formatDate(snapshot.time)}</td>
-                      <td>
-                        <div className="admin-react-row-actions">
-                          <Button onClick={() => void downloadSnapshot(id)} disabled={Boolean(busyAction)}>
-                            <Icon name="download" />
-                            下载
-                          </Button>
-                          <Button onClick={() => requestRestoreSnapshot(id)} disabled={Boolean(busyAction)}>
-                            <Icon name="rotate" />
-                            恢复
-                          </Button>
-                          <Button
-                            variant="danger"
-                            onClick={() => requestDeleteSnapshot(id)}
-                            disabled={Boolean(busyAction)}
-                          >
-                            <Icon name="trash" />
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty label={selectedUser ? '暂无快照' : '请选择用户'} />
-        )}
+          </form>
+        </div>
+      </Panel>
+      <Panel title="服务维护">
+        <Button onClick={requestRestart} disabled={Boolean(busyAction)}>
+          <Icon name="rotate" />
+          重启服务
+        </Button>
       </Panel>
       <ConfirmDialog
         open={Boolean(confirmation)}

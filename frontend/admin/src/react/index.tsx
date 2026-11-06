@@ -10,7 +10,7 @@ applyThemePreferences(readThemePreferences())
 const ConfigView = lazy(() => import('./config-view').then(module => ({ default: module.ConfigView })))
 const DashboardView = lazy(() => import('./views').then(module => ({ default: module.DashboardView })))
 const LogsView = lazy(() => import('./views').then(module => ({ default: module.LogsView })))
-const SnapshotsView = lazy(() => import('./views').then(module => ({ default: module.SnapshotsView })))
+const BackupView = lazy(() => import('./views').then(module => ({ default: module.BackupView })))
 const StorageView = lazy(() => import('./storage-view').then(module => ({ default: module.StorageView })))
 const UsersView = lazy(() => import('./views').then(module => ({ default: module.UsersView })))
 const CustomSourcesView = lazy(() =>
@@ -24,7 +24,6 @@ const NAV_GROUPS: { label: string; items: { id: AdminView; label: string; icon: 
     label: '音乐库',
     items: [
       { id: 'storage', label: '存储管理', icon: 'hard-drive' },
-      { id: 'snapshots', label: '快照管理', icon: 'clock-rotate-left' },
       { id: 'sources', label: '自定义音源', icon: 'plug' },
     ],
   },
@@ -32,6 +31,7 @@ const NAV_GROUPS: { label: string; items: { id: AdminView; label: string; icon: 
     label: '系统',
     items: [
       { id: 'config', label: '系统配置', icon: 'gear' },
+      { id: 'backups', label: '备份与维护', icon: 'file-zipper' },
       { id: 'logs', label: '系统日志', icon: 'file-lines' },
     ],
   },
@@ -115,8 +115,8 @@ function viewFor(view: AdminView) {
       return <ConfigView />
     case 'logs':
       return <LogsView />
-    case 'snapshots':
-      return <SnapshotsView />
+    case 'backups':
+      return <BackupView />
     case 'sources':
       return <CustomSourcesView />
     default:

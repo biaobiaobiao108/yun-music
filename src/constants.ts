@@ -6,7 +6,6 @@ export const ENV_PARAMS = [
   'DATA_PATH',
   'PROXY_HEADER',
   'TRUSTED_PROXY_ADDRESSES',
-  'MAX_SNAPSHOT_NUM',
   'LIST_ADD_MUSIC_LOCATION_TYPE',
   'FRONTEND_PASSWORD',
   'USER_ENABLE_PATH',
@@ -47,10 +46,4 @@ export const File = {
   userDir: 'users',
   userSettingsJSON: 'settings.json',
   userSoundEffectsJSON: 'soundEffects.json',
-  listDir: 'list',
-  listSnapshotDir: 'snapshot',
-  listSnapshotInfoJSON: 'snapshotInfo.json',
-  dislikeDir: 'dislike',
-  dislikeSnapshotDir: 'snapshot',
-  dislikeSnapshotInfoJSON: 'snapshotInfo.json',
 } as const

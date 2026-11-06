@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { closeDb, getDb, initDatabase } from '@/database'
-import { getUserDirname, getUserSpace, releaseUserSpace, syncUsersToDatabase } from '@/user'
+import { releaseUserSpace, syncUsersToDatabase } from '@/user'
 import { createUserRouter } from '@/server/routes/user'
 import { createAuthRouter, revokeUserAuth, userSessions, verifyUserAuth } from '@/server/routes/auth'
 import * as downloadQueue from '@/server/serverDownloadQueue'
@@ -14,15 +14,10 @@ import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
 const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-user-routes-test-'))
 
-describe('User snapshot permissions', () => {
+describe('User data routes', () => {
   let previousLx: typeof global.lx
-  const username = 'snapshot_owner'
-  const sessionToken = 'snapshot-owner-session'
-  const initialData = { defaultList: [], loveList: [], userList: [] }
-  const uploadedData = {
-    ...initialData,
-    userList: [{ id: 'playlist', name: 'Uploaded', locationUpdateTime: null, list: [] }],
-  }
+  const username = 'user_data_owner'
+  const sessionToken = 'user-data-session'
   const userHeaders = { cookie: `lx_user_session=${sessionToken}` }
   let adminHeaders: Record<string, string>
 
@@ -34,7 +29,7 @@ describe('User snapshot permissions', () => {
       userPath: testDataDir,
       config: {
         users: [{ name: username, password: 'password' }],
-        'frontend.password': 'snapshot-admin',
+        'frontend.password': 'user-data-admin',
         'user.enablePublicFavorites': true,
         'user.enablePublicNonAdminAccess': true,
         'user.enablePublicRestriction': true,
@@ -49,11 +44,6 @@ describe('User snapshot permissions', () => {
       username,
       createdAt,
     ])
-    for (const owner of ['_open', username]) {
-      const manager = getUserSpace(owner).listManage
-      await manager.getListData()
-      await manager.saveSnapshotWithTime('original', JSON.stringify(initialData), Date.now())
-    }
   })
 
   afterEach(() => {
@@ -62,13 +52,6 @@ describe('User snapshot permissions', () => {
     closeDb()
     global.lx = previousLx
   })
-
-  const snapshotRequest = (action: string, owner: string, headers: Record<string, string> = {}) =>
-    new Request(`http://localhost/api/data/${action}-snapshot?user=${owner}&filename=uploaded`, {
-      method: 'POST',
-      headers: { ...headers, 'content-type': 'application/json' },
-      body: JSON.stringify(action === 'upload' ? uploadedData : { id: 'original' }),
-    })
 
   test('personal settings use the logged-in user and preserve earlier keys', async () => {
     const router = createUserRouter()
@@ -144,58 +127,6 @@ describe('User snapshot permissions', () => {
     expect(anonymousSave.status).toBe(401)
   })
 
-  test('public readers cannot upload, restore or delete snapshots through any public alias', async () => {
-    const router = createUserRouter()
-    for (const headers of [{}, userHeaders]) {
-      for (const owner of ['default', 'open', '_open']) {
-        for (const action of ['upload', 'restore', 'delete']) {
-          const response = await router.handle(snapshotRequest(action, owner, headers))
-          expect(response.status).toBe(403)
-        }
-      }
-    }
-    expect(await getUserSpace('_open').listManage.getSnapshot('original')).toEqual(initialData)
-    expect(await getUserSpace('_open').listManage.getSnapshot('uploaded')).toBeNull()
-    expect(getDb().query('SELECT latest_id FROM snapshot_meta WHERE user_name = ?').get('_open')).toBeNull()
-    const read = await router.handle(new Request('http://localhost/api/data/snapshot?user=_open&id=original'))
-    expect(read.status).toBe(200)
-    expect(await read.json()).toEqual(initialData)
-  })
-
-  test('administrators can write public snapshots and users can manage their own snapshots', async () => {
-    const router = createUserRouter()
-    for (const [owner, headers] of [
-      ['_open', adminHeaders],
-      [username, userHeaders],
-    ] as const) {
-      const upload = await router.handle(snapshotRequest('upload', owner, headers))
-      expect(upload.status).toBe(200)
-      expect(await getUserSpace(owner).listManage.getSnapshot('uploaded')).toEqual(uploadedData)
-
-      const restore = await router.handle(snapshotRequest('restore', owner, headers))
-      expect(restore.status).toBe(200)
-      expect(getDb().query('SELECT latest_id FROM snapshot_meta WHERE user_name = ?').get(owner)).toEqual({
-        latest_id: 'original',
-      })
-
-      const remove = await router.handle(snapshotRequest('delete', owner, headers))
-      expect(remove.status).toBe(409)
-      expect(await getUserSpace(owner).listManage.getSnapshot('original')).toEqual(initialData)
-
-      // Non-current history remains removable.
-      const deleteHistory = await router.handle(
-        new Request(`http://localhost/api/data/delete-snapshot?user=${owner}`, {
-          method: 'POST',
-          headers: { ...headers, 'content-type': 'application/json' },
-          body: JSON.stringify({ id: 'uploaded' }),
-        }),
-      )
-      expect(deleteHistory.status).toBe(200)
-      expect(await getUserSpace(owner).listManage.getSnapshot('uploaded')).toBeNull()
-    }
-    expect((await router.handle(snapshotRequest('upload', 'another_user', userHeaders))).status).toBe(403)
-  })
-
   test('does not lose the first favorite or playlist write during user-space initialization', async () => {
     const router = createUserRouter()
     releaseUserSpace(username, true)
@@ -243,95 +174,6 @@ describe('User snapshot permissions', () => {
     const read = await router.handle(new Request('http://localhost/api/user/list', { headers: userHeaders }))
     expect(read.status).toBe(200)
     expect(await read.json()).toEqual({ defaultList: [], loveList: [song], userList: [] })
-  })
-
-  test('bounds imported history and protects the current snapshot across a user-space reload', async () => {
-    const manager = getUserSpace(username).listManage
-    for (let index = 0; index < 12; index++) {
-      await manager.saveSnapshotWithTime(
-        `history-${index}`,
-        JSON.stringify({ ...initialData, userList: [{ id: `song-${index}`, name: `History ${index}`, list: [] }] }),
-        Date.now() + index,
-      )
-    }
-
-    const retained = await manager.getSnapshotList()
-    expect(retained.length).toBeLessThanOrEqual(10)
-    expect(retained.some(item => item.id === 'history-11')).toBe(true)
-
-    await manager.restoreSnapshot('history-11')
-    const savedData = await manager.getListData()
-    await expect(manager.removeSnapshot('history-11')).rejects.toThrow('不能删除当前使用的快照')
-    const latest = getDb()
-      .query<{ latest_id: string }, [string, string]>(
-        'SELECT latest_id FROM snapshot_meta WHERE user_name = ? AND module = ?',
-      )
-      .get(username, 'list')
-    expect(latest?.latest_id).toBe('history-11')
-    releaseUserSpace(username, true)
-    expect(await getUserSpace(username).listManage.getListData()).toEqual(savedData)
-  })
-
-  test('rejects an import atomically when the current snapshot fills the configured limit', async () => {
-    global.lx.config.users[0].maxSnapshotNum = 1
-    const manager = getUserSpace(username).listManage
-    const current = await manager.createSnapshot()
-    const before = getDb().query('SELECT * FROM snapshots WHERE user_name = ?').all(username)
-    const router = createUserRouter()
-    const response = await router.handle(snapshotRequest('upload', username, userHeaders))
-    expect(response.status).toBe(409)
-    expect(((await response.json()) as { message: string }).message).toContain('快照保留空间不足')
-    expect(getDb().query('SELECT * FROM snapshots WHERE user_name = ?').all(username)).toEqual(before)
-    for (let read = 0; read < 2; read++) expect((await manager.getSnapshotList()).map(row => row.id)).toEqual([current])
-    releaseUserSpace(username, true)
-    expect(await getUserSpace(username).listManage.getListData()).toEqual(initialData)
-
-    // With enough capacity the same upload survives subsequent list pruning.
-    global.lx.config.users[0].maxSnapshotNum = 2
-    expect((await router.handle(snapshotRequest('upload', username, userHeaders))).status).toBe(200)
-    const reloaded = getUserSpace(username).listManage
-    for (let read = 0; read < 2; read++)
-      expect((await reloaded.getSnapshotList()).map(row => row.id)).toContain('uploaded')
-    expect(await reloaded.getSnapshot('uploaded')).toEqual(uploadedData)
-  })
-
-  test('rejects importing different data over the current snapshot identifier', async () => {
-    const manager = getUserSpace(username).listManage
-    const current = await manager.createSnapshot()
-    await expect(manager.saveSnapshotWithTime(current, JSON.stringify(uploadedData), 1)).rejects.toThrow(
-      '不能覆盖当前使用的快照',
-    )
-    releaseUserSpace(username, true)
-    expect(await getUserSpace(username).listManage.getListData()).toEqual(initialData)
-  })
-
-  test('keeps an imported snapshot whose timestamp predates the whole history', async () => {
-    const manager = getUserSpace(username).listManage
-    const payload = JSON.stringify({
-      ...initialData,
-      userList: [{ id: 'kept', name: 'Kept', locationUpdateTime: null, list: [] }],
-    })
-    for (let index = 0; index < 12; index++) {
-      await manager.saveSnapshotWithTime(`recent-${index}`, payload, Date.now() - 60_000 + index)
-    }
-    expect((await manager.getSnapshotList()).length).toBe(10)
-
-    // A backup file's mtime is usually older than every stored snapshot.
-    await manager.saveSnapshotWithTime('imported-old-backup', payload, 1)
-
-    const retained = await manager.getSnapshotList()
-    expect(retained.some(item => item.id === 'imported-old-backup')).toBe(true)
-    expect(retained.length).toBe(10)
-    // Display order still uses the file timestamp, so it shows up as the oldest.
-    expect(retained[retained.length - 1].id).toBe('imported-old-backup')
-  })
-
-  test('pruning never deletes data just because its created_at is old once stored', async () => {
-    const manager = getUserSpace(username).listManage
-    // Repeated read paths also prune; the imported row must survive them all.
-    await manager.saveSnapshotWithTime('imported-old-backup', JSON.stringify(uploadedData), 1)
-    for (let index = 0; index < 3; index++) await manager.getSnapshotList()
-    expect((await manager.getSnapshotList()).some(item => item.id === 'imported-old-backup')).toBe(true)
   })
 
   test('public library writes require an administrator while personal libraries remain writable', async () => {
@@ -437,10 +279,18 @@ describe('Deleted account credentials', () => {
 
   const seedUserData = () => {
     const now = Date.now()
-    getDb().run(
-      'INSERT OR REPLACE INTO snapshots (id, user_name, module, data, size, created_at, stored_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      ['pre-delete', username, 'list', JSON.stringify({ defaultList: [], loveList: [], userList: [] }), 40, now, now],
-    )
+    getDb().run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+      username,
+      'library_lists',
+      JSON.stringify({ defaultList: [], loveList: [{ id: 'favorite' }], userList: [] }),
+      now,
+    ])
+    getDb().run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+      username,
+      'dislike_rules',
+      'blocked@singer',
+      now,
+    ])
     getDb().run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
       username,
       'pref',
@@ -450,10 +300,6 @@ describe('Deleted account credentials', () => {
   }
 
   const countRows = () => ({
-    snapshots: Number(
-      getDb().query<{ c: number }, [string]>('SELECT COUNT(*) c FROM snapshots WHERE user_name = ?').get(username)?.c ??
-        0,
-    ),
     settings: Number(
       getDb().query<{ c: number }, [string]>('SELECT COUNT(*) c FROM user_settings WHERE user_name = ?').get(username)
         ?.c ?? 0,
@@ -467,7 +313,7 @@ describe('Deleted account credentials', () => {
     ),
   })
 
-  test('deleting an account keeps its playlists unless deleteData is set', async () => {
+  test('deleting an account keeps its structured data unless deleteData is set', async () => {
     seedUserData()
     const musicDir = fileCache.getCacheDir(username, true)
     const cacheDir = fileCache.getCacheDir(username, false)
@@ -478,7 +324,7 @@ describe('Deleted account credentials', () => {
     const body = (await response.json()) as { dataPreserved?: string[] }
     expect(body.dataPreserved).toEqual([username])
     // Account gone (login must not be revived) but structured data kept.
-    expect(countRows()).toEqual({ snapshots: 1, settings: 1, users: 0, sessions: 0 })
+    expect(countRows()).toEqual({ settings: 3, users: 0, sessions: 0 })
     expect(fs.existsSync(path.join(musicDir, 'downloaded.mp3'))).toBe(true)
     expect(fs.existsSync(cacheDir)).toBe(false)
   })
@@ -491,7 +337,7 @@ describe('Deleted account credentials', () => {
     expect(response.status).toBe(200)
     const body = (await response.json()) as { dataPreserved?: string[] }
     expect(body.dataPreserved).toBeUndefined()
-    expect(countRows()).toEqual({ snapshots: 0, settings: 0, users: 0, sessions: 0 })
+    expect(countRows()).toEqual({ settings: 0, users: 0, sessions: 0 })
     expect(fs.existsSync(path.join(musicDir, 'downloaded.mp3'))).toBe(false)
   })
 

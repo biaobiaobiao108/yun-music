@@ -10,11 +10,10 @@ import {
   type AdminStatus,
   type AdminUser,
   type CustomSourceOwner,
-  type Snapshot,
   type StorageItem,
 } from './api'
 
-export type AdminView = 'dashboard' | 'users' | 'storage' | 'config' | 'logs' | 'snapshots' | 'sources'
+export type AdminView = 'dashboard' | 'users' | 'storage' | 'config' | 'logs' | 'backups' | 'sources'
 
 type AdminState = {
   authenticated: boolean
@@ -27,7 +26,6 @@ type AdminState = {
   config: AdminConfig | null
   storage: StorageItem[]
   storageFolder: 'cache' | 'music'
-  snapshots: Snapshot[]
   sourceOwner: CustomSourceOwner
   sources: AdminCustomSource[]
   logs: string[]
@@ -71,7 +69,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   config: null,
   storage: [],
   storageFolder: 'cache',
-  snapshots: [],
   sourceOwner: 'open',
   sources: [],
   logs: [],
@@ -121,7 +118,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       status: null,
       config: null,
       storage: [],
-      snapshots: [],
       sources: [],
       logs: [],
       error: '',
@@ -133,13 +129,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     void get().loadView(view)
   },
   setSelectedUser: selectedUser => {
-    const view = get().view
-    set({
-      selectedUser,
-      ...(view === 'snapshots' ? { snapshots: [] } : {}),
-      ...(view === 'storage' ? { storage: [] } : {}),
-    })
-    if (get().view === 'storage' || get().view === 'snapshots') void get().loadView()
+    set({ selectedUser, ...(get().view === 'storage' ? { storage: [] } : {}) })
+    if (get().view === 'storage') void get().loadView()
   },
   setLogType: logType => {
     set({ logType })
@@ -180,13 +171,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         const result = await adminApi.logs(get().logType, signal)
         if (sequence !== loadSequence) return
         set({ logs: result.logs ?? result.lines ?? [] })
-      } else if (view === 'snapshots') {
-        const user = get().selectedUser
-        if (user) {
-          const snapshots = await adminApi.snapshots(user, signal)
-          if (sequence !== loadSequence) return
-          set({ snapshots })
-        } else if (sequence === loadSequence) set({ snapshots: [] })
       } else if (view === 'sources') {
         const owner = get().sourceOwner
         const usersPromise = get().users.length ? Promise.resolve(get().users) : adminApi.users(signal)

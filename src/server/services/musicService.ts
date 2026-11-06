@@ -5,7 +5,7 @@ import { initUserApis } from '../userApi'
 import * as fileCache from '../fileCache'
 import * as serverDownloadQueue from '../serverDownloadQueue'
 import { normalizeSongInfo, resolveServerSong } from './musicResolver'
-import { getUserSpace } from '@/user'
+import { getUserDirname } from '@/user'
 import { File } from '@/constants'
 import { buildLyrics } from '@/utils/lrcTool'
 import { startupLog } from '@/utils/log4js'
@@ -43,7 +43,7 @@ export const initMusicServices = async (): Promise<void> => {
       if (!row) {
         // One-time compatibility migration for installations that still have
         // the pre-SQLite settings file but no structured settings row yet.
-        const legacyPath = path.join(getUserSpace('_open').dataManage.userDir, File.userSettingsJSON)
+        const legacyPath = path.join(global.lx.userPath, getUserDirname('_open'), File.userSettingsJSON)
         if (fs.existsSync(legacyPath)) {
           const legacySettings = JSON.parse(fs.readFileSync(legacyPath, 'utf8'))
           db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [

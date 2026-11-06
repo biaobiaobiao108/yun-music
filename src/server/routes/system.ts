@@ -20,7 +20,7 @@ import {
   MAX_LOCAL_BACKUP_BYTES,
   restoreLocalBackup,
 } from '../localBackupService'
-import { refreshUsersFromDatabase, updateStoredSnapshotLimitDefault } from '@/user/data'
+import { refreshUsersFromDatabase } from '@/user/data'
 import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
 import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
@@ -378,11 +378,6 @@ const applyValidatedConfig = async (
   if (Number.isInteger(restored.port) && Number(restored.port) >= 1 && Number(restored.port) <= 65535) {
     config.port = Number(restored.port)
   }
-  if (Number.isInteger(restored.maxSnapshotNum) && Number(restored.maxSnapshotNum) >= 1) {
-    const previousMax = Number(config.maxSnapshotNum) || 10
-    config.maxSnapshotNum = Math.min(Number(restored.maxSnapshotNum), 100)
-    updateStoredSnapshotLimitDefault(previousMax, config.maxSnapshotNum)
-  }
   if (Number.isInteger(restored['user.cacheSizeLimit']) && Number(restored['user.cacheSizeLimit']) >= 1) {
     config['user.cacheSizeLimit'] = Math.min(Number(restored['user.cacheSizeLimit']), 1024 * 1024)
   }
@@ -647,7 +642,6 @@ export const createSystemRouter = (): Router => {
     const c = global.lx.config
     const config = {
       serverName: c.serverName,
-      maxSnapshotNum: c.maxSnapshotNum,
       'list.addMusicLocationType': c['list.addMusicLocationType'],
       'proxy.enabled': c['proxy.enabled'],
       'proxy.header': c['proxy.header'],
@@ -700,11 +694,6 @@ export const createSystemRouter = (): Router => {
           return ctx.json({ success: false, error: '服务名称格式无效' }, 422)
         }
         c.serverName = newConfig.serverName
-      }
-      if (newConfig.maxSnapshotNum !== undefined) {
-        const previousMax = Number(c.maxSnapshotNum) || 10
-        c.maxSnapshotNum = parseBoundedInteger(newConfig.maxSnapshotNum, 1, 100, previousMax)
-        updateStoredSnapshotLimitDefault(previousMax, c.maxSnapshotNum)
       }
       if (newConfig['list.addMusicLocationType'] !== undefined) {
         if (newConfig['list.addMusicLocationType'] !== 'top' && newConfig['list.addMusicLocationType'] !== 'bottom') {

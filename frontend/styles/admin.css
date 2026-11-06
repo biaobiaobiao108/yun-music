@@ -1388,76 +1388,6 @@ select.form-input option:checked {
     color: white;
 }
 
-/* =============== 用户选择网格 =============== */
-.user-selection-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1.5rem;
-    padding: 1rem 0;
-}
-
-.user-select-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--glass-border);
-    border-radius: 20px;
-    padding: 2rem 1.5rem;
-    text-align: center;
-    cursor: pointer;
-    transition:
-        color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1),
-        background-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1),
-        border-color var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1),
-        box-shadow var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1),
-        opacity var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1),
-        transform var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1),
-        filter var(--app-motion) cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-}
-
-.user-select-card:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: var(--accent-primary);
-    transform: translateY(-8px);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
-}
-
-.user-select-card:focus-visible,
-.stat-card[role="button"]:focus-visible {
-    outline: 1px solid color-mix(in srgb, var(--accent-primary) 72%, white);
-    outline-offset: -1px;
-}
-
-.user-select-card .avatar {
-    width: 64px;
-    height: 64px;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-    border-radius: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    font-weight: 700;
-    color: white;
-    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
-}
-
-.user-select-card .name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.user-select-card .role {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-}
-
 /* 加载动画 */
 .content-loading {
     opacity: 0.6;
@@ -2932,182 +2862,6 @@ input:-webkit-autofill:active {
     height: 16px;
 }
 
-/* =============== 快照管理 =============== */
-.snapshots-container {
-    border-radius: 16px;
-    overflow: hidden;
-    min-width: 0;
-}
-
-.snapshots-list:has(.user-selection-grid) {
-    padding: 1.25rem;
-}
-
-.snapshots-list .user-selection-grid {
-    padding: 0;
-    gap: 1rem;
-}
-
-.snapshots-table-header {
-    display: grid;
-    grid-template-columns: 200px 1fr 100px 320px;
-    gap: 1rem;
-    padding: 1rem 1.5rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-bottom: 1px solid var(--glass-border);
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.snapshot-row {
-    display: grid;
-    grid-template-columns: 200px 1fr 100px 320px;
-    gap: 1rem;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--glass-border);
-    align-items: center;
-    min-width: 0;
-    transition: background var(--app-motion) ease;
-}
-
-.snapshot-row:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.snapshot-row:last-child {
-    border-bottom: none;
-}
-
-.col-id {
-    font-family: monospace;
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.snapshot-actions {
-    display: flex;
-    gap: 0.5rem;
-    min-width: 0;
-    flex-wrap: wrap;
-}
-
-/* 快照管理按钮通用样式 - 明确选择器并覆盖 .col-actions .btn-delete 的固定宽高 */
-.snapshot-actions .btn-download,
-.snapshot-actions .btn-delete,
-.snapshot-actions .btn-restore {
-    padding: 0.5rem 1rem;
-    width: auto;
-    height: auto;
-    border-radius: 6px;
-    border: none;
-    font-size: 0.875rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition:
-        color var(--app-motion) ease,
-        background-color var(--app-motion) ease,
-        border-color var(--app-motion) ease,
-        box-shadow var(--app-motion) ease,
-        opacity var(--app-motion) ease,
-        transform var(--app-motion) ease,
-        filter var(--app-motion) ease;
-}
-
-.btn-download {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--accent-primary);
-}
-
-.btn-download:hover {
-    background: rgba(59, 130, 246, 0.2);
-}
-
-.btn-restore {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--accent-warning);
-}
-
-.btn-restore:hover {
-    background: rgba(245, 158, 11, 0.2);
-}
-
-@media (max-width: 768px) {
-    .snapshots-table-header,
-    .snapshot-row {
-        grid-template-columns: 1fr 120px;
-        gap: 0.5rem;
-    }
-
-    .col-size {
-        display: none;
-    }
-}
-
-/* =============== 移动端快照列表适配 =============== */
-@media (max-width: 768px) {
-    /* 隐藏表头，改为卡片式布局 */
-    .snapshots-table-header {
-        display: none !important;
-    }
-
-    /* 快照行改为垂直布局 */
-    .snapshot-row {
-        display: flex !important;
-        flex-direction: column;
-        align-items: stretch !important;
-        gap: 0.75rem;
-        padding: 1rem !important;
-        height: auto !important;
-    }
-
-    /* 时间显示优化 */
-    .col-time {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        text-align: left;
-    }
-
-    /* 快照ID显示优化 */
-    .col-id {
-        display: block !important;
-        font-family: monospace;
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        word-break: break-all;
-        white-space: normal;
-        margin-top: -0.25rem;
-    }
-
-    /* 操作按钮区域：使用网格布局，一行三个按钮 */
-    .snapshot-actions {
-        display: grid !important;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
-        width: 100%;
-    }
-
-    /* 按钮样式调整 */
-    .snapshot-actions button,
-    .snapshot-actions .btn-delete {
-        width: 100%;
-        justify-content: center;
-        padding: 0.6rem 0.2rem !important;
-        font-size: 0.8rem !important;
-        /* 如果希望图标和文字垂直排列（图标在上），取消下面这行的注释 */
-        /* flex-direction: column; gap: 0.25rem !important; */
-    }
-
-    /* 确保删除按钮显示出来 */
-    .snapshot-actions .btn-delete {
-        display: flex !important;
-    }
-}
-
 /* =============== 歌曲列表 UI 美化 =============== */
 
 /* 调整歌曲表格的列宽 */
@@ -4009,7 +3763,6 @@ input:-webkit-autofill:active {
 
     /* Table Transformation to Cards */
     .users-table-header,
-    .snapshots-table-header,
     .songs-table-header {
         display: none !important;
     }
@@ -4168,16 +3921,6 @@ select {
 .config-panels-layout > .col-span-full {
     grid-column: 1 / -1;
     min-width: 0;
-}
-
-.user-selection-grid--snapshot {
-    padding-inline: 0.25rem;
-}
-
-@media (max-width: 768px) {
-    .snapshots-list:has(.user-selection-grid) {
-        padding: 0.75rem;
-    }
 }
 
 /* =============== 现代动效与 View Transitions 增强 =============== */
@@ -6693,40 +6436,20 @@ textarea:focus-visible {
     display: block;
 }
 
-/* Snapshot actions share one grid, so the user selector, file pickers and
-   destructive actions line up without oversized header rows. */
-.admin-snapshot-toolbar {
+.admin-backup-toolbar {
     display: grid;
-    grid-template-columns: minmax(8rem, 0.7fr) minmax(13rem, 1.2fr) auto minmax(13rem, 1.2fr) auto;
+    grid-template-columns: auto minmax(18rem, 1fr);
     align-items: center;
     width: 100%;
     gap: 0.45rem;
 }
 
-.admin-snapshot-user-field,
-.admin-snapshot-upload {
+.admin-backup-upload {
     min-width: 0;
-}
-
-.admin-snapshot-user-field {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-}
-
-.admin-snapshot-user-field .admin-react-select {
-    min-width: 0;
-}
-
-.admin-snapshot-upload {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.4rem;
-}
-
-.admin-snapshot-action {
-    white-space: nowrap;
 }
 
 .admin-react-file-picker {
@@ -6773,36 +6496,14 @@ textarea:focus-visible {
 }
 
 @media (max-width: 1080px) {
-    .admin-snapshot-toolbar {
-        grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 1.4fr) auto;
-    }
-
-    .admin-snapshot-toolbar > .admin-snapshot-upload:nth-of-type(2) {
-        grid-column: 1 / span 2;
-    }
-}
-
-@media (max-width: 820px) {
-    .admin-snapshot-toolbar {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-
-    .admin-snapshot-user-field,
-    .admin-snapshot-upload,
-    .admin-snapshot-action {
-        grid-column: span 1;
+    .admin-backup-toolbar {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
     }
 }
 
 @media (max-width: 680px) {
-    .admin-snapshot-toolbar {
+    .admin-backup-toolbar {
         grid-template-columns: 1fr;
-    }
-
-    .admin-snapshot-user-field,
-    .admin-snapshot-upload,
-    .admin-snapshot-action {
-        grid-column: auto;
     }
 }
 .admin-react-shell .admin-storage-table .admin-data-song-cell {
