@@ -7,8 +7,9 @@ import { readThemePreferences, updateThemePreferences } from '../../../../shared
 
 let settingsRevision = 0
 let settingsHydrationId = 0
-let settingsSaveRevision = 0
+let settingsSaveGeneration = 0
 const pendingSettingSaves = new Map<string, Promise<void>>()
+const settingSaveErrors = new Map<string, string>()
 
 export type SettingsState = {
   settings: PlayerSettings
@@ -50,20 +51,31 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       updateThemePreferences({ appearance: value === 'dark' || value === 'light' ? value : 'system' })
     applyAppearance(settings)
     if (key === 'preferredQuality') usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
-    const saveRevision = ++settingsSaveRevision
     const sessionGeneration = getSessionGeneration()
+    const saveGeneration = settingsSaveGeneration
     const saveKey = `${sessionGeneration}:${key}`
     const save = () =>
       sessionGeneration === getSessionGeneration() ? playerApi.saveSettings({ [key]: value }) : Promise.resolve()
     const previous = pendingSettingSaves.get(saveKey)
     const pending = (previous ? previous.then(save) : save())
       .then(() => {
-        if (sessionGeneration === getSessionGeneration() && saveRevision === settingsSaveRevision)
-          set({ saveError: '' })
+        if (
+          sessionGeneration === getSessionGeneration() &&
+          saveGeneration === settingsSaveGeneration &&
+          pendingSettingSaves.get(saveKey) === pending
+        ) {
+          settingSaveErrors.delete(key)
+          set({ saveError: settingSaveErrors.values().next().value || '' })
+        }
       })
       .catch(error => {
-        if (sessionGeneration === getSessionGeneration() && saveRevision === settingsSaveRevision) {
-          set({ saveError: error instanceof Error ? error.message : '设置同步失败，请稍后重试' })
+        if (
+          sessionGeneration === getSessionGeneration() &&
+          saveGeneration === settingsSaveGeneration &&
+          pendingSettingSaves.get(saveKey) === pending
+        ) {
+          settingSaveErrors.set(key, error instanceof Error ? error.message : '设置同步失败，请稍后重试')
+          set({ saveError: settingSaveErrors.values().next().value || '' })
         }
       })
       .finally(() => {
@@ -71,7 +83,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       })
     pendingSettingSaves.set(saveKey, pending)
   },
-  clearSaveError: () => set({ saveError: '' }),
+  clearSaveError: () => {
+    settingSaveErrors.clear()
+    set({ saveError: '' })
+  },
   hydrate: async () => {
     const hydrationId = ++settingsHydrationId
     const sessionScope = getSessionScope()
@@ -104,7 +119,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   reset: () => {
     settingsRevision += 1
     settingsHydrationId += 1
-    settingsSaveRevision += 1
+    settingsSaveGeneration += 1
+    settingSaveErrors.clear()
     const settings = withSharedAppearance(sanitizeSettings(DEFAULT_SETTINGS))
     set({ settings, saveError: '' })
     applyAppearance(settings)

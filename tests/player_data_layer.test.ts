@@ -589,6 +589,33 @@ describe('React player authentication lifecycle', () => {
 })
 
 describe('React player settings reset', () => {
+  it('keeps a failed setting visible when a different setting saves successfully', async () => {
+    let rejectQuality!: (error: Error) => void
+    const save = spyOn(playerApi, 'saveSettings').mockImplementation(settings =>
+      'preferredQuality' in settings
+        ? new Promise((_resolve, reject) => (rejectQuality = reject))
+        : Promise.resolve(undefined),
+    )
+    try {
+      useSettingsStore.getState().reset()
+      useSettingsStore.getState().setSetting('preferredQuality', '128k')
+      useSettingsStore.getState().setSetting('appearance', 'dark')
+      rejectQuality(new Error('音质同步失败'))
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(useSettingsStore.getState().saveError).toBe('音质同步失败')
+      useSettingsStore.getState().setSetting('appearance', 'light')
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(useSettingsStore.getState().saveError).toBe('音质同步失败')
+      save.mockResolvedValue(undefined)
+      useSettingsStore.getState().setSetting('preferredQuality', '320k')
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(useSettingsStore.getState().saveError).toBe('')
+    } finally {
+      save.mockRestore()
+      useSettingsStore.getState().reset()
+    }
+  })
+
   it('saves rapid changes to the same setting in order and drops queued changes after logout', async () => {
     let finish: (() => void) | undefined
     const writes: unknown[] = []

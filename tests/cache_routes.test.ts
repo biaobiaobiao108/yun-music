@@ -991,6 +991,38 @@ test('download proxy isolates active content and preserves media responses', asy
   }
 })
 
+test('tagged downloads reject upstream errors without treating the error page as audio', async () => {
+  const lookup = spyOn(dns, 'lookup').mockResolvedValue([{ address: '8.8.8.8', family: 4 }] as any)
+  let upstream: http.IncomingMessage | undefined
+  const request = spyOn(http, 'request').mockImplementation(((_url: unknown, _options: unknown, callback: any) => {
+    const req = new EventEmitter() as http.ClientRequest
+    req.destroy = () => req
+    req.end = () => {
+      upstream = Object.assign(Readable.from([Buffer.alloc(200)]), {
+        statusCode: 403,
+        headers: { 'content-type': 'text/html', 'content-length': '200' },
+      }) as http.IncomingMessage
+      callback(upstream)
+      return req
+    }
+    return req
+  }) as typeof http.request)
+  try {
+    const target = 'http://example.com/denied'
+    const response = await createCacheRouter().handle(
+      new Request(
+        `http://localhost/api/music/download?tag=1&url=${encodeURIComponent(target)}&token=${issueDownloadToken(target)}`,
+      ),
+    )
+    expect(response.status).toBe(502)
+    expect(upstream?.destroyed).toBe(true)
+    expect(await response.text()).toContain('远程服务器返回下载错误')
+  } finally {
+    request.mockRestore()
+    lookup.mockRestore()
+  }
+})
+
 test('download proxy closes an unfinished redirect body before following its location', async () => {
   const previousLx = global.lx
   global.lx = createMinimalLxFixture(false)

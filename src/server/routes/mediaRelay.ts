@@ -450,6 +450,25 @@ export const createDownloadProxyRouter = (): Router => {
                 }
               }
 
+              if (
+                isTaggingMode &&
+                (!rangeHeader || isFullRange) &&
+                proxyRes.statusCode !== 200 &&
+                proxyRes.statusCode !== 206
+              ) {
+                proxyRes.destroy()
+                if (taskId) {
+                  fileCache.setCacheProgress(taskId, {
+                    progress: 0,
+                    status: 'error',
+                    errorMsg: '远程服务器返回下载错误',
+                    updatedAt: Date.now(),
+                  })
+                }
+                settleResponse(ctx.fail(502, '远程服务器返回下载错误，请重试'))
+                return
+              }
+
               const maxAudioBytes = 500 * 1024 * 1024
               const declaredLength = Number(proxyRes.headers['content-length'] || 0)
               if (declaredLength > maxAudioBytes) {
