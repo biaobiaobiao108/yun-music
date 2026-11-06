@@ -15106,11 +15106,6 @@ body,
     overflow: hidden;
 }
 
-#react-view-leaderboard > .react-view-header {
-    flex: 0 0 auto;
-    margin-bottom: 1.15rem;
-}
-
 .react-leaderboard-layout {
     display: grid;
     grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
@@ -15118,16 +15113,16 @@ body,
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-    border: 1px solid var(--app-border);
+    border: 1px solid var(--app-border-strong);
     border-radius: 1rem;
-    background: var(--app-surface-solid);
-    --leaderboard-index-bg: #fbfaf9;
-    --leaderboard-song-bg: #f4f2ef;
+    background: var(--leaderboard-song-bg);
+    --leaderboard-index-bg: #f0ebe5;
+    --leaderboard-song-bg: #f7f4f0;
 }
 
 :root[data-appearance="dark"] .react-leaderboard-layout {
-    --leaderboard-index-bg: #202023;
-    --leaderboard-song-bg: #1b1b1e;
+    --leaderboard-index-bg: #1b1918;
+    --leaderboard-song-bg: #202023;
 }
 
 .react-leaderboard-index-region {
@@ -15421,10 +15416,6 @@ body,
 @media (max-width: 900px) {
     #player-main-content.react-player-content:has(#react-view-leaderboard) {
         padding-block-end: calc(8.7rem + env(safe-area-inset-bottom, 0px)) !important;
-    }
-
-    #react-view-leaderboard > .react-view-header {
-        margin-bottom: 0.8rem;
     }
 
     .react-leaderboard-layout {

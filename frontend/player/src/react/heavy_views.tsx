@@ -513,7 +513,7 @@ export function LeaderboardView() {
     selectLeaderboardBoard(boardId)
   }
   return (
-    <ViewFrame title="排行榜" viewId="react-view-leaderboard">
+    <ViewFrame title="排行榜" hideHeader viewId="react-view-leaderboard">
       <div className="react-leaderboard-layout">
         <aside className="react-leaderboard-index-region" aria-label="排行榜列表">
           <div className="react-leaderboard-index custom-scrollbar">

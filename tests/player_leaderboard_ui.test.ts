@@ -37,6 +37,7 @@ describe('Player leaderboard and default source', () => {
     const settingsView = section(views, 'export function SettingsView()', 'type ImmersiveFooterHost')
     const songListView = section(heavyViews, 'function SongListGrid()', 'export function SongListView(')
     const leaderboardView = section(heavyViews, 'export function LeaderboardView()', 'function localCacheItemKey(')
+    expect(leaderboardView).toContain('<ViewFrame title="排行榜" hideHeader viewId="react-view-leaderboard">')
     const homeDiscovery = section(libraryViews, 'function HomeDiscovery()', 'export function RecentView()')
     expect(searchView).not.toContain('label="音源"')
     expect(searchView).toContain('state.settings.defaultSource')
@@ -77,7 +78,8 @@ describe('Player leaderboard and default source', () => {
       /\.react-leaderboard-layout\s*\{[^}]*grid-template-columns:\s*minmax\(13rem, 16rem\)/s,
     )
     expect(leaderboardCss).toContain('#player-main-content.react-player-content:has(#react-view-leaderboard)')
-    expect(leaderboardCss).toContain('--leaderboard-song-bg: #f4f2ef')
+    expect(leaderboardCss).toContain('--leaderboard-index-bg: #f0ebe5')
+    expect(leaderboardCss).toContain('--leaderboard-song-bg: #f7f4f0')
     expect(leaderboardCss).toContain('.react-leaderboard-index-region::before')
     expect(leaderboardCss).toContain('.react-leaderboard-songs-region::before')
     expect(leaderboardCss).not.toContain('inset 2px 0 var(--app-accent)')
