@@ -45,7 +45,7 @@ export type UserPlaylist = Record<string, unknown> & {
 }
 export type UserListData = { defaultList?: Song[]; loveList?: Song[]; userList?: UserPlaylist[] }
 export type PlayHistoryItem = Song & { playedAt?: number; quality?: string }
-export type PlayHistoryData = { exists: boolean; items: PlayHistoryItem[] }
+export type PlayHistoryData = { items: PlayHistoryItem[] }
 export type CacheTask = Record<string, unknown> & {
   id?: string
   songKey?: string

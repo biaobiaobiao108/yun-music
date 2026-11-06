@@ -127,7 +127,7 @@ describe('User snapshot permissions', () => {
     releaseUserSpace(username, true)
     const read = await router.handle(new Request(`${endpoint}?user=_open`, { headers: userHeaders }))
     expect(read.status).toBe(200)
-    expect(await read.json()).toEqual({ exists: true, items: [second, latest] })
+    expect(await read.json()).toEqual({ items: [second, latest] })
     expect(
       getDb()
         .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')

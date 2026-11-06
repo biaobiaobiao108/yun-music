@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { readJson, readString, writeJson, writeString } from '../../../../shared/src/storage'
+import { readJson, writeJson } from '../../../../shared/src/storage'
 import { getSessionScope, scopedStorageKey } from '../session'
 import { playerApi } from '../api'
 import type { Song } from '../types'
@@ -21,10 +21,6 @@ function historyStorageKey(): string {
 
 function pendingHistoryStorageKey(): string {
   return scopedStorageKey('play_history_pending')
-}
-
-function cloudHistoryMigrationKey(): string {
-  return scopedStorageKey('play_history_cloud_migrated:v1')
 }
 
 export function normalizePlayHistory(value: unknown): RecentSong[] {
@@ -53,14 +49,6 @@ export function mergePlayHistory(...histories: unknown[]): RecentSong[] {
     }
   }
   return normalizePlayHistory([...bySong.values()])
-}
-
-function findUnuploadedHistory(local: RecentSong[], remote: RecentSong[]): RecentSong[] {
-  const remoteTimes = new Map(remote.map(song => [songKey(song), Number(song.playedAt || 0)]))
-  return local.filter(song => {
-    const remoteTime = remoteTimes.get(songKey(song))
-    return remoteTime === undefined || Number(song.playedAt || 0) > remoteTime
-  })
 }
 
 export function readPlayHistory(): RecentSong[] {
@@ -164,25 +152,14 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
     const remote = await playerApi.playHistory(controller.signal)
     if (controller.signal.aborted || requestId !== historyRequestId || getSessionScope() !== scope) return
 
-    let pending = readPendingPlayHistory()
-    const storage = typeof localStorage === 'undefined' ? null : localStorage
-    const needsMigration = readString(storage, cloudHistoryMigrationKey()) !== '1'
-    if (!remote.exists || needsMigration) {
-      // Merge this account's pre-cloud browser history once, without uploading
-      // copies already present on the server.
-      pending = mergePlayHistory(pending, findUnuploadedHistory(localItems, remote.items))
-      writePendingPlayHistory(pending)
-    }
-    writeString(storage, cloudHistoryMigrationKey(), '1')
+    const pending = readPendingPlayHistory()
     const merged = mergePlayHistory(remote.items, pending)
     writePlayHistory(merged)
     setItems(merged)
     if (pending.length > 0) scheduleHistorySync()
   } catch (error) {
     if (controller.signal.aborted || requestId !== historyRequestId || getSessionScope() !== scope) return
-    // Keep local playback usable offline and retry the unsynced history after
-    // the next successful play or the next session hydration.
-    writePendingPlayHistory(mergePlayHistory(readPendingPlayHistory(), localItems))
+    // Keep the local cache visible offline, but don't upload it as account history.
     console.warn('[Recent] 云端播放历史读取失败，已保留本地记录：', error)
   } finally {
     if (historyController === controller) historyController = null

@@ -581,7 +581,7 @@ export const createUserRouter = (): Router => {
         .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
         .get(username, PLAY_HISTORY_SETTING_KEY)
       const items = row ? validatePlayHistoryItems(JSON.parse(row.value)) : []
-      return new Response(JSON.stringify({ exists: Boolean(row), items }), {
+      return new Response(JSON.stringify({ items }), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
@@ -614,7 +614,7 @@ export const createUserRouter = (): Router => {
         JSON.stringify(items),
         Date.now(),
       ])
-      return ctx.json({ exists: true, items })
+      return ctx.json({ items })
     } catch (err: any) {
       return ctx.fail(400, toUserMessage(err, '播放历史保存失败'))
     }
