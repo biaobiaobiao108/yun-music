@@ -22,8 +22,10 @@ import {
 import { consumeImmersiveLyricsTrigger, PlayerFooterBar } from './player_footer'
 import { navigateToSongEntity, songEntityDetail } from './song_details'
 import {
+  MUSIC_SOURCE_OPTIONS,
   isSongInLoveList,
   mediaLibraryItemKey,
+  normalizeMusicSource,
   selectLoveList,
   selectUserLists,
   useAuthStore,
@@ -555,7 +557,6 @@ function EntityDetailView({ detail }: { detail: PlayerDetail }) {
 
 export function SearchView({ detail = null }: { detail?: PlayerDetail | null } = {}) {
   const query = useSearchStore(state => state.query)
-  const source = useSearchStore(state => state.source)
   const type = useSearchStore(state => state.type)
   const page = useSearchStore(state => state.page)
   const results = useSearchStore(state => state.results)
@@ -566,8 +567,12 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
   const setSource = useSearchStore(state => state.setSource)
   const setType = useSearchStore(state => state.setType)
   const setDetail = usePlayerUiStore(state => state.setDetail)
+  const defaultSource = useSettingsStore(state => normalizeMusicSource(state.settings.defaultSource))
   const [input, setInput] = useState(query)
   useEffect(() => setInput(query), [query])
+  useEffect(() => {
+    if (useSearchStore.getState().source !== defaultSource) setSource(defaultSource)
+  }, [defaultSource, setSource])
   const submit = (event: FormEvent) => {
     event.preventDefault()
     void search(input, 1)
@@ -623,17 +628,6 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
                   <Icon name="xmark" />
                 </button>
               )}
-            </div>
-            <div className="react-search-source">
-              <SelectMenu
-                label="音源"
-                value={source}
-                options={[
-                  { value: 'wy', label: '网易云' },
-                  { value: 'tx', label: 'QQ音乐' },
-                ]}
-                onChange={setSource}
-              />
             </div>
             <Button variant="primary" type="submit" disabled={loading} aria-label="搜索">
               <Icon name="search" />
@@ -1096,8 +1090,17 @@ export function SettingsView() {
           </div>
         </section>
         <section className="react-content-card t-bg-panel">
-          <h2>播放设置</h2>
+          <h2>播放与音源</h2>
           <div className="react-settings-form">
+            <div className="react-setting-field">
+              <span>默认音源</span>
+              <SelectMenu
+                label="默认音源"
+                value={normalizeMusicSource(settings.defaultSource)}
+                options={MUSIC_SOURCE_OPTIONS.map(option => ({ ...option }))}
+                onChange={value => setSetting('defaultSource', value)}
+              />
+            </div>
             <div className="react-setting-field">
               <span>默认音质</span>
               <SelectMenu

@@ -252,9 +252,9 @@ export const playerApi = {
     }
     return []
   },
-  leaderboard: (source: string, boardId: string, page = 1, signal?: AbortSignal, policy?: RequestPolicy) =>
+  leaderboard: (source: string, boardId: string, page = 1, signal?: AbortSignal, policy?: RequestPolicy, limit = 40) =>
     requestJson<unknown>(
-      `/api/music/leaderboard/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(boardId)}&page=${page}`,
+      `/api/music/leaderboard/list?source=${encodeURIComponent(source)}&bangid=${encodeURIComponent(boardId)}&page=${page}&limit=${limit}`,
       { signal, ...policy },
     ),
   comments: (songInfo: Song, type: 'hot' | 'new', page = 1, limit = 20, signal?: AbortSignal) =>

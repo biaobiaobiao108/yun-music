@@ -12,6 +12,8 @@ import {
   usePlaybackStore,
   usePlayerUiStore,
   useRecentStore,
+  useSettingsStore,
+  normalizeMusicSource,
 } from './store'
 import type { Song } from './types'
 import { sameSong, songAlbum, songArtist, songImage, songKey, songTitle } from './types'
@@ -256,7 +258,7 @@ export function HomeView() {
   )
 }
 
-type HomeChart = { id: string; name: string; songs: Song[] }
+type HomeChart = { id: string; name: string; image: string; songs: Song[] }
 
 function discoveryItems(payload: unknown, keys: string[]): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -281,6 +283,7 @@ function HomeDiscovery() {
   const setTab = usePlayerUiStore(state => state.setTab)
   const openLeaderboard = usePlayerUiStore(state => state.openLeaderboard)
   const setDetail = usePlayerUiStore(state => state.setDetail)
+  const source = useSettingsStore(state => normalizeMusicSource(state.settings.defaultSource))
   const [playlists, setPlaylists] = useState<Song[]>([])
   const [charts, setCharts] = useState<HomeChart[]>([])
   const [playlistsLoading, setPlaylistsLoading] = useState(true)
@@ -288,10 +291,12 @@ function HomeDiscovery() {
 
   useEffect(() => {
     const controller = new AbortController()
+    setPlaylistsLoading(true)
+    setChartsLoading(true)
     const loadPlaylists = async () => {
       try {
-        const payload = await playerApi.songList('wy', '', 'hot', 1, controller.signal, {
-          cacheKey: 'home:playlists:wy',
+        const payload = await playerApi.songList(source, '', 'hot', 1, controller.signal, {
+          cacheKey: `home:playlists:${source}`,
           cacheTtlMs: 300_000,
         })
         if (!controller.signal.aborted) {
@@ -306,8 +311,8 @@ function HomeDiscovery() {
 
     const loadCharts = async () => {
       try {
-        const boardResult = await playerApi.leaderboardBoards('wy', controller.signal, {
-          cacheKey: 'home:boards:wy',
+        const boardResult = await playerApi.leaderboardBoards(source, controller.signal, {
+          cacheKey: `home:boards:${source}`,
           cacheTtlMs: 300_000,
         })
         if (controller.signal.aborted) return
@@ -316,13 +321,14 @@ function HomeDiscovery() {
           return {
             id: String(item.bangid ?? item.id ?? item.value ?? index),
             name: String(item.name ?? item.title ?? `排行榜 ${index + 1}`),
+            image: safeImageUrl(item.img ?? item.coverImgUrl ?? item.picUrl, ''),
           }
         })
         const results = await Promise.all(
           boards.map(async board => {
             try {
-              const payload = await playerApi.leaderboard('wy', board.id, 1, controller.signal, {
-                cacheKey: `home:board:${board.id}:wy`,
+              const payload = await playerApi.leaderboard(source, board.id, 1, controller.signal, {
+                cacheKey: `home:board:${board.id}:${source}`,
                 cacheTtlMs: 60_000,
               })
               return { ...board, songs: discoveryItems(payload, ['list', 'songs', 'data', 'result']).slice(0, 3) }
@@ -341,7 +347,7 @@ function HomeDiscovery() {
     void loadPlaylists()
     void loadCharts()
     return () => controller.abort()
-  }, [])
+  }, [source])
 
   const openPlaylist = (item: Song, index: number) => {
     const id = discoveryId(item, index)
@@ -350,7 +356,7 @@ function HomeDiscovery() {
       page: 'songlist-detail',
       kind: 'playlist',
       id,
-      source: String(item.source || 'wy'),
+      source: String(item.source || source),
       name: String(item.name ?? item.title ?? item.dissname ?? '歌单'),
       image: safeImageUrl(songImage(item), ''),
     })
@@ -413,8 +419,8 @@ function HomeDiscovery() {
                 onClick={() => openLeaderboard(chart.id)}
               >
                 <span className="react-home-chart-art">
-                  {chart.songs[0] ? (
-                    <SafeImage src={songImage(chart.songs[0])} width="108" height="108" loading="lazy" alt="" />
+                  {chart.image ? (
+                    <SafeImage src={chart.image} width="108" height="108" loading="lazy" alt="" />
                   ) : (
                     <Icon name="chart-line" />
                   )}

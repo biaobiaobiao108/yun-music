@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   appearance: 'system',
   themeColor: 'netease',
   defaultEntry: 'favorites',
+  defaultSource: 'wy',
   preferredQuality: 'flac',
   defaultDownloadTarget: 'server',
   defaultDownloadQuality: 'flac',
@@ -42,6 +43,22 @@ export const DEFAULT_SETTINGS = {
   enableSongUrlCache: true,
   preferServerCache: true,
 } as const
+
+export type MusicSource = 'wy' | 'tx'
+
+export const MUSIC_SOURCE_OPTIONS: ReadonlyArray<{ value: MusicSource; label: string }> = [
+  { value: 'wy', label: '网易云音乐' },
+  { value: 'tx', label: 'QQ 音乐' },
+]
+
+export function normalizeMusicSource(value: unknown): MusicSource {
+  return value === 'tx' ? 'tx' : 'wy'
+}
+
+export function musicSourceLabel(value: unknown): string {
+  const source = normalizeMusicSource(value)
+  return MUSIC_SOURCE_OPTIONS.find(option => option.value === source)?.label ?? '网易云音乐'
+}
 
 type WidenSetting<T> = T extends boolean ? boolean : T extends number ? number : T extends string ? string : T
 export type PlayerSettings = {

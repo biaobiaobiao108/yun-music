@@ -15089,6 +15089,211 @@ body,
     color: var(--app-text-dim, #888890);
 }
 
+.react-leaderboard-layout {
+    display: grid;
+    grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(1rem, 2vw, 1.75rem);
+}
+
+.react-leaderboard-index {
+    position: sticky;
+    top: 1.25rem;
+    display: grid;
+    max-height: calc(100dvh - 18rem);
+    gap: 0.15rem;
+    overflow-y: auto;
+    padding: 0.1rem 0.35rem 0.15rem 0;
+    scrollbar-width: thin;
+}
+
+.react-leaderboard-index .react-error {
+    margin: 0;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+}
+
+.react-leaderboard-index .react-empty {
+    min-height: 12rem;
+}
+
+.react-leaderboard-board {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 2.65rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.4rem 0.5rem;
+    border: 0;
+    border-radius: 0.65rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    text-align: start;
+    cursor: pointer;
+    transition:
+        background-color var(--app-motion-fast),
+        color var(--app-motion-fast);
+}
+
+.react-leaderboard-board:hover {
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+}
+
+.react-leaderboard-board.is-active {
+    background: var(--app-surface-soft);
+    box-shadow: inset 2px 0 var(--app-accent);
+    color: var(--app-text);
+    font-weight: 650;
+}
+
+.react-leaderboard-board > span:last-child {
+    overflow: hidden;
+    font-size: 0.84rem;
+    font-weight: 550;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-leaderboard-board.is-active > span:last-child {
+    font-weight: 650;
+}
+
+.react-leaderboard-board-cover,
+.react-leaderboard-cover {
+    display: grid;
+    aspect-ratio: 1;
+    place-items: center;
+    overflow: hidden;
+    background: var(--app-surface-soft);
+    color: var(--app-text-dim);
+}
+
+.react-leaderboard-board-cover {
+    width: 2.65rem;
+    border-radius: 0.5rem;
+}
+
+.react-leaderboard-board-cover img,
+.react-leaderboard-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.react-leaderboard-detail {
+    min-width: 0;
+    scroll-margin-top: 1.5rem;
+}
+
+.react-leaderboard-header {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.2rem 0 0.9rem;
+}
+
+.react-leaderboard-cover {
+    width: 4.5rem;
+    border-radius: 0.8rem;
+}
+
+.react-leaderboard-copy {
+    min-width: 0;
+}
+
+.react-leaderboard-copy h2 {
+    margin: 0;
+    overflow: hidden;
+    color: var(--app-text);
+    font-size: clamp(1.3rem, 2vw, 1.7rem);
+    font-weight: 720;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.react-leaderboard-copy p {
+    margin: 0.35rem 0 0;
+    color: var(--app-text-muted);
+    font-size: 0.78rem;
+}
+
+.react-leaderboard-content,
+.react-leaderboard-empty {
+    margin-top: 0;
+}
+
+.react-leaderboard-empty {
+    display: grid;
+    min-height: 18rem;
+    place-items: center;
+}
+
+@media (max-width: 900px) {
+    .react-leaderboard-layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.85rem;
+    }
+
+    .react-leaderboard-index {
+        position: static;
+        display: flex;
+        max-height: none;
+        gap: 0.35rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 0 0.25rem;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+    }
+
+    .react-leaderboard-index::-webkit-scrollbar {
+        display: none;
+    }
+
+    .react-leaderboard-board {
+        width: auto;
+        min-width: 9rem;
+        max-width: 12rem;
+        flex: 0 0 auto;
+        scroll-snap-align: start;
+    }
+
+    .react-leaderboard-board.is-active {
+        box-shadow: inset 0 -2px var(--app-accent);
+    }
+
+    .react-leaderboard-header {
+        grid-template-columns: 3.75rem minmax(0, 1fr) auto;
+        gap: 0.75rem;
+    }
+
+    .react-leaderboard-cover {
+        width: 3.75rem;
+    }
+}
+
+@media (max-width: 560px) {
+    .react-leaderboard-header {
+        grid-template-columns: 3.5rem minmax(0, 1fr);
+    }
+
+    .react-leaderboard-cover {
+        width: 3.5rem;
+    }
+
+    .react-leaderboard-header > .react-player-button {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+}
+
 .react-artwork-grid.react-home-songs-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     grid-template-rows: auto;
@@ -15683,7 +15888,7 @@ body,
 
 .react-search-toolbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 7.5rem 2.5rem;
+    grid-template-columns: minmax(0, 1fr) 2.5rem;
     align-items: center;
     gap: 0.5rem;
     width: min(33rem, 52%);
@@ -15699,17 +15904,6 @@ body,
 .react-search-toolbar .react-search-input input {
     min-height: 2.55rem;
     color: var(--app-text);
-}
-
-.react-search-source,
-.react-search-source > * {
-    min-width: 0;
-    width: 100%;
-}
-
-.react-search-source .react-select-menu-trigger {
-    min-height: 2.75rem;
-    border-radius: 0.7rem;
 }
 
 .react-search-toolbar > .react-player-button {
@@ -15810,14 +16004,9 @@ body,
         grid-template-columns: minmax(0, 1fr) 2.5rem;
     }
 
-    .react-search-source {
-        grid-column: 1;
-        grid-row: 2;
-    }
-
     .react-search-toolbar > .react-player-button {
         grid-column: 2;
-        grid-row: 2;
+        grid-row: 1;
     }
 
     .react-search-tabs {

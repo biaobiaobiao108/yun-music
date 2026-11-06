@@ -25,6 +25,7 @@ export type UiState = {
   notice: PlayerNotice | null
   setTab: (tab: PlayerTab) => void
   openLeaderboard: (boardId?: string) => void
+  selectLeaderboardBoard: (boardId: string) => void
   setDetail: (detail: PlayerDetail | null) => void
   openLibraryDetail: (tab: 'albums' | 'artists', detail: PlayerDetail) => void
   setFavoriteListId: (listId: string) => void
@@ -77,6 +78,7 @@ export const usePlayerUiStore = create<UiState>((set, get) => ({
     set({ tab: 'leaderboard', detail: null, leaderboardBoardId: boardId ?? '', sidebarOpen: false })
     emitPlayerNavigation({ tab: 'leaderboard', detail: null })
   },
+  selectLeaderboardBoard: boardId => set({ leaderboardBoardId: String(boardId || '') }),
   setDetail: detail => {
     set({ detail })
     emitPlayerNavigation({

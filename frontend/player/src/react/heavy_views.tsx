@@ -11,7 +11,16 @@ import {
   SelectionDock,
   SongList,
 } from './components'
-import { selectUserLists, useAuthStore, useLibraryStore, usePlaybackStore, usePlayerUiStore } from './store'
+import {
+  musicSourceLabel,
+  normalizeMusicSource,
+  selectUserLists,
+  useAuthStore,
+  useLibraryStore,
+  usePlaybackStore,
+  usePlayerUiStore,
+  useSettingsStore,
+} from './store'
 import type { PlayerDetail, Song } from './types'
 import {
   songAlbum,
@@ -32,6 +41,7 @@ import { goBack } from './route_state'
 import { getSessionGeneration } from './session'
 
 const LOCAL_MUSIC_PAGE_SIZE = 100
+const LEADERBOARD_PAGE_SIZE = 100
 
 function extractSongs(payload: unknown): Song[] {
   if (Array.isArray(payload)) return payload as Song[]
@@ -41,19 +51,34 @@ function extractSongs(payload: unknown): Song[] {
   return []
 }
 
-function leaderboardBoardId(board: unknown, index: number): string {
-  return String(
-    typeof board === 'object' && board
-      ? ((board as Record<string, unknown>).bangid ??
-          (board as Record<string, unknown>).id ??
-          (board as Record<string, unknown>).value ??
-          index)
-      : (board ?? index),
-  )
-}
-
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+}
+
+type LeaderboardBoard = { id: string; name: string; image: string }
+
+function leaderboardBoardMeta(board: unknown, index: number): LeaderboardBoard {
+  const record = recordOf(board)
+  const id = String(record.bangid ?? record.id ?? record.value ?? index)
+  return {
+    id,
+    name: String(record.name ?? record.title ?? id),
+    image: safeImageUrl(record.img ?? record.coverImgUrl ?? record.picUrl, ''),
+  }
+}
+
+type LeaderboardPage = { songs: Song[]; total: number; limit: number; page: number }
+
+function extractLeaderboardPage(payload: unknown, fallbackPage = 1): LeaderboardPage {
+  const record = recordOf(payload)
+  const songs = extractSongs(payload)
+  const pageValue = Number(record.page)
+  const limitValue = Number(record.limit)
+  const totalValue = Number(record.total ?? record.totalCount ?? record.count)
+  const page = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : fallbackPage
+  const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : LEADERBOARD_PAGE_SIZE
+  const total = Number.isFinite(totalValue) && totalValue >= 0 ? totalValue : songs.length
+  return { songs, total, limit, page }
 }
 
 function extractListItems(payload: unknown): Song[] {
@@ -213,7 +238,7 @@ export function PlaylistDetailView({ detail }: { detail: PlayerDetail }) {
 function SongListGrid() {
   const setDetail = usePlayerUiStore(state => state.setDetail)
   const setTab = usePlayerUiStore(state => state.setTab)
-  const [source, setSource] = useState('wy')
+  const source = useSettingsStore(state => normalizeMusicSource(state.settings.defaultSource))
   const [songs, setSongs] = useState<Song[]>([])
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([])
   const [loading, setLoading] = useState(false)
@@ -286,22 +311,6 @@ function SongListGrid() {
         </button>
       </nav>
       <section className="react-toolbar-card t-bg-panel">
-        <div className="react-toolbar-field">
-          <span>音源</span>
-          <SelectMenu
-            label="音源"
-            value={source}
-            options={[
-              { value: 'wy', label: '网易云' },
-              { value: 'tx', label: 'QQ音乐' },
-            ]}
-            onChange={value => {
-              setSource(value)
-              setCategory('')
-              setPage(1)
-            }}
-          />
-        </div>
         <div className="react-toolbar-field">
           <span>分类</span>
           <SelectMenu
@@ -394,135 +403,219 @@ export function SongListView({ detail = null }: { detail?: PlayerDetail | null }
 
 export function LeaderboardView() {
   const [preferredBoardId] = useState(() => usePlayerUiStore.getState().leaderboardBoardId)
-  const [source, setSource] = useState('wy')
-  const [boards, setBoards] = useState<unknown[]>([])
+  const source = useSettingsStore(state => normalizeMusicSource(state.settings.defaultSource))
+  const selectLeaderboardBoard = usePlayerUiStore(state => state.selectLeaderboardBoard)
+  const playSong = usePlaybackStore(state => state.playSong)
+  const [boards, setBoards] = useState<LeaderboardBoard[]>([])
   const [selected, setSelected] = useState('')
   const [songs, setSongs] = useState<Song[]>([])
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [total, setTotal] = useState(0)
+  const [limit, setLimit] = useState(LEADERBOARD_PAGE_SIZE)
+  const [boardsLoading, setBoardsLoading] = useState(true)
+  const [songsLoading, setSongsLoading] = useState(false)
+  const [boardsError, setBoardsError] = useState('')
+  const [songsError, setSongsError] = useState('')
+  const detailRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
     const controller = new AbortController()
     let active = true
     setBoards([])
     setSongs([])
+    setTotal(0)
     setSelected('')
     setPage(1)
-    setError('')
+    setBoardsLoading(true)
+    setBoardsError('')
+    setSongsError('')
     void playerApi
       .leaderboardBoards(source, controller.signal, { cacheKey: `leaderboard:boards:${source}`, cacheTtlMs: 60_000 })
       .then(result => {
         if (!active) return
-        setBoards(result)
-        const requested = result.findIndex((board, index) => leaderboardBoardId(board, index) === preferredBoardId)
+        const nextBoards = result.map(leaderboardBoardMeta)
+        setBoards(nextBoards)
+        const requested = nextBoards.findIndex(board => board.id === preferredBoardId)
         const selectedIndex = requested >= 0 ? requested : 0
-        setSelected(result.length ? leaderboardBoardId(result[selectedIndex], selectedIndex) : '')
+        const nextBoard = nextBoards[selectedIndex]
+        setSelected(nextBoard?.id ?? '')
+        if (nextBoard) selectLeaderboardBoard(nextBoard.id)
       })
       .catch(cause => {
         if (active) {
           setBoards([])
-          setError(cause instanceof Error ? cause.message : '排行榜加载失败')
+          setBoardsError(cause instanceof Error ? cause.message : '排行榜加载失败')
         }
+      })
+      .finally(() => {
+        if (active) setBoardsLoading(false)
       })
     return () => {
       active = false
       controller.abort()
     }
-  }, [preferredBoardId, source])
+  }, [preferredBoardId, selectLeaderboardBoard, source])
   useEffect(() => {
     if (!selected) {
-      setLoading(false)
+      setSongs([])
+      setTotal(0)
+      setSongsLoading(false)
       return
     }
     const controller = new AbortController()
-    setLoading(true)
-    setError('')
+    setSongs([])
+    setTotal(0)
+    setSongsLoading(true)
+    setSongsError('')
     void playerApi
-      .leaderboard(source, selected, page, controller.signal, {
-        cacheKey: `leaderboard:${source}:${selected}:${page}`,
-        cacheTtlMs: 30_000,
-      })
+      .leaderboard(
+        source,
+        selected,
+        page,
+        controller.signal,
+        {
+          cacheKey: `leaderboard:${source}:${selected}:${page}:${LEADERBOARD_PAGE_SIZE}`,
+          cacheTtlMs: 30_000,
+        },
+        LEADERBOARD_PAGE_SIZE,
+      )
       .then(payload => {
-        if (!controller.signal.aborted) setSongs(extractSongs(payload))
+        if (controller.signal.aborted) return
+        const result = extractLeaderboardPage(payload, page)
+        setSongs(result.songs)
+        setTotal(result.total)
+        setLimit(result.limit)
       })
       .catch(cause => {
         if (!controller.signal.aborted) {
           setSongs([])
-          setError(cause instanceof Error ? cause.message : '排行榜歌曲加载失败')
+          setTotal(0)
+          setSongsError(cause instanceof Error ? cause.message : '排行榜歌曲加载失败')
         }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!controller.signal.aborted) setSongsLoading(false)
       })
     return () => controller.abort()
   }, [page, selected, source])
-  const boardOptions = boards.map((board, index) => {
-    const value = leaderboardBoardId(board, index)
-    const label =
-      typeof board === 'object' && board
-        ? String((board as Record<string, unknown>).name ?? (board as Record<string, unknown>).title ?? value)
-        : value
-    return { value, label }
-  })
+  const selectedBoard = boards.find(board => board.id === selected)
+  const pageCount = Math.max(1, Math.ceil(total / Math.max(1, limit)))
+  const chooseBoard = (boardId: string) => {
+    if (boardId === selected) return
+    setSelected(boardId)
+    setPage(1)
+    selectLeaderboardBoard(boardId)
+    const behavior: ScrollBehavior =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    window.requestAnimationFrame(() => detailRef.current?.scrollIntoView({ block: 'start', behavior }))
+  }
   return (
-    <ViewFrame title="排行榜">
-      <section className="react-toolbar-card t-bg-panel">
-        <div className="react-toolbar-field">
-          <span>音源</span>
-          <SelectMenu
-            label="音源"
-            value={source}
-            options={[
-              { value: 'wy', label: '网易云' },
-              { value: 'tx', label: 'QQ音乐' },
-            ]}
-            onChange={value => {
-              setSource(value)
-              setPage(1)
-            }}
-          />
-        </div>
-        <div className="react-toolbar-field">
-          <span>榜单</span>
-          <SelectMenu
-            label="榜单"
-            value={selected}
-            disabled={!boards.length}
-            options={boardOptions.length ? boardOptions : [{ value: '', label: '暂无榜单', disabled: true }]}
-            onChange={value => {
-              setSelected(value)
-              setPage(1)
-            }}
-          />
-        </div>
-      </section>
-      <section className="react-content-card t-bg-panel">
-        {error && (
-          <p className="react-error" role="alert">
-            {error}
-          </p>
+    <ViewFrame title="排行榜" viewId="react-view-leaderboard">
+      <div className="react-leaderboard-layout">
+        <aside className="react-leaderboard-index" aria-label="排行榜列表">
+          {boardsError ? (
+            <p className="react-error" role="alert">
+              {boardsError}
+            </p>
+          ) : boardsLoading ? (
+            <Loading label="正在加载榜单…" />
+          ) : boards.length ? (
+            boards.map(board => (
+              <button
+                key={board.id}
+                type="button"
+                className={`react-leaderboard-board ${selected === board.id ? 'is-active' : ''}`}
+                aria-current={selected === board.id ? 'true' : undefined}
+                onClick={() => chooseBoard(board.id)}
+              >
+                <span className="react-leaderboard-board-cover">
+                  {board.image ? (
+                    <SafeImage src={board.image} width="48" height="48" loading="lazy" alt="" />
+                  ) : (
+                    <Icon name="chart-line" />
+                  )}
+                </span>
+                <span>{board.name}</span>
+              </button>
+            ))
+          ) : (
+            <div className="react-empty">
+              <Icon name="chart-line" />
+              <p>暂无排行榜</p>
+            </div>
+          )}
+        </aside>
+        {selectedBoard ? (
+          <section className="react-leaderboard-detail" ref={detailRef}>
+            <header className="react-leaderboard-header">
+              <span className="react-leaderboard-cover">
+                {selectedBoard.image ? (
+                  <SafeImage src={selectedBoard.image} width="72" height="72" loading="lazy" alt="" />
+                ) : (
+                  <Icon name="chart-line" />
+                )}
+              </span>
+              <div className="react-leaderboard-copy">
+                <h2>{selectedBoard.name}</h2>
+                <p>
+                  {musicSourceLabel(source)}
+                  {total > 0 ? ` · 共 ${total} 首` : ''}
+                </p>
+              </div>
+              {songs.length > 0 && !songsLoading && (
+                <Button variant="primary" onClick={() => playSong(songs[0], songs, 0)}>
+                  <Icon name="play" />
+                  播放全部
+                </Button>
+              )}
+            </header>
+            <div className="react-content-card t-bg-panel react-leaderboard-content">
+              {songsError ? (
+                <p className="react-error" role="alert">
+                  {songsError}
+                </p>
+              ) : songsLoading ? (
+                <Loading />
+              ) : (
+                <SongList songs={songs} empty="暂无排行榜歌曲" />
+              )}
+              {total > limit && (
+                <div className="react-pagination react-pagination-bottom">
+                  <button
+                    type="button"
+                    aria-label="上一页"
+                    disabled={page <= 1 || songsLoading}
+                    onClick={() => setPage(value => value - 1)}
+                  >
+                    <Icon name="chevron-left" />
+                  </button>
+                  <span>
+                    第 {page} / {pageCount} 页
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="下一页"
+                    disabled={songsLoading || page >= pageCount}
+                    onClick={() => setPage(value => value + 1)}
+                  >
+                    <Icon name="chevron-right" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : (
+          <section className="react-content-card t-bg-panel react-leaderboard-empty" ref={detailRef}>
+            {boardsLoading ? (
+              <Loading label="正在加载榜单…" />
+            ) : (
+              <div className="react-empty">
+                <Icon name="chart-line" />
+                <p>暂无可显示的榜单</p>
+              </div>
+            )}
+          </section>
         )}
-        {loading ? <Loading /> : <SongList songs={songs} empty="暂无排行榜歌曲" />}
-        <div className="react-pagination react-pagination-bottom">
-          <button
-            type="button"
-            aria-label="上一页"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage(value => value - 1)}
-          >
-            <Icon name="chevron-left" />
-          </button>
-          <span>第 {page} 页</span>
-          <button
-            type="button"
-            aria-label="下一页"
-            disabled={loading || songs.length < 20}
-            onClick={() => setPage(value => value + 1)}
-          >
-            <Icon name="chevron-right" />
-          </button>
-        </div>
-      </section>
+      </div>
     </ViewFrame>
   )
 }
