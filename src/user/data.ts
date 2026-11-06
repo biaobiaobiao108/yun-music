@@ -232,6 +232,7 @@ export const refreshUsersFromDatabase = (): void => {
 /** 在调用方的事务内删除该用户的全部结构化数据（含 users 行）。 */
 const purgeUserRows = (db: ReturnType<typeof getDb>, userName: string): void => {
   db.run('DELETE FROM user_settings WHERE user_name = ?', [userName])
+  db.run('DELETE FROM play_history_events WHERE user_name = ?', [userName])
   db.run('DELETE FROM user_sessions WHERE user_name = ?', [userName])
   db.run('DELETE FROM cache_index WHERE user_name = ?', [userName])
   db.run('DELETE FROM users WHERE name = ?', [userName])
@@ -266,6 +267,7 @@ export const migrateUserData = (oldName: string, newName: string): string => {
       db.run('DELETE FROM user_sessions WHERE user_name = ?', [oldName])
       db.run('UPDATE users SET name = ?, updated_at = ? WHERE name = ?', [newName, now, oldName])
       db.run('UPDATE user_settings SET user_name = ? WHERE user_name = ?', [newName, oldName])
+      db.run('UPDATE play_history_events SET user_name = ? WHERE user_name = ?', [newName, oldName])
       db.run('UPDATE cache_index SET user_name = ? WHERE user_name = ?', [newName, oldName])
     })()
   } catch (error) {

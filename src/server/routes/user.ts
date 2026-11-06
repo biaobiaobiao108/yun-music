@@ -574,16 +574,25 @@ export const createUserRouter = (): Router => {
 
     try {
       const row = getDb()
-        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .query<{ value: string; updated_at: number }, [string, string]>(
+          'SELECT value, updated_at FROM user_settings WHERE user_name = ? AND key = ?',
+        )
         .get(username, PLAY_HISTORY_SETTING_KEY)
-      const items = row ? validatePlayHistoryItems(JSON.parse(row.value)) : []
-      return new Response(JSON.stringify({ items }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
+      const revision = row?.updated_at ?? 0
+      const unchanged = ctx.query.get('v') === '2' && ctx.query.get('since') === String(revision)
+      const items = unchanged ? [] : row ? validatePlayHistoryItems(JSON.parse(row.value)) : []
+      return new Response(
+        JSON.stringify(
+          ctx.query.get('v') === '2' ? { items, revision, ...(unchanged ? { unchanged: true } : {}) } : { items },
+        ),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          },
         },
-      })
+      )
     } catch (err: any) {
       return ctx.fail(500, toUserMessage(err, '播放历史读取失败'))
     }
@@ -600,15 +609,22 @@ export const createUserRouter = (): Router => {
       const incoming = validatePlayHistoryItems(body?.items)
       const db = getDb()
       const previous = db
-        .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+        .query<{ value: string; updated_at: number }, [string, string]>(
+          'SELECT value, updated_at FROM user_settings WHERE user_name = ? AND key = ?',
+        )
         .get(username, PLAY_HISTORY_SETTING_KEY)
-      const existing = previous ? validatePlayHistoryItems(JSON.parse(previous.value)) : []
-      const items = mergePlayHistory(existing, incoming)
+      const now = Date.now()
+      const clampTime = (song: Record<string, unknown>) => ({
+        ...song,
+        playedAt: Math.min(Number(song.playedAt || 0), now),
+      })
+      const existing = previous ? validatePlayHistoryItems(JSON.parse(previous.value)).map(clampTime) : []
+      const items = mergePlayHistory(existing, incoming.map(clampTime))
       db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
         username,
         PLAY_HISTORY_SETTING_KEY,
         JSON.stringify(items),
-        Date.now(),
+        Math.max(now, (previous?.updated_at ?? 0) + 1),
       ])
       return ctx.json({ items })
     } catch (err: any) {
@@ -631,51 +647,67 @@ export const createUserRouter = (): Router => {
         return { id: event.id, song: validatePlayHistoryItems([event.song])[0]! }
       })
       const db = getDb()
-      const items = db.transaction(() => {
+      const result = db.transaction(() => {
         const getSetting = (key: string) =>
           db
-            .query<{ value: string }, [string, string]>(
-              'SELECT value FROM user_settings WHERE user_name = ? AND key = ?',
+            .query<{ value: string; updated_at: number }, [string, string]>(
+              'SELECT value, updated_at FROM user_settings WHERE user_name = ? AND key = ?',
             )
-            .get(username, key)?.value
+            .get(username, key)
         const previous = getSetting(PLAY_HISTORY_SETTING_KEY)
-        let history = previous ? validatePlayHistoryItems(JSON.parse(previous)) : []
+        let history = previous ? validatePlayHistoryItems(JSON.parse(previous.value)) : []
         const now = Date.now()
-        const dedupRaw = getSetting('play_history_events')
-        const seen: Record<string, number> = dedupRaw ? JSON.parse(dedupRaw) : {}
-        for (const [id, time] of Object.entries(seen)) if (time < now - 30 * 86400000) delete seen[id]
+        // Import IDs written by the previous release before removing its JSON blob.
+        const legacy = getSetting('play_history_events')
+        if (legacy) {
+          const seen: Record<string, unknown> = JSON.parse(legacy.value)
+          const insert = db.prepare(
+            'INSERT OR IGNORE INTO play_history_events (user_name, event_id, created_at) VALUES (?, ?, ?)',
+          )
+          for (const [id, time] of Object.entries(seen)) {
+            if (typeof time === 'number' && time >= now - 30 * 86400000) insert.run(username, id, time)
+          }
+          db.run('DELETE FROM user_settings WHERE user_name = ? AND key = ?', [username, 'play_history_events'])
+        }
+        const insert = db.prepare(
+          'INSERT OR IGNORE INTO play_history_events (user_name, event_id, created_at) VALUES (?, ?, ?)',
+        )
         let changed = false
+        let orderTime = now
         for (const event of events) {
-          if (Object.hasOwn(seen, event.id)) continue
-          seen[event.id] = now
-          const song = { ...event.song, playedAt: now }
+          if (!insert.run(username, event.id, now).changes) continue
+          if (!changed)
+            history = history.map(song => ({ ...song, playedAt: Math.min(now, Number(song.playedAt || 0)) }))
+          const song = { ...event.song, playedAt: ++orderTime }
           history = [song, ...history.filter(item => playHistorySongKey(item) !== playHistorySongKey(song))].slice(
             0,
             MAX_PLAY_HISTORY_ITEMS,
           )
           changed = true
         }
+        let revision = previous?.updated_at ?? 0
         if (changed) {
-          const save = (key: string, value: unknown) =>
-            db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
-              username,
-              key,
-              JSON.stringify(value),
-              now,
-            ])
-          save(PLAY_HISTORY_SETTING_KEY, history)
-          save(
-            'play_history_events',
-            Object.fromEntries(
-              Object.entries(seen)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 5000),
-            ),
+          revision = Math.max(now, revision + 1)
+          db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+            username,
+            PLAY_HISTORY_SETTING_KEY,
+            JSON.stringify(history),
+            revision,
+          ])
+          db.run('DELETE FROM play_history_events WHERE user_name = ? AND created_at < ?', [
+            username,
+            now - 30 * 86400000,
+          ])
+          db.run(
+            `DELETE FROM play_history_events WHERE rowid IN (
+            SELECT rowid FROM play_history_events WHERE user_name = ? ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET 5000
+          )`,
+            [username],
           )
         }
-        return history
+        return { items: history, revision }
       })()
-      return ctx.json({ items })
+      return ctx.json(result)
     } catch (err: any) {
       return ctx.fail(400, toUserMessage(err, '播放历史保存失败'))
     }

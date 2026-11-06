@@ -4,6 +4,7 @@ import { getSessionScope, scopedStorageKey } from '../session'
 import { playerApi } from '../api'
 import type { Song } from '../types'
 import { songKey } from '../types'
+import { usePlayerUiStore } from './ui'
 
 export type RecentSong = Song & { playedAt?: number; quality?: string }
 const MAX_RECENT_SONGS = 50
@@ -51,9 +52,24 @@ export function mergePlayHistory(...histories: unknown[]): RecentSong[] {
   return normalizePlayHistory([...bySong.values()])
 }
 
+// The server list is already ordered; client clocks must not reorder it.
+function orderedPlayHistory(value: unknown): RecentSong[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  return value
+    .filter((song): song is RecentSong => {
+      if (!song || typeof song !== 'object') return false
+      const key = songKey(song)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, MAX_RECENT_SONGS)
+}
+
 export function readPlayHistory(): RecentSong[] {
   const storage = typeof localStorage === 'undefined' ? null : localStorage
-  return normalizePlayHistory(readJson<unknown>(storage, historyStorageKey(), []))
+  return orderedPlayHistory(readJson<unknown>(storage, historyStorageKey(), []))
 }
 
 function writePlayHistory(items: RecentSong[]): void {
@@ -65,6 +81,8 @@ type PendingEvent = { id: string; song: RecentSong }
 const pendingMemory = new Map<string, PendingEvent>()
 let listenersInstalled = false
 let historyRevision = 0
+let latestServerRevision = 0
+let storageWarningShown = false
 
 function eventPrefix(): string {
   return `${scopedStorageKey('play_history_event')}:`
@@ -77,13 +95,19 @@ function newEventId(): string {
   )
 }
 
-function savePendingEvent(event: PendingEvent): void {
+function savePendingEvent(event: PendingEvent): boolean {
   const key = eventPrefix() + event.id
   try {
     localStorage.setItem(key, JSON.stringify(event))
+    return true
   } catch (error) {
     pendingMemory.set(key, event)
     console.warn('[Recent] 无法持久保存待同步记录：', error)
+    if (!storageWarningShown && typeof window !== 'undefined') {
+      storageWarningShown = true
+      usePlayerUiStore.getState().notifyPlayback('无法保存离线播放记录，关闭页面后可能丢失', 'warning')
+    }
+    return false
   }
 }
 
@@ -110,11 +134,31 @@ function migratePendingHistory(): void {
   const marks = readJson<unknown>(storage, pendingHistoryStorageKey(), [])
   if (!Array.isArray(marks) || !marks.length) return
   const songs = new Map(readPlayHistory().map(song => [songKey(song), song]))
+  let migrated = true
   for (const mark of marks) {
-    if (!mark || typeof mark !== 'object' || typeof mark.key !== 'string') continue
+    if (
+      !mark ||
+      typeof mark !== 'object' ||
+      typeof mark.key !== 'string' ||
+      typeof mark.playedAt !== 'number' ||
+      !Number.isFinite(mark.playedAt)
+    )
+      continue
     const song = songs.get(mark.key)
-    if (song && Number(song.playedAt || 0) >= Number(mark.playedAt || 0)) savePendingEvent({ id: newEventId(), song })
+    if (song && Number(song.playedAt || 0) >= Number(mark.playedAt || 0)) {
+      // Stable across tabs so concurrent migration cannot submit the same old mark twice.
+      const input = `${mark.key}:${String(mark.playedAt)}`
+      let a = 2166136261
+      let b = 0x9e3779b9
+      for (let i = 0; i < input.length; i++) {
+        a = Math.imul(a ^ input.charCodeAt(i), 16777619)
+        b = Math.imul(b ^ input.charCodeAt(i), 2246822519)
+      }
+      const id = `legacy-${(a >>> 0).toString(16)}-${(b >>> 0).toString(16)}-${String(mark.playedAt).replace(/[^0-9]/g, '')}`
+      if (!savePendingEvent({ id, song })) migrated = false
+    }
   }
+  if (!migrated) return
   try {
     storage.removeItem(pendingHistoryStorageKey())
   } catch (error) {
@@ -135,13 +179,24 @@ function scheduleHistorySync(): void {
   }, HISTORY_SYNC_DELAY_MS)
 }
 
-function applyRemoteHistory(items: RecentSong[]): void {
-  const merged = mergePlayHistory(
-    items,
-    readPendingEvents().map(event => event.song),
-  )
+function snapshotKey(): string {
+  return scopedStorageKey('play_history_snapshot')
+}
+
+function applyRemoteHistory(items: RecentSong[], revision: number, broadcast = true, force = false): boolean {
+  const storage = typeof localStorage === 'undefined' ? null : localStorage
+  const snapshot = readJson<{ revision: number; items: RecentSong[] } | null>(storage, snapshotKey(), null)
+  const knownRevision = Math.max(latestServerRevision, snapshot?.revision ?? 0)
+  if (!force && revision < knownRevision) return false
+  latestServerRevision = revision
+  const pending = readPendingEvents()
+    .map(event => event.song)
+    .reverse()
+  const merged = orderedPlayHistory([...pending, ...items])
   writePlayHistory(merged)
   useRecentStore.setState({ items: merged })
+  if (broadcast) writeJson(storage, snapshotKey(), { revision, items })
+  return true
 }
 
 function flushPendingPlayHistory(): Promise<void> {
@@ -170,7 +225,7 @@ function flushPendingPlayHistory(): Promise<void> {
           console.warn('[Recent] 清除待同步记录失败：', error)
         }
       }
-      applyRemoteHistory(result.items)
+      if (!applyRemoteHistory(result.items, result.revision ?? 0)) void useRecentStore.getState().hydrate()
     })
     .catch(error => {
       if (!controller.signal.aborted && getSessionScope() === scope)
@@ -188,7 +243,7 @@ function flushPendingPlayHistory(): Promise<void> {
 }
 
 async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Promise<void> {
-  setItems(readPlayHistory())
+  if (useRecentStore.getState().items.length === 0) setItems(readPlayHistory())
   const scope = getSessionScope()
   historyController?.abort()
   const requestId = ++historyRequestId
@@ -199,7 +254,7 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
   historyController = controller
   const revision = historyRevision
   try {
-    const remote = await playerApi.playHistory(controller.signal)
+    const remote = await playerApi.playHistory(controller.signal, latestServerRevision || undefined)
     if (
       controller.signal.aborted ||
       requestId !== historyRequestId ||
@@ -207,7 +262,27 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
       revision !== historyRevision
     )
       return
-    applyRemoteHistory(remote.items)
+    if (remote.unchanged) return
+    if (!applyRemoteHistory(remote.items, remote.revision ?? 0)) {
+      // A restored backup can legitimately move the server revision backwards.
+      // Confirm with a fresh read before accepting a lower revision.
+      const storage = typeof localStorage === 'undefined' ? null : localStorage
+      const before = readJson<{ revision: number; items: RecentSong[] } | null>(storage, snapshotKey(), null)
+      const confirmed = await playerApi.playHistory(controller.signal)
+      if (
+        controller.signal.aborted ||
+        requestId !== historyRequestId ||
+        getSessionScope() !== scope ||
+        revision !== historyRevision
+      )
+        return
+      const after = readJson<{ revision: number; items: RecentSong[] } | null>(storage, snapshotKey(), null)
+      if (after && after.revision > (before?.revision ?? 0) && after.revision > (confirmed.revision ?? 0)) {
+        applyRemoteHistory(after.items, after.revision, false)
+      } else {
+        applyRemoteHistory(confirmed.items, confirmed.revision ?? 0, true, true)
+      }
+    }
   } catch (error) {
     if (!controller.signal.aborted && requestId === historyRequestId && getSessionScope() === scope)
       console.warn('[Recent] 云端播放历史读取失败，已保留本地记录：', error)
@@ -226,7 +301,17 @@ function installHistoryListeners(): void {
   window.addEventListener('online', refresh)
   document.addEventListener('visibilitychange', refresh)
   window.addEventListener('storage', event => {
-    if (isAccountSession() && event.key?.startsWith(eventPrefix())) scheduleHistorySync()
+    if (!isAccountSession()) return
+    if (event.key?.startsWith(eventPrefix())) scheduleHistorySync()
+    if (event.key === snapshotKey() && event.newValue) {
+      try {
+        const snapshot = JSON.parse(event.newValue) as { revision: number; items: RecentSong[] }
+        if (Array.isArray(snapshot.items) && typeof snapshot.revision === 'number')
+          applyRemoteHistory(snapshot.items, snapshot.revision, false)
+      } catch (error) {
+        console.warn('[Recent] 同步其他标签页失败：', error)
+      }
+    }
   })
   window.setInterval(refresh, 30000)
 }
@@ -279,6 +364,7 @@ export const useRecentStore = create<RecentState>((set, get) => ({
     scheduleHistorySync()
   },
   reset: () => {
+    latestServerRevision = 0
     historyRequestId += 1
     historyController?.abort()
     historyController = null

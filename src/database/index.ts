@@ -6,7 +6,7 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
 let activeDbPath: string | null = null
-const DATABASE_VERSION = 6
+const DATABASE_VERSION = 7
 
 type LegacyUserSetting = { user_name: string; key: string; value: string }
 
@@ -117,7 +117,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     .all()
     .map(row => row.name)
   const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
-  if (currentVersion !== 0 && ![3, 4, 5, DATABASE_VERSION].includes(currentVersion)) {
+  if (currentVersion !== 0 && ![3, 4, 5, 6, DATABASE_VERSION].includes(currentVersion)) {
     db.close()
     throw new Error('数据库版本不兼容，请先执行 bun run reset:instance')
   }
@@ -160,6 +160,15 @@ export const initDatabase = (customDbPath?: string): Database => {
       PRIMARY KEY (user_name, key)
     );
   `)
+
+  // Short-lived idempotency keys for playback events; account data can outlive an account.
+  db.run(`CREATE TABLE IF NOT EXISTS play_history_events (
+    user_name TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_name, event_id)
+  )`)
+  db.run('CREATE INDEX IF NOT EXISTS idx_play_history_events_time ON play_history_events(user_name, created_at DESC)')
 
   // 4. 用户登录会话：仅保存会话 ID 的哈希，支持服务重启后恢复登录
   db.run(`
@@ -274,7 +283,7 @@ export const initDatabase = (customDbPath?: string): Database => {
 
   // v3-v5 stored active playlists and dislike rules in snapshot history. Keep
   // each current value in user_settings, then remove the history schema.
-  if (currentVersion !== 0 && currentVersion < DATABASE_VERSION) migrateLegacySnapshots(db)
+  if (currentVersion !== 0 && currentVersion < 6) migrateLegacySnapshots(db)
 
   db.run(`PRAGMA user_version = ${DATABASE_VERSION}`)
 
@@ -377,13 +386,14 @@ export const restoreDatabaseBackupCopy = (sourcePath: string): void => {
     'system_info',
     'users',
     'user_settings',
+    'play_history_events',
     'player_sessions',
     'user_sessions',
     'admin_sessions',
     'login_failures',
     'cache_index',
   ]
-  const optionalTables = new Set(['admin_sessions', 'login_failures'])
+  const optionalTables = new Set(['admin_sessions', 'login_failures', 'play_history_events'])
   // Columns introduced after a backup may have been produced. They are filled
   // with defaults during the copy, so older backups stay restorable.
   const missingAllowedByTable = new Map<string, Set<string>>([['cache_index', new Set(['audio_size', 'lyric_size'])]])

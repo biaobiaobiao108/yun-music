@@ -74,6 +74,21 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     read.finalize()
   })
 
+  it('upgrades version 6 while preserving existing play history', () => {
+    const db = getDb()
+    db.run("INSERT INTO user_settings VALUES ('alice', 'play_history', '[]', 1)")
+    db.run('DROP TABLE play_history_events')
+    db.run('PRAGMA user_version = 6')
+    closeDb()
+    const upgraded = initDatabase(testDbPath)
+    expect(
+      upgraded.query("SELECT value FROM user_settings WHERE user_name = 'alice' AND key = 'play_history'").get(),
+    ).toEqual({ value: '[]' })
+    expect(
+      upgraded.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'play_history_events'").get(),
+    ).toBeTruthy()
+  })
+
   it('should CRUD user records', async () => {
     const db = getDb()
     const now = Date.now()
