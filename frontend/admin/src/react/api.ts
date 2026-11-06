@@ -31,6 +31,17 @@ export type StorageItem = Record<string, unknown> & {
   location?: 'data' | 'root' | string
   mtime?: number
 }
+export type DatabaseStorageStats = {
+  pageSize: number
+  pageCount: number
+  freelistCount: number
+  logicalBytes: number
+  freeBytes: number
+  fileBytes: number
+  walBytes: number
+  shmBytes: number
+  totalBytes: number
+}
 export type CustomSourceOwner = 'open' | string
 export type AdminCustomSource = {
   id: string
@@ -156,8 +167,12 @@ export const adminApi = {
     adminRequest('/api/users', { method: 'DELETE', body: JSON.stringify({ names, deleteData }) }),
   reload: () => adminRequest('/api/admin/reload', { method: 'POST' }),
   restart: () => adminRequest('/api/restart', { method: 'POST' }),
-  databaseStats: () => adminRequest<{ success?: boolean; data?: Record<string, unknown> }>('/api/admin/database/stats'),
-  vacuum: () => adminRequest('/api/admin/database/vacuum', { method: 'POST' }),
+  databaseStats: () => adminRequest<{ success?: boolean; data?: DatabaseStorageStats }>('/api/admin/database/stats'),
+  vacuum: () =>
+    adminRequest<{
+      success?: boolean
+      data?: { before: DatabaseStorageStats; after: DatabaseStorageStats; reclaimedBytes: number }
+    }>('/api/admin/database/vacuum', { method: 'POST' }),
   backup: () => requestBlob('/api/backup/download'),
   // Raw body upload: the server streams it straight to a temp file, so a
   // 100 MB backup never has to be copied through memory three times.

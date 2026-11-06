@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { adminApi, type AdminStatus, type AdminUser } from './api'
+import { adminApi, type AdminStatus, type AdminUser, type DatabaseStorageStats } from './api'
 import {
   Button,
   ConfirmDialog,
@@ -413,8 +413,16 @@ export function LogsView() {
 export function BackupView() {
   const notify = useAdminStore(state => state.notify)
   const [backupFile, setBackupFile] = useState<File | null>(null)
+  const [databaseStats, setDatabaseStats] = useState<DatabaseStorageStats | null>(null)
   const [busyAction, setBusyAction] = useState('')
   const [confirmation, setConfirmation] = useState<ConfirmRequest | null>(null)
+
+  useEffect(() => {
+    void adminApi
+      .databaseStats()
+      .then(result => setDatabaseStats(result.data ?? null))
+      .catch(error => notify(error instanceof Error ? error.message : '数据库空间读取失败'))
+  }, [notify])
 
   const downloadBackup = async () => {
     setBusyAction('download-backup')
@@ -453,6 +461,19 @@ export function BackupView() {
     }
   }
 
+  const compactDatabase = async () => {
+    setBusyAction('compact-database')
+    try {
+      const result = await adminApi.vacuum()
+      setDatabaseStats(result.data?.after ?? null)
+      notify(`数据库空间整理完成，回收 ${formatBytes(result.data?.reclaimedBytes ?? 0)}`)
+    } catch (error) {
+      notify(error instanceof Error ? error.message : '数据库压缩失败')
+    } finally {
+      setBusyAction('')
+    }
+  }
+
   const requestDownloadBackup = () =>
     setConfirmation({
       title: '下载全量备份',
@@ -476,6 +497,13 @@ export function BackupView() {
       message: '确定重启服务器吗？当前请求可能会被中断。',
       confirmLabel: '重启服务',
       onConfirm: restart,
+    })
+  const requestDatabaseCompaction = () =>
+    setConfirmation({
+      title: '整理数据库空间',
+      message: '此操作会重写数据库文件，并可能短暂占用额外磁盘空间。',
+      confirmLabel: '整理空间',
+      onConfirm: compactDatabase,
     })
 
   return (
@@ -505,10 +533,20 @@ export function BackupView() {
         </div>
       </Panel>
       <Panel title="服务维护">
-        <Button onClick={requestRestart} disabled={Boolean(busyAction)}>
-          <Icon name="rotate" />
-          重启服务
-        </Button>
+        <div className="admin-database-toolbar">
+          <div className="admin-database-summary">
+            <span>数据库文件 {formatBytes(databaseStats?.fileBytes)}</span>
+            <span>空闲空间 {formatBytes(databaseStats?.freeBytes)}</span>
+          </div>
+          <Button onClick={requestDatabaseCompaction} disabled={Boolean(busyAction)}>
+            <Icon name="compress" />
+            整理数据库空间
+          </Button>
+          <Button onClick={requestRestart} disabled={Boolean(busyAction)}>
+            <Icon name="rotate" />
+            重启服务
+          </Button>
+        </div>
       </Panel>
       <ConfirmDialog
         open={Boolean(confirmation)}

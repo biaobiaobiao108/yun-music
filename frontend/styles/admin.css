@@ -6452,6 +6452,23 @@ textarea:focus-visible {
     gap: 0.4rem;
 }
 
+.admin-database-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+}
+
+.admin-database-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    margin-right: auto;
+    color: var(--app-text-muted);
+    font-size: 0.8rem;
+}
+
 .admin-react-file-picker {
     position: relative;
     display: flex;
