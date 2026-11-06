@@ -4,7 +4,9 @@ import { formatPlayTime } from '../../index'
 import { formatSingerName } from '../utils'
 import { buildQualitys } from './quality'
 
-let boardList = [
+type Board = { id: string; name: string; bangid: string; img?: string }
+
+const boardList: Board[] = [
   { id: 'tx__4', name: '流行指数榜', bangid: '4' },
   { id: 'tx__26', name: '热歌榜', bangid: '26' },
   { id: 'tx__27', name: '新歌榜', bangid: '27' },
@@ -125,9 +127,12 @@ export default {
   periods: {} as Record<string, { name: string; bangid: string; period: string }>,
   periodUrl: 'https://c.y.qq.com/node/pc/wk_v15/top.html',
   _requestBoardsObj: null as any,
+  boardsCache: null as Board[] | null,
+  boardsCacheAt: 0,
   getBoardsData() {
     this._requestBoardsObj = httpFetch(
       'https://c.y.qq.com/v8/fcg-bin/fcg_myqq_toplist.fcg?g_tk=1928093487&inCharset=utf-8&outCharset=utf-8&notice=0&format=json&uin=0&needNewCode=1&platform=h5',
+      { timeout: 3000 },
     )
     releaseRequestWhenSettled(this, '_requestBoardsObj')
     return this._requestBoardsObj.promise
@@ -198,33 +203,35 @@ export default {
         id: 'tx__' + board.id,
         name: board.topTitle,
         bangid: String(board.id),
+        img: board.picUrl,
       })
     }
     return list
   },
-  async getBoards(retryNum: any = 0) {
-    // if (++retryNum > 3) return Promise.reject(new Error('try max num'))
-    // let response
-    // try {
-    //   response = await this.getBoardsData()
-    // } catch (error: any) {
-    //   return this.getBoards(retryNum)
-    // }
-    // // console.log(response.body)
-    // if (response.statusCode !== 200 || response.body.code !== 0) return this.getBoards(retryNum)
-    // const list = this.filterBoardsData(response.body.data.topList)
-    // console.log(list)
-    // console.log(JSON.stringify(list))
-    // this.list = list
-    // return {
-    //   list,
-    //   source: 'tx',
-    // }
-    this.list = boardList
-    return {
-      list: boardList,
-      source: 'tx',
+  async getBoards() {
+    const now = Date.now()
+    if (this.boardsCache && now - this.boardsCacheAt < 10 * 60_000) {
+      return { list: this.boardsCache, source: 'tx' }
     }
+
+    const list = boardList.map(board => ({ ...board }))
+    try {
+      const response = await this.getBoardsData()
+      if (response.statusCode === 200 && response.body.code === 0) {
+        const covers = new Map<string, string>(
+          (response.body.data?.topList || []).map((board: any) => [String(board.id), board.picUrl]),
+        )
+        for (const board of list) {
+          const img = covers.get(board.bangid)
+          if (img) board.img = img
+        }
+      }
+    } catch {}
+
+    this.boardsCache = list
+    this.boardsCacheAt = now
+    this.list = list
+    return { list, source: 'tx' }
   },
   getList(bangid: any, page: any, retryNum: any = 0): Promise<any> {
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))

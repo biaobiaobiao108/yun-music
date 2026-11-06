@@ -3,7 +3,9 @@ import { httpFetch } from '../../request'
 import { releaseRequestWhenSettled } from '../requestLifecycle'
 import musicDetailApi from './musicDetail'
 
-const topList = [
+type Board = { id: string; name: string; bangid: string; img?: string }
+
+const topList: Board[] = [
   { id: 'wy__19723756', name: '飙升榜', bangid: '19723756' },
   { id: 'wy__3779629', name: '新歌榜', bangid: '3779629' },
   { id: 'wy__2884035', name: '原创榜', bangid: '2884035' },
@@ -109,10 +111,13 @@ export default {
     list: /<textarea id="song-list-pre-data" style="display:none;">(.+?)<\/textarea>/,
   },
   _requestBoardsObj: null as any,
+  boardsCache: null as Board[] | null,
+  boardsCacheAt: 0,
   getBoardsData() {
     this._requestBoardsObj = httpFetch('https://music.163.com/weapi/toplist', {
       method: 'post',
       form: weapi({}),
+      timeout: 3000,
     })
     releaseRequestWhenSettled(this, '_requestBoardsObj')
     return this._requestBoardsObj.promise
@@ -139,33 +144,35 @@ export default {
         id: 'wy__' + board.id,
         name: board.name,
         bangid: String(board.id),
+        img: board.coverImgUrl,
       })
     }
     return list
   },
-  async getBoards(retryNum: any = 0) {
-    // if (++retryNum > 3) return Promise.reject(new Error('try max num'))
-    // let response
-    // try {
-    //   response = await this.getBoardsData()
-    // } catch (error: any) {
-    //   return this.getBoards(retryNum)
-    // }
-    // console.log(response.body)
-    // if (response.statusCode !== 200 || response.body.code !== 200) return this.getBoards(retryNum)
-    // const list = this.filterBoardsData(response.body.list)
-    // console.log(list)
-    // console.log(JSON.stringify(list))
-    // this.list = list
-    // return {
-    //   list,
-    //   source: 'wy',
-    // }
-    this.list = topList
-    return {
-      list: topList,
-      source: 'wy',
+  async getBoards() {
+    const now = Date.now()
+    if (this.boardsCache && now - this.boardsCacheAt < 10 * 60_000) {
+      return { list: this.boardsCache, source: 'wy' }
     }
+
+    const list = topList.map(board => ({ ...board }))
+    try {
+      const response = await this.getBoardsData()
+      if (response.statusCode === 200 && response.body.code === 200) {
+        const covers = new Map<string, string>(
+          (response.body.list || []).map((board: any) => [String(board.id), board.coverImgUrl]),
+        )
+        for (const board of list) {
+          const img = covers.get(board.bangid)
+          if (img) board.img = img
+        }
+      }
+    } catch {}
+
+    this.boardsCache = list
+    this.boardsCacheAt = now
+    this.list = list
+    return { list, source: 'wy' }
   },
   async getList(bangid: any, page: any, retryNum: any = 0): Promise<any> {
     if (++retryNum > 6) return Promise.reject(new Error('try max num'))
