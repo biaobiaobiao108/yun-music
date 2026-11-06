@@ -604,18 +604,6 @@ export const createUserRouter = (): Router => {
         const previous = getSetting(PLAY_HISTORY_SETTING_KEY)
         let history = previous ? validatePlayHistoryItems(JSON.parse(previous.value)) : []
         const now = Date.now()
-        // Import IDs written by the previous release before removing its JSON blob.
-        const legacy = getSetting('play_history_events')
-        if (legacy) {
-          const seen: Record<string, unknown> = JSON.parse(legacy.value)
-          const insert = db.prepare(
-            'INSERT OR IGNORE INTO play_history_events (user_name, event_id, created_at) VALUES (?, ?, ?)',
-          )
-          for (const [id, time] of Object.entries(seen)) {
-            if (typeof time === 'number' && time >= now - 30 * 86400000) insert.run(username, id, time)
-          }
-          db.run('DELETE FROM user_settings WHERE user_name = ? AND key = ?', [username, 'play_history_events'])
-        }
         const insert = db.prepare(
           'INSERT OR IGNORE INTO play_history_events (user_name, event_id, created_at) VALUES (?, ?, ?)',
         )

@@ -551,13 +551,13 @@ export function parseLyric(payload: Record<string, unknown>): LyricLine[] {
     .sort((a, b) => a.time - b.time)
 }
 
-export function readLegacySettings<T extends object>(defaults: T): T {
+export function readLocalSettings<T extends object>(defaults: T): T {
   const storage = typeof localStorage === 'undefined' ? null : localStorage
   const stored = readJson<Record<string, unknown>>(storage, scopedStorageKey('lx_settings'), {})
   return { ...defaults, ...stored } as T
 }
 
-export function persistLegacySettings(settings: object): void {
+export function persistLocalSettings(settings: object): void {
   const storage = typeof localStorage === 'undefined' ? null : localStorage
   writeJson(storage, scopedStorageKey('lx_settings'), settings)
 }

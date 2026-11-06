@@ -142,41 +142,23 @@ describe('User data routes', () => {
     expect((await read()).map((item: { id: string }) => item.id)).toEqual(['one', 'two'])
   })
 
-  test('migrates event deduplication and returns versioned history without resending unchanged data', async () => {
+  test('returns versioned history without resending unchanged data', async () => {
     const router = createUserRouter()
-    const now = Date.now()
-    const song = { id: 'old', name: 'Old', source: 'wy', playedAt: 1 }
-    getDb().run('INSERT INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
-      username,
-      'play_history_events',
-      JSON.stringify({ 'old-event': now }),
-      now,
-    ])
-    const save = (events: unknown[]) =>
+    const song = { id: 'song', name: 'Song', source: 'wy' }
+    const save = () =>
       router.handle(
         new Request('http://localhost/api/user/play-history/events', {
           method: 'POST',
           headers: { ...userHeaders, 'content-type': 'application/json' },
-          body: JSON.stringify({ events }),
+          body: JSON.stringify({ events: [{ id: 'new-event', song }] }),
         }),
       )
-    const migrated = await (await save([{ id: 'old-event', song }])).json()
-    expect(migrated.items).toEqual([])
-    expect(getDb().query('SELECT event_id FROM play_history_events WHERE user_name = ?').get(username)).toEqual({
-      event_id: 'old-event',
-    })
-    expect(
-      getDb()
-        .query('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
-        .get(username, 'play_history_events'),
-    ).toBeNull()
-    const created = await (await save([{ id: 'new-event', song }])).json()
+    const created = await (await save()).json()
     const unchanged = await router.handle(
       new Request(`http://localhost/api/user/play-history?since=${created.revision}`, { headers: userHeaders }),
     )
     expect(await unchanged.json()).toEqual({ items: [], revision: created.revision, unchanged: true })
-    const retry = await (await save([{ id: 'new-event', song }])).json()
-    expect(retry).toEqual(created)
+    expect(await (await save()).json()).toEqual(created)
   })
 
   test('does not lose the first favorite or playlist write during user-space initialization', async () => {

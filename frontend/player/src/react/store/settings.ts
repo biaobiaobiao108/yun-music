@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { playerApi, persistLegacySettings, readLegacySettings } from '../api'
+import { playerApi, persistLocalSettings, readLocalSettings } from '../api'
 import { getSessionGeneration, getSessionScope, scopedStorageKey } from '../session'
 import { usePlaybackStore } from './playback'
 import { applyAppearance, DEFAULT_SETTINGS, type PlayerSettings } from './shared'
@@ -38,14 +38,14 @@ function withSharedAppearance(settings: PlayerSettings): PlayerSettings {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  settings: withSharedAppearance(sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS))),
+  settings: withSharedAppearance(sanitizeSettings(readLocalSettings(DEFAULT_SETTINGS))),
   saveError: '',
   setSetting: (key, value) => {
     if (REMOVED_SETTING_KEYS.includes(key as (typeof REMOVED_SETTING_KEYS)[number])) return
     settingsRevision += 1
     const settings = sanitizeSettings({ ...get().settings, [key]: value })
     set({ settings })
-    persistLegacySettings(settings)
+    persistLocalSettings(settings)
     if (key === 'appearance')
       updateThemePreferences({ appearance: value === 'dark' || value === 'light' ? value : 'system' })
     applyAppearance(settings)
@@ -76,7 +76,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const hydrationId = ++settingsHydrationId
     const sessionScope = getSessionScope()
     const sessionGeneration = getSessionGeneration()
-    const local = withSharedAppearance(sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS)))
+    const local = withSharedAppearance(sanitizeSettings(readLocalSettings(DEFAULT_SETTINGS)))
     set({ settings: local })
     applyAppearance(local)
     usePlaybackStore.getState().setQuality(String(local.preferredQuality || 'flac'))
@@ -93,7 +93,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       ) {
         const settings = withSharedAppearance(sanitizeSettings({ ...local, ...remote }))
         set({ settings })
-        persistLegacySettings(settings)
+        persistLocalSettings(settings)
         applyAppearance(settings)
         usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))
       }
@@ -117,7 +117,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('storage', event => {
     if (event.key === scopedStorageKey('lx_settings')) {
       settingsRevision += 1
-      const settings = withSharedAppearance(sanitizeSettings(readLegacySettings(DEFAULT_SETTINGS)))
+      const settings = withSharedAppearance(sanitizeSettings(readLocalSettings(DEFAULT_SETTINGS)))
       useSettingsStore.setState({ settings })
       applyAppearance(settings)
       usePlaybackStore.getState().setQuality(String(settings.preferredQuality || 'flac'))

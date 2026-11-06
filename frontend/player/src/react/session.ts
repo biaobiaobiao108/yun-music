@@ -1,31 +1,8 @@
 let sessionScope = 'guest'
 let sessionGeneration = 0
-const LEGACY_SCOPED_STORAGE_KEYS = ['lx_settings', 'lx_playback_state'] as const
-const SCOPED_STORAGE_MIGRATION_KEY = 'yun-music:scoped-storage-migration:v1'
-
 function normalizeSessionScope(username: unknown): string {
   const value = typeof username === 'string' ? username.trim() : ''
   return value ? `user:${value}` : 'guest'
-}
-
-function migrateLegacyStorage(scope: string): void {
-  if (typeof localStorage === 'undefined') return
-  try {
-    // Scope the marker as well: the first anonymous visit must not consume the
-    // one-time migration before the user logs in.
-    const markerKey = `${SCOPED_STORAGE_MIGRATION_KEY}:${scope}`
-    if (localStorage.getItem(markerKey)) return
-    for (const baseKey of LEGACY_SCOPED_STORAGE_KEYS) {
-      const legacyValue = localStorage.getItem(baseKey)
-      const scopedKey = `${baseKey}:${encodeURIComponent(scope)}`
-      if (legacyValue !== null && localStorage.getItem(scopedKey) === null) {
-        localStorage.setItem(scopedKey, legacyValue)
-      }
-    }
-    localStorage.setItem(markerKey, '1')
-  } catch {
-    // Retry on the next session transition if storage is temporarily unavailable or full.
-  }
 }
 
 /**
@@ -35,7 +12,6 @@ function migrateLegacyStorage(scope: string): void {
  */
 export function setSessionScope(username: string | null | undefined): boolean {
   const nextScope = normalizeSessionScope(username)
-  migrateLegacyStorage(nextScope)
   if (nextScope === sessionScope) return false
   sessionScope = nextScope
   sessionGeneration += 1

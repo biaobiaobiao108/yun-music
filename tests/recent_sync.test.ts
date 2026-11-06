@@ -71,11 +71,15 @@ describe('recent playback synchronization', () => {
     expect(useRecentStore.getState().items.map(song => song.id)).toEqual(['restored'])
   })
 
-  test('does not import old browser playback history or pending marks', async () => {
+  test('does not import old browser settings, playback state or history', async () => {
     const song = { id: 'old', source: 'wy', name: 'Old', playedAt: 123 }
     localStorage.setItem('play_history', JSON.stringify([song]))
+    localStorage.setItem('lx_settings', JSON.stringify({ preferredQuality: 'mp3' }))
+    localStorage.setItem('lx_playback_state', JSON.stringify({ currentSong: song }))
     setSessionScope('no-old-history')
     expect(localStorage.getItem(scopedStorageKey('play_history'))).toBeNull()
+    expect(localStorage.getItem(scopedStorageKey('lx_settings'))).toBeNull()
+    expect(localStorage.getItem(scopedStorageKey('lx_playback_state'))).toBeNull()
     localStorage.setItem(scopedStorageKey('play_history_pending'), JSON.stringify([{ key: 'wy:old', playedAt: 123 }]))
     globalThis.fetch = (async () => json({ revision: 1, items: [] })) as unknown as typeof fetch
     await useRecentStore.getState().hydrate()
