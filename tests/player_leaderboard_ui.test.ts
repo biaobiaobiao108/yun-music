@@ -55,8 +55,11 @@ describe('Player leaderboard and default source', () => {
     const css = read('frontend/styles/player.css')
     const leaderboardView = section(heavyViews, 'export function LeaderboardView()', 'function localCacheItemKey(')
     expect(leaderboardView).toContain('className="react-leaderboard-layout"')
+    expect(leaderboardView).toContain('className="react-leaderboard-index-region"')
     expect(leaderboardView).toContain('className="react-leaderboard-index custom-scrollbar"')
     expect(leaderboardView).toContain('className="react-leaderboard-detail"')
+    expect(leaderboardView).toContain('className="react-leaderboard-songs-region"')
+    expect(leaderboardView).toContain('ref={songsScrollRef}')
     expect(heavyViews).toContain('LEADERBOARD_PAGE_SIZE = 100')
     expect(leaderboardView).toContain('total > limit')
     expect(leaderboardView).toContain('page >= pageCount')
@@ -73,6 +76,10 @@ describe('Player leaderboard and default source', () => {
     expect(leaderboardCss).toMatch(
       /\.react-leaderboard-layout\s*\{[^}]*grid-template-columns:\s*minmax\(13rem, 16rem\)/s,
     )
+    expect(leaderboardCss).toContain('#player-main-content.react-player-content:has(#react-view-leaderboard)')
+    expect(leaderboardCss).toContain('--leaderboard-song-bg: #f4f2ef')
+    expect(leaderboardCss).toContain('.react-leaderboard-index-region::before')
+    expect(leaderboardCss).toContain('.react-leaderboard-songs-region::before')
     expect(leaderboardCss).not.toContain('inset 2px 0 var(--app-accent)')
     expect(mobileCss).toContain('.react-leaderboard-index {')
     expect(mobileCss).toContain('overflow-x: auto;')
