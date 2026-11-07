@@ -545,6 +545,64 @@ export const createUserRouter = (): Router => {
   })
 
   // 2. 覆盖保存用户歌单数据 (POST /api/user/list)
+  router.post('/api/user/list/compare-and-swap', async ctx => {
+    const username = resolveTargetUsername(ctx, false)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '公共歌单修改需要管理员权限')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
+    try {
+      const body = await ctx.bodyJson<{ expected: LX.List.ListData; next: LX.List.ListData }>(
+        MAX_USER_SETTING_BODY_BYTES,
+      )
+      const manager = getUserSpace(username).listManage
+      const applied = await manager.runWithPersistence(async () => {
+        if (JSON.stringify(await manager.getListData()) !== JSON.stringify(body.expected)) return null
+        await manager.listDataManage.restore(body.next)
+        return true
+      })
+      if (!applied) return ctx.fail(409, '歌单已被其他客户端修改，请重试')
+      return ctx.json({ success: true })
+    } catch (err: any) {
+      return ctx.fail(400, toUserMessage(err, '歌单操作失败'))
+    }
+  })
+
+  router.post('/api/user/library/compare-and-swap', async ctx => {
+    const username = resolveTargetUsername(ctx, false)
+    if (!username) return ctx.fail(401, '登录状态已失效，请重新登录')
+    if (username === '_open' && !verifyAdminAuth(ctx.request)) return ctx.fail(403, '修改公开收藏需要管理员权限')
+    const unavailable = rejectUnavailableDataWrite(ctx, username)
+    if (unavailable) return unavailable
+    try {
+      const body = await ctx.bodyJson<{ kind: string; expected: unknown[]; next: unknown[] }>(
+        MAX_USER_SETTING_BODY_BYTES,
+      )
+      const kind = body.kind
+      if (kind !== 'albums' && kind !== 'artists') return ctx.fail(404, '曲库不存在')
+      if (!Array.isArray(body.expected) || !Array.isArray(body.next)) return ctx.fail(400, '曲库数据无效')
+      const db = getDb()
+      const key = `library_${kind}`
+      const applied = db.transaction(() => {
+        const row = db
+          .query<{ value: string }, [string, string]>('SELECT value FROM user_settings WHERE user_name = ? AND key = ?')
+          .get(username, key)
+        if (JSON.stringify(row ? JSON.parse(row.value) : []) !== JSON.stringify(body.expected)) return false
+        db.run('INSERT OR REPLACE INTO user_settings (user_name, key, value, updated_at) VALUES (?, ?, ?, ?)', [
+          username,
+          key,
+          JSON.stringify(body.next),
+          Date.now(),
+        ])
+        return true
+      })()
+      if (!applied) return ctx.fail(409, '曲库已被其他客户端修改，请重试')
+      return ctx.json({ success: true })
+    } catch (err: any) {
+      return ctx.fail(400, toUserMessage(err, '曲库操作失败'))
+    }
+  })
+
   router.post('/api/user/list', async ctx => {
     const isAdmin = verifyAdminAuth(ctx.request)
     const username = resolveTargetUsername(ctx, false)

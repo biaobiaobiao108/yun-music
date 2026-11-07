@@ -64,6 +64,31 @@ test('concurrent playlist intents preserve all lists and unrelated favorites', a
   expect((await post({ action: 'delete', id: 'second' }, { cookie: '' })).status).toBe(401)
 })
 
+test('conditional playlist and library updates reject stale snapshots', async () => {
+  const router = createUserRouter()
+  const post = (endpoint: string, body: object) =>
+    router.handle(
+      new Request(`http://localhost${endpoint}?user=playlist_owner`, {
+        method: 'POST',
+        headers: { cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    )
+  const manager = getUserSpace('playlist_owner').listManage
+  const expected = structuredClone(await manager.getListData())
+  const next = { ...expected, userList: [{ id: 'one', name: 'One', list: [] }] }
+  expect((await post('/api/user/list/compare-and-swap', { expected, next })).status).toBe(200)
+  expect((await post('/api/user/list/compare-and-swap', { expected, next: expected })).status).toBe(409)
+  expect((await manager.getListData()).userList.map(item => item.id)).toEqual(['one'])
+  const library = { kind: 'albums', expected: [], next: [{ id: 'one' }] }
+  expect((await post('/api/user/library/compare-and-swap', library)).status).toBe(200)
+  expect((await post('/api/user/library/compare-and-swap', library)).status).toBe(409)
+  const read = await router.handle(
+    new Request('http://localhost/api/user/library/albums?user=playlist_owner', { headers: { cookie } }),
+  )
+  expect(await read.json()).toEqual([{ id: 'one' }])
+})
+
 test('refuses to delete built-in playlists through the admin endpoint', async () => {
   const router = createUserRouter()
   const manager = getUserSpace('playlist_owner').listManage
