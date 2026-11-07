@@ -27,6 +27,20 @@ const createSearchFetch = (str: any, searchType: any, resultNum: any, pageNum: a
   })
 }
 
+async function search(str: string, type: number, page: number, limit: number, signal?: AbortSignal) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    signal?.throwIfAborted()
+    const { body } = await createSearchFetch(str, type, limit, page, signal).promise
+    if (body?.code !== 0) throw new Error(`QQ 音乐搜索失败 (${body?.code ?? 'invalid response'})`)
+    if (body.req?.code === 2001) continue
+    if (body.req?.code !== 0) throw new Error(`QQ 音乐搜索失败 (${body.req?.code ?? 'invalid response'})`)
+    const data = body.req.data
+    if (!data?.body) throw new Error('QQ 音乐搜索返回了无效数据')
+    return data
+  }
+  throw new Error('QQ 音乐暂时限制了搜索请求，请稍后重试')
+}
+
 export default {
   /**
    * 搜索歌手
@@ -35,16 +49,14 @@ export default {
    * @param {number} limit 每页数量
    */
   searchSinger(str: any, page: any = 1, limit: any = 20, signal?: AbortSignal) {
-    return createSearchFetch(str, 1, limit, page, signal).promise.then(({ body }: any) => {
-      if (body.code !== 0) throw new Error('TX singer search failed: ' + body.code)
-      // searchType=1 时，singer 结果在 body.req.data.body.singer
-      const singerData = body.req?.data?.body?.singer
+    return search(str, 1, page, limit, signal).then(data => {
+      const singerData = data.body.singer
       const rawList = (singerData && singerData.list) || []
       const list = this.handleSingerResult(rawList)
       return {
         list,
-        total: (singerData && singerData.total) || list.length,
-        allPage: Math.ceil(((singerData && singerData.total) || list.length) / limit),
+        total: data.meta?.sum ?? list.length,
+        allPage: Math.ceil((data.meta?.sum ?? list.length) / limit),
         limit,
         source: 'tx',
       }
@@ -58,16 +70,14 @@ export default {
    * @param {number} limit 每页数量
    */
   searchAlbum(str: any, page: any = 1, limit: any = 20, signal?: AbortSignal) {
-    return createSearchFetch(str, 2, limit, page, signal).promise.then(({ body }: any) => {
-      if (body.code !== 0) throw new Error('TX album search failed: ' + body.code)
-      // searchType=2 时，album 结果在 body.req.data.body.album
-      const albumData = body.req?.data?.body?.album
+    return search(str, 2, page, limit, signal).then(data => {
+      const albumData = data.body.album
       const rawList = (albumData && albumData.list) || []
       const list = this.handleAlbumResult(rawList)
       return {
         list,
-        total: (albumData && albumData.total) || list.length,
-        allPage: Math.ceil(((albumData && albumData.total) || list.length) / limit),
+        total: data.meta?.sum ?? list.length,
+        allPage: Math.ceil((data.meta?.sum ?? list.length) / limit),
         limit,
         source: 'tx',
       }
@@ -102,7 +112,7 @@ export default {
     return rawList.map((item: any) => {
       const mid = item.albumMID || item.mid || ''
       const singerName = item.singerName || (item.singer && item.singer[0] && item.singer[0].name) || ''
-      const singerId = (item.singer && item.singer[0] && item.singer[0].mid) || ''
+      const singerId = item.singerMID || item.singer_list?.[0]?.mid || item.singer?.[0]?.mid || ''
       return {
         id: mid,
         mid,
@@ -111,7 +121,7 @@ export default {
         artistName: singerName,
         artistId: singerId,
         size: item.song_count || item.songNum || 0,
-        publishTime: item.pubTime || '',
+        publishTime: item.publicTime || item.pubTime || '',
         source: 'tx',
       }
     })
