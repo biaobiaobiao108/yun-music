@@ -7806,12 +7806,13 @@ textarea:focus-visible {
 }
 
 .react-song-row {
-    min-height: 4.35rem;
-    padding: 0.45rem 0.1rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--app-border) 84%, transparent);
-    border-radius: 0;
+    min-height: 3.35rem;
+    padding: 0.25rem 0.35rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--app-border) 60%, transparent);
+    border-radius: var(--app-radius-md, 0.5rem);
     content-visibility: auto;
-    contain-intrinsic-size: auto 4.35rem;
+    contain-intrinsic-size: auto 3.35rem;
+    transition: background-color var(--app-motion-fast) ease;
 }
 
 .react-song-row:last-child {
@@ -15520,18 +15521,45 @@ body,
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-height: 4.2rem;
-    padding: 0.8rem 1rem;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 1.25rem 1rem;
     border: 0;
     border-radius: 0;
     background: transparent;
     color: var(--app-text-muted);
 }
 
+.react-home-empty > i {
+    font-size: 1.35rem;
+    color: var(--app-text-dim);
+    opacity: 0.65;
+}
+
 .react-home-empty > p {
+    margin: 0;
     max-width: 100%;
-    white-space: normal;
+    font-size: 0.875rem;
+    color: var(--app-text-muted);
     text-align: center;
+}
+
+.react-home-empty .react-text-button {
+    margin-top: 0.25rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: var(--app-surface-soft);
+    color: var(--app-text);
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition:
+        background-color var(--app-motion-fast) ease,
+        color var(--app-motion-fast) ease;
+}
+
+.react-home-empty .react-text-button:hover {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
 }
 
 .react-content-card,
@@ -15740,14 +15768,12 @@ body,
 .react-floating-history {
     display: flex;
     align-items: center;
-    gap: 0.1rem;
-    padding: 0.18rem;
+    gap: 0.15rem;
+    padding: 0.2rem;
     border: 1px solid var(--app-border);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--app-bg) 88%, transparent);
-    box-shadow: 0 0.15rem 0.5rem rgb(25 20 17 / 4%);
-    -webkit-backdrop-filter: blur(14px) saturate(1.1);
-    backdrop-filter: blur(14px) saturate(1.1);
+    background: var(--app-surface-solid);
+    box-shadow: 0 0.12rem 0.4rem rgba(0, 0, 0, 0.04);
     pointer-events: auto;
 }
 
@@ -15808,9 +15834,9 @@ body,
         box-sizing: border-box;
         width: auto;
         height: auto;
-        padding: clamp(3.25rem, 4vw, 4rem) clamp(1.4rem, 2.8vw, 3.5rem) calc(6rem + 1.5rem);
+        padding: clamp(3.25rem, 4vw, 4rem) clamp(1.4rem, 2.8vw, 3.5rem) calc(6rem + 2.5rem);
         overflow: auto;
-        scroll-padding-block: 1rem calc(6rem + 1.5rem);
+        scroll-padding-block: 1rem calc(6rem + 2.5rem);
     }
 
     .react-player-footer#player-footer:not(.react-immersive-detail-controls) {
@@ -15845,11 +15871,11 @@ body,
 }
 
 :root {
-    --player-paper: #f7f7f6;
+    --player-paper: var(--app-bg, #faf9f7);
 }
 
 :root[data-appearance="dark"] {
-    --player-paper: #171719;
+    --player-paper: var(--app-bg, #121214);
 }
 
 .react-player-shell {
@@ -16271,10 +16297,12 @@ body,
         border: 0 !important;
         border-top: 1px solid var(--app-border) !important;
         border-radius: 0 !important;
-        background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent) !important;
-        box-shadow: 0 -0.45rem 1.6rem rgb(25 20 17 / 5%);
-        -webkit-backdrop-filter: blur(28px) saturate(1.35);
-        backdrop-filter: blur(28px) saturate(1.35);
+        background: var(--app-surface-solid) !important;
+        box-shadow:
+            0 -1px 0 var(--app-border),
+            0 -0.45rem 1.6rem rgb(0 0 0 / 3%);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
     }
 
     .react-player-main {
