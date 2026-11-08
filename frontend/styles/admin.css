@@ -1826,7 +1826,7 @@ select.form-input option:checked {
 }
 .admin-react-table thead th {
     color: var(--text-secondary);
-    background: var(--accent-tint-05);
+    background: color-mix(in srgb, var(--app-surface-soft) 85%, transparent);
     font-size: 0.78rem;
     white-space: nowrap;
 }
@@ -1835,7 +1835,7 @@ select.form-input option:checked {
     contain-intrinsic-size: auto 64px;
 }
 .admin-react-table tbody tr:hover {
-    background: var(--accent-tint-05);
+    background: color-mix(in srgb, var(--app-surface-soft) 50%, transparent);
 }
 .admin-react-table tbody tr:last-child th,
 .admin-react-table tbody tr:last-child td {
@@ -5382,7 +5382,8 @@ textarea:focus-visible {
 
 /* Storage view overrides must remain after the legacy console layer. */
 .admin-react-shell .admin-storage-tabs {
-    display: flex;
+    display: inline-flex;
+    width: fit-content;
     gap: 0.25rem;
     margin-bottom: 0.8rem;
     padding: 0.2rem;
