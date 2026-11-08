@@ -594,8 +594,8 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
       <div className="react-search-page">
         <header className="react-search-page-heading">
           <div className="react-search-page-title">
-            <h1>{query ? `“${query}”` : '搜索音乐'}</h1>
-            {query && (
+            <h1>搜索音乐</h1>
+            {query && results.length > 0 && (
               <p className="react-search-result-count">
                 找到 {results.length}{' '}
                 {type === 'song' ? '首单曲' : type === 'singer' ? '位歌手' : type === 'album' ? '张专辑' : '个歌单'}
