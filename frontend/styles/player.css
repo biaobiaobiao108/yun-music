@@ -16070,7 +16070,7 @@ body,
 }
 
 .react-search-page-title p {
-    margin: 0 0 0.45rem;
+    margin: 0.45rem 0 0;
     color: var(--app-text-muted);
     font-size: 0.9rem;
     font-weight: 550;

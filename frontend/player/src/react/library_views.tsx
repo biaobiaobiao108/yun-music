@@ -134,7 +134,7 @@ export function HomeView() {
           ) : (
             <div className="react-home-empty">
               <Icon name="clock" />
-              <p>播放歌曲后，这里会显示你的最近播放</p>
+              <p>暂无最近播放</p>
               <button type="button" className="react-text-button" onClick={() => setTab('search')}>
                 去搜索音乐
               </button>
@@ -167,7 +167,7 @@ export function HomeView() {
           ) : (
             <div className="react-home-empty">
               <Icon name="heart" />
-              <p>喜欢的歌曲会显示在这里</p>
+              <p>还没有收藏的歌曲</p>
               <button type="button" className="react-text-button" onClick={() => setTab('search')}>
                 去发现音乐
               </button>
@@ -199,7 +199,7 @@ export function HomeView() {
           ) : (
             <div className="react-home-empty">
               <Icon name="user" />
-              <p>艺人会在资料库同步后显示在这里</p>
+              <p>暂无艺人记录</p>
               <button type="button" className="react-text-button" onClick={() => setTab('artists')}>
                 打开艺人
               </button>
@@ -245,7 +245,7 @@ export function HomeView() {
           ) : (
             <div className="react-home-empty">
               <Icon name="list" />
-              <p>还没有自定义歌单</p>
+              <p>暂无自建歌单</p>
               <button type="button" className="react-text-button" onClick={() => setDialog('createList')}>
                 <Icon name="plus" /> 创建歌单
               </button>

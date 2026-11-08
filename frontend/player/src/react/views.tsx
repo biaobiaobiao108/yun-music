@@ -594,11 +594,13 @@ export function SearchView({ detail = null }: { detail?: PlayerDetail | null } =
       <div className="react-search-page">
         <header className="react-search-page-heading">
           <div className="react-search-page-title">
-            <p>
-              搜索 · 找到 {results.length}{' '}
-              {type === 'song' ? '首单曲' : type === 'singer' ? '位歌手' : type === 'album' ? '张专辑' : '个歌单'}
-            </p>
             <h1>{query ? `“${query}”` : '搜索音乐'}</h1>
+            {query && (
+              <p className="react-search-result-count">
+                找到 {results.length}{' '}
+                {type === 'song' ? '首单曲' : type === 'singer' ? '位歌手' : type === 'album' ? '张专辑' : '个歌单'}
+              </p>
+            )}
           </div>
           <form className="react-search-toolbar" onSubmit={submit}>
             <label htmlFor="player-search" className="sr-only">
@@ -1185,7 +1187,6 @@ export function SettingsView() {
         <section className="react-content-card t-bg-panel react-account-card">
           <div className="react-account-heading">
             <div>
-              <p className="react-eyebrow">ACCOUNT</p>
               <h2>用户账户</h2>
               <p>登录后同步歌单、收藏与播放记录</p>
             </div>
@@ -1199,7 +1200,7 @@ export function SettingsView() {
               <Icon name="circle-check" />
               <div className="react-account-copy">
                 <strong>{userName}</strong>
-                <span>当前账户已连接，可以同步你的音乐数据</span>
+                <span>账户已连接，支持多端数据同步</span>
               </div>
               <Button onClick={() => void logout()}>退出账户</Button>
             </div>

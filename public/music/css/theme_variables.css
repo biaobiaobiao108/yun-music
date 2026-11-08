@@ -9,21 +9,21 @@
     /* Base Transition */
     --theme-transition: var(--app-motion) ease;
 
-    /* Apple Music-inspired neutral surfaces. */
-    --bg-main: #ffffff;
-    --bg-panel: #ffffff;
-    --bg-item-hover: #f5f5f7;
-    --bg-header: rgba(255, 255, 255, 0.92);
-    --bg-glass: rgba(255, 255, 255, 0.78);
+    /* Warm Lacquer surfaces */
+    --bg-main: var(--app-bg, #faf9f7);
+    --bg-panel: var(--app-surface-solid, #ffffff);
+    --bg-item-hover: var(--app-surface-soft, #f0ede6);
+    --bg-header: rgba(250, 249, 247, 0.94);
+    --bg-glass: var(--app-surface-glass, rgba(250, 249, 247, 0.82));
 
-    --text-main: #1d1d1f;
-    --text-muted: #6e6e73;
-    --text-dim: #86868b;
+    --text-main: var(--app-text, #181615);
+    --text-muted: var(--app-text-muted, #66615c);
+    --text-dim: var(--app-text-dim, #948e87);
 
-    --border-main: #e5e5ea;
-    --border-dim: #d2d2d7;
+    --border-main: var(--app-border, rgba(45, 38, 32, 0.08));
+    --border-dim: var(--app-border-strong, rgba(45, 38, 32, 0.15));
 
-    --shadow-main: 0 10px 30px 0 rgb(0 0 0 / 0.07), 0 2px 5px 0 rgb(0 0 0 / 0.04);
+    --shadow-main: 0 10px 30px 0 rgb(0 0 0 / 0.06), 0 2px 5px 0 rgb(0 0 0 / 0.03);
 
     /* Default NetEase Red Brand Colors */
     --c-50: #fff1f2;
@@ -42,33 +42,17 @@
 
 :root[data-appearance="dark"] {
     color-scheme: dark;
-    --bg-main: var(--app-bg, #171719);
-    --bg-panel: var(--app-surface-solid, #232326);
-    --bg-item-hover: var(--app-surface-soft, #29292d);
-    --bg-header: rgba(28, 28, 31, .92);
-    --bg-glass: rgba(35, 35, 38, .82);
-    --text-main: var(--app-text, #f2f2f4);
-    --text-muted: var(--app-text-muted, #b0b0b7);
-    --text-dim: var(--app-text-dim, #888890);
-    --border-main: #39393e;
-    --border-dim: #4a4a50;
+    --bg-main: var(--app-bg, #121214);
+    --bg-panel: var(--app-surface-solid, #202024);
+    --bg-item-hover: var(--app-surface-soft, #28282d);
+    --bg-header: rgba(18, 18, 20, 0.94);
+    --bg-glass: var(--app-surface-glass, rgba(28, 28, 32, 0.82));
+    --text-main: var(--app-text, #f4f4f6);
+    --text-muted: var(--app-text-muted, #a4a4ac);
+    --text-dim: var(--app-text-dim, #707078);
+    --border-main: var(--app-border, rgba(255, 255, 255, 0.08));
+    --border-dim: var(--app-border-strong, rgba(255, 255, 255, 0.15));
     --shadow-main: 0 10px 30px 0 rgb(0 0 0 / .3), 0 2px 5px 0 rgb(0 0 0 / .2);
-}
-
-/* Fixed Apple Music-inspired red palette; stored legacy accent values are ignored. */
-:root {
-    --c-50: #fff1f2;
-    --c-100: #ffe4e6;
-    --c-200: #fecdd3;
-    --c-300: #fda4af;
-    --c-400: #fb7185;
-    --c-500: #fa243c;
-    --c-600: #e51e38;
-    --c-700: #c81932;
-    --c-800: #a8182c;
-    --c-900: #8e1b2d;
-    --c-950: #4c0d18;
-    --logo-filter: none;
 }
 
 /* Utilities for transition */
@@ -139,151 +123,6 @@ i {
     border-color: var(--border-dim) !important;
 }
 
-.t-shadow {
+.t-shadow-main {
     box-shadow: var(--shadow-main) !important;
-}
-
-/* Shared theme-aware states for settings and player controls. */
-.settings-tab {
-    color: var(--text-muted) !important;
-    border-color: transparent !important;
-}
-
-.settings-tab:hover,
-.settings-tab:focus-visible,
-.settings-tab-active {
-    color: var(--c-600, var(--c-500)) !important;
-}
-
-.settings-tab-active {
-    border-color: var(--c-500) !important;
-}
-
-.appearance-option-active {
-    border-color: var(--c-500) !important;
-    color: var(--c-600, var(--c-500)) !important;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-500) 24%, transparent);
-}
-
-/* Global overrides for dark mode compatibility */
-[data-appearance="dark"] ::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-[data-appearance="dark"] ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 9999px;
-}
-
-[data-appearance="dark"] ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.4);
-}
-
-/* 强制适配文本类输入元素 (支持模式切换与自动跟随系统) */
-:root[data-appearance="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]),
-:root[data-appearance="dark"] select,
-:root[data-appearance="dark"] textarea {
-    background-color: var(--bg-panel) !important;
-    color: var(--text-main) !important;
-    border-color: var(--border-main) !important;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root:not([data-appearance="light"]) input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]),
-    :root:not([data-appearance="light"]) select,
-    :root:not([data-appearance="light"]) textarea {
-        background-color: var(--bg-panel) !important;
-        color: var(--text-main) !important;
-        border-color: var(--border-main) !important;
-    }
-}
-
-/* Tracking utility for switches/sliders if needed as a helper */
-.t-bg-track {
-    background-color: var(--bg-item-hover) !important;
-}
-
-/* Brand Badges (using base variables where possible) */
-.t-badge-blue {
-    background-color: #dbeafe;
-    color: #1d4ed8;
-}
-
-.t-badge-yellow {
-    background-color: #fef3c7;
-    color: #b45309;
-}
-
-.t-badge-green {
-    background-color: #d1fae5;
-    color: #047857;
-}
-
-.t-badge-red {
-    background-color: #ffe4e6;
-    color: #be123c;
-}
-
-.t-badge-pink {
-    background-color: #fce7f3;
-    color: #be185d;
-}
-
-.t-badge-gray {
-    background-color: #f3f4f6;
-    color: #4b5563;
-}
-
-[data-appearance="dark"] .t-badge-blue {
-    background-color: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-[data-appearance="dark"] .t-badge-yellow {
-    background-color: rgba(245, 158, 11, 0.2);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-[data-appearance="dark"] .t-badge-green {
-    background-color: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-[data-appearance="dark"] .t-badge-red {
-    background-color: rgba(244, 63, 94, 0.2);
-    color: #fb7185;
-    border: 1px solid rgba(244, 63, 94, 0.3);
-}
-
-[data-appearance="dark"] .t-badge-pink {
-    background-color: rgba(236, 72, 153, 0.2);
-    color: #f472b6;
-    border: 1px solid rgba(236, 72, 153, 0.3);
-}
-
-[data-appearance="dark"] .t-badge-gray {
-    background-color: rgba(156, 163, 175, 0.2);
-    color: #9ca3af;
-    border: 1px solid rgba(156, 163, 175, 0.3);
-}
-
-/* Compatibility aliases for the existing player components. The React shell
-   now uses the shared visual language while legacy-compatible utility classes
-   continue to resolve through the same semantic tokens. */
-:root {
-    --bg-main: var(--app-bg);
-    --bg-panel: var(--app-surface-solid);
-    --bg-item-hover: var(--app-surface-soft);
-    --bg-header: color-mix(in srgb, var(--app-bg-raised) 82%, transparent);
-    --bg-glass: var(--app-surface);
-    --text-main: var(--app-text);
-    --text-muted: var(--app-text-muted);
-    --text-dim: var(--app-text-dim);
-    --border-main: var(--app-border);
-    --border-dim: var(--app-border-strong);
-    --glass-border: var(--app-border);
-    --shadow-main: var(--app-shadow-soft);
 }

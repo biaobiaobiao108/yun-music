@@ -274,7 +274,6 @@ function AdminShell() {
             <Icon name="bars" />
           </button>
           <div>
-            <p className="admin-react-eyebrow">云鹿音乐管理后台</p>
             <h1 id="page-title">{title}</h1>
           </div>
           <div className="admin-react-top-actions">
