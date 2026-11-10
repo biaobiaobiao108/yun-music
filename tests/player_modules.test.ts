@@ -17,7 +17,19 @@ import { songEntityDetail, songEntityId, songEntityName } from '../frontend/play
 import type { Song } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
-const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
+const playerViewModules = [
+  'search_views.tsx',
+  'collection_views.tsx',
+  'immersive_lyrics_view.tsx',
+  'player_dialogs.tsx',
+].map(file => `frontend/player/src/react/${file}`)
+const read = (file: string) => {
+  const source = fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
+  if (file !== 'frontend/player/src/react/views.tsx') return source
+  return [source, ...playerViewModules.map(module => fs.readFileSync(path.join(root, module), 'utf8'))]
+    .join('\n')
+    .replaceAll('\r\n', '\n')
+}
 
 describe('React player module boundaries', () => {
   it('publishes separate React player and login entries', () => {
@@ -30,6 +42,15 @@ describe('React player module boundaries', () => {
     expect(playerHtml).not.toContain('download_manager.js')
     expect(playerHtml).not.toContain('data-event-click-action')
     expect(loginHtml).not.toContain('onsubmit=')
+  })
+
+  it('lazy loads player surfaces from focused view modules', () => {
+    const shell = read('frontend/player/src/react/shell.tsx')
+    const views = read('frontend/player/src/react/views.tsx')
+    for (const module of ['search_views', 'collection_views', 'immersive_lyrics_view', 'player_dialogs']) {
+      expect(shell).toContain(`import('./${module}')`)
+      expect(views).toContain(`from './${module}'`)
+    }
   })
 
   it('does not expose UI actions through window and preserves runtime-only access', () => {
@@ -636,6 +657,7 @@ describe('React player module boundaries', () => {
     const admin = read('frontend/admin/src/react/index.tsx')
     const adminCss = read('frontend/styles/admin.css')
     const tokens = read('frontend/styles/design-tokens.css')
+    const design = read('DESIGN.md')
     const sharedTheme = read('frontend/shared/src/theme.ts')
     for (const label of [
       'home',
@@ -707,6 +729,19 @@ describe('React player module boundaries', () => {
     expect(admin).not.toContain('切换主题')
     expect(tokens).toContain('--app-sidebar-width')
     expect(tokens).toContain('--app-accent: #fa243c')
+    const compact = (value: string) => value.replace(/\s/g, '').replace(/(^|[,(])0\.(\d+)/g, '$1.$2')
+    const compactTokens = compact(tokens)
+    const compactDesign = compact(design)
+    for (const [token, value] of [
+      ['--app-sidebar-width', 'clamp(16rem, 16.7vw, 21rem)'],
+      ['--app-topbar-height', '4.5rem'],
+      ['--app-control-height', '2.75rem'],
+      ['--app-sidebar', '#f5f1eb'],
+      ['--app-border-strong', 'rgba(45, 38, 32, .15)'],
+    ]) {
+      expect(compactTokens).toContain(`${token}:${value.replace(/\s/g, '')};`)
+      expect(compactDesign).toContain(value.replace(/\s/g, ''))
+    }
     expect(tokens).not.toContain('[data-theme="violet"]')
     expect(sharedTheme).toContain("element.dataset.theme = 'netease'")
     expect(sharedTheme).toContain('element.dataset.appearance = appearance')

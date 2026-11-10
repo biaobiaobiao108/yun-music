@@ -22,8 +22,7 @@
 ## 2. 字体与排印系统 (Typography)
 
 ### 字体栈 (Font Families)
-- **西文/通用**：`Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
-- **中文**：`"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif`
+- **共享界面 (`--font-sans`)**：`Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 - **等宽数据（时长、时间戳、文件大小、比特率）**：`ui-monospace, "SF Mono", Menlo, Consolas, monospace`
 
 ### 封闭字阶表 (Closed Type Scale)
@@ -44,18 +43,21 @@
 ### 浅色模式 (Light - Warm Lacquer)
 - `--app-bg`: `#faf9f7` —— 温润天然纸质米白底色，消除纯白荧光反光
 - `--app-bg-raised`: `#f2f0ea` —— 凸起或次级平面底色
-- `--app-sidebar`: `#f4f1eb` —— 侧边栏背景
+- `--app-sidebar`: `#f5f1eb` —— 侧边栏背景
 - `--app-surface`: `rgba(255, 255, 255, 0.94)` —— 内容板层表面
 - `--app-surface-solid`: `#ffffff` —— 纯白不透明表面（用于弹窗、悬浮层）
+- `--app-surface-glass`: `rgba(250, 249, 247, 0.82)` —— 仅供需要透底的悬浮层
 - `--app-surface-soft`: `#f0ede6` —— 浅灰底、输入框背景、次级按钮
 - `--app-border`: `rgba(45, 38, 32, 0.08)` —— 1px 极细发丝分割线
-- `--app-border-strong`: `rgba(45, 38, 32, 0.16)` —— 强调边框、表单控件边缘
+- `--app-border-strong`: `rgba(45, 38, 32, 0.15)` —— 强调边框、表单控件边缘
 - `--app-text`: `#181615` —— 主文字（深暖碳黑，对比度 > 12:1）
 - `--app-text-muted`: `#66615c` —— 次要文字（中暖灰，对比度 > 4.8:1）
 - `--app-text-dim`: `#948e87` —— 占位符、次要图标
 - `--app-accent`: `#fa243c` —— 经典鹿血朱红品牌色（工程契约保持一致）
 - `--app-accent-soft`: `rgba(250, 36, 60, 0.12)` —— 强调色浅底衬
 - `--app-on-accent`: `#ffffff` —— 强调色上的反白文字
+- `--app-shadow`: `0 1.25rem 3.5rem rgba(0, 0, 0, 0.08)`
+- `--app-shadow-soft`: `0 0.45rem 1.5rem rgba(0, 0, 0, 0.05)`
 
 ### 深色模式 (Dark - Obsidian Soundscape)
 - `--app-bg`: `#121214` —— 曜石深冷黑底
@@ -63,15 +65,18 @@
 - `--app-sidebar`: `#161619` —— 侧边栏背景
 - `--app-surface`: `rgba(28, 28, 32, 0.92)` —— 内容板层表面
 - `--app-surface-solid`: `#202024` —— 纯色深黑弹窗与卡片
+- `--app-surface-glass`: `rgba(28, 28, 32, 0.82)` —— 仅供需要透底的悬浮层
 - `--app-surface-soft`: `#28282d` —— 输入框、次级按钮底色
 - `--app-border`: `rgba(255, 255, 255, 0.08)` —— 发丝深色分割线
-- `--app-border-strong`: `rgba(255, 255, 255, 0.16)`
+- `--app-border-strong`: `rgba(255, 255, 255, 0.15)`
 - `--app-text`: `#f4f4f6` —— 主文字（高对比暖白）
 - `--app-text-muted`: `#a4a4ac` —— 次要文字（银灰）
 - `--app-text-dim`: `#707078` —— 深灰文字与占位
 - `--app-accent`: `#fa243c`
 - `--app-accent-soft`: `rgba(250, 36, 60, 0.20)`
 - `--app-on-accent`: `#ffffff`
+- `--app-shadow`: `0 1.25rem 3.5rem rgba(0, 0, 0, 0.32)`
+- `--app-shadow-soft`: `0 0.45rem 1.5rem rgba(0, 0, 0, 0.22)`
 
 ---
 
@@ -93,9 +98,9 @@
 - `pill`: 9999px —— 胶囊搜索框、切换开关、浮动胶囊条
 
 ### 组件几何 (Component Heights & Sizes)
-- **桌面侧边栏**：宽度 `clamp(15rem, 16vw, 18rem)`
-- **桌面顶栏**：高度 `3.5rem` (56px)
-- **标准控制项高度**：`2.5rem` (40px)
+- **桌面侧边栏 (`--app-sidebar-width`)**：基础宽度 `clamp(16rem, 16.7vw, 21rem)`；窄屏由媒体查询覆盖
+- **桌面顶栏 (`--app-topbar-height`)**：高度 `4.5rem` (72px)
+- **标准控制项 (`--app-control-height`)**：高度 `2.75rem` (44px)
 - **紧凑控制项高度**：`2.0rem` (32px)
 - **底栏播放器高度**：`4.5rem` (72px)
 - **歌曲行高 (Song Row)**：`3.25rem` (52px)，封面 `2.5rem` (40px)

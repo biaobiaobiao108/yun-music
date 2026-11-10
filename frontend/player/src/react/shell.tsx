@@ -64,16 +64,18 @@ import { useCacheEvents } from './data/use_cache_events'
 const SongListView = lazy(() => import('./heavy_views').then(module => ({ default: module.SongListView })))
 const LeaderboardView = lazy(() => import('./heavy_views').then(module => ({ default: module.LeaderboardView })))
 const LocalMusicView = lazy(() => import('./heavy_views').then(module => ({ default: module.LocalMusicView })))
-const AddToListDialog = lazy(() => import('./views').then(module => ({ default: module.AddToListDialog })))
-const CommentsDialog = lazy(() => import('./views').then(module => ({ default: module.CommentsDialog })))
-const CreateListDialog = lazy(() => import('./views').then(module => ({ default: module.CreateListDialog })))
-const FavoritesView = lazy(() => import('./views').then(module => ({ default: module.FavoritesView })))
-const ImmersiveLyricsView = lazy(() => import('./views').then(module => ({ default: module.ImmersiveLyricsView })))
-const LoginDialog = lazy(() => import('./views').then(module => ({ default: module.LoginDialog })))
-const SearchDetailView = lazy(() => import('./views').then(module => ({ default: module.SearchDetailView })))
-const SearchView = lazy(() => import('./views').then(module => ({ default: module.SearchView })))
-const SettingsView = lazy(() => import('./views').then(module => ({ default: module.SettingsView })))
-const UserLoginDialog = lazy(() => import('./views').then(module => ({ default: module.UserLoginDialog })))
+const AddToListDialog = lazy(() => import('./player_dialogs').then(module => ({ default: module.AddToListDialog })))
+const CommentsDialog = lazy(() => import('./player_dialogs').then(module => ({ default: module.CommentsDialog })))
+const CreateListDialog = lazy(() => import('./player_dialogs').then(module => ({ default: module.CreateListDialog })))
+const FavoritesView = lazy(() => import('./collection_views').then(module => ({ default: module.FavoritesView })))
+const ImmersiveLyricsView = lazy(() =>
+  import('./immersive_lyrics_view').then(module => ({ default: module.ImmersiveLyricsView })),
+)
+const LoginDialog = lazy(() => import('./player_dialogs').then(module => ({ default: module.LoginDialog })))
+const SearchDetailView = lazy(() => import('./search_views').then(module => ({ default: module.SearchDetailView })))
+const SearchView = lazy(() => import('./search_views').then(module => ({ default: module.SearchView })))
+const SettingsView = lazy(() => import('./collection_views').then(module => ({ default: module.SettingsView })))
+const UserLoginDialog = lazy(() => import('./player_dialogs').then(module => ({ default: module.UserLoginDialog })))
 
 function FirefoxContentScrollbar({ scrollRef }: { scrollRef: RefObject<HTMLElement | null> }) {
   const trackRef = useRef<HTMLDivElement>(null)

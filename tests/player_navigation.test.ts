@@ -16,7 +16,19 @@ import {
 } from '../frontend/player/src/react/types'
 
 const root = path.join(import.meta.dir, '..')
-const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
+const playerViewModules = [
+  'search_views.tsx',
+  'collection_views.tsx',
+  'immersive_lyrics_view.tsx',
+  'player_dialogs.tsx',
+].map(file => `frontend/player/src/react/${file}`)
+const read = (file: string) => {
+  const source = fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
+  if (file !== 'frontend/player/src/react/views.tsx') return source
+  return [source, ...playerViewModules.map(module => fs.readFileSync(path.join(root, module), 'utf8'))]
+    .join('\n')
+    .replaceAll('\r\n', '\n')
+}
 
 describe('React player navigation and state restoration', () => {
   it('keeps the complete sidebar reachable between mobile and desktop breakpoints', () => {

@@ -5,7 +5,19 @@ import { DEFAULT_SETTINGS, MUSIC_SOURCE_OPTIONS, normalizeMusicSource } from '..
 import { usePlayerUiStore } from '../frontend/player/src/react/store/ui'
 
 const root = path.join(import.meta.dir, '..')
-const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
+const playerViewModules = [
+  'search_views.tsx',
+  'collection_views.tsx',
+  'immersive_lyrics_view.tsx',
+  'player_dialogs.tsx',
+].map(file => `frontend/player/src/react/${file}`)
+const read = (file: string) => {
+  const source = fs.readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n')
+  if (file !== 'frontend/player/src/react/views.tsx') return source
+  return [source, ...playerViewModules.map(module => fs.readFileSync(path.join(root, module), 'utf8'))]
+    .join('\n')
+    .replaceAll('\r\n', '\n')
+}
 const section = (source: string, start: string, end: string) => source.slice(source.indexOf(start), source.indexOf(end))
 
 const initialUi = usePlayerUiStore.getState()
