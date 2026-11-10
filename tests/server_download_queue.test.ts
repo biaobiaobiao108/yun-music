@@ -10,6 +10,7 @@ import {
   filterPersistedTasksForUsers,
   enqueue,
   MAX_PENDING_TASKS_PER_USER,
+  MAX_TASK_SNAPSHOT_BYTES,
   suspendUser,
   suspendAll,
   releaseAll,
@@ -517,6 +518,38 @@ describe('Server download queue deduplication', () => {
     expect(serialized.songInfo.rawResponse).toBeUndefined()
     expect(serialized.songInfo.meta.url).toBeUndefined()
     expect(serialized.songInfo.meta.lyric).toBeUndefined()
+  })
+
+  test('bounds persisted task strings and rejects oversized queue input', () => {
+    const task = makeTask('user-a', 'bounded', 'waiting', 10)
+    task.songInfo = { source: 'wy', songmid: 'bounded-song', name: 'n'.repeat(10_000) }
+    task.errorMsg = 'e'.repeat(10_000)
+    task.requestedSource = 'r'.repeat(10_000)
+
+    const serialized = serializeDownloadTask(task) as Record<string, any>
+
+    expect(serialized.songInfo.name).toHaveLength(2048)
+    expect(serialized.errorMsg).toHaveLength(1024)
+    expect(serialized.requestedSource).toHaveLength(256)
+    expect(Buffer.byteLength(JSON.stringify(serialized))).toBeLessThanOrEqual(MAX_TASK_SNAPSHOT_BYTES)
+    expect(() =>
+      enqueue('oversized-input-user', [
+        {
+          songInfo: { source: 'wy', songmid: 'oversized-song', name: 'n'.repeat(2049) },
+        },
+      ]),
+    ).toThrow('songInfo.name长度不能超过 2048 个字符')
+    expect(() =>
+      enqueue('oversized-input-user', [
+        {
+          songInfo: {
+            source: 'wy',
+            songmid: 'oversized-song',
+            types: Array.from({ length: 32 }, () => 'x'.repeat(500)),
+          },
+        },
+      ]),
+    ).toThrow('songInfo 数据过大')
   })
 
   test('limits background cache work to one active task and keeps explicit work eligible', () => {

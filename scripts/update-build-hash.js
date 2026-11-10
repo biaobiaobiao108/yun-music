@@ -1,6 +1,8 @@
+const fs = require('fs')
 const path = require('path')
 
 async function getDirectoryHash(dir, exclude = [], extensions = []) {
+  if (!fs.existsSync(dir)) return ''
   const files = [...new Bun.Glob('**/*').scanSync({ cwd: dir, absolute: true, dot: true })].filter(file => {
     const relPath = path.relative(dir, file).replace(/\\/g, '/')
     const fileName = path.basename(file)
@@ -48,13 +50,45 @@ async function getDirectoryHash(dir, exclude = [], extensions = []) {
 
 const targetDir = path.resolve(__dirname, '../')
 
-// We exclude config.js itself to avoid infinite hash changes when injecting the hash.
-// Also ignore logs, data, server (dist), node_modules, .git.
-const publicHash = await getDirectoryHash(path.join(targetDir, 'public'), ['js/config.js', 'music/bin'], [])
+// Hash inputs instead of the whole public directory. Generated bundles are
+// retained for up to 30 days, so including them makes identical builds produce
+// different hashes over time.
+const publicHash = await getDirectoryHash(
+  path.join(targetDir, 'public'),
+  [
+    'app.js',
+    'app-',
+    'index.html',
+    'js/config.js',
+    'js/page-runtime.js',
+    'js/chunks',
+    'music/app.js',
+    'music/app-',
+    'music/index.html',
+    'music/login.html',
+    'music/login-',
+    'music/js/chunks',
+    'tailwind.generated.css',
+    'music/css/tailwind.generated.css',
+    'music/bin',
+  ],
+  [],
+)
 const srcHash = await getDirectoryHash(path.join(targetDir, 'src'), [], [])
+const frontendHash = await getDirectoryHash(path.join(targetDir, 'frontend'), [], [])
+const scriptsHash = await getDirectoryHash(path.join(targetDir, 'scripts'), [], [])
+const assetHash = await getDirectoryHash(path.join(targetDir, 'docs/assets'), ['screenshots'], [])
+async function getFileHash(filePath) {
+  if (!fs.existsSync(filePath)) return ''
+  return new Bun.CryptoHasher('md5').update(await Bun.file(filePath).bytes()).digest('hex')
+}
+const dependencyHash = new Bun.CryptoHasher('md5')
+  .update(await getFileHash(path.join(targetDir, 'package.json')))
+  .update(await getFileHash(path.join(targetDir, 'bun.lock')))
+  .digest('hex')
 
 const finalHash = new Bun.CryptoHasher('md5')
-  .update(publicHash + srcHash)
+  .update([publicHash, srcHash, frontendHash, scriptsHash, assetHash, dependencyHash].join(':'))
   .digest('hex')
   .substring(0, 7)
 

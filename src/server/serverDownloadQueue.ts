@@ -66,6 +66,17 @@ export const MAX_BACKGROUND_CONCURRENT = 1
 const RESOLVED_URL_TTL = 10 * 60 * 1000
 export const MAX_PENDING_TASKS_PER_USER = 500
 export const MAX_HISTORY_PER_USER = 200
+export const MAX_TOTAL_TASKS = 3000
+export const MAX_TASK_SNAPSHOT_BYTES = 8 * 1024
+export const MAX_QUEUE_SNAPSHOT_BYTES = 32 * 1024 * 1024
+const MAX_TASK_INPUT_BYTES = MAX_TASK_SNAPSHOT_BYTES - 1024
+const MAX_SONG_INFO_BYTES = MAX_TASK_SNAPSHOT_BYTES - 1536
+const MAX_SONG_FIELD_LENGTH = 2048
+const MAX_SONG_COLLECTION_ITEMS = 32
+const MAX_SOURCE_FIELD_LENGTH = 256
+const MAX_QUALITY_LENGTH = 32
+const MAX_RESOLVED_URL_LENGTH = 4096
+const MAX_ERROR_MESSAGE_LENGTH = 1024
 const tasks = new Map<string, ServerDownloadTask>()
 const controllers = new Map<string, AbortController>()
 // Removed tasks keep their execution slot until their resolver/download settles.
@@ -165,33 +176,66 @@ const SONG_META_FIELDS = [
   'trcUrl',
 ] as const
 
-const copySongField = (source: any, target: Record<string, any>, key: string) => {
+const limitText = (value: unknown, maxLength: number, label: string, strict: boolean): string => {
+  const text = String(value)
+  if (text.length <= maxLength) return text
+  if (strict) throw new Error(`${label}长度不能超过 ${maxLength} 个字符`)
+  return text.slice(0, maxLength)
+}
+
+const copySongScalar = (value: unknown, key: string, strict: boolean) => {
+  if (typeof value === 'string') return limitText(value, MAX_SONG_FIELD_LENGTH, `songInfo.${key}`, strict)
+  if (typeof value === 'number' || typeof value === 'boolean') return value
+  return undefined
+}
+
+const copySongField = (source: any, target: Record<string, any>, key: string, strict: boolean) => {
   const value = source?.[key]
   if (value === undefined || value === null) return
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    target[key] = value
+  const scalar = copySongScalar(value, key, strict)
+  if (scalar !== undefined) {
+    target[key] = scalar
     return
   }
   if (key === 'types' || key === '_types' || key === 'qualitys') {
     if (Array.isArray(value)) {
-      target[key] = value.slice(0, 32)
+      target[key] = value
+        .slice(0, MAX_SONG_COLLECTION_ITEMS)
+        .map((item, index) => copySongScalar(item, `${key}[${index}]`, strict))
+        .filter(item => item !== undefined)
     } else if (typeof value === 'object') {
-      target[key] = Object.fromEntries(Object.entries(value).slice(0, 32))
+      target[key] = Object.fromEntries(
+        Object.entries(value)
+          .slice(0, MAX_SONG_COLLECTION_ITEMS)
+          .map(([entryKey, entryValue], index) => [
+            limitText(entryKey, 64, `songInfo.${key} key`, strict),
+            copySongScalar(entryValue, `${key}.${entryKey}`, strict),
+          ])
+          .filter(([, entryValue]) => entryValue !== undefined),
+      )
     }
   }
 }
 
-const sanitizeSongInfo = (songInfo: any) => {
+const sanitizeSongInfo = (songInfo: any, strict = false) => {
   if (!songInfo || typeof songInfo !== 'object') return {}
   const safeSongInfo: Record<string, any> = {}
-  for (const key of SONG_INFO_FIELDS) copySongField(songInfo, safeSongInfo, key)
+  for (const key of SONG_INFO_FIELDS) copySongField(songInfo, safeSongInfo, key, strict)
 
   if (songInfo.meta && typeof songInfo.meta === 'object') {
     const safeMeta: Record<string, any> = {}
-    for (const key of SONG_META_FIELDS) copySongField(songInfo.meta, safeMeta, key)
+    for (const key of SONG_META_FIELDS) copySongField(songInfo.meta, safeMeta, key, strict)
     // Preserve the lightweight meta container for callers that read
     // `songInfo.meta`, while still dropping URL and raw payload fields.
     safeSongInfo.meta = safeMeta
+  }
+
+  while (Buffer.byteLength(JSON.stringify(safeSongInfo)) > MAX_SONG_INFO_BYTES) {
+    if (strict) throw new Error('songInfo 数据过大')
+    const optionalKeys = Object.keys(safeSongInfo).filter(key => key !== 'source' && key !== 'songmid' && key !== 'id')
+    const removable = optionalKeys.pop()
+    if (removable) delete safeSongInfo[removable]
+    else break
   }
   return safeSongInfo
 }
@@ -200,8 +244,56 @@ export const serializeDownloadTask = (task: ServerDownloadTask) => {
   const { resolvedUrl: _resolvedUrl, resolvedUrlAt: _resolvedUrlAt, progressKey: _progressKey, ...persistedTask } = task
   return {
     ...persistedTask,
+    quality: limitText(persistedTask.quality, MAX_QUALITY_LENGTH, 'quality', false),
+    requestedQuality: limitText(persistedTask.requestedQuality, MAX_QUALITY_LENGTH, 'requestedQuality', false),
+    errorMsg: limitText(persistedTask.errorMsg, MAX_ERROR_MESSAGE_LENGTH, 'errorMsg', false),
+    requestedSource:
+      persistedTask.requestedSource === undefined
+        ? undefined
+        : limitText(persistedTask.requestedSource, MAX_SOURCE_FIELD_LENGTH, 'requestedSource', false),
+    downloadSource:
+      persistedTask.downloadSource === undefined
+        ? undefined
+        : limitText(persistedTask.downloadSource, MAX_SOURCE_FIELD_LENGTH, 'downloadSource', false),
+    sourceName:
+      persistedTask.sourceName === undefined
+        ? undefined
+        : limitText(persistedTask.sourceName, MAX_SOURCE_FIELD_LENGTH, 'sourceName', false),
     songInfo: sanitizeSongInfo(persistedTask.songInfo),
   }
+}
+
+const normalizeQueueInput = (input: QueueInput): QueueInput => {
+  const songInfo = sanitizeSongInfo(input.songInfo, true)
+  const quality = limitText(input.quality || '320k', MAX_QUALITY_LENGTH, 'quality', true)
+  const normalized: QueueInput = {
+    id: input.id,
+    songInfo,
+    quality,
+    enableOnlyDownloadMode: input.enableOnlyDownloadMode,
+    cacheLyric: input.cacheLyric,
+    embedLyric: input.embedLyric,
+    background: input.background,
+    requestedSource:
+      input.requestedSource === undefined
+        ? undefined
+        : limitText(input.requestedSource, MAX_SOURCE_FIELD_LENGTH, 'requestedSource', true),
+    downloadSource:
+      input.downloadSource === undefined
+        ? undefined
+        : limitText(input.downloadSource, MAX_SOURCE_FIELD_LENGTH, 'downloadSource', true),
+    sourceName:
+      input.sourceName === undefined
+        ? undefined
+        : limitText(input.sourceName, MAX_SOURCE_FIELD_LENGTH, 'sourceName', true),
+  }
+  if (input.resolvedUrl !== undefined) {
+    normalized.resolvedUrl = limitText(input.resolvedUrl, MAX_RESOLVED_URL_LENGTH, 'resolvedUrl', true)
+  }
+  if (Buffer.byteLength(JSON.stringify(normalized)) > MAX_TASK_INPUT_BYTES) {
+    throw new Error('单个下载任务数据过大')
+  }
+  return normalized
 }
 
 const getTaskIdentity = (
@@ -357,15 +449,24 @@ const pruneHistory = () => {
   return removed
 }
 
-const saveNow = (throwOnError = false): Promise<void> => {
-  if (!initialized) return Promise.resolve()
-  deduplicateTasksInMemory()
-  const removed = pruneHistory()
-  if (removed > 0) {
-    console.log(`[ServerDownloadQueue] Pruned ${removed} old history task(s)`)
+const pruneGlobalTaskLimit = () => {
+  if (tasks.size <= MAX_TOTAL_TASKS) return 0
+  const candidates = Array.from(tasks.entries()).sort(([, left], [, right]) => {
+    const terminalDifference = Number(terminalStatuses.has(right.status)) - Number(terminalStatuses.has(left.status))
+    return terminalDifference || left.updatedAt - right.updatedAt
+  })
+  let removed = 0
+  for (const [key] of candidates) {
+    if (tasks.size <= MAX_TOTAL_TASKS) break
+    tasks.delete(key)
+    removed++
   }
-  const file = getQueueFile()
-  const payload = JSON.stringify(
+  if (removed > 0) rebuildTaskIndexes()
+  return removed
+}
+
+const buildQueuePayload = () =>
+  JSON.stringify(
     {
       version: 2,
       concurrencyByUser: Object.fromEntries(concurrencyByUser),
@@ -374,6 +475,47 @@ const saveNow = (throwOnError = false): Promise<void> => {
     null,
     2,
   )
+
+const buildBoundedQueuePayload = () => {
+  let payload = buildQueuePayload()
+  let overflow = Buffer.byteLength(payload) - MAX_QUEUE_SNAPSHOT_BYTES
+  if (overflow <= 0) return payload
+
+  const terminalTasks = Array.from(tasks.entries())
+    .filter(([, task]) => !resumableStatuses.has(task.status))
+    .sort(([, left], [, right]) => left.updatedAt - right.updatedAt)
+  let removed = 0
+  while (overflow > 0 && terminalTasks.length > 0) {
+    const removeCount = Math.max(1, Math.ceil(overflow / MAX_TASK_SNAPSHOT_BYTES))
+    for (const [key] of terminalTasks.splice(0, removeCount)) {
+      if (!tasks.delete(key)) continue
+      removed++
+    }
+    payload = buildQueuePayload()
+    overflow = Buffer.byteLength(payload) - MAX_QUEUE_SNAPSHOT_BYTES
+  }
+
+  if (removed > 0) {
+    rebuildTaskIndexes()
+    console.log(`[ServerDownloadQueue] Removed ${removed} old history task(s) to bound queue storage`)
+  }
+  if (overflow > 0) throw new Error('下载队列快照超过大小上限')
+  return payload
+}
+
+const saveNow = (throwOnError = false): Promise<void> => {
+  if (!initialized) return Promise.resolve()
+  deduplicateTasksInMemory()
+  const removed = pruneHistory()
+  if (removed > 0) {
+    console.log(`[ServerDownloadQueue] Pruned ${removed} old history task(s)`)
+  }
+  const globallyRemoved = pruneGlobalTaskLimit()
+  if (globallyRemoved > 0) {
+    console.log(`[ServerDownloadQueue] Removed ${globallyRemoved} task(s) to enforce the global queue limit`)
+  }
+  const file = getQueueFile()
+  const payload = buildBoundedQueuePayload()
   // Keep at most the active write plus the newest pending snapshot. Slow disks
   // must not accumulate a promise closure (and full JSON payload) per update.
   pendingSave = { file, payload }
@@ -496,15 +638,25 @@ const loadTasks = () => {
       const savedStatus = validStatuses.has(raw.status) ? (raw.status as ServerDownloadStatus) : 'waiting'
       const status: ServerDownloadStatus =
         savedStatus === 'downloading' || savedStatus === 'tagging' ? 'waiting' : savedStatus
-      const quality = String(raw.quality || raw.requestedQuality || '320k')
-      const requestedQuality = String(raw.requestedQuality || quality)
+      const quality = limitText(raw.quality || raw.requestedQuality || '320k', MAX_QUALITY_LENGTH, 'quality', false)
+      const requestedQuality = limitText(raw.requestedQuality || quality, MAX_QUALITY_LENGTH, 'requestedQuality', false)
       const now = Date.now()
       const createdAt = Number(raw.createdAt || now)
       const task: ServerDownloadTask = {
         id,
         username: String(raw.username),
-        songKey: String(raw.songKey || `${fileCache.normalizeSongId(raw.songInfo)}_${requestedQuality}`),
-        activeSongKey: status === 'waiting' ? undefined : raw.activeSongKey ? String(raw.activeSongKey) : undefined,
+        songKey: limitText(
+          raw.songKey || `${fileCache.normalizeSongId(raw.songInfo)}_${requestedQuality}`,
+          MAX_SONG_FIELD_LENGTH + MAX_QUALITY_LENGTH + 1,
+          'songKey',
+          false,
+        ),
+        activeSongKey:
+          status === 'waiting'
+            ? undefined
+            : raw.activeSongKey
+              ? limitText(raw.activeSongKey, MAX_SONG_FIELD_LENGTH + MAX_QUALITY_LENGTH + 1, 'activeSongKey', false)
+              : undefined,
         songInfo: sanitizeSongInfo(raw.songInfo),
         quality: status === 'waiting' ? requestedQuality : quality,
         requestedQuality,
@@ -513,14 +665,21 @@ const loadTasks = () => {
         total: status === 'waiting' ? 0 : Number(raw.total || 0),
         received: status === 'waiting' ? 0 : Number(raw.received || 0),
         speed: 0,
-        errorMsg: status === 'waiting' ? '' : String(raw.errorMsg || ''),
+        errorMsg:
+          status === 'waiting' ? '' : limitText(raw.errorMsg || '', MAX_ERROR_MESSAGE_LENGTH, 'errorMsg', false),
         enableOnlyDownloadMode: !!raw.enableOnlyDownloadMode,
         cacheLyric: raw.cacheLyric !== false,
         embedLyric: raw.embedLyric !== false,
         background: raw.background === true,
-        requestedSource: raw.requestedSource ? String(raw.requestedSource) : undefined,
-        downloadSource: raw.downloadSource ? String(raw.downloadSource) : undefined,
-        sourceName: raw.sourceName ? String(raw.sourceName) : undefined,
+        requestedSource: raw.requestedSource
+          ? limitText(raw.requestedSource, MAX_SOURCE_FIELD_LENGTH, 'requestedSource', false)
+          : undefined,
+        downloadSource: raw.downloadSource
+          ? limitText(raw.downloadSource, MAX_SOURCE_FIELD_LENGTH, 'downloadSource', false)
+          : undefined,
+        sourceName: raw.sourceName
+          ? limitText(raw.sourceName, MAX_SOURCE_FIELD_LENGTH, 'sourceName', false)
+          : undefined,
         createdAt,
         updatedAt: Number(raw.updatedAt || createdAt),
       }
@@ -561,7 +720,7 @@ const getPublicTask = (task: ServerDownloadTask) => {
     received: Number(live?.received ?? task.received ?? 0),
     speed: Number(live?.speed ?? task.speed ?? 0),
     background: task.background,
-    errorMsg: String(live?.errorMsg || task.errorMsg || ''),
+    errorMsg: limitText(live?.errorMsg || task.errorMsg || '', MAX_ERROR_MESSAGE_LENGTH, 'errorMsg', false),
     createdAt: task.createdAt,
     updatedAt: Number(live?.updatedAt || task.updatedAt),
   }
@@ -699,7 +858,7 @@ const runTask = async (task: ServerDownloadTask) => {
 
     const applyResolvedTarget = (nextResolved: ResolveResult) => {
       task.songInfo = requestedSongInfo
-      task.quality = nextResolved.quality || task.requestedQuality
+      task.quality = limitText(nextResolved.quality || task.requestedQuality, MAX_QUALITY_LENGTH, 'quality', false)
       task.activeSongKey = fileCache.normalizeSongId(requestedSongInfo) + '_' + task.quality
       task.progressKey = getTaskProgressKey(task.username, task.id)
       task.updatedAt = Date.now()
@@ -770,7 +929,7 @@ const runTask = async (task: ServerDownloadTask) => {
   } catch (err: any) {
     if (!markDownloadTaskPausedIfAborted(task, controller.signal.aborted || err?.message === 'Aborted')) {
       task.status = 'error'
-      task.errorMsg = err?.message || '下载失败'
+      task.errorMsg = limitText(err?.message || '下载失败', MAX_ERROR_MESSAGE_LENGTH, 'errorMsg', false)
       console.error(`[ServerDownloadQueue] Task failed ${task.songKey}: ${task.errorMsg}`)
     }
     task.speed = 0
@@ -905,18 +1064,18 @@ const markTaskAsExisting = (task: ServerDownloadTask, username: string, input: Q
 export const enqueue = (username: string, inputs: QueueInput[]) => {
   if (allUsersSuspended || suspendedUsers.has(username)) throw new Error('用户数据正在迁移或删除')
   if (inputs.length > 100) throw new Error('Too many tasks in one request')
+  const normalizedInputs = inputs.filter(input => input?.songInfo).map(normalizeQueueInput)
   deduplicateTasksInMemory()
   const pendingCount = pendingCountByUser.get(username) || 0
   const chargedTaskKeys = new Set<string>()
   const chargedIdentities = new Set<string>()
   let pendingAdds = 0
-  for (const input of inputs) {
-    if (!input?.songInfo) continue
+  for (const input of normalizedInputs) {
     const identity = getTaskIdentity({
       username,
       songInfo: input.songInfo,
-      quality: String(input.quality || '320k'),
-      requestedQuality: String(input.quality || '320k'),
+      quality: input.quality || '320k',
+      requestedQuality: input.quality || '320k',
       songKey: '',
       activeSongKey: undefined,
     })
@@ -924,7 +1083,7 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
     const existingKey = taskIdentityIndex.get(identity)
     const existing = tasks.get(taskMapKey(username, id)) || (existingKey ? tasks.get(existingKey) : undefined)
     if (existing && resumableStatuses.has(existing.status)) continue
-    if (hasRequestedTarget(username, input, String(input.quality || '320k'))) continue
+    if (hasRequestedTarget(username, input, input.quality || '320k')) continue
 
     // A batch can create several transient records for one identity; saving
     // the queue deduplicates those records, so they reserve only one slot.
@@ -941,9 +1100,9 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
     pendingAdds++
   }
   if (pendingCount + pendingAdds > MAX_PENDING_TASKS_PER_USER) throw new Error('Too many pending download tasks')
+  if (tasks.size + pendingAdds > MAX_TOTAL_TASKS) throw new Error('下载队列任务总数已达上限')
   const added: ServerDownloadTask[] = []
-  for (const input of inputs) {
-    if (!input?.songInfo) continue
+  for (const input of normalizedInputs) {
     let id = sanitizeId(input.id)
     const requestedKey = taskMapKey(username, id)
     if (controllers.has(requestedKey) && !tasks.has(requestedKey)) {
@@ -954,7 +1113,7 @@ export const enqueue = (username: string, inputs: QueueInput[]) => {
       } while (controllers.has(taskMapKey(username, id)) || tasks.has(taskMapKey(username, id)))
     }
     const key = taskMapKey(username, id)
-    const quality = String(input.quality || '320k')
+    const quality = input.quality || '320k'
     const identity = getTaskIdentity({
       username,
       songInfo: input.songInfo,

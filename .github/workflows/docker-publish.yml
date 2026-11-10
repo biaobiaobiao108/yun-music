@@ -101,12 +101,15 @@ jobs:
             "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}" >/dev/null
 
           for attempt in {1..30}; do
-            http_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9527/ || true)
-            if [ "$http_code" = "200" ]; then
-              echo "Smoke test passed successfully with HTTP 200!"
+            home_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9527/ || true)
+            health_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9527/healthz || true)
+            ready_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9527/readyz || true)
+            if [ "$home_code" = "200" ] && [ "$health_code" = "200" ] && [ "$ready_code" = "200" ]; then
+              docker logs "$container_name" 2>&1 | grep -F 'Starting 云鹿音乐 in production'
+              echo "Smoke test passed: home, health and readiness checks are HTTP 200."
               exit 0
             fi
-            echo "Attempt $attempt: HTTP status is '$http_code', waiting 2s..."
+            echo "Attempt $attempt: home=$home_code health=$health_code ready=$ready_code, waiting 2s..."
             sleep 2
           done
 
