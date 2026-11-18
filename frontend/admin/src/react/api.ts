@@ -31,6 +31,16 @@ export type StorageItem = Record<string, unknown> & {
   location?: 'data' | 'root' | string
   mtime?: number
 }
+
+export type StorageQuery = { folder: 'cache' | 'music'; page: number; query: string; sort: string }
+export type StoragePage = {
+  data: StorageItem[]
+  page: number
+  pageSize: number
+  total: number
+  filtered: number
+  size: number
+}
 export type DatabaseStorageStats = {
   pageSize: number
   pageCount: number
@@ -137,6 +147,7 @@ export async function verifySession(): Promise<AdminStatus> {
 export const adminApi = {
   status: (signal?: AbortSignal) => adminRequest<AdminStatus>('/api/status', { signal }),
   users: (signal?: AbortSignal) => adminRequest<AdminUser[]>('/api/users', { signal }),
+  pendingUserCleanups: (signal?: AbortSignal) => adminRequest<string[]>('/api/users/cleanup', { signal }),
   config: (signal?: AbortSignal) => adminRequest<AdminConfig>('/api/config', { signal }),
   saveConfig: (config: Record<string, unknown>) =>
     adminRequest<{ success: boolean; warning?: string }>('/api/config', {
@@ -148,11 +159,10 @@ export const adminApi = {
       signal,
     }),
   cacheStats: () => adminRequest<{ success?: boolean; data?: Record<string, unknown> }>('/api/music/cache/stats'),
-  cacheList: (user: string, signal?: AbortSignal) =>
-    adminRequest<{ success?: boolean; data?: StorageItem[] }>(
-      `/api/music/cache/list?user=${encodeURIComponent(user)}`,
-      { signal },
-    ),
+  cacheList: (user: string, options: StorageQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ user, ...options, page: String(options.page) })
+    return adminRequest<StoragePage>(`/api/music/cache/list?${params}`, { signal })
+  },
   removeCache: (items: Array<{ filename: string; folder?: 'cache' | 'music'; location?: string; user?: string }>) =>
     adminRequest<{ deletedCount: number; failedCount: number }>('/api/music/cache/remove', {
       method: 'POST',
@@ -169,8 +179,11 @@ export const adminApi = {
     adminRequest('/api/users', { method: 'POST', body: JSON.stringify({ name, password }) }),
   updateUser: (name: string, payload: { newName?: string; password?: string }) =>
     adminRequest('/api/users', { method: 'PUT', body: JSON.stringify({ name, ...payload }) }),
-  deleteUsers: (names: string[], deleteData: boolean) =>
-    adminRequest('/api/users', { method: 'DELETE', body: JSON.stringify({ names, deleteData }) }),
+  deleteUsers: (names: string[], deleteData: boolean, retryCleanup = false) =>
+    adminRequest<{ cleanupWarnings?: string[] }>('/api/users', {
+      method: 'DELETE',
+      body: JSON.stringify({ names, deleteData, retryCleanup }),
+    }),
   reload: () => adminRequest('/api/admin/reload', { method: 'POST' }),
   restart: () => adminRequest('/api/restart', { method: 'POST' }),
   databaseStats: () => adminRequest<{ success?: boolean; data?: DatabaseStorageStats }>('/api/admin/database/stats'),

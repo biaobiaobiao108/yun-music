@@ -10,7 +10,8 @@ import {
   type AdminStatus,
   type AdminUser,
   type CustomSourceOwner,
-  type StorageItem,
+  type StoragePage,
+  type StorageQuery,
 } from './api'
 
 export type AdminView = 'dashboard' | 'users' | 'storage' | 'config' | 'logs' | 'backups' | 'sources'
@@ -21,11 +22,12 @@ type AdminState = {
   busy: boolean
   view: AdminView
   users: AdminUser[]
+  pendingUserCleanups: string[]
   selectedUser: string
   status: AdminStatus | null
   config: AdminConfig | null
-  storage: StorageItem[]
-  storageFolder: 'cache' | 'music'
+  storage: StoragePage | null
+  storageQuery: StorageQuery
   sourceOwner: CustomSourceOwner
   sources: AdminCustomSource[]
   logs: string[]
@@ -38,7 +40,7 @@ type AdminState = {
   setView: (view: AdminView) => void
   setSelectedUser: (user: string) => void
   setLogType: (type: 'app' | 'access' | 'login' | 'error') => void
-  setStorageFolder: (folder: 'cache' | 'music') => void
+  setStorageQuery: (query: Partial<StorageQuery>) => void
   setSourceOwner: (owner: CustomSourceOwner) => void
   loadView: (view?: AdminView) => Promise<void>
   notify: (message: string) => void
@@ -64,11 +66,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   busy: false,
   view: 'dashboard',
   users: [],
+  pendingUserCleanups: [],
   selectedUser: '',
   status: null,
   config: null,
-  storage: [],
-  storageFolder: 'cache',
+  storage: null,
+  storageQuery: { folder: 'cache', page: 0, query: '', sort: 'default' },
   sourceOwner: 'open',
   sources: [],
   logs: [],
@@ -114,10 +117,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       checking: false,
       busy: false,
       users: [],
+      pendingUserCleanups: [],
       selectedUser: '',
       status: null,
       config: null,
-      storage: [],
+      storage: null,
+      storageQuery: { folder: 'cache', page: 0, query: '', sort: 'default' },
       sources: [],
       logs: [],
       error: '',
@@ -129,14 +134,17 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     void get().loadView(view)
   },
   setSelectedUser: selectedUser => {
-    set({ selectedUser, ...(get().view === 'storage' ? { storage: [] } : {}) })
+    set({ selectedUser, storage: null, storageQuery: { ...get().storageQuery, page: 0 } })
     if (get().view === 'storage') void get().loadView()
   },
   setLogType: logType => {
     set({ logType })
     if (get().view === 'logs') void get().loadView('logs')
   },
-  setStorageFolder: storageFolder => set({ storageFolder }),
+  setStorageQuery: query => {
+    set({ storage: null, storageQuery: { ...get().storageQuery, ...query } })
+    if (get().view === 'storage') void get().loadView('storage')
+  },
   setSourceOwner: sourceOwner => {
     set({ sourceOwner, sources: [], error: '' })
     if (get().view === 'sources') void get().loadView('sources')
@@ -155,14 +163,17 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         if (sequence !== loadSequence) return
         set({ status, users })
       } else if (view === 'users') {
-        const users = await adminApi.users(signal)
+        const [users, pendingUserCleanups] = await Promise.all([
+          adminApi.users(signal),
+          adminApi.pendingUserCleanups(signal),
+        ])
         if (sequence !== loadSequence) return
-        set({ users })
+        set({ users, pendingUserCleanups })
       } else if (view === 'storage') {
         const user = get().selectedUser || 'all'
-        const result = await adminApi.cacheList(user, signal)
+        const result = await adminApi.cacheList(user, get().storageQuery, signal)
         if (sequence !== loadSequence) return
-        set({ storage: Array.isArray(result?.data) ? result.data : [] })
+        set(state => ({ storage: result, storageQuery: { ...state.storageQuery, page: result.page } }))
       } else if (view === 'config') {
         const config = await adminApi.config(signal)
         if (sequence !== loadSequence) return

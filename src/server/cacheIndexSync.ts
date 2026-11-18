@@ -20,6 +20,7 @@ import { CACHE_LIST_SYNC_TTL, cacheListSyncState } from './cacheEvents'
 import { withCachePostProcess } from './cachePostProcess'
 import { currentCacheLocation, getCacheLocations, indexManager } from './cacheIndex'
 import type { CacheItem } from './cacheIndex'
+import { beginDataRequest, endDataRequest } from './dataOperationLock'
 
 const pendingCacheIndexSyncs = new Map<string, Promise<void>>()
 
@@ -395,6 +396,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
   const syncKey = `${currentCacheLocation}:${normalizedUsername}:${roots.join(',')}`
   const pending = pendingCacheIndexSyncs.get(syncKey)
   if (pending) return pending
+  if (!beginDataRequest()) return
 
   const sync = runCacheIndexSync(normalizedUsername, roots)
   pendingCacheIndexSyncs.set(syncKey, sync)
@@ -402,6 +404,7 @@ export const syncCacheIndex = async (username?: string, roots: Array<'cache' | '
     await sync
   } finally {
     if (pendingCacheIndexSyncs.get(syncKey) === sync) pendingCacheIndexSyncs.delete(syncKey)
+    endDataRequest()
   }
 }
 

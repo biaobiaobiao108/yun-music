@@ -16,6 +16,7 @@ import { createMusicRouter } from './music'
 import { createCacheRouter } from './cache'
 import { createStaticRouter } from './static'
 import { getDb } from '@/database'
+import { beginDataRequest, endDataRequest } from '../dataOperationLock'
 
 /** 播放器鉴权豁免：登录态自身的接口必须在未登录时也可访问 */
 const PLAYER_AUTH_EXEMPT_PATHS = new Set([
@@ -66,6 +67,16 @@ export const createRootRouter = (): Router => {
   root.use(accessLogMiddleware)
   root.use(compressionMiddleware)
   root.use(apiNoStoreMiddleware)
+  root.use('/api', async (ctx, next) => {
+    // Restore acquires the pause itself after the upload is parsed.
+    if (ctx.pathname === '/api/backup/upload') return next()
+    if (!beginDataRequest()) return ctx.fail(503, '正在还原备份，请稍后重试')
+    try {
+      return await next()
+    } finally {
+      endDataRequest()
+    }
+  })
 
   // 播放器接口鉴权要在业务路由和限流之前执行，避免未授权请求进入昂贵的业务处理。
   root.use('/api/music', playerApiAuthMiddleware)

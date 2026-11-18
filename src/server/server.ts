@@ -5,6 +5,7 @@ import { serverStatus, getServerStatus } from './state'
 import { getAddress } from '@/utils/tools'
 import { startupLog } from '@/utils/log4js'
 import { memoryMaintenance } from './memoryMaintenance'
+import { MAX_BACKUP_UPLOAD_BYTES } from './localBackupService'
 
 let bunServerInstance: Server<Record<string, never>> | null = null
 
@@ -28,7 +29,7 @@ const startHttp = async (port = 9527, bindIp = '127.0.0.1'): Promise<void> => {
   bunServerInstance = Bun.serve({
     port,
     hostname: bindIp,
-    maxRequestBodySize: 1024 * 1024 * 100, // 100MB 支持大文件与源文件上传
+    maxRequestBodySize: MAX_BACKUP_UPLOAD_BYTES,
     // SSE progress channels send a heartbeat every 15 seconds; keep the
     // connection alive beyond Bun's 10-second default idle timeout.
     idleTimeout: 60,

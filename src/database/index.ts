@@ -6,7 +6,7 @@ import { assertSafePathSegment } from '@/utils/pathSecurity'
 
 let dbInstance: Database | null = null
 let activeDbPath: string | null = null
-const DATABASE_VERSION = 7
+const DATABASE_VERSION = 8
 
 type LegacyUserSetting = { user_name: string; key: string; value: string }
 
@@ -117,7 +117,7 @@ export const initDatabase = (customDbPath?: string): Database => {
     .all()
     .map(row => row.name)
   const currentVersion = Number(db.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version ?? 0)
-  if (currentVersion !== 0 && ![3, 4, 5, 6, DATABASE_VERSION].includes(currentVersion)) {
+  if (currentVersion !== 0 && ![3, 4, 5, 6, 7, DATABASE_VERSION].includes(currentVersion)) {
     db.close()
     throw new Error('数据库版本不兼容，请先执行 bun run reset:instance')
   }
@@ -222,6 +222,8 @@ export const initDatabase = (customDbPath?: string): Database => {
       updated_at INTEGER NOT NULL,
       audio_size INTEGER NOT NULL DEFAULT 0,
       lyric_size INTEGER NOT NULL DEFAULT 0,
+      name_key TEXT NOT NULL DEFAULT '',
+      singer_key TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (location, user_name, folder, song_id, quality)
     );
   `)
@@ -280,6 +282,32 @@ export const initDatabase = (customDbPath?: string): Database => {
   db.run(
     'CREATE INDEX IF NOT EXISTS idx_cache_stats ON cache_index(user_name, folder, location, audio_size, lyric_size);',
   )
+  if (currentVersion < 8) {
+    db.transaction(() => {
+      const columns = db
+        .query<{ name: string }, []>('PRAGMA table_info(cache_index)')
+        .all()
+        .map(row => row.name)
+      for (const column of ['name_key', 'singer_key']) {
+        if (!columns.includes(column)) db.run(`ALTER TABLE cache_index ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`)
+      }
+      const page = db.query<{ rowid: number; data: string }, [number]>(
+        'SELECT rowid, data FROM cache_index WHERE rowid > ? ORDER BY rowid LIMIT 256',
+      )
+      const update = db.query('UPDATE cache_index SET name_key = ?, singer_key = ? WHERE rowid = ?')
+      let cursor = 0
+      for (let rows = page.all(cursor); rows.length; rows = page.all(cursor)) {
+        for (const row of rows) {
+          const [name, singer] = cacheMetadataKeys(row.data)
+          update.run(name, singer, row.rowid)
+          cursor = row.rowid
+        }
+      }
+    })()
+  }
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_cache_metadata_match ON cache_index(location, user_name, quality, name_key, singer_key, folder, song_id)',
+  )
 
   // v3-v5 stored active playlists and dislike rules in snapshot history. Keep
   // each current value in user_settings, then remove the history schema.
@@ -297,6 +325,15 @@ export const getDb = (): Database => {
     return initDatabase()
   }
   return dbInstance
+}
+
+const cacheMetadataKeys = (data: string): [string, string] => {
+  try {
+    const item = JSON.parse(data) as { name?: unknown; singer?: unknown }
+    return [String(item?.name ?? '').toLowerCase(), String(item?.singer ?? '').toLowerCase()]
+  } catch {
+    return ['', '']
+  }
 }
 
 export const closeDb = (): void => {
@@ -396,7 +433,9 @@ export const restoreDatabaseBackupCopy = (sourcePath: string): void => {
   const optionalTables = new Set(['admin_sessions', 'login_failures', 'play_history_events'])
   // Columns introduced after a backup may have been produced. They are filled
   // with defaults during the copy, so older backups stay restorable.
-  const missingAllowedByTable = new Map<string, Set<string>>([['cache_index', new Set(['audio_size', 'lyric_size'])]])
+  const missingAllowedByTable = new Map<string, Set<string>>([
+    ['cache_index', new Set(['audio_size', 'lyric_size', 'name_key', 'singer_key'])],
+  ])
   try {
     source.run('PRAGMA trusted_schema = OFF')
     const check = source.query<{ quick_check: string }, []>('PRAGMA quick_check').get()
@@ -426,7 +465,14 @@ export const restoreDatabaseBackupCopy = (sourcePath: string): void => {
           throw new Error('备份数据库版本不兼容')
         }
         // Ignore columns removed by newer schemas, such as max_snapshot_num.
-        return { table, columns: backupColumns.filter(column => targetColumns.includes(column)) }
+        return {
+          table,
+          columns: backupColumns.filter(
+            column =>
+              targetColumns.includes(column) &&
+              (table !== 'cache_index' || !['name_key', 'singer_key'].includes(column)),
+          ),
+        }
       })
       .filter((schema): schema is { table: string; columns: string[] } => schema !== null)
 
@@ -464,10 +510,15 @@ export const restoreDatabaseBackupCopy = (sourcePath: string): void => {
       for (const table of [...tables].reverse()) target.run(`DELETE FROM "${table}"`)
       for (const { table, columns } of schemas) {
         const names = columns.map(column => `"${column}"`).join(', ')
-        const insert = target.prepare(`INSERT INTO "${table}" (${names}) VALUES (${columns.map(() => '?').join(', ')})`)
+        const cacheIndex = table === 'cache_index'
+        const targetColumns = cacheIndex ? `${names}, name_key, singer_key` : names
+        const values = columns.map(() => '?').join(', ') + (cacheIndex ? ', ?, ?' : '')
+        const insert = target.prepare(`INSERT INTO "${table}" (${targetColumns}) VALUES (${values})`)
         try {
           for (const row of source.query<Record<string, any>, []>(`SELECT ${names} FROM "${table}"`).iterate()) {
-            insert.run(...columns.map(column => row[column]))
+            const values = columns.map(column => row[column])
+            if (cacheIndex) values.push(...cacheMetadataKeys(row.data))
+            insert.run(...values)
           }
         } finally {
           insert.finalize()

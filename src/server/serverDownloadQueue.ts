@@ -561,6 +561,12 @@ const scheduleSave = () => {
   }, 150)
 }
 
+export const flushDownloadQueue = (): Promise<void> => {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = null
+  return saveNow(true)
+}
+
 const captureUserQueueState = (usernames: string[]) => {
   const selected = new Set(usernames)
   return {
@@ -1414,10 +1420,8 @@ export const suspendAll = async () => {
   await Promise.all(Array.from(users).map(u => suspendUser(u)))
 }
 
-export const releaseAll = () => {
+const resumeSuspendedTasks = () => {
   const resumedUsers = new Set<string>()
-  allUsersSuspended = false
-  suspendedUsers.clear()
   for (const key of suspendAllPausedKeys) {
     const task = tasks.get(key)
     if (!task || task.status !== 'paused') continue
@@ -1428,8 +1432,42 @@ export const releaseAll = () => {
   }
   suspendAllPausedKeys.clear()
   for (const username of resumedUsers) notifyQueueListeners(username)
+  return resumedUsers
+}
+
+export const releaseAll = () => {
+  allUsersSuspended = false
+  suspendedUsers.clear()
+  const resumedUsers = resumeSuspendedTasks()
   if (resumedUsers.size > 0) void saveNow()
   void processQueue()
+}
+
+export const shutdownDownloadQueue = async (): Promise<void> => {
+  await suspendAll()
+  resumeSuspendedTasks()
+  await flushDownloadQueue()
+}
+
+/** The archive does not contain queue state. Keep tasks only for surviving account names. */
+export const reconcileRestoredQueue = async (usernames: readonly string[]): Promise<void> => {
+  const active = new Set(['_open', ...usernames])
+  const removedUsers = [
+    ...new Set([...[...tasks.values()].map(task => task.username), ...concurrencyByUser.keys()]),
+  ].filter(username => !active.has(username))
+  if (!removedUsers.length) return
+  const previous = captureUserQueueState(removedUsers)
+  const removed = new Set(removedUsers)
+  for (const [key, task] of tasks) if (removed.has(task.username)) tasks.delete(key)
+  for (const username of removedUsers) concurrencyByUser.delete(username)
+  rebuildTaskIndexes()
+  try {
+    await flushDownloadQueue()
+  } catch (error) {
+    restoreUserQueueState(removedUsers, previous)
+    throw error
+  }
+  for (const username of removedUsers) notifyQueueListeners(username)
 }
 
 /** Only called after workers settle; pending work remains paused for explicit resume. */
@@ -1463,6 +1501,7 @@ export const renameUser = async (username: string, newName: string) => {
 
 export const removeUser = async (username: string) => {
   if (!Array.from(tasks.values()).some(task => task.username === username) && !concurrencyByUser.has(username)) return
+  const previousState = captureUserQueueState([username])
   for (const [key, task] of tasks) {
     if (task.username !== username) continue
     controllers.get(key)?.abort()
@@ -1473,6 +1512,7 @@ export const removeUser = async (username: string) => {
   try {
     await saveNow(true)
   } catch (error) {
+    restoreUserQueueState([username], previousState)
     notifyQueueListeners(username)
     void processQueue()
     throw error

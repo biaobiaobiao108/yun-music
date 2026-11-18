@@ -19,6 +19,7 @@ import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 import { closeDb, getDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user'
 import { issueDownloadToken } from '@/server/downloadToken'
+import { invalidateCacheListSync } from '@/server/cacheEvents'
 
 const persistUserSession = (sessionId: string, username: string, createdAt = Date.now()) => {
   getDb().run('INSERT OR REPLACE INTO user_sessions (session_hash, user_name, created_at) VALUES (?, ?, ?)', [
@@ -80,6 +81,51 @@ describe('cache list user scope', () => {
     userSessions.delete(sessionId)
     closeDb()
     global.lx = previousLx
+  })
+
+  test('closes a cache event stream when its user session is revoked', async () => {
+    const response = await createCacheRouter().handle(
+      new Request('http://localhost/api/music/cache/events', {
+        headers: { cookie: `lx_user_session=${sessionId}` },
+      }),
+    )
+    expect(response.status).toBe(200)
+    const reader = response.body!.getReader()
+    try {
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('event: ready')
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('event: queue')
+      getDb().run('DELETE FROM user_sessions WHERE user_name = ?', [username])
+      invalidateCacheListSync(username)
+      expect((await reader.read()).done).toBe(true)
+    } finally {
+      await reader.cancel()
+    }
+  })
+
+  test('only lets administrators request paged storage with the specified folder', async () => {
+    const load = spyOn(fileCache, 'getCachePage').mockReturnValue({
+      data: [],
+      page: 1,
+      pageSize: 100,
+      total: 102,
+      filtered: 102,
+      size: 340,
+    })
+    try {
+      const url = 'http://localhost/api/music/cache/list?user=all&folder=music&page=1&query=Track&sort=name-asc'
+      const router = createCacheRouter()
+      expect((await router.handle(new Request(url))).status).toBe(403)
+      const result = await router.handle(
+        new Request(url, {
+          headers: { cookie: `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}` },
+        }),
+      )
+      expect(result.status).toBe(200)
+      expect(await result.json()).toMatchObject({ data: [], page: 1, total: 102 })
+      expect(load).toHaveBeenCalledWith(undefined, { folder: 'music', page: 1, query: 'Track', sort: 'name-asc' })
+    } finally {
+      load.mockRestore()
+    }
   })
 
   test('uses the authenticated user cache when no public alias is requested', async () => {

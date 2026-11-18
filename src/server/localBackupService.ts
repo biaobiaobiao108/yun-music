@@ -2,10 +2,13 @@ import * as archiver from 'archiver'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { Transform } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { createDatabaseBackupCopy, getDb, restoreDatabaseBackupCopy } from '@/database'
-import { releaseDataOperation, tryAcquireDataOperation } from './dataOperationLock'
+import { pauseDataRequests, releaseDataOperation, tryAcquireDataOperation } from './dataOperationLock'
 import { releaseAll, suspendAll } from './serverDownloadQueue'
+import { indexManager } from './cacheIndex'
+import { cacheListSyncState, lyricMissCache } from './cacheEvents'
+import { invalidateGlobalCacheStats } from './cacheStats'
 
 const safeBackupName = (value: string): string => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 let backupInProgress = false
@@ -21,6 +24,7 @@ const suspendQueueForBackup = async (): Promise<void> => {
 }
 
 export const MAX_LOCAL_BACKUP_BYTES = 100 * 1024 * 1024
+export const MAX_BACKUP_UPLOAD_BYTES = MAX_LOCAL_BACKUP_BYTES + 1024 * 1024
 const MAX_LOCAL_BACKUP_ENTRIES = 20_000
 const MAX_LOCAL_BACKUP_EXTRACTED_BYTES = 512 * 1024 * 1024
 const MAX_UNZIP_OUTPUT_BYTES = 32 * 1024 * 1024
@@ -163,8 +167,7 @@ const isAllowedBackupEntry = (rawName: string): boolean => {
   )
 }
 
-const validateBackupEntries = (listing: string): string[] => {
-  const rawEntries = listing.split(/\r?\n/).filter(entry => entry.trim())
+const validateBackupEntries = (rawEntries: string[]): string[] => {
   const entries = rawEntries.map(entry => entry.trim())
   if (entries.length === 0 || entries.length > MAX_LOCAL_BACKUP_ENTRIES) {
     throw new Error('备份文件条目数量超出限制')
@@ -175,6 +178,7 @@ const validateBackupEntries = (listing: string): string[] => {
     const entry = entries[index]
     if (
       rawEntry !== entry ||
+      /[\r\n]/.test(entry) ||
       entry.includes('\\') ||
       entry.includes('*') ||
       entry.includes('?') ||
@@ -431,12 +435,47 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
 
   try {
     createDatabaseBackupCopy(databasePath)
+    const backupConfigPath = path.join(tempDir, 'config.js')
+    fs.writeFileSync(backupConfigPath, createBackupConfig(), { mode: 0o600 })
+    if (fs.statSync(backupConfigPath).size > MAX_LOCAL_BACKUP_CONFIG_BYTES) {
+      throw new Error('备份配置文件过大')
+    }
+    const files = [
+      { filename: databasePath, name: 'database/yun-yin.db' },
+      { filename: backupConfigPath, name: 'config.js' },
+    ]
+    const pendingUsers = fs.existsSync(global.lx.userPath) ? [{ filename: global.lx.userPath, name: 'users/' }] : []
+    const directories: string[] = []
+    while (pendingUsers.length) {
+      const entry = pendingUsers.pop()!
+      const stat = fs.lstatSync(entry.filename)
+      if (stat.isDirectory()) {
+        directories.push(entry.name)
+        for (const child of fs.readdirSync(entry.filename)) {
+          const filename = path.join(entry.filename, child)
+          pendingUsers.push({ filename, name: entry.name + child + (fs.lstatSync(filename).isDirectory() ? '/' : '') })
+        }
+      } else if (stat.isFile()) {
+        files.push(entry)
+      } else {
+        throw new Error('备份文件包含不支持的文件类型')
+      }
+      if (files.length + directories.length + pendingUsers.length > MAX_LOCAL_BACKUP_ENTRIES) {
+        throw new Error('备份文件条目数量超出限制')
+      }
+    }
+    validateBackupEntries([...directories, ...files.map(file => file.name)])
+    const sizedFiles = files.map(file => ({ ...file, stats: fs.statSync(file.filename) }))
+    if (sizedFiles.reduce((total, file) => total + file.stats.size, 0) > MAX_LOCAL_BACKUP_EXTRACTED_BYTES) {
+      throw new Error('备份解压后的数据量超出限制')
+    }
 
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(archivePath, { flags: 'wx', mode: 0o600 })
       const archive = new archiver.ZipArchive({ zlib: { level: 9 } })
       let archiveBytes = 0
       let settled = false
+      let input: Readable | undefined
       const limiter = new Transform({
         transform(chunk: Buffer, _encoding, callback) {
           archiveBytes += chunk.byteLength
@@ -452,6 +491,7 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
         settled = true
         archive.unpipe(limiter)
         archive.abort()
+        input?.destroy()
         limiter.destroy()
         output.destroy()
         reject(error)
@@ -469,16 +509,40 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
       output.on('error', fail)
       limiter.on('error', fail)
       archive.on('error', fail)
+      archive.on('warning', fail)
       archive.pipe(limiter).pipe(output)
-      archive.file(databasePath, { name: 'database/yun-yin.db' })
-
-      const backupConfigPath = path.join(tempDir, 'config.js')
-      fs.writeFileSync(backupConfigPath, createBackupConfig(), { mode: 0o600 })
-      archive.file(backupConfigPath, { name: 'config.js' })
-
-      if (fs.existsSync(global.lx.userPath)) archive.directory(global.lx.userPath, 'users')
-
-      void archive.finalize().catch(fail)
+      for (const name of directories) archive.append(Buffer.alloc(0), { name, type: 'directory' })
+      let completedEntries = 0
+      let nextFile = 0
+      const appendFile = () => {
+        if (settled) return
+        const file = sizedFiles[nextFile++]
+        if (!file) {
+          void archive.finalize().catch(fail)
+          return
+        }
+        const { filename, name, stats } = file
+        // Archiver starts reading supplied streams as soon as they are appended.
+        // Open one at a time so large archives cannot exhaust file descriptors.
+        input = Readable.from(
+          (async function* () {
+            let bytes = 0
+            for await (const chunk of fs.createReadStream(filename)) {
+              bytes += (chunk as Buffer).byteLength
+              if (bytes > stats.size) throw new Error('备份期间文件大小发生变化，请重试')
+              yield chunk
+            }
+            if (bytes !== stats.size) throw new Error('备份期间文件大小发生变化，请重试')
+          })(),
+        )
+        input.on('error', fail)
+        archive.append(input, { name, stats })
+      }
+      archive.on('entry', () => {
+        completedEntries++
+        if (completedEntries > directories.length) appendFile()
+      })
+      appendFile()
     })
 
     return archiveName
@@ -502,6 +566,8 @@ export const createLocalBackup = async (maxArchiveBytes = MAX_LOCAL_BACKUP_BYTES
  * 备份范围内，因此恢复后清空 cache_index，避免索引指向不存在的旧文件。
  */
 export interface LocalBackupRestoreOptions {
+  beforeRestore?: () => void
+  afterRollback?: () => Promise<void>
   /** Run while the restored database/files are installed; a thrown error rolls everything back. */
   onRestored?: (config: Record<string, unknown>) => void | Promise<void>
 }
@@ -535,6 +601,7 @@ export const restoreLocalBackup = async (
   let restoredUsersInstalled = false
   let databaseRestored = false
   let preserveRecoveryFiles = false
+  let resumeRequests: (() => void) | undefined
 
   try {
     tempDir = fs.mkdtempSync(path.join(global.lx.dataPath, '.lx-backup-'))
@@ -560,7 +627,7 @@ export const restoreLocalBackup = async (
       archiveTool === 'unzip'
         ? await runArchiveCommand(['unzip', '-Z', '-l', archivePath])
         : await runArchiveCommand(['tar', '-tvf', archivePath])
-    const entries = validateBackupEntries(entriesListing)
+    const entries = validateBackupEntries(entriesListing.split(/\r?\n/).filter(entry => entry.trim()))
     validateBackupEntryTypes(detailedListing)
     fs.mkdirSync(extractDir, { recursive: true, mode: 0o700 })
     await extractBackupEntries(archiveTool, archivePath, extractDir, entries)
@@ -572,6 +639,8 @@ export const restoreLocalBackup = async (
     }
     const restoredConfig = parseBackupConfig(path.join(extractDir, 'config.js'))
 
+    resumeRequests = await pauseDataRequests()
+    options.beforeRestore?.()
     createDatabaseBackupCopy(previousDbPath)
     if (fs.existsSync(global.lx.userPath)) {
       fs.renameSync(global.lx.userPath, previousUsersPath)
@@ -586,6 +655,10 @@ export const restoreLocalBackup = async (
     restoreDatabaseBackupCopy(databasePath)
     databaseRestored = true
     getDb().run('DELETE FROM cache_index')
+    indexManager.resetMemory()
+    cacheListSyncState.clear()
+    lyricMissCache.clear()
+    invalidateGlobalCacheStats()
     await options.onRestored?.(restoredConfig)
     return restoredConfig
   } catch (error) {
@@ -614,6 +687,18 @@ export const restoreLocalBackup = async (
       console.error('[Backup] 备份恢复失败:', error)
       throw new Error(`备份恢复失败且回滚未完成，恢复文件保留在 ${tempDir}，请查看服务端日志`, { cause: error })
     }
+    if (databaseRestored) {
+      indexManager.resetMemory()
+      cacheListSyncState.clear()
+      lyricMissCache.clear()
+      invalidateGlobalCacheStats()
+      try {
+        await options.afterRollback?.()
+      } catch (rollbackError) {
+        console.error('[Backup] 恢复回滚后重新加载失败:', rollbackError)
+        throw new Error('数据库已回滚，但运行时重新加载失败，请重启服务', { cause: error })
+      }
+    }
     throw error
   } finally {
     try {
@@ -624,6 +709,7 @@ export const restoreLocalBackup = async (
       }
     } finally {
       releaseAll()
+      resumeRequests?.()
       backupInProgress = false
       releaseDataOperation('backup')
     }

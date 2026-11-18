@@ -20,18 +20,33 @@ import { PlaylistIdConflictError, type PlaylistMutation } from '@/modules/list/l
 import { deleteUserCacheData } from '@/server/fileCache'
 import * as downloadQueue from '@/server/serverDownloadQueue'
 import { initUserApis, reloadUserCustomSources } from '../userApi'
-import { removeUserSourceData } from '@/user/sourceStorage'
+import { getSourceRoot, removeUserSourceData } from '@/user/sourceStorage'
+import { getPendingUserCleanups, pendingUserCleanupKey, userDirectoryKey } from '@/user/data'
+import { getCoverCacheBaseDirs } from '../cacheCover'
+import { getRootPath } from '../cachePaths'
 import { LIST_IDS } from '@/constants'
 import { releaseDataOperation, tryAcquireDataOperation } from '../dataOperationLock'
 import { normalizePlaybackSettings } from '../../../frontend/shared/src/playback-settings'
 
 let accountChangeInProgress = false
 
+const hasConflictingUserDirectory = (name: string): boolean => {
+  const key = userDirectoryKey(name)
+  const roots = [getSourceRoot(), ...getCoverCacheBaseDirs()]
+  for (const base of [getRootPath(), global.lx.dataPath]) {
+    roots.push(path.join(base, 'cache'), path.join(base, 'music'))
+  }
+  return roots.some(
+    root =>
+      fs.existsSync(root) && fs.readdirSync(root).some(entry => entry !== name && userDirectoryKey(entry) === key),
+  )
+}
+
 const MAX_USER_SETTING_BODY_BYTES = 2 * 1024 * 1024
 const MAX_PLAY_HISTORY_ITEMS = 50
 const PLAY_HISTORY_SETTING_KEY = 'play_history'
 const RESERVED_USER_NAMES = new Set(['default', 'open', '_open'])
-const isReservedUserName = (name: string) => RESERVED_USER_NAMES.has(name.trim().toLowerCase())
+const isReservedUserName = (name: string) => RESERVED_USER_NAMES.has(userDirectoryKey(name.trim()).toLowerCase())
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 
@@ -86,7 +101,7 @@ const resolveTargetUsername = (ctx: HttpContext, _requireAuth = true): string | 
   return tokenUser && tokenUser === reqUsername ? tokenUser : null
 }
 
-const saveUsers = async (options: { purgeDataFor?: readonly string[] } = {}) => {
+const saveUsers = async (options: { purgeDataFor?: readonly string[]; pendingCleanup?: readonly string[] } = {}) => {
   try {
     const db = getDb()
     const currentNames = new Set(global.lx.config.users.map((u: any) => u.name))
@@ -94,7 +109,11 @@ const saveUsers = async (options: { purgeDataFor?: readonly string[] } = {}) => 
     const removedNames = existingUsers
       .map(user => user.name)
       .filter(name => name !== '_open' && !currentNames.has(name))
-    await syncUsersToDatabase(global.lx.config.users, { removeMissing: true, purgeMissingData: options.purgeDataFor })
+    await syncUsersToDatabase(global.lx.config.users, {
+      removeMissing: true,
+      purgeMissingData: options.purgeDataFor,
+      pendingCleanup: options.pendingCleanup,
+    })
     // Keep the in-memory session cache in sync only after the DB transaction
     // succeeds. A failed user update must not revoke valid sessions.
     for (const username of removedNames) revokeUserAuth(username)
@@ -205,6 +224,11 @@ export const createUserRouter = (): Router => {
     })
   })
 
+  router.get('/api/users/cleanup', ctx => {
+    if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
+    return ctx.json(getPendingUserCleanups().map(item => item.name))
+  })
+
   router.post('/api/users', async ctx => {
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     let dataLockAcquired = false
@@ -223,9 +247,13 @@ export const createUserRouter = (): Router => {
       }
       if (isReservedUserName(normalizedName))
         return ctx.fail(422, 'default、open 和 _open 为系统保留名称，请更换用户名')
-      if (global.lx.config.users.some((u: any) => u.name === normalizedName)) {
+      if (global.lx.config.users.some(u => userDirectoryKey(u.name) === userDirectoryKey(normalizedName))) {
         return ctx.fail(409, '该用户名已存在')
       }
+      if (getPendingUserCleanups().some(item => userDirectoryKey(item.name) === userDirectoryKey(normalizedName))) {
+        return ctx.fail(409, '该用户名的历史文件仍待清理')
+      }
+      if (hasConflictingUserDirectory(normalizedName)) return ctx.fail(409, '存在名称冲突的历史媒体或音源目录')
       if (!tryAcquireDataOperation('account-change')) return ctx.fail(409, '备份或账户变更正在进行，请稍后重试')
       dataLockAcquired = true
       accountChangeInProgress = true
@@ -299,9 +327,15 @@ export const createUserRouter = (): Router => {
       accountChangeInProgress = true
 
       if (normalizedNewName !== undefined && normalizedNewName !== normalizedName) {
-        if (global.lx.config.users.some((u: any) => u.name === normalizedNewName)) {
+        if (global.lx.config.users.some(u => userDirectoryKey(u.name) === userDirectoryKey(normalizedNewName))) {
           return ctx.fail(409, '新用户名已存在')
         }
+        if (
+          getPendingUserCleanups().some(item => userDirectoryKey(item.name) === userDirectoryKey(normalizedNewName))
+        ) {
+          return ctx.fail(409, '该用户名的历史文件仍待清理')
+        }
+        if (hasConflictingUserDirectory(normalizedNewName)) return ctx.fail(409, '存在名称冲突的历史媒体或音源目录')
 
         suspendedNames.push(normalizedName, normalizedNewName)
         await Promise.all(suspendedNames.map(name => downloadQueue.suspendUser(name)))
@@ -377,9 +411,14 @@ export const createUserRouter = (): Router => {
     let dataLockAcquired = false
     if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
     try {
-      const body = await ctx.bodyJson<{ name?: string; names?: string[]; deleteData?: boolean }>()
-      if (body.deleteData !== undefined && typeof body.deleteData !== 'boolean') {
-        return ctx.fail(422, 'deleteData 参数格式无效')
+      const body = await ctx.bodyJson<{
+        name?: string
+        names?: string[]
+        deleteData?: boolean
+        retryCleanup?: boolean
+      }>()
+      if ([body.deleteData, body.retryCleanup].some(value => value !== undefined && typeof value !== 'boolean')) {
+        return ctx.fail(422, '删除选项格式无效')
       }
       if (
         body.names !== undefined &&
@@ -405,13 +444,23 @@ export const createUserRouter = (): Router => {
         return ctx.fail(409, '备份或账户变更正在进行，请稍后重试')
       dataLockAcquired = true
       accountChangeInProgress = true
-      suspendedNames.push(...targets)
-      await Promise.all(targets.map(name => downloadQueue.suspendUser(name)))
+      suspendedNames.push(
+        ...(body.retryCleanup
+          ? getPendingUserCleanups()
+              .filter(
+                item =>
+                  targets.includes(item.name) &&
+                  !global.lx.config.users.some(user => userDirectoryKey(user.name) === userDirectoryKey(item.name)),
+              )
+              .map(item => item.name)
+          : targets),
+      )
+      await Promise.all(suspendedNames.map(name => downloadQueue.suspendUser(name)))
       let deletedCount = 0
       const deletedUsers: { name: string; dataPath?: string }[] = []
       const previousUsers = [...global.lx.config.users]
 
-      for (const targetName of targets) {
+      for (const targetName of body.retryCleanup ? [] : targets) {
         const idx = global.lx.config.users.findIndex((u: any) => u.name === targetName)
         if (idx !== -1) {
           const user = global.lx.config.users[idx]
@@ -431,37 +480,54 @@ export const createUserRouter = (): Router => {
           // playlists/settings. Without it, only the account (and its sessions
           // plus derived cache index) is removed; playlists and settings stay
           // so that recreating the same user name restores them.
-          await saveUsers({ purgeDataFor: body.deleteData ? deletedUsers.map(user => user.name) : [] })
+          const removedNames = deletedUsers.map(user => user.name)
+          await saveUsers({ purgeDataFor: body.deleteData ? removedNames : [], pendingCleanup: removedNames })
         } catch (error) {
           global.lx.config.users.splice(0, global.lx.config.users.length, ...previousUsers)
           throw error
         }
-        const cleanupWarnings: string[] = []
-        if (deletedUsers.length > 0) {
-          for (const user of deletedUsers) {
-            try {
-              await downloadQueue.removeUser(user.name)
-              deleteUserCacheData(user.name, { preserveMusic: !body.deleteData })
-              releaseUserSpace(user.name, true)
-              removeUserSourceData(user.name)
-              await initUserApis(user.name)
-              if (body.deleteData && user.dataPath && fs.existsSync(user.dataPath)) {
-                fs.rmSync(user.dataPath, { recursive: true, force: true })
-              }
-            } catch (err) {
-              console.error(`Failed to delete disposable data for ${user.name}:`, err)
-              cleanupWarnings.push(user.name)
-            }
+      }
+      const pending = getPendingUserCleanups().filter(
+        item =>
+          targets.includes(item.name) &&
+          !global.lx.config.users.some(user => userDirectoryKey(user.name) === userDirectoryKey(item.name)),
+      )
+      if (!deletedCount && !pending.length && !body.retryCleanup) return ctx.fail(404, '用户不存在')
+      const cleanupWarnings: string[] = []
+      for (const { name, deleteData } of pending) {
+        const dataPath =
+          deletedUsers.find(user => user.name === name)?.dataPath ?? path.join(global.lx.userPath, getUserDirname(name))
+        const cleanup = [
+          () => downloadQueue.removeUser(name),
+          () => {
+            const result = deleteUserCacheData(name, { preserveMusic: !deleteData })
+            if (result.failedDirectories) throw new Error('部分媒体目录未清理')
+          },
+          () => releaseUserSpace(name, true),
+          () => removeUserSourceData(name),
+          () => initUserApis(name),
+          () => {
+            if (deleteData) fs.rmSync(dataPath, { recursive: true, force: true })
+          },
+        ]
+        let failed = false
+        for (const step of cleanup) {
+          try {
+            await step()
+          } catch (error) {
+            console.error(`[User] 清理 ${name} 的数据失败:`, error)
+            failed = true
           }
         }
-        return ctx.json({
-          success: true,
-          deletedCount,
-          ...(body.deleteData ? {} : { dataPreserved: deletedUsers.map(user => user.name) }),
-          ...(cleanupWarnings.length > 0 ? { cleanupWarnings } : {}),
-        })
+        if (failed) cleanupWarnings.push(name)
+        else getDb().run('DELETE FROM system_info WHERE key = ?', [pendingUserCleanupKey(name)])
       }
-      return ctx.fail(404, '用户不存在')
+      return ctx.json({
+        success: true,
+        deletedCount,
+        ...(body.deleteData ? {} : { dataPreserved: deletedUsers.map(user => user.name) }),
+        ...(cleanupWarnings.length > 0 ? { cleanupWarnings } : {}),
+      })
     } catch {
       return ctx.fail(500, '服务器内部错误，请稍后重试')
     } finally {

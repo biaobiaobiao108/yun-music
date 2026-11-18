@@ -16,6 +16,7 @@ import { CACHE_SIZE_EXTENSIONS, getCacheFilesRecursively, invalidateGlobalCacheS
 export interface CacheCleanupResult {
   deletedCount: number
   freedSize: number
+  failedDirectories?: number
 }
 
 const removeDirectoryTree = (dir: string): CacheCleanupResult => {
@@ -38,8 +39,9 @@ const removeDirectoryTree = (dir: string): CacheCleanupResult => {
   }
   try {
     fs.rmSync(dir, { recursive: true, force: true })
-  } catch {
-    // File-level cleanup above is still useful when directory removal is blocked.
+  } catch (error) {
+    console.error('[FileCache] 目录清理失败:', dir, error)
+    return { deletedCount, freedSize, failedDirectories: 1 }
   }
   return { deletedCount, freedSize }
 }
@@ -47,6 +49,9 @@ const removeDirectoryTree = (dir: string): CacheCleanupResult => {
 const addCleanupResult = (target: CacheCleanupResult, source: CacheCleanupResult): void => {
   target.deletedCount += source.deletedCount
   target.freedSize += source.freedSize
+  if (source.failedDirectories) {
+    target.failedDirectories = (target.failedDirectories ?? 0) + source.failedDirectories
+  }
 }
 
 const getUserCacheDirectories = (username: string, preserveMusic: boolean): string[] => {

@@ -89,6 +89,69 @@ describe('File Cache Path Traversal Defense', () => {
     }
   })
 
+  it('keeps batch-renamed files in their album and never replaces another lyric', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-rename-'))
+    const previousLx = global.lx
+    const previousLocation = fileCache.getCacheLocation()
+    const previousPattern = fileCache.getNamingPattern()
+    try {
+      closeDb()
+      global.lx = { appPath: root, dataPath: path.join(root, 'data'), config: {} } as unknown as typeof global.lx
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fileCache.setNamingPattern('simple')
+      const user = 'rename-fixture'
+      const dir = fileCache.getCacheDir(user, true)
+      const album = path.join(dir, 'albums')
+      fs.mkdirSync(album)
+      const item = {
+        id: 'wy_rename',
+        songmid: 'rename',
+        name: 'Track',
+        singer: 'Artist',
+        albumName: '',
+        quality: '128k',
+        source: 'wy',
+        ext: 'mp3',
+        folder: 'music',
+        filename: 'albums/old.mp3',
+        subPath: 'albums',
+        size: 5,
+        mtime: 1,
+        lyricFilename: 'albums/old.lrc',
+        hasLyric: true,
+        hasCover: false,
+      } satisfies fileCache.CacheItem
+      fileCache.indexManager.update(user, item, 'music')
+      const newBase = 'Track - Artist - 128k - Unknown Album'
+      const lyric = path.join(album, newBase + '.lrc')
+      fs.writeFileSync(path.join(dir, item.filename), 'audio')
+      fs.writeFileSync(path.join(dir, item.lyricFilename), 'original')
+      fs.writeFileSync(lyric, 'existing')
+
+      expect(await fileCache.batchRenameCacheFiles(user)).toMatchObject({ successCount: 0, failCount: 1 })
+      expect(fs.readFileSync(lyric, 'utf8')).toBe('existing')
+      expect(fs.readFileSync(path.join(dir, item.filename), 'utf8')).toBe('audio')
+      fs.unlinkSync(lyric)
+
+      expect(await fileCache.batchRenameCacheFiles(user)).toMatchObject({ successCount: 1, failCount: 0 })
+      expect(fs.readFileSync(path.join(album, newBase + '.mp3'), 'utf8')).toBe('audio')
+      expect(fs.readFileSync(lyric, 'utf8')).toBe('original')
+      expect(fileCache.indexManager.get(user, item.id, 'music', item.quality, true)).toMatchObject({
+        filename: `albums/${newBase}.mp3`,
+        lyricFilename: `albums/${newBase}.lrc`,
+        subPath: 'albums',
+      })
+    } finally {
+      closeDb()
+      fileCache.indexManager.resetMemory()
+      fileCache.setNamingPattern(previousPattern)
+      fileCache.setCacheLocation(previousLocation)
+      global.lx = previousLx
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('should persist disk-discovered lyric state to the SQLite cache index', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-index-'))
     const previousLx = (global as any).lx

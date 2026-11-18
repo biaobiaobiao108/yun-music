@@ -4,7 +4,7 @@ import { Router, type HttpContext } from '../core'
 import { createDownloadProxyRouter, isOpaqueBrowserProgressId } from './mediaRelay'
 import { getMusicTagNative } from '../musicTagNative'
 import { toUserMessage } from '../core/context'
-import { verifyAdminAuth } from '../auth'
+import { checkPlayerAuthSession, verifyAdminAuth } from '../auth'
 import { verifyUserAuth } from './auth'
 import * as fileCache from '../fileCache'
 import * as serverDownloadQueue from '../serverDownloadQueue'
@@ -82,6 +82,7 @@ const createCacheEventsStream = (
   username: string,
   request: Request,
   release: () => void,
+  authorized: () => boolean,
 ): ReadableStream<Uint8Array> => {
   const encoder = new TextEncoder()
   let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
@@ -116,6 +117,7 @@ const createCacheEventsStream = (
   const send = (event: string, payload: unknown) => {
     if (closed || !streamController) return
     try {
+      if (!authorized()) return close()
       const message = encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
       if ((streamController.desiredSize ?? 1) <= 0) {
         if (event === 'queue') pendingQueueEvent = message
@@ -133,6 +135,7 @@ const createCacheEventsStream = (
   const flushPendingEvents = () => {
     if (closed || !streamController) return
     try {
+      if (!authorized()) return close()
       if (pendingQueueEvent && (streamController.desiredSize ?? 1) > 0) {
         streamController.enqueue(pendingQueueEvent)
         pendingQueueEvent = null
@@ -379,7 +382,10 @@ export const createCacheRouter = (): Router => {
       released = true
       activeCacheEventStreams = Math.max(0, activeCacheEventStreams - 1)
     }
-    return new Response(createCacheEventsStream(username, ctx.request, release), {
+    const authorized = () =>
+      (!global.lx.config['player.enableAuth'] || checkPlayerAuthSession(ctx.cookies) || verifyAdminAuth(ctx.request)) &&
+      getCacheRequestUsername(ctx) === username
+    return new Response(createCacheEventsStream(username, ctx.request, release, authorized), {
       status: 200,
       headers: {
         'Content-Type': 'text/event-stream; charset=utf-8',
@@ -414,6 +420,7 @@ export const createCacheRouter = (): Router => {
         if (global.lx.config) global.lx.config['cache.namingPattern'] = normalizedNamingPattern
       }
       const queued = serverDownloadQueue.enqueue(username, tasks)
+      await serverDownloadQueue.flushDownloadQueue()
       return ctx.json({ success: true, data: queued })
     } catch (err: any) {
       return ctx.fail(400, toUserMessage(err, '下载任务参数不合法'))
@@ -427,6 +434,7 @@ export const createCacheRouter = (): Router => {
     try {
       const { concurrency } = await ctx.bodyJson<{ concurrency?: number }>()
       const savedConcurrency = serverDownloadQueue.setConcurrency(username, concurrency)
+      await serverDownloadQueue.flushDownloadQueue()
       return ctx.json({ success: true, data: { concurrency: savedConcurrency } })
     } catch (err: any) {
       return ctx.fail(400, toUserMessage(err, '并发数不合法'))
@@ -441,6 +449,7 @@ export const createCacheRouter = (): Router => {
       const { id, all } = await ctx.bodyJson<{ id?: string; all?: boolean }>()
       if (all !== true && !id) throw new Error('Missing queue task id')
       serverDownloadQueue.resume(username, all ? undefined : id)
+      await serverDownloadQueue.flushDownloadQueue()
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(400, toUserMessage(err, '请求参数不合法'))
@@ -457,6 +466,7 @@ export const createCacheRouter = (): Router => {
         throw new Error('Missing queue removal option')
       }
       serverDownloadQueue.remove(username, options)
+      await serverDownloadQueue.flushDownloadQueue()
       return ctx.json({ success: true })
     } catch (err: any) {
       return ctx.fail(400, toUserMessage(err, '请求参数不合法'))
@@ -556,6 +566,7 @@ export const createCacheRouter = (): Router => {
         },
       ])
 
+      await serverDownloadQueue.flushDownloadQueue()
       return ctx.json({
         success: true,
         data: queued,
@@ -585,6 +596,7 @@ export const createCacheRouter = (): Router => {
         serverDownloadQueue.pauseBySongKey(username, songKey)
         console.log(`[Cache] Stopped task ${songKey} for user: ${username}`)
       }
+      await serverDownloadQueue.flushDownloadQueue()
       return ctx.json({ success: true })
     } catch (e: any) {
       return ctx.fail(400, toUserMessage(e, '请求参数不合法'))
@@ -906,6 +918,30 @@ export const createCacheRouter = (): Router => {
     const verified = verifyUserAuth(ctx)
     const isPublicAlias = reqUsername === 'default' || reqUsername === 'open' || reqUsername === '_open'
     const isAll = reqUsername === 'all' || reqUsername === '_all'
+    const pageParam = ctx.query.get('page')
+    if (pageParam !== null) {
+      if (!isAdmin) return ctx.fail(403, '权限不足：只有管理员可以分页查看存储文件')
+      const page = Number(pageParam)
+      const folder = ctx.query.get('folder')
+      if (!Number.isSafeInteger(page) || page < 0 || (folder !== 'cache' && folder !== 'music')) {
+        return ctx.fail(400, '存储分页参数无效')
+      }
+      const user = isAll ? undefined : isPublicAlias || !reqUsername ? '_open' : reqUsername
+      try {
+        if (user) assertSafePathSegment(user, 'user name')
+        return ctx.json({
+          success: true,
+          ...fileCache.getCachePage(user, {
+            page,
+            folder,
+            query: (ctx.query.get('query') ?? '').trim().slice(0, 256),
+            sort: ctx.query.get('sort') ?? '',
+          }),
+        })
+      } catch (error) {
+        return ctx.fail(500, toUserMessage(error, '无法读取存储列表'))
+      }
+    }
 
     if (isAll) {
       if (!isAdmin) {

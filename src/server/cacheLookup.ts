@@ -85,21 +85,14 @@ export const checkCache = (
 
       // 2. Search for Naming Collisions (Same Name + Singer + Quality, but different ID)
       for (const location of getCacheLocations()) {
-        const allItems = [
-          ...indexManager.getAll(targetUser, 'cache', location),
-          ...indexManager.getAll(targetUser, 'music', location),
-        ]
-
-        const collision = allItems.find(
-          item =>
-            !ids.includes(item.id) && // 排除当前正在查询的所有 ID 变体
-            item.name.toLowerCase() === String(songInfo.name || '').toLowerCase() &&
-            item.singer.toLowerCase() === String(songInfo.singer || '').toLowerCase() &&
-            item.quality === quality &&
-            (!isLyricCheck || item.hasLyric),
-        )
-
-        if (collision) {
+        for (const collision of indexManager.findByMetadata(
+          targetUser,
+          location,
+          quality,
+          String(songInfo.name || ''),
+          String(songInfo.singer || ''),
+        )) {
+          if (ids.includes(collision.id) || (isLyricCheck && !collision.hasLyric)) continue
           if (isProcessing(collision.id, collision.quality, targetUser)) continue
           const collisionDir = getCacheDir(targetUser, collision.folder === 'music', location, false)
           const collisionFileName = (isLyricCheck ? collision.lyricFilename : collision.filename) || ''

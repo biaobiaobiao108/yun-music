@@ -18,6 +18,8 @@ import { createSystemRouter } from '@/server/routes/system'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 import { enqueue, removeUser } from '@/server/serverDownloadQueue'
 import * as downloadQueue from '@/server/serverDownloadQueue'
+import { beginDataRequest, endDataRequest } from '@/server/dataOperationLock'
+import { createRootRouter } from '@/server/routes'
 
 const createZip = async (
   entries: Array<{ name: string; content?: string; sourcePath?: string }>,
@@ -259,6 +261,60 @@ describe('Local backup restore', () => {
     await expect(createLocalBackup(1)).rejects.toBeInstanceOf(LocalBackupTooLargeError)
 
     expect(fs.readdirSync(tempDir).filter(name => name.startsWith('yun-yin-backup-'))).toEqual([])
+  })
+
+  test('rejects an export that would exceed the restore expansion limit', async () => {
+    const filename = path.join(global.lx.userPath, 'old.txt')
+    const statFile = fs.statSync
+    const stat = spyOn(fs, 'statSync').mockImplementation(((...args: Parameters<typeof fs.statSync>) => {
+      const result = statFile(...args)
+      if (args[0] === filename && result) Object.defineProperty(result, 'size', { value: 513 * 1024 * 1024 })
+      return result
+    }) as typeof fs.statSync)
+    try {
+      await expect(createLocalBackup()).rejects.toThrow('备份解压后的数据量超出限制')
+      expect(fs.readdirSync(tempDir).filter(name => name.startsWith('yun-yin-backup-'))).toEqual([])
+    } finally {
+      stat.mockRestore()
+    }
+  })
+
+  test('restore drains existing requests and rejects new writes through rollback', async () => {
+    const archive = fs.readFileSync(path.join(tempDir, await createLocalBackup()))
+    const router = createRootRouter()
+    const request = () => router.handle(new Request('http://localhost/api/status'))
+    let captured = false
+    expect(beginDataRequest()).toBe(true)
+    const restore = restoreLocalBackup(archive, {
+      beforeRestore: () => {
+        captured = true
+      },
+      onRestored: async () => {
+        const response = await router.handle(
+          new Request('http://localhost/api/user/play-history/events', { method: 'POST' }),
+        )
+        expect(response.status).toBe(503)
+        throw new Error('rollback fixture')
+      },
+    })
+    const outcome = restore.catch(error => error)
+    try {
+      let blocked = false
+      for (let attempt = 0; attempt < 80; attempt++) {
+        if ((await request()).status === 503) {
+          blocked = true
+          break
+        }
+        await Bun.sleep(25)
+      }
+      expect(blocked).toBe(true)
+      expect(captured).toBe(false)
+    } finally {
+      endDataRequest()
+      expect(await outcome).toHaveProperty('message', 'rollback fixture')
+    }
+    expect(captured).toBe(true)
+    expect((await request()).status).not.toBe(503)
   })
 
   test('releases the queue suspension and data lock when backup temp directory creation fails', async () => {

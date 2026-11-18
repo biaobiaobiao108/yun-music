@@ -68,7 +68,7 @@ jobs:
             type=sha
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' && inputs.publish_latest == true || startsWith(github.ref, 'refs/tags/v') }}
 
-      - name: Build and push Docker image
+      - name: Build and push candidate image
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -76,7 +76,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.image.outputs.name }}:candidate-${{ github.run_id }}-${{ github.run_attempt }}
           labels: ${{ steps.meta.outputs.labels }}
           sbom: true
           provenance: false
@@ -86,36 +86,47 @@ jobs:
       - name: Inspect multi-platform manifest
         run: docker buildx imagetools inspect "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}"
 
-      - name: Smoke test amd64 image
+      - name: Smoke test amd64 and arm64 images
         shell: bash
+        env:
+          CANDIDATE_IMAGE: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
           container_name=yun-music-smoke-${GITHUB_RUN_ID}
-          trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true' EXIT
-
-          docker run --detach \
-            --name "$container_name" \
-            --platform linux/amd64 \
-            --publish 127.0.0.1:9527:9527 \
-            --env "FRONTEND_PASSWORD=smoke-${GITHUB_RUN_ID}-${GITHUB_SHA:0:12}" \
-            "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}" >/dev/null
-
-          for attempt in {1..30}; do
-            home_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9527/ || true)
-            health_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9527/healthz || true)
-            ready_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9527/readyz || true)
-            if [ "$home_code" = "200" ] && [ "$health_code" = "200" ] && [ "$ready_code" = "200" ]; then
-              docker logs "$container_name" 2>&1 | grep -F 'Starting 云鹿音乐 in production'
-              echo "Smoke test passed: home, health and readiness checks are HTTP 200."
-              exit 0
+          trap 'docker rm -fv "$container_name" >/dev/null 2>&1 || true' EXIT
+          for platform in linux/amd64 linux/arm64; do
+            docker run --detach --name "$container_name" --platform "$platform" --publish 127.0.0.1:9527:9527 --env "FRONTEND_PASSWORD=smoke-${GITHUB_RUN_ID}-${GITHUB_SHA:0:12}" "$CANDIDATE_IMAGE" >/dev/null
+            ready=false
+            for attempt in {1..45}; do
+              if curl -fsS -o /dev/null --max-time 3 http://127.0.0.1:9527/ &&
+                 curl -fsS -o /dev/null --max-time 3 http://127.0.0.1:9527/healthz &&
+                 curl -fsS -o /dev/null --max-time 3 http://127.0.0.1:9527/readyz; then
+                ready=true
+                break
+              fi
+              echo "$platform attempt $attempt: waiting for readiness"
+              sleep 2
+            done
+            if [[ "$ready" != true ]]; then
+              docker logs "$container_name"
+              exit 1
             fi
-            echo "Attempt $attempt: home=$home_code health=$health_code ready=$ready_code, waiting 2s..."
-            sleep 2
+            docker logs "$container_name" 2>&1 | grep -F 'Starting 云鹿音乐 in production'
+            docker rm -fv "$container_name" >/dev/null
           done
 
-          echo "Container logs on failure:"
-          docker logs "$container_name"
-          exit 1
+      - name: Promote verified digest to release tags
+        shell: bash
+        env:
+          CANDIDATE_IMAGE: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
+          RELEASE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          tags=()
+          while IFS= read -r tag; do
+            [[ -z "$tag" ]] || tags+=(--tag "$tag")
+          done <<< "$RELEASE_TAGS"
+          docker buildx imagetools create "${tags[@]}" "$CANDIDATE_IMAGE"
 
       - name: Create or update GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

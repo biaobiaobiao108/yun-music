@@ -18,6 +18,7 @@ import {
   createLocalBackup,
   LocalBackupTooLargeError,
   MAX_LOCAL_BACKUP_BYTES,
+  MAX_BACKUP_UPLOAD_BYTES,
   restoreLocalBackup,
 } from '../localBackupService'
 import { refreshUsersFromDatabase } from '@/user/data'
@@ -33,6 +34,7 @@ import { getSourceMatchCacheStats } from '../services/musicResolver'
 import { getSingerCacheStats } from '../utils/singer'
 import { getGeneralCacheStats } from '@/utils/cache'
 import { initUserApis } from '../userApi'
+import { reconcileRestoredQueue } from '../serverDownloadQueue'
 
 const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
@@ -920,7 +922,7 @@ export const createSystemRouter = (): Router => {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
     setTimeout(() => {
-      process.exit(0)
+      process.emit('SIGTERM')
     }, 500)
     return ctx.json({ success: true, message: '服务器正在重启，请稍后刷新页面' })
   })
@@ -953,7 +955,7 @@ export const createSystemRouter = (): Router => {
     const rawContentType = ctx.headers.get('content-type') || ''
     const contentType = rawContentType.toLowerCase()
     const isMultipart = contentType.startsWith('multipart/form-data')
-    const maxUploadBytes = isMultipart ? MAX_LOCAL_BACKUP_BYTES + 1024 * 1024 : MAX_LOCAL_BACKUP_BYTES
+    const maxUploadBytes = isMultipart ? MAX_BACKUP_UPLOAD_BYTES : MAX_LOCAL_BACKUP_BYTES
     const boundary = isMultipart ? readMultipartBoundary(rawContentType) : null
     if (isMultipart && !boundary) return ctx.fail(400, 'multipart 备份格式无效')
     const declaredLength = Number(ctx.headers.get('content-length') || 0)
@@ -961,7 +963,7 @@ export const createSystemRouter = (): Router => {
       return ctx.fail(413, '备份文件大小不能超过 100 MB')
     }
 
-    const previousConfig = { ...global.lx.config }
+    let previousConfig = { ...global.lx.config }
     const onRestored = async (restoredConfig: Record<string, unknown>) => {
       try {
         await applyValidatedConfig(restoredConfig)
@@ -976,6 +978,7 @@ export const createSystemRouter = (): Router => {
         revokeAllUserSessions()
         revokeAllPlayerSessions()
         revokeAllAdminSessions()
+        await reconcileRestoredQueue(global.lx.config.users.map(user => user.name))
       } catch (error) {
         for (const key of Object.keys(global.lx.config)) {
           if (!(key in previousConfig)) delete (global.lx.config as any)[key]
@@ -1057,7 +1060,17 @@ export const createSystemRouter = (): Router => {
       }
 
       try {
-        await restoreLocalBackup(source, { onRestored })
+        if (!verifyAdminAuth(ctx.request)) return ctx.fail(401, '登录状态已失效，请重新登录')
+        await restoreLocalBackup(source, {
+          beforeRestore: () => {
+            previousConfig = { ...global.lx.config }
+          },
+          onRestored,
+          afterRollback: async () => {
+            resetUserSpaces()
+            await initUserApis()
+          },
+        })
       } finally {
         if (tempUploadPath) fs.rmSync(tempUploadPath, { force: true })
         if (tempMultipartPath) fs.rmSync(tempMultipartPath, { force: true })

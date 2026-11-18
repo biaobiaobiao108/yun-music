@@ -405,6 +405,62 @@ describe('Deleted account credentials', () => {
     expect(fs.existsSync(path.join(musicDir, 'downloaded.mp3'))).toBe(false)
   })
 
+  test('rejects account names that would share a case-insensitive media directory', async () => {
+    const router = createUserRouter()
+    const result = await router.handle(
+      new Request('http://localhost/api/users', {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ name: username.toUpperCase(), password: 'other-password' }),
+      }),
+    )
+    expect(result.status).toBe(409)
+    expect(countRows().users).toBe(1)
+  })
+
+  test('reports failed account cleanup, retries independently, and leaves a recreated account alone', async () => {
+    const router = createUserRouter()
+    const music = fileCache.getCacheDir(username, true)
+    const source = path.join(tempDir, 'users', 'source', username)
+    fs.mkdirSync(source, { recursive: true })
+    const remove = fs.rmSync
+    const failMusic = spyOn(fs, 'rmSync').mockImplementation((...args: Parameters<typeof fs.rmSync>) => {
+      if (args[0] === music) throw new Error('simulated filesystem failure')
+      return remove(...args)
+    })
+    try {
+      const result = await deleteAccount(true)
+      expect(result.status).toBe(200)
+      expect(await result.json()).toMatchObject({ cleanupWarnings: [username] })
+      expect(fs.existsSync(source)).toBe(false)
+      expect(fs.existsSync(music)).toBe(true)
+      const pending = await router.handle(new Request('http://localhost/api/users/cleanup', { headers: adminHeaders }))
+      expect(await pending.json()).toEqual([username])
+    } finally {
+      failMusic.mockRestore()
+    }
+    const retry = () =>
+      router.handle(
+        new Request('http://localhost/api/users', {
+          method: 'DELETE',
+          headers: adminHeaders,
+          body: JSON.stringify({ name: username, retryCleanup: true }),
+        }),
+      )
+    expect(await (await retry()).json()).toMatchObject({ success: true, deletedCount: 0 })
+    expect(fs.existsSync(music)).toBe(false)
+    const recreate = await router.handle(
+      new Request('http://localhost/api/users', {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ name: username, password: 'new-password' }),
+      }),
+    )
+    expect(recreate.status).toBe(200)
+    expect((await retry()).status).toBe(200)
+    expect(countRows().users).toBe(1)
+  })
+
   test('deletion drains active downloads, rejects recreation during cleanup and removes old tasks', async () => {
     const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
     let settle!: () => void

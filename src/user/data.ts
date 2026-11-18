@@ -13,9 +13,27 @@ export interface ServerInfo {
 }
 
 const RESERVED_USER_ALIASES = new Set(['default', 'open', '_open'])
-const isReservedUserAlias = (name: string) => RESERVED_USER_ALIASES.has(name.toLowerCase())
+const isReservedUserAlias = (name: string) => RESERVED_USER_ALIASES.has(userDirectoryKey(name).toLowerCase())
 const assertPrivateUserNameNotReserved = (name: string) => {
   if (isReservedUserAlias(name)) throw new Error(`用户名 ${name} 为系统保留名称`)
+}
+
+export const userDirectoryKey = (name: string): string =>
+  name
+    .replace(/[. ]+$/u, '')
+    .normalize('NFC')
+    .toUpperCase()
+    .normalize('NFC')
+
+const assertUniqueUserDirectories = (users: readonly { name: string }[]): void => {
+  const namesByDirectory = new Map<string, string>()
+  for (const { name } of users) {
+    const key = userDirectoryKey(name)
+    const previous = namesByDirectory.get(key)
+    if (previous !== undefined)
+      throw new Error(`用户目录名称冲突：${previous}、${name}。请先在区分大小写的文件系统上处理冲突账户。`)
+    namesByDirectory.set(key, name)
+  }
 }
 
 export const getUserDirname = (userName: string): string => {
@@ -51,6 +69,22 @@ type PreparedUser = {
 }
 type StoredUserPassword = { name: string; password_hash: string }
 
+export const pendingUserCleanupKey = (name: string): string => `account_cleanup:${name}`
+
+export const getPendingUserCleanups = () =>
+  getDb()
+    .query<{ key: string; value: string }, []>(
+      "SELECT key, value FROM system_info WHERE key GLOB 'account_cleanup:*' ORDER BY key",
+    )
+    .all()
+    .map(row => ({ name: row.key.slice('account_cleanup:'.length), deleteData: row.value === '1' }))
+
+type SyncUsersOptions = {
+  removeMissing?: boolean
+  purgeMissingData?: readonly string[]
+  pendingCleanup?: readonly string[]
+}
+
 const prepareUsersForDatabase = async (
   users: LX.Config['users'],
 ): Promise<{
@@ -59,6 +93,7 @@ const prepareUsersForDatabase = async (
   preparedUsers: PreparedUser[]
 }> => {
   if (!Array.isArray(users)) throw new Error('用户配置格式无效')
+  assertUniqueUserDirectories(users)
   const db = getDb()
   const existingRows = db
     .query<{ name: string; password_hash: string }, []>('SELECT name, password_hash FROM users')
@@ -91,7 +126,7 @@ const writePreparedUsersToDatabase = (
   db: ReturnType<typeof getDb>,
   existingRows: StoredUserPassword[],
   preparedUsers: PreparedUser[],
-  options: { removeMissing?: boolean; purgeMissingData?: readonly string[] },
+  options: SyncUsersOptions,
 ): void => {
   const now = Date.now()
   const currentNames = new Set(preparedUsers.map(({ user }) => user.name))
@@ -99,6 +134,12 @@ const writePreparedUsersToDatabase = (
   // Everything else (e.g. an entry removed by hand from config.js) keeps its
   // playlists and settings so recreating the same account restores them.
   const purgeNames = new Set(options.purgeMissingData ?? [])
+  for (const name of options.pendingCleanup ?? []) {
+    db.run('INSERT OR REPLACE INTO system_info (key, value) VALUES (?, ?)', [
+      pendingUserCleanupKey(name),
+      purgeNames.has(name) ? '1' : '0',
+    ])
+  }
   if (options.removeMissing) {
     for (const row of existingRows) {
       if (row.name === '_open' || currentNames.has(row.name)) continue
@@ -140,10 +181,7 @@ const publishPreparedUsers = (preparedUsers: PreparedUser[]): void => {
 }
 
 /** 将运行时配置中的 Web 用户同步到 SQLite；只写入密码哈希。 */
-export const syncUsersToDatabase = async (
-  users: LX.Config['users'],
-  options: { removeMissing?: boolean; purgeMissingData?: readonly string[] } = {},
-): Promise<void> => {
+export const syncUsersToDatabase = async (users: LX.Config['users'], options: SyncUsersOptions = {}): Promise<void> => {
   const prepared = await prepareUsersForDatabase(users)
   if (prepared.db !== getDb()) throw new Error('数据库在用户同步期间发生变更，请重试')
   prepared.db.transaction(() =>
@@ -192,6 +230,7 @@ const applyUsersFromDatabase = (
   configuredUsers: LX.Config['users'],
 ): void => {
   for (const row of rows) validateStoredUserRow(row)
+  assertUniqueUserDirectories(rows)
   const configuredByName = new Map(configuredUsers.map(user => [user.name, user]))
   global.lx.config.users = rows.map(row => {
     const configured = configuredByName.get(row.name)

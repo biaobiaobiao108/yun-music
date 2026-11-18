@@ -16,6 +16,7 @@ import { isValidHttpHeaderName, normalizeTrustedProxyAddresses } from './server/
 import { parseConfigFile } from './utils/configLoader'
 import { hashPassword, isPasswordHash } from './utils/passwordHash'
 import { revokeSessionsForConfigChange } from './server/auth'
+import { beginDataRequest, endDataRequest } from './server/dataOperationLock'
 
 // Declare Env Params Type
 type ENV_PARAMS_Type = typeof ENV_PARAMS
@@ -506,6 +507,7 @@ await initializeUsersFromDatabase(global.lx.config.users)
 
 // 初始化 Web 服务
 const { startServer, stopServer } = await import('@/server')
+const { shutdownDownloadQueue } = await import('@/server/serverDownloadQueue')
 fatalShutdown = async () => {
   try {
     await stopServer()
@@ -550,11 +552,15 @@ if (fs.existsSync(rootConfigPath)) {
         timer.unref?.()
       }
       if (configDebounceTimer) clearTimeout(configDebounceTimer)
-      configDebounceTimer = setTimeout(() => {
+      const reloadExternalConfig = () => {
         const currentHash = getConfigHash(rootConfigPath)
         if (!currentHash) return
         // 如果内容未发生实质改变（如内部写配置触发的 fs.watch 事件），跳过热重载
         if (currentHash === lastConfigHash) return
+        if (!beginDataRequest()) {
+          configDebounceTimer = setTimeout(reloadExternalConfig, 500)
+          return
+        }
         lastConfigHash = currentHash
 
         console.log('Detected external config.js change, hot-reloading...')
@@ -578,9 +584,12 @@ if (fs.existsSync(rootConfigPath)) {
             }
             Object.assign(global.lx.config, previousConfig)
             console.error('Hot-reload config.js failed:', e)
+          } finally {
+            endDataRequest()
           }
         })()
-      }, 500)
+      }
+      configDebounceTimer = setTimeout(reloadExternalConfig, 500)
     })
   }
   attachConfigWatcher()
@@ -594,6 +603,7 @@ const gracefulShutdown = async (signal: string) => {
   console.log(`\nReceived ${signal}, shutting down gracefully...`)
 
   try {
+    if (configDebounceTimer) clearTimeout(configDebounceTimer)
     if (configWatcher) {
       configWatcher.close()
       configWatcher = null
@@ -607,13 +617,20 @@ const gracefulShutdown = async (signal: string) => {
   }
 
   try {
+    await shutdownDownloadQueue()
+  } catch (err) {
+    console.error('Error persisting download queue:', err)
+    process.exitCode = 1
+  }
+
+  try {
     closeDb()
   } catch (err) {
     console.error('Error closing database:', err)
   }
 
   console.log('Server stopped cleanly. Goodbye.')
-  process.exit(0)
+  process.exit(process.exitCode ?? 0)
 }
 
 process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'))

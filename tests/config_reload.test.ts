@@ -17,7 +17,7 @@ test('external config reload preserves SQLite users and subsequent account write
   listener.stop(true)
   const project = path.resolve(import.meta.dir, '..')
   const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('LX_USER_')))
-  const child = Bun.spawn(['bun', path.join(project, 'src/index.ts')], {
+  const child = Bun.spawn([process.execPath, '--no-env-file', path.join(project, 'src/index.ts')], {
     cwd: directory,
     env: {
       ...environment,
@@ -31,9 +31,11 @@ test('external config reload preserves SQLite users and subsequent account write
       BIND_IP: '127.0.0.1',
       DISABLE_TELEMETRY: 'true',
     },
-    stdout: 'ignore',
-    stderr: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
   })
+  const stdout = new Response(child.stdout).text()
+  const stderr = new Response(child.stderr).text()
   try {
     const base = `http://127.0.0.1:${port}`
     let ready = false
@@ -44,9 +46,14 @@ test('external config reload preserves SQLite users and subsequent account write
           break
         }
       } catch {}
+      if (child.exitCode !== null) break
       await Bun.sleep(50)
     }
-    expect(ready).toBe(true)
+    if (!ready) {
+      child.kill()
+      await child.exited
+      throw new Error(`测试服务启动失败（退出码 ${child.exitCode}）\n${await stdout}\n${await stderr}`)
+    }
     const login = await fetch(`${base}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

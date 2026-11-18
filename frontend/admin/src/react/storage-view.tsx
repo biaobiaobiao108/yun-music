@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { adminApi, type StorageItem } from './api'
 import { Button, ConfirmDialog, Empty, ErrorPanel, Icon, Loading, Panel, SelectMenu } from './components'
 import { useAdminStore } from './store'
@@ -6,8 +6,6 @@ import { ViewFrame } from './view_frame'
 import { formatBytes, formatDate, safeImageUrl } from '../../../shared/src/runtime'
 
 type ConfirmRequest = { title: string; message: string; confirmLabel?: string; onConfirm: () => void | Promise<void> }
-type SortMode = 'default' | 'name-asc' | 'name-desc' | 'size-desc' | 'time-desc'
-const STORAGE_PAGE_SIZE = 100
 
 function storageItemKey(item: StorageItem): string {
   return `${String(item.rawUsername ?? '_open')}|${String(item.location ?? '')}|${String(item.folder ?? 'cache')}|${String(item.filename ?? item.id ?? item.name ?? '')}`
@@ -101,17 +99,16 @@ export function StorageView() {
   const users = useAdminStore(state => state.users)
   const selectedUser = useAdminStore(state => state.selectedUser)
   const setSelectedUser = useAdminStore(state => state.setSelectedUser)
-  const folder = useAdminStore(state => state.storageFolder)
-  const setStorageFolder = useAdminStore(state => state.setStorageFolder)
+  const storageQuery = useAdminStore(state => state.storageQuery)
+  const setStorageQuery = useAdminStore(state => state.setStorageQuery)
+  const { folder, sort } = storageQuery
   const storage = useAdminStore(state => state.storage)
   const busy = useAdminStore(state => state.busy)
   const error = useAdminStore(state => state.error)
   const loadView = useAdminStore(state => state.loadView)
   const notify = useAdminStore(state => state.notify)
-  const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<SortMode>('default')
-  const [selected, setSelected] = useState<Set<string>>(() => new Set())
-  const [page, setPage] = useState(0)
+  const [query, setQuery] = useState(storageQuery.query)
+  const [selected, setSelected] = useState<Map<string, StorageItem>>(() => new Map())
   const [playingKey, setPlayingKey] = useState('')
   const [confirmation, setConfirmation] = useState<ConfirmRequest | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -130,53 +127,20 @@ export function StorageView() {
     }
   }, [])
 
-  const currentItems = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase()
-    const result = storage.filter(
-      item =>
-        item.folder === folder &&
-        (!needle ||
-          [item.name, item.singer, item.filename, item.source].some(value =>
-            String(value ?? '')
-              .toLocaleLowerCase()
-              .includes(needle),
-          )),
-    )
-    if (sort === 'default') return result
-    return [...result].sort((a, b) => {
-      if (sort === 'size-desc') return Number(b.size ?? 0) - Number(a.size ?? 0)
-      if (sort === 'time-desc') return Number(b.mtime ?? 0) - Number(a.mtime ?? 0)
-      const direction = sort.endsWith('-desc') ? -1 : 1
-      return displayName(a).localeCompare(displayName(b), 'zh-CN') * direction
-    })
-  }, [folder, query, sort, storage])
-  const currentKeys = useMemo(() => currentItems.map(storageItemKey), [currentItems])
-  const currentKeySet = useMemo(() => new Set(currentKeys), [currentKeys])
-  const selectedCurrent = useMemo(
-    () => currentItems.filter(item => selected.has(storageItemKey(item))),
-    [currentItems, selected],
-  )
-  const allSelected = currentItems.length > 0 && selectedCurrent.length === currentItems.length
-  const pageCount = Math.max(1, Math.ceil(currentItems.length / STORAGE_PAGE_SIZE))
-  const pageIndex = Math.min(page, pageCount - 1)
-  const pageItems = useMemo(
-    () => currentItems.slice(pageIndex * STORAGE_PAGE_SIZE, (pageIndex + 1) * STORAGE_PAGE_SIZE),
-    [currentItems, pageIndex],
-  )
-  const { count: summaryCount, size: summarySize } = useMemo(() => {
-    let count = 0
-    let size = 0
-    for (const item of storage) {
-      if (item.folder !== folder) continue
-      count++
-      size += Number(item.size ?? 0)
-    }
-    return { count, size }
-  }, [folder, storage])
+  const pageItems = storage?.data ?? []
+  const selectedItems = [...selected.values()]
+  const selectedOnPage = pageItems.filter(item => selected.has(storageItemKey(item))).length
+  const allSelected = pageItems.length > 0 && selectedOnPage === pageItems.length
+  const pageIndex = storage?.page ?? 0
+  const pageSize = storage?.pageSize ?? 100
+  const pageCount = Math.max(1, Math.ceil((storage?.filtered ?? 0) / pageSize))
 
   useEffect(() => {
-    setPage(0)
-  }, [folder, query, sort, selectedUser])
+    const needle = query.trim()
+    if (needle === storageQuery.query) return
+    const timer = setTimeout(() => setStorageQuery({ query: needle, page: 0 }), 180)
+    return () => clearTimeout(timer)
+  }, [query, setStorageQuery, storageQuery.query])
 
   const remove = async (items: StorageItem[]) => {
     if (!items.length) return
@@ -191,7 +155,7 @@ export function StorageView() {
           }))
           .filter(item => item.filename),
       )
-      setSelected(new Set())
+      setSelected(new Map())
       notify(`已删除 ${result.deletedCount} 个文件${result.failedCount ? `，${result.failedCount} 个失败` : ''}`)
       await loadView('storage')
     } catch (error) {
@@ -212,7 +176,7 @@ export function StorageView() {
           .filter(item => item.filename),
         folder === 'cache' ? 'music' : 'cache',
       )
-      setSelected(new Set())
+      setSelected(new Map())
       notify(`已移动 ${result.successCount} 个文件${result.failCount ? `，${result.failCount} 个失败` : ''}`)
       await loadView('storage')
     } catch (error) {
@@ -223,7 +187,7 @@ export function StorageView() {
   const clear = async () => {
     try {
       await adminApi.clearCache(selectedUser || 'all')
-      setSelected(new Set())
+      setSelected(new Map())
       notify('缓存已清空')
       await loadView('storage')
     } catch (error) {
@@ -297,7 +261,7 @@ export function StorageView() {
                   ...users.filter(user => user.name !== '_open').map(user => ({ value: user.name, label: user.name })),
                 ]}
                 onChange={value => {
-                  setPage(0)
+                  setSelected(new Map())
                   setSelectedUser(value)
                 }}
               />
@@ -316,8 +280,9 @@ export function StorageView() {
             aria-selected={folder === 'cache'}
             className={folder === 'cache' ? 'is-active' : ''}
             onClick={() => {
-              setPage(0)
-              setStorageFolder('cache')
+              if (folder === 'cache') return
+              setSelected(new Map())
+              setStorageQuery({ folder: 'cache', page: 0 })
             }}
           >
             服务端缓存
@@ -328,8 +293,9 @@ export function StorageView() {
             aria-selected={folder === 'music'}
             className={folder === 'music' ? 'is-active' : ''}
             onClick={() => {
-              setPage(0)
-              setStorageFolder('music')
+              if (folder === 'music') return
+              setSelected(new Map())
+              setStorageQuery({ folder: 'music', page: 0 })
             }}
           >
             下载音乐
@@ -342,10 +308,11 @@ export function StorageView() {
               aria-label="搜索存储歌曲"
               value={query}
               onChange={event => {
-                setPage(0)
+                setSelected(new Map())
                 setQuery(event.target.value)
               }}
               placeholder="搜索歌曲、歌手或文件名"
+              maxLength={256}
             />
           </div>
           <SelectMenu
@@ -359,17 +326,17 @@ export function StorageView() {
               { value: 'time-desc', label: '最近更新' },
             ]}
             onChange={value => {
-              setPage(0)
-              setSort(value as SortMode)
+              setSelected(new Map())
+              setStorageQuery({ sort: value, page: 0 })
             }}
           />
         </div>
         <div className="admin-storage-summary">
           <span>{folder === 'cache' ? '服务端缓存' : '下载音乐'}</span>
-          <strong>{summaryCount} 首</strong>
+          <strong>{storage?.total ?? 0} 首</strong>
           <small>
-            占用 {formatBytes(summarySize)}
-            {query ? ` · 筛选后 ${currentItems.length} 首` : ''}
+            占用 {formatBytes(storage?.size ?? 0)}
+            {storageQuery.query && storage ? ` · 筛选后 ${storage.filtered} 首` : ''}
           </small>
         </div>
         <div className="admin-react-batch-bar">
@@ -378,25 +345,34 @@ export function StorageView() {
               type="checkbox"
               checked={allSelected}
               ref={element => {
-                if (element) element.indeterminate = selectedCurrent.length > 0 && !allSelected
+                if (element) element.indeterminate = selectedOnPage > 0 && !allSelected
               }}
-              onChange={event =>
+              disabled={!pageItems.length || busy}
+              onChange={event => {
+                const checked = event.target.checked
                 setSelected(current => {
-                  const next = new Set(current)
-                  if (event.target.checked) currentKeys.forEach(key => next.add(key))
-                  else currentKeySet.forEach(key => next.delete(key))
+                  const next = new Map(current)
+                  for (const item of pageItems) {
+                    const key = storageItemKey(item)
+                    if (checked) next.set(key, item)
+                    else next.delete(key)
+                  }
                   return next
                 })
-              }
+              }}
             />
-            全选
+            全选本页
           </label>
-          <span>已选择 {selectedCurrent.length} 项</span>
-          <Button disabled={!selectedCurrent.length} onClick={() => requestMove(selectedCurrent)}>
+          <span>已选择 {selectedItems.length} 项</span>
+          <Button disabled={!selectedItems.length || busy} onClick={() => requestMove(selectedItems)}>
             <Icon name="right-left" />
             {folder === 'cache' ? '转为下载' : '转为缓存'}
           </Button>
-          <Button variant="danger" disabled={!selectedCurrent.length} onClick={() => requestRemove(selectedCurrent)}>
+          <Button
+            variant="danger"
+            disabled={!selectedItems.length || busy}
+            onClick={() => requestRemove(selectedItems)}
+          >
             <Icon name="trash" />
             删除所选
           </Button>
@@ -406,9 +382,9 @@ export function StorageView() {
             </Button>
           )}
         </div>
-        {busy && !storage.length ? (
+        {busy && !storage ? (
           <Loading label="正在读取存储文件…" />
-        ) : currentItems.length ? (
+        ) : pageItems.length ? (
           <div className="admin-react-table-wrap admin-storage-table-wrap">
             <table className="admin-react-table admin-storage-table">
               <caption className="sr-only">{folder === 'cache' ? '服务端缓存' : '下载音乐'}列表</caption>
@@ -426,7 +402,7 @@ export function StorageView() {
               </thead>
               <tbody>
                 {pageItems.map((item, offset) => {
-                  const index = pageIndex * STORAGE_PAGE_SIZE + offset
+                  const index = pageIndex * pageSize + offset
                   const key = storageItemKey(item)
                   return (
                     <StorageSongRow
@@ -437,8 +413,8 @@ export function StorageView() {
                       playing={playingKey === key}
                       onSelect={checked =>
                         setSelected(current => {
-                          const next = new Set(current)
-                          if (checked) next.add(key)
+                          const next = new Map(current)
+                          if (checked) next.set(key, item)
                           else next.delete(key)
                           return next
                         })
@@ -453,13 +429,23 @@ export function StorageView() {
             </table>
             {pageCount > 1 && (
               <nav className="admin-react-toolbar admin-storage-pagination" aria-label="存储列表分页">
-                <Button disabled={pageIndex === 0} onClick={() => setPage(pageIndex - 1)}>
+                <Button
+                  disabled={busy || pageIndex === 0}
+                  onClick={() => {
+                    setStorageQuery({ page: pageIndex - 1 })
+                  }}
+                >
                   上一页
                 </Button>
                 <span aria-live="polite">
                   第 {pageIndex + 1} / {pageCount} 页
                 </span>
-                <Button disabled={pageIndex + 1 >= pageCount} onClick={() => setPage(pageIndex + 1)}>
+                <Button
+                  disabled={busy || pageIndex + 1 >= pageCount}
+                  onClick={() => {
+                    setStorageQuery({ page: pageIndex + 1 })
+                  }}
+                >
                   下一页
                 </Button>
               </nav>

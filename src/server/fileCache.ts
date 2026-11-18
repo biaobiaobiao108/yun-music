@@ -4,6 +4,9 @@ import { resolveInside } from '@/utils/pathSecurity'
 import { getMusicTagNative } from './musicTagNative'
 import { COVER_CHECK_VERSION, downloadCoverImage, hasCachedCover, readCoverCache, writeCoverCache } from './cacheCover'
 import { scheduleCacheIndexSync } from './cacheIndexSync'
+import { invalidateCacheListSync } from './cacheEvents'
+import { invalidateGlobalCacheStats } from './cacheStats'
+import { isCacheEntryProcessing } from './cacheProgress'
 import { extractSongMetadata, getFileName } from './cacheNaming'
 import { getCacheDir, getRootPath, normalizeCacheUsername, resolveCacheRelativePath } from './cachePaths'
 import { withCachePostProcess } from './cachePostProcess'
@@ -16,7 +19,7 @@ import {
   readEmbeddedCoverState,
 } from './cacheMetadata'
 import { CACHE_ROOTS, getCacheLocations, indexManager } from './cacheIndex'
-import type { CacheFolder, CacheItem } from './cacheIndex'
+import type { CacheFolder, CacheItem, CachePageRequest } from './cacheIndex'
 
 export { CACHE_ROOTS, getCacheLocation, getCacheLocations, indexManager, setCacheLocation } from './cacheIndex'
 export type { CacheFolder, CacheItem, CacheStatsSummary, DownloadProvenance, RemoveCacheFileResult } from './cacheIndex'
@@ -121,7 +124,7 @@ export const getCacheList = async (username?: string) => {
 /**
  * Get cache list across all users and the public library
  */
-export const getAllCacheList = async () => {
+const getCacheListUsernames = () => {
   const usernames = new Set<string>(['_open'])
   const configuredUsers = global.lx?.config?.users || []
   for (const u of configuredUsers) {
@@ -150,8 +153,27 @@ export const getAllCacheList = async () => {
     }
   }
 
+  return [...usernames]
+}
+
+export const getCachePage = (username: string | undefined, request: CachePageRequest) => {
+  const users = username ? [username] : getCacheListUsernames()
+  const safeUsers: string[] = []
+  for (const user of users) {
+    try {
+      const normalized = normalizeCacheUsername(user)
+      safeUsers.push(normalized)
+      scheduleCacheIndexSync(normalized)
+    } catch (error) {
+      console.warn('[FileCache] 无法扫描存储目录:', error)
+    }
+  }
+  return indexManager.getPage(safeUsers, request)
+}
+
+export const getAllCacheList = async () => {
   const allItems: any[] = []
-  for (const user of usernames) {
+  for (const user of getCacheListUsernames()) {
     try {
       const list = await getCacheList(user)
       allItems.push(...list)
@@ -192,7 +214,8 @@ export const batchRenameCacheFiles = async (username: string | undefined) => {
         }
 
         const newBaseName = getFileName(songInfo, item.quality, folder === 'music', normalizedUsername)
-        const newFilename = `${newBaseName}.${item.ext}`
+        const subPath = path.posix.dirname(item.filename.replace(/\\/g, '/'))
+        const newFilename = path.posix.join(subPath, `${newBaseName}.${item.ext}`)
 
         if (newFilename === item.filename) {
           skipCount++
@@ -202,49 +225,57 @@ export const batchRenameCacheFiles = async (username: string | undefined) => {
         const dir = getCacheDir(normalizedUsername, folder === 'music', location)
         const oldPath = resolveCacheRelativePath(dir, item.filename)
         const newPath = resolveCacheRelativePath(dir, newFilename)
-        if (!oldPath || !newPath) {
+        if (!oldPath || !newPath || isCacheEntryProcessing(item.id, item.quality, normalizedUsername)) {
           failCount++
           continue
         }
 
+        const oldLyric = item.lyricFilename || resolveCompanionLyricFilename(dir, item.filename)
+        const oldLrcPath = oldLyric && resolveCacheRelativePath(dir, oldLyric)
+        const lyricFilename =
+          oldLrcPath && fs.existsSync(oldLrcPath) ? path.posix.join(subPath, `${newBaseName}.lrc`) : undefined
+        const newLrcPath = resolveCacheRelativePath(dir, path.posix.join(subPath, `${newBaseName}.lrc`))
+        const moves: Array<[string, string]> = []
         try {
-          if (fs.existsSync(oldPath)) {
-            if (!fs.existsSync(newPath)) {
-              const oldStats = fs.statSync(oldPath)
-              const externalCover = readCoverCache(item.filename, normalizedUsername, oldStats)
-              fs.renameSync(oldPath, newPath)
-
-              if (item.lyricFilename) {
-                const oldLrcPath = resolveCacheRelativePath(dir, item.lyricFilename)
-                const newLrcFilename = `${newBaseName}.lrc`
-                const newLrcPath = resolveCacheRelativePath(dir, newLrcFilename)
-                if (oldLrcPath && newLrcPath && fs.existsSync(oldLrcPath)) {
-                  fs.renameSync(oldLrcPath, newLrcPath)
-                  item.lyricFilename = newLrcFilename
-                }
-              }
-
-              item.filename = newFilename
-              if (externalCover) {
-                writeCoverCache(
-                  newFilename,
-                  normalizedUsername,
-                  externalCover.data,
-                  externalCover.mime,
-                  fs.statSync(newPath),
-                )
-                item.coverType = 'cached'
-                item.hasCover = true
-              }
-              indexManager.update(normalizedUsername, item, folder, location)
-              successCount++
-            } else {
-              failCount++
-            }
-          } else {
-            failCount++
+          if (!newLrcPath || (oldLrcPath !== newLrcPath && fs.existsSync(newLrcPath))) {
+            throw new Error('目标歌词已存在或路径无效')
           }
+          const externalCover = readCoverCache(item.filename, normalizedUsername, fs.statSync(oldPath))
+          moveFileNoOverwriteSync(oldPath, newPath)
+          moves.push([oldPath, newPath])
+          if (oldLrcPath && lyricFilename && oldLrcPath !== newLrcPath) {
+            moveFileNoOverwriteSync(oldLrcPath, newLrcPath)
+            moves.push([oldLrcPath, newLrcPath])
+          }
+          const updated = {
+            ...item,
+            filename: newFilename,
+            subPath: subPath === '.' ? undefined : subPath,
+            lyricFilename,
+            hasLyric: Boolean(lyricFilename) || Boolean(item.hasEmbedLyric),
+          }
+          if (
+            externalCover &&
+            !writeCoverCache(
+              newFilename,
+              normalizedUsername,
+              externalCover.data,
+              externalCover.mime,
+              fs.statSync(newPath),
+            )
+          ) {
+            throw new Error('无法保留缓存封面')
+          }
+          indexManager.update(normalizedUsername, updated, folder, location, true)
+          successCount++
         } catch (e) {
+          for (const [source, target] of moves.reverse()) {
+            try {
+              moveFileNoOverwriteSync(target, source)
+            } catch (rollbackError) {
+              console.error('[FileCache] 重命名回滚失败:', rollbackError)
+            }
+          }
           console.error(`[FileCache] Failed to rename ${item.filename} in ${folder}:`, e)
           failCount++
         }
@@ -252,6 +283,8 @@ export const batchRenameCacheFiles = async (username: string | undefined) => {
     }
   }
 
+  invalidateCacheListSync(normalizedUsername)
+  invalidateGlobalCacheStats()
   return { success: true, successCount, failCount, skipCount }
 }
 

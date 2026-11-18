@@ -144,26 +144,31 @@ export function DashboardView() {
 
 export function UsersView() {
   const users = useAdminStore(state => state.users)
+  const pendingCleanups = useAdminStore(state => state.pendingUserCleanups)
   const { busy, error, retry } = useViewState()
   const [selected, setSelected] = useState<string[]>([])
   const [dialog, setDialog] = useState<'add' | 'edit' | null>(null)
   const [editing, setEditing] = useState<AdminUser | null>(null)
   const [query, setQuery] = useState('')
   const [deleteData, setDeleteData] = useState(false)
+  const [cleaningUp, setCleaningUp] = useState(false)
   const [confirmation, setConfirmation] = useState<ConfirmRequest | null>(null)
   const filtered = users.filter(user => user.name.toLowerCase().includes(query.toLowerCase()))
   const allSelected = filtered.length > 0 && filtered.every(user => selected.includes(user.name))
   const loadView = useAdminStore(state => state.loadView)
   const notify = useAdminStore(state => state.notify)
-  const removeUsers = async (names: string[]) => {
+  const removeUsers = async (names: string[], retryCleanup = false) => {
     if (!names.length) return
+    setCleaningUp(true)
     try {
-      await adminApi.deleteUsers(names, deleteData)
+      const result = await adminApi.deleteUsers(names, !retryCleanup && deleteData, retryCleanup)
       setSelected([])
-      notify('用户已删除')
+      notify(result.cleanupWarnings?.length ? '部分账户文件仍待清理' : retryCleanup ? '账户文件已清理' : '用户已删除')
       await loadView('users')
     } catch (e) {
       notify(e instanceof Error ? e.message : '删除失败')
+    } finally {
+      setCleaningUp(false)
     }
   }
   const requestDeleteUsers = (names: string[]) => {
@@ -200,6 +205,12 @@ export function UsersView() {
           </div>
         }
       >
+        {pendingCleanups.length > 0 && (
+          <ErrorPanel
+            message={`待清理的账户文件（${pendingCleanups.length}）：${pendingCleanups.join('、')}`}
+            onRetry={cleaningUp ? undefined : () => void removeUsers(pendingCleanups.slice(0, 100), true)}
+          />
+        )}
         <div className="admin-react-batch-bar">
           <label>
             <input
@@ -214,7 +225,11 @@ export function UsersView() {
             <input type="checkbox" checked={deleteData} onChange={event => setDeleteData(event.target.checked)} />
             同时删除用户数据（歌单、设置、目录）
           </label>
-          <Button variant="danger" disabled={!selected.length} onClick={() => requestDeleteUsers(selected)}>
+          <Button
+            variant="danger"
+            disabled={!selected.length || cleaningUp}
+            onClick={() => requestDeleteUsers(selected)}
+          >
             <Icon name="trash" />
             批量删除
           </Button>

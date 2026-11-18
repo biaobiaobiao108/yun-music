@@ -63,6 +63,13 @@ export interface CacheItem {
 
 export type CacheFolder = 'cache' | 'music'
 
+export type CachePageRequest = {
+  folder: CacheFolder
+  page: number
+  query: string
+  sort: string
+}
+
 export interface CacheStatsSummary {
   cache: { totalSize: number; fileCount: number }
   music: { totalSize: number; fileCount: number }
@@ -97,6 +104,80 @@ class CacheIndexManager {
 
   getMemoryStats() {
     return { items: this.itemCache.getStats(), lists: this.listCache.getStats() }
+  }
+
+  resetMemory(): void {
+    this.invalidateMemoryCache()
+    invalidateCacheFileAvailability()
+  }
+
+  findByMetadata(username: string, location: string, quality: string, name: string, singer: string) {
+    return getDb()
+      .query<{ data: string; lyric_size: number }, [string, string, string, string, string]>(
+        `
+      SELECT data, lyric_size FROM cache_index
+      WHERE location = ? AND user_name = ? AND quality = ? AND name_key = ? AND singer_key = ?
+      ORDER BY folder, song_id
+    `,
+      )
+      .all(location, username, quality, name.toLowerCase(), singer.toLowerCase())
+      .map(row => this.parseItem(row.data, row.lyric_size))
+      .filter((item): item is CacheItem => item !== null)
+  }
+
+  getPage(usernames: string[], request: CachePageRequest) {
+    const db = getDb()
+    const pageSize = 100
+    const scope = 'folder = ? AND user_name IN (SELECT value FROM json_each(?))'
+    const scopeParams = [request.folder, JSON.stringify(usernames)]
+    const totals = db
+      .query<{ total: number; size: number }, string[]>(
+        `SELECT COUNT(*) AS total, COALESCE(SUM(audio_size), 0) AS size FROM cache_index WHERE ${scope}`,
+      )
+      .get(...scopeParams)!
+    const condition = request.query
+      ? ` AND (instr(name_key, ?) OR instr(singer_key, ?) OR
+          instr(lower(json_extract(data, '$.filename')), ?) OR instr(lower(json_extract(data, '$.source')), ?))`
+      : ''
+    const needle = request.query.toLowerCase()
+    const filters = [...scopeParams, ...(request.query ? [needle, needle, needle, needle] : [])]
+    const where = `${scope} AND json_valid(data)${condition}`
+    const filtered = request.query
+      ? db
+          .query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM cache_index WHERE ${where}`)
+          .get(...filters)!.count
+      : totals.total
+    const page = Math.min(request.page, Math.max(0, Math.ceil(filtered / pageSize) - 1))
+    const orders = new Map([
+      ['name-asc', 'name_key ASC, '],
+      ['name-desc', 'name_key DESC, '],
+      ['size-desc', 'audio_size DESC, '],
+      ['time-desc', "json_extract(data, '$.mtime') DESC, "],
+    ])
+    const order = orders.get(request.sort) ?? ''
+    const rows = db
+      .query<{ data: string; lyric_size: number; location: string; user_name: string }, Array<string | number>>(
+        `
+      SELECT data, lyric_size, location, user_name FROM cache_index WHERE ${where}
+      ORDER BY ${order} user_name, location = ? DESC, location, song_id, quality
+      LIMIT ? OFFSET ?
+    `,
+      )
+      .all(...filters, currentCacheLocation, pageSize, page * pageSize)
+    const data = rows.flatMap(row => {
+      const item = this.parseItem(row.data, row.lyric_size)
+      return item
+        ? [
+            {
+              ...item,
+              location: row.location,
+              username: row.user_name === '_open' ? '公共曲库' : row.user_name,
+              rawUsername: row.user_name,
+            },
+          ]
+        : []
+    })
+    return { data, page, pageSize, filtered, ...totals }
   }
 
   private itemCacheKey(
@@ -232,7 +313,7 @@ class CacheIndexManager {
     return result || undefined
   }
 
-  update(username: string, item: CacheItem, folder: 'cache' | 'music', location?: string) {
+  update(username: string, item: CacheItem, folder: 'cache' | 'music', location?: string, throwOnError = false) {
     const loc = location || currentCacheLocation
     this.invalidateMemoryCache(username, folder, loc)
     invalidateCacheFileAvailability()
@@ -242,7 +323,7 @@ class CacheIndexManager {
       const audioSize = Number(item.size)
       const lyricSize = Number(item.lyricSize)
       db.run(
-        'INSERT OR REPLACE INTO cache_index (location, user_name, folder, song_id, quality, data, updated_at, audio_size, lyric_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO cache_index (location, user_name, folder, song_id, quality, data, updated_at, audio_size, lyric_size, name_key, singer_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           loc,
           username,
@@ -253,10 +334,13 @@ class CacheIndexManager {
           Date.now(),
           Number.isFinite(audioSize) && audioSize > 0 ? Math.trunc(audioSize) : 0,
           Number.isFinite(lyricSize) && lyricSize > 0 ? Math.trunc(lyricSize) : 0,
+          String(item.name ?? '').toLowerCase(),
+          String(item.singer ?? '').toLowerCase(),
         ],
       )
     } catch (e) {
       console.error(`[CacheIndex] Failed to update cache item for ${username}:${item.id}:`, e)
+      if (throwOnError) throw e
     }
   }
 

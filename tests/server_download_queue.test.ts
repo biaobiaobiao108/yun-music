@@ -15,6 +15,8 @@ import {
   suspendAll,
   releaseAll,
   releaseUser,
+  reconcileRestoredQueue,
+  shutdownDownloadQueue,
   renameUser,
   removeUser,
   initialize,
@@ -824,6 +826,45 @@ test('instance suspension blocks queue work for users without existing tasks', a
     worker.mockRestore()
     global.lx = previousLx
     fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('restoration drops missing owners and shutdown persists waiting and manually paused tasks', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-shutdown-'))
+  const leases: Array<() => void> = []
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async () => {
+      throw new Error('fixture should keep workers blocked')
+    })
+    for (let lease = tryAcquireMediaStream(); lease; lease = tryAcquireMediaStream()) leases.push(lease)
+    enqueue('queue-kept', [
+      { id: 'waiting', songInfo: { id: 'waiting-song' } },
+      { id: 'paused', songInfo: { id: 'paused-song' } },
+    ])
+    enqueue('queue-gone', [{ id: 'gone', songInfo: { id: 'gone-song' } }])
+    pause('queue-kept', 'paused')
+    await suspendAll()
+    await reconcileRestoredQueue(['queue-kept'])
+    expect(list('queue-gone')).toEqual([])
+    releaseAll()
+    await shutdownDownloadQueue()
+    const snapshot = JSON.parse(fs.readFileSync(path.join(root, 'server-download-queue.json'), 'utf8'))
+    const tasks = snapshot.tasks.filter((task: ServerDownloadTask) => task.username.startsWith('queue-'))
+    expect(tasks.map((task: ServerDownloadTask) => [task.id, task.status])).toEqual([
+      ['waiting', 'waiting'],
+      ['paused', 'paused'],
+    ])
+  } finally {
+    await removeUser('queue-kept')
+    await removeUser('queue-gone')
+    releaseAll()
+    for (const release of leases) release()
+    await Bun.sleep(200)
+    closeDb()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 3 })
   }
 })
 

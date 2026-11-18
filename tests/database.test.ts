@@ -56,7 +56,9 @@ describe('Database (bun:sqlite) Structured Storage', () => {
         'cache',
         String(index),
         'flac',
-        index === 300 ? '{' : JSON.stringify({ size: index + 1, lyricSize: index + 2 }),
+        index === 300
+          ? '{'
+          : JSON.stringify({ size: index + 1, lyricSize: index + 2, name: `ÉCHO ${index}`, singer: 'Íris' }),
         0,
       )
     }
@@ -71,6 +73,10 @@ describe('Database (bun:sqlite) Structured Storage', () => {
     expect(read.get('0')).toEqual({ audio_size: 1, lyric_size: 2 })
     expect(read.get('300')).toEqual({ audio_size: 0, lyric_size: 0 })
     expect(read.get('599')).toEqual({ audio_size: 600, lyric_size: 601 })
+    expect(migrated.query('SELECT name_key, singer_key FROM cache_index WHERE song_id = ?').get('599')).toEqual({
+      name_key: 'écho 599',
+      singer_key: 'íris',
+    })
     read.finalize()
   })
 
