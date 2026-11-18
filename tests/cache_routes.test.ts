@@ -1267,6 +1267,8 @@ test('local identification resolves its module and forwards a bounded file path'
 })
 
 test('checkCache allows logged in users to fallback to _open shared cache', () => {
+  closeDb()
+  initDatabase(':memory:')
   const checkCacheSpy = spyOn(fileCache.indexManager, 'get').mockImplementation((username, songId) => {
     if (username === '_open' && songId === 'wy_12345') {
       return {
@@ -1292,6 +1294,7 @@ test('checkCache allows logged in users to fallback to _open shared cache', () =
   } finally {
     checkCacheSpy.mockRestore()
     isUsable.mockRestore()
+    closeDb()
   }
 })
 
