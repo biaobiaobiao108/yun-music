@@ -1,7 +1,7 @@
 import type { HttpContext } from '../core'
 
 /** 音乐解析进度 SSE 专属通道: requestId -> Controller */
-export const musicProgressControllers = new Map<string, ReadableStreamDefaultController<Uint8Array>>()
+const musicProgressControllers = new Map<string, ReadableStreamDefaultController<Uint8Array>>()
 const musicProgressTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const musicProgressHeartbeatTimers = new Map<string, ReturnType<typeof setInterval>>()
 const musicProgressClientIps = new Map<string, string>()
