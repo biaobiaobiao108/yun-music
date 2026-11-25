@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { Router, getCompressedCacheStats } from '../core'
-import { isValidHttpHeaderName, normalizeTrustedProxyAddresses, toUserMessage } from '../core/context'
+import { toUserMessage } from '../core/context'
 import { revokeAllAdminSessions, revokeAllPlayerSessions, verifyAdminAuth } from '../auth'
 import { revokeAllUserSessions } from './auth'
 import { serverStatus } from '../state'
@@ -18,7 +18,6 @@ import { refreshUsersFromDatabase } from '@/user/data'
 import { resetUserSpaces } from '@/user'
 import * as fileCache from '../fileCache'
 import { getDatabaseStorageStats, vacuumDatabase } from '@/database'
-import { hashPassword } from '@/utils/passwordHash'
 import { temporaryFileStream } from '../temporaryFileStream'
 import { getProcessMemorySnapshot } from '../memoryMaintenance'
 import { getResourceBudgetStats } from '../resourceBudget'
@@ -31,14 +30,11 @@ import { MultipartUploadTooLargeError, readMultipartBoundary, writeMultipartBack
 import { readLogTail } from './systemLogs'
 import {
   applyValidatedConfig,
-  getConfiguredPasswordHash,
-  normalizeConfiguredPath,
   normalizeProxyAddress,
-  parseBoolean,
-  parseBoundedInteger,
-  pathsOverlap,
   redactUrlCredentials,
   reloadServerData,
+  SystemConfigValidationError,
+  updateServerConfig,
 } from './systemConfig'
 
 /** 注册系统运维与管理相关路由 */
@@ -231,209 +227,16 @@ export const createSystemRouter = (): Router => {
     if (!verifyAdminAuth(ctx.request)) {
       return ctx.fail(401, '登录状态已失效，请重新登录')
     }
-    const c = global.lx.config
-    const originalConfig = { ...c }
-    const rollbackConfig = () => {
-      for (const key of Object.keys(c)) {
-        if (!(key in originalConfig)) delete (c as any)[key]
-      }
-      Object.assign(c, originalConfig)
-    }
+
     try {
       const newConfig = await ctx.bodyJson<Record<string, any>>()
-      if (newConfig.serverName !== undefined) {
-        if (
-          typeof newConfig.serverName !== 'string' ||
-          newConfig.serverName.length > 256 ||
-          /[\u0000-\u001f\u007f]/.test(newConfig.serverName)
-        ) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '服务名称格式无效' }, 422)
-        }
-        c.serverName = newConfig.serverName
-      }
-      if (newConfig['list.addMusicLocationType'] !== undefined) {
-        if (newConfig['list.addMusicLocationType'] !== 'top' && newConfig['list.addMusicLocationType'] !== 'bottom') {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '歌单添加位置格式无效' }, 422)
-        }
-        c['list.addMusicLocationType'] = newConfig['list.addMusicLocationType']
-      }
-      if (newConfig['proxy.enabled'] !== undefined)
-        c['proxy.enabled'] = parseBoolean(newConfig['proxy.enabled'], c['proxy.enabled'])
-      if (newConfig['proxy.header'] !== undefined) {
-        if (!isValidHttpHeaderName(newConfig['proxy.header'])) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '代理转发头名称格式无效' }, 422)
-        }
-        c['proxy.header'] = newConfig['proxy.header']
-      }
-      if (newConfig['proxy.trustedAddresses'] !== undefined) {
-        try {
-          c['proxy.trustedAddresses'] = normalizeTrustedProxyAddresses(newConfig['proxy.trustedAddresses'])
-        } catch (error) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: toUserMessage(error, '可信代理地址格式无效') }, 422)
-        }
-      }
-      if (newConfig['user.enablePath'] !== undefined)
-        c['user.enablePath'] = parseBoolean(newConfig['user.enablePath'], c['user.enablePath'] ?? false)
-      if (newConfig['user.enableRoot'] !== undefined)
-        c['user.enableRoot'] = parseBoolean(newConfig['user.enableRoot'], c['user.enableRoot'] ?? false)
-      if (newConfig['user.enablePublicRestriction'] !== undefined)
-        c['user.enablePublicRestriction'] = parseBoolean(
-          newConfig['user.enablePublicRestriction'],
-          c['user.enablePublicRestriction'] ?? false,
-        )
-      if (newConfig['user.enablePublicNonAdminLocalMusic'] !== undefined)
-        c['user.enablePublicNonAdminLocalMusic'] = parseBoolean(
-          newConfig['user.enablePublicNonAdminLocalMusic'],
-          c['user.enablePublicNonAdminLocalMusic'] ?? false,
-        )
-      if (newConfig['user.enablePublicFavorites'] !== undefined)
-        c['user.enablePublicFavorites'] = parseBoolean(
-          newConfig['user.enablePublicFavorites'],
-          c['user.enablePublicFavorites'] ?? false,
-        )
-      if (newConfig['user.enablePublicNonAdminAccess'] !== undefined)
-        c['user.enablePublicNonAdminAccess'] = parseBoolean(
-          newConfig['user.enablePublicNonAdminAccess'],
-          c['user.enablePublicNonAdminAccess'] ?? false,
-        )
-      if (newConfig['user.enableLoginCacheRestriction'] !== undefined)
-        c['user.enableLoginCacheRestriction'] = parseBoolean(
-          newConfig['user.enableLoginCacheRestriction'],
-          c['user.enableLoginCacheRestriction'] ?? false,
-        )
-      if (newConfig['user.enableCacheSizeLimit'] !== undefined)
-        c['user.enableCacheSizeLimit'] = parseBoolean(
-          newConfig['user.enableCacheSizeLimit'],
-          c['user.enableCacheSizeLimit'] ?? false,
-        )
-      if (newConfig['user.cacheSizeLimit'] !== undefined)
-        c['user.cacheSizeLimit'] = parseBoundedInteger(newConfig['user.cacheSizeLimit'], 1, 1024 * 1024, 2000)
-      if (newConfig['frontend.password'] !== undefined) {
-        if (typeof newConfig['frontend.password'] !== 'string') {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '管理员密码格式无效' }, 422)
-        }
-        if (global.lx.managedCredentials?.adminPassword && newConfig['frontend.password'].trim()) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '管理员密码由 FRONTEND_PASSWORD 环境变量管理，不能在此修改' }, 422)
-        }
-        if (newConfig['frontend.password'].length > 1024) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '管理员密码长度不能超过 1024 个字符' }, 422)
-        }
-        if (newConfig['frontend.password'].trim()) {
-          if (newConfig['frontend.password'] === '123456') {
-            rollbackConfig()
-            return ctx.json({ success: false, error: '管理员密码不能使用示例密码' }, 422)
-          }
-          c['frontend.passwordHash'] = await hashPassword(newConfig['frontend.password'])
-          delete c['frontend.password']
-        }
-      }
-      const nextPlayerEnableAuth =
-        newConfig['player.enableAuth'] !== undefined
-          ? parseBoolean(newConfig['player.enableAuth'], false)
-          : Boolean(c['player.enableAuth'])
-      let nextPlayerPasswordHash = await getConfiguredPasswordHash(c, 'player.password', 'player.passwordHash')
-      if (newConfig['player.password'] !== undefined) {
-        if (typeof newConfig['player.password'] !== 'string') {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '播放器密码格式无效' }, 422)
-        }
-        if (global.lx.managedCredentials?.playerPassword && newConfig['player.password'].trim()) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '播放器密码由 WEBPLAYER_PASSWORD 环境变量管理，不能在此修改' }, 422)
-        }
-        if (newConfig['player.password'].length > 1024) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '播放器密码长度不能超过 1024 个字符' }, 422)
-        }
-        if (newConfig['player.password'].trim()) {
-          if (newConfig['player.password'] === '123456') {
-            rollbackConfig()
-            return ctx.json({ success: false, error: '播放器密码不能使用示例密码' }, 422)
-          }
-          nextPlayerPasswordHash = await hashPassword(newConfig['player.password'])
-        }
-      }
-      if (nextPlayerEnableAuth && !nextPlayerPasswordHash) {
-        rollbackConfig()
-        return ctx.json({ success: false, error: '播放器启用认证时必须配置密码' }, 422)
-      }
-      c['player.enableAuth'] = nextPlayerEnableAuth
-      if (nextPlayerPasswordHash) c['player.passwordHash'] = nextPlayerPasswordHash
-      else delete c['player.passwordHash']
-      delete c['player.password']
-
-      if (newConfig['proxy.all.enabled'] !== undefined)
-        c['proxy.all.enabled'] = parseBoolean(newConfig['proxy.all.enabled'], false)
-      if (newConfig['proxy.all.address'] !== undefined) {
-        const normalizedAddress = normalizeProxyAddress(newConfig['proxy.all.address'])
-        const currentAddress = redactUrlCredentials(c['proxy.all.address'])
-        c['proxy.all.address'] =
-          normalizedAddress && normalizedAddress === currentAddress ? c['proxy.all.address'] : normalizedAddress
-      }
-      if (c['proxy.all.enabled'] && !String(c['proxy.all.address'] || '').trim()) {
-        rollbackConfig()
-        return ctx.json({ success: false, error: '启用全局代理时必须配置代理地址' }, 422)
-      }
-
-      if (newConfig['admin.path'] !== undefined || newConfig['player.path'] !== undefined) {
-        const normalizedAdmin = normalizeConfiguredPath(
-          newConfig['admin.path'] !== undefined ? newConfig['admin.path'] : (c['admin.path'] ?? ''),
-          '',
-          true,
-        )
-        const normalizedPlayer = normalizeConfiguredPath(
-          newConfig['player.path'] !== undefined ? newConfig['player.path'] : (c['player.path'] ?? '/music'),
-          '/music',
-        )
-
-        if (pathsOverlap(normalizedAdmin, normalizedPlayer)) {
-          rollbackConfig()
-          return ctx.json({ success: false, error: '后台管理路径与播放器路径不能相同或互相包含' }, 422)
-        }
-        c['admin.path'] = normalizedAdmin
-        c['player.path'] = normalizedPlayer
-      }
-
-      if (newConfig['singer.sourcePriority'] !== undefined) {
-        const priority = String(newConfig['singer.sourcePriority'])
-          .split(',')
-          .filter(s => s === 'tx' || s === 'wy') as Array<'tx' | 'wy'>
-        if (priority.length > 0) c['singer.sourcePriority'] = priority
-      }
-      if (newConfig['artist.maxFetchPages'] !== undefined) {
-        const maxPages = Number(newConfig['artist.maxFetchPages'])
-        c['artist.maxFetchPages'] = Number.isFinite(maxPages) && maxPages > 0 ? Math.min(Math.floor(maxPages), 100) : 20
-      }
-
-      let warning = ''
-      if (!c['user.enablePath'] && !c['user.enableRoot']) {
-        c['user.enableRoot'] = true
-        warning = '必须至少开启一种连接方式，已自动开启“根路径”模式。'
-      }
-
-      const adminPasswordChanged =
-        c['frontend.passwordHash'] !== originalConfig['frontend.passwordHash'] ||
-        c['frontend.password'] !== originalConfig['frontend.password']
-      const playerAuthChanged =
-        c['player.passwordHash'] !== originalConfig['player.passwordHash'] ||
-        c['player.password'] !== originalConfig['player.password'] ||
-        Boolean(c['player.enableAuth']) !== Boolean(originalConfig['player.enableAuth'])
-      if (adminPasswordChanged) revokeAllAdminSessions()
-      if (playerAuthChanged) revokeAllPlayerSessions()
-      if (global.lx.saveConfig) await global.lx.saveConfig()
-
+      const warning = await updateServerConfig(newConfig)
       return ctx.json({ success: true, warning })
-    } catch (e: any) {
-      // 配置更新是一个整体操作；任何校验、序列化或写盘失败都不能留下半套内存配置。
-      rollbackConfig()
-      return ctx.fail(500, toUserMessage(e, '操作失败，请稍后重试'))
+    } catch (error) {
+      if (error instanceof SystemConfigValidationError) {
+        return ctx.json({ success: false, error: error.message }, 422)
+      }
+      return ctx.fail(500, toUserMessage(error, '操作失败，请稍后重试'))
     }
   })
 
