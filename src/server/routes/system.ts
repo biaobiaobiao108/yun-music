@@ -26,8 +26,12 @@ import { getSingerCacheStats } from '../utils/singer'
 import { getGeneralCacheStats } from '@/utils/cache'
 import { initUserApis } from '../userApi'
 import { reconcileRestoredQueue } from '../serverDownloadQueue'
-import { MultipartUploadTooLargeError, readMultipartBoundary, writeMultipartBackupToFile } from './backupUpload'
-import { readLogTail } from './systemLogs'
+import {
+  MultipartUploadTooLargeError,
+  readMultipartBoundary,
+  writeMultipartBackupToFile,
+} from '../services/backupUpload'
+import { readLogTail } from '../utils/logTail'
 import {
   applyValidatedConfig,
   normalizeProxyAddress,
@@ -35,7 +39,7 @@ import {
   reloadServerData,
   SystemConfigValidationError,
   updateServerConfig,
-} from './systemConfig'
+} from '../services/systemConfig'
 
 /** 注册系统运维与管理相关路由 */
 export const createSystemRouter = (): Router => {

@@ -6,7 +6,7 @@ import * as fileCache from '../fileCache'
 import * as serverDownloadQueue from '../serverDownloadQueue'
 import { assertSafeRemoteHttpUrl } from '../networkSecurity'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
-import { isOpaqueBrowserProgressId } from './mediaRelaySupport'
+import { isOpaqueBrowserProgressId } from '../services/mediaRelaySupport'
 import { getCacheRequestUsername, resolveCacheTarget } from './cacheRouteShared'
 
 const MAX_CACHE_EVENT_STREAMS = 256

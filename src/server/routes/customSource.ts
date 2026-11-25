@@ -1,7 +1,7 @@
 import { Router } from '../core'
 import { verifyAdminAuth } from '../auth'
 import { verifyUserAuth } from './auth'
-import * as customSourceHandlers from '../customSourceHandlers'
+import * as customSourceHandlers from './customSourceHandlers'
 
 /** 注册自定义音源管理路由 */
 export const createCustomSourceRouter = (): Router => {

@@ -1,13 +1,23 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import { extractMetadata, loadUserApi, initUserApis, getApiStatus } from './userApi'
-import type { HttpContext } from './core'
-import { toUserMessage } from './core/context'
-import { verifyAdminAuth } from './auth'
-import { verifyUserAuth } from './routes/auth'
+import { extractMetadata, loadUserApi, initUserApis, getApiStatus } from '../userApi'
+import type { HttpContext } from '../core'
+import { toUserMessage } from '../core/context'
+import { verifyAdminAuth } from '../auth'
+import { verifyUserAuth } from './auth'
 import { assertSafePathSegment } from '@/utils/pathSecurity'
-import { assertSafeRemoteHttpUrl, fetchSafeRemote } from './networkSecurity'
-import { getUserSourceDir } from '@/user/sourceStorage'
+import { assertSafeRemoteHttpUrl, fetchSafeRemote } from '../networkSecurity'
+import {
+  generateId,
+  getSourceDir,
+  readOptionalText,
+  removeSourceFromOrder,
+  restoreFile,
+  withSourceMutationLock,
+  withSourceMutationLocks,
+  writeJsonFileAtomic,
+  writeTextFileAtomic,
+} from '../services/customSourceStore'
 
 // 读取请求体
 async function readBody(ctx: HttpContext): Promise<string> {
@@ -39,51 +49,6 @@ const getRequestedOwner = (ctx: HttpContext, requested?: string): string => {
 
 const requireAdmin = (ctx: HttpContext): void => {
   if (!verifyAdminAuth(ctx.request)) throw new Error('管理员权限不足')
-}
-
-const sourceMutationTails = new Map<string, Promise<void>>()
-
-async function withSourceMutationLock<T>(owner: string, operation: () => Promise<T>): Promise<T> {
-  const previous = sourceMutationTails.get(owner) || Promise.resolve()
-  let release!: () => void
-  const current = new Promise<void>(resolve => {
-    release = resolve
-  })
-  sourceMutationTails.set(owner, current)
-  await previous
-  try {
-    return await operation()
-  } finally {
-    release()
-    if (sourceMutationTails.get(owner) === current) sourceMutationTails.delete(owner)
-  }
-}
-
-async function withSourceMutationLocks<T>(owners: string[], operation: () => Promise<T>): Promise<T> {
-  const uniqueOwners = [...new Set(owners)].sort()
-  const acquire = async (index: number): Promise<T> => {
-    if (index >= uniqueOwners.length) return operation()
-    return withSourceMutationLock(uniqueOwners[index], () => acquire(index + 1))
-  }
-  return acquire(0)
-}
-
-function writeTextFileAtomic(filePath: string, content: string): void {
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
-  try {
-    fs.writeFileSync(tempPath, content, 'utf-8')
-    fs.renameSync(tempPath, filePath)
-  } finally {
-    if (fs.existsSync(tempPath)) {
-      try {
-        fs.unlinkSync(tempPath)
-      } catch {}
-    }
-  }
-}
-
-function writeJsonFileAtomic(filePath: string, value: unknown): void {
-  writeTextFileAtomic(filePath, JSON.stringify(value, null, 2))
 }
 
 function sanitizeSourceError(value: unknown): string | undefined {
@@ -189,36 +154,6 @@ async function getScriptInfo(scriptContent: string) {
   }
 
   return { metadata, supportedSources }
-}
-
-// 辅助函数：获取源存储目录
-function getSourceDir(username?: string) {
-  return getUserSourceDir(username)
-}
-
-// 辅助函数：生成可读且唯一的 ID/文件名
-function generateId(name?: string, fallbackFilename?: string): string {
-  let input = name || fallbackFilename || 'source'
-
-  // 尝试解码，防止输入已经是 URL 编码的状态
-  try {
-    input = decodeURIComponent(input)
-  } catch (e) {
-    // 忽略解码错误（例如包含不合法的 % 字符）
-  }
-
-  // 如果是路径，只取最后一部分
-  let base = path.basename(input)
-
-  // 统一移除 .js 后缀，后面再补上，确保一致性
-  if (base.toLowerCase().endsWith('.js')) {
-    base = base.slice(0, -3)
-  }
-
-  // 过滤掉文件系统非法字符，保持中文等字符可读
-  const clean = base.replace(/[\\/:*?"<>|]/g, '_').trim()
-
-  return `${clean || 'source'}.js`
 }
 
 // 上传脚本
@@ -840,28 +775,6 @@ export async function handleDelete(ctx: HttpContext): Promise<Response> {
     console.error('[CustomSource] Delete error:', err)
     return ctx.fail(500, toUserMessage(err, '删除音源失败，请稍后重试'))
   }
-}
-
-function restoreFile(filePath: string, original: string | null): void {
-  if (original === null) {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
-    return
-  }
-  writeTextFileAtomic(filePath, original)
-}
-
-function readOptionalText(filePath: string): string | null {
-  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null
-}
-
-function removeSourceFromOrder(orderPath: string, sourceId: string): void {
-  if (!fs.existsSync(orderPath)) return
-  const order = JSON.parse(fs.readFileSync(orderPath, 'utf-8'))
-  if (!Array.isArray(order)) throw new Error('源排序数据格式无效')
-  writeJsonFileAtomic(
-    orderPath,
-    order.filter(id => id !== sourceId),
-  )
 }
 
 /** 将一个音源在管理员指定的两个作用域之间安全转移。 */

@@ -1,5 +1,5 @@
 import { Router } from '../core'
-import { handleDownloadProxy } from './mediaRelayService'
+import { handleDownloadProxy } from './mediaRelayHandler'
 
 /** 注册音乐文件下载中继入口 */
 export const createDownloadProxyRouter = (): Router => {

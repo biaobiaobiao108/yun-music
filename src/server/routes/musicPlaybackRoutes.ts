@@ -8,7 +8,7 @@ import * as fileCache from '../fileCache'
 import { canReadPublicLocalMusic } from '../localMusicAccess'
 import { issueDownloadToken } from '../downloadToken'
 import { assertSafeRemoteHttpUrl } from '../networkSecurity'
-import { formatBytes, getAudioRemoteSize } from './musicAudioProbe'
+import { formatBytes, getAudioRemoteSize } from '../services/musicAudioProbe'
 import { handleMusicProgress, sendMusicProgress } from './musicProgress'
 import { MAX_MUSIC_JSON_BODY_BYTES } from './musicRouteShared'
 
