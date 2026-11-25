@@ -65,14 +65,12 @@ describe('cache list user scope', () => {
     previousLx = global.lx
     closeDb()
     initDatabase(':memory:')
-    global.lx = {
-      userPath: testDataDir,
-      config: {
-        users: [{ name: username, password: 'password' }],
-        'frontend.password': 'cache-admin',
-        'user.enablePublicNonAdminLocalMusic': false,
-      },
-    } as typeof global.lx
+    // The download queue is process-global and may already be initialized by
+    // another test file, so every route flush needs a valid temporary dataPath.
+    const fixture = createMinimalLxFixture(false)
+    fixture.config.users = [{ name: username, password: 'password', dataPath: path.join(testDataDir, username) }]
+    fixture.config['frontend.password'] = 'cache-admin'
+    global.lx = fixture
     await syncUsersToDatabase(global.lx.config.users)
     const createdAt = Date.now()
     userSessions.set(sessionId, { username, createdAt })
