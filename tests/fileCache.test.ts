@@ -10,6 +10,7 @@ import * as networkSecurity from '../src/server/networkSecurity'
 import { cleanupExpiredCacheProgress, resolveCompanionLyricFilename, setCacheProgress } from '../src/server/fileCache'
 import { closeDb, initDatabase } from '../src/database'
 import * as fileCache from '../src/server/fileCache'
+import { CACHE_SIZE_EXTENSIONS } from '../src/server/cacheStats'
 
 describe('File Cache Path Traversal Defense', () => {
   const isSafePath = (baseDir: string, requestedRelativePath: string) => {
@@ -2286,6 +2287,36 @@ describe('Global Cache Stats and Audio-only Cache Cleanup', () => {
       expect(() => fileCache.clearAllUsersAudioCache()).not.toThrow()
       expect(fs.existsSync(validFile)).toBe(false)
       expect(fs.existsSync(legacyFile)).toBe(true)
+    } finally {
+      closeDb()
+      ;(global as any).lx = previousLx
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.ROOT)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('includes .aac and .opus files in CACHE_SIZE_EXTENSIONS and disk stats', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-ext-'))
+    const previousLx = (global as any).lx
+    try {
+      closeDb()
+      ;(global as any).lx = {
+        appPath: root,
+        dataPath: path.join(root, 'data'),
+        config: { users: [{ name: 'ext_user' }] },
+      }
+      initDatabase(':memory:')
+      fileCache.setCacheLocation(fileCache.CACHE_ROOTS.DATA)
+      const cacheDir = fileCache.getCacheDir('ext_user')
+      fs.mkdirSync(cacheDir, { recursive: true })
+      fs.writeFileSync(path.join(cacheDir, 'a.aac'), Buffer.alloc(128))
+      fs.writeFileSync(path.join(cacheDir, 'b.opus'), Buffer.alloc(256))
+
+      expect(CACHE_SIZE_EXTENSIONS.has('.aac')).toBe(true)
+      expect(CACHE_SIZE_EXTENSIONS.has('.opus')).toBe(true)
+      const stats = fileCache.getCacheStats('ext_user')
+      expect(stats.cache.fileCount).toBe(2)
+      expect(stats.cache.totalSize).toBe(384)
     } finally {
       closeDb()
       ;(global as any).lx = previousLx

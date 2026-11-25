@@ -13,7 +13,7 @@ import { ENV_PARAMS, File } from './constants'
 import { checkAndCreateDirSync } from './utils'
 import { assertSafePathSegment } from './utils/pathSecurity'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses } from './server/core/context'
-import { parseConfigFile } from './utils/configLoader'
+import { parseCacheSizeLimitMb, parseConfigFile } from './utils/configLoader'
 import { hashPassword, isPasswordHash } from './utils/passwordHash'
 import { revokeSessionsForConfigChange } from './server/auth'
 import { beginDataRequest, endDataRequest } from './server/dataOperationLock'
@@ -306,7 +306,7 @@ const applyEnvironmentConfig = () => {
     global.lx.config['user.enableCacheSizeLimit'] = envParams.ENABLE_CACHE_SIZE_LIMIT === 'true'
   }
   if (envParams.CACHE_SIZE_LIMIT) {
-    global.lx.config['user.cacheSizeLimit'] = parseInt(envParams.CACHE_SIZE_LIMIT) || 2000
+    global.lx.config['user.cacheSizeLimit'] = parseCacheSizeLimitMb(envParams.CACHE_SIZE_LIMIT, 2000)
   }
   if (envParams.PROXY_ALL_ENABLED) {
     global.lx.config['proxy.all.enabled'] = envParams.PROXY_ALL_ENABLED === 'true'

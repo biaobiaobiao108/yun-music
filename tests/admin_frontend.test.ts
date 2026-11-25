@@ -118,6 +118,7 @@ describe('React admin frontend', () => {
     expect(source).toContain('缓存歌曲')
     expect(source).toContain('下载歌曲')
     expect(source).toContain('cacheStats')
+    expect(source).toContain('status.cacheLimit * 1024 * 1024')
     expect(source).not.toContain('/api/data/snapshots')
     expect(source).toContain('admin-config-toggle-grid')
     expect(source).toContain('logType')

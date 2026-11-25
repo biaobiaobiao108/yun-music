@@ -9,6 +9,7 @@ import { createUserRouter } from '@/server/routes/user'
 import { createAuthRouter, revokeUserAuth, userSessions, verifyUserAuth } from '@/server/routes/auth'
 import * as downloadQueue from '@/server/serverDownloadQueue'
 import * as fileCache from '@/server/fileCache'
+import * as userApi from '@/server/userApi'
 import { spyOn } from 'bun:test'
 import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 
@@ -620,5 +621,28 @@ describe('Deleted account credentials', () => {
     expect(verifyUserAuth(request)).toBeNull()
     expect(userSessions.has('cached-removed-account')).toBe(false)
     expect(getDb().query('SELECT * FROM user_sessions WHERE user_name = ?').all(username)).toEqual([])
+  })
+
+  test('renaming a user rolls back reloaded custom sources if downloadQueue.renameUser fails', async () => {
+    const renamed = `${username}_renamed`
+    const reloadSpy = spyOn(userApi, 'reloadUserCustomSources').mockResolvedValue(undefined)
+    const queueRenameSpy = spyOn(downloadQueue, 'renameUser').mockRejectedValueOnce(new Error('queue rename failed'))
+    try {
+      const response = await createUserRouter().handle(
+        new Request('http://localhost/api/users', {
+          method: 'PUT',
+          headers: adminHeaders,
+          body: JSON.stringify({ name: username, newName: renamed }),
+        }),
+      )
+      expect(response.status).toBe(500)
+      expect(reloadSpy).toHaveBeenNthCalledWith(1, username, renamed)
+      expect(reloadSpy).toHaveBeenNthCalledWith(2, renamed, username)
+      expect(global.lx.config.users[0]?.name).toBe(username)
+    } finally {
+      queueRenameSpy.mockRestore()
+      reloadSpy.mockRestore()
+      releaseUserSpace(renamed, true)
+    }
   })
 })

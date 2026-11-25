@@ -2,7 +2,7 @@ import { describe, test, expect } from 'bun:test'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { parseConfigFile } from '../src/utils/configLoader'
+import { MAX_CACHE_SIZE_LIMIT_MB, parseCacheSizeLimitMb, parseConfigFile } from '../src/utils/configLoader'
 
 describe('parseConfigFile (Safe Config Loader without require)', () => {
   const tmpDir = path.join(os.tmpdir(), `config-test-${Date.now()}`)
@@ -42,5 +42,17 @@ describe('parseConfigFile (Safe Config Loader without require)', () => {
     const file = path.join(tmpDir, 'test5.js')
     fs.writeFileSync(file, 'module.exports = { broken... }')
     expect(() => parseConfigFile(file)).toThrow()
+  })
+
+  test('parseCacheSizeLimitMb rejects non-positive or invalid values and caps upper bound', () => {
+    expect(parseCacheSizeLimitMb('2000')).toBe(2000)
+    expect(parseCacheSizeLimitMb(' 512 ')).toBe(512)
+    expect(parseCacheSizeLimitMb('-50')).toBe(2000)
+    expect(parseCacheSizeLimitMb('0')).toBe(2000)
+    expect(parseCacheSizeLimitMb('abc')).toBe(2000)
+    expect(parseCacheSizeLimitMb('12mb')).toBe(2000)
+    expect(parseCacheSizeLimitMb('99999999')).toBe(MAX_CACHE_SIZE_LIMIT_MB)
+    expect(parseCacheSizeLimitMb(1024)).toBe(1024)
+    expect(parseCacheSizeLimitMb(-1, 1500)).toBe(1500)
   })
 })

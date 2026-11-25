@@ -168,7 +168,7 @@ export const getGlobalCacheStats = (): CacheStatsSummary => {
   return result
 }
 
-export const CACHE_SIZE_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.ogg', '.wav', '.lrc'])
+export const CACHE_SIZE_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.ogg', '.wav', '.aac', '.opus', '.lrc'])
 
 const CACHE_STATS_REFRESH_TTL_MS = 10 * 1000
 const cachedDisplayStats = new NativeLruCache<string, { stats: CacheStatsSummary; refreshedAt: number }>({ max: 2048 })

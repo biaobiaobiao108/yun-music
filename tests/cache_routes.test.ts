@@ -1592,3 +1592,72 @@ test('/api/music/lyric POST falls back to local lyric cache when upstream source
     global.lx = previousLx
   }
 })
+
+test('/api/music/cache/list forbids non-admin cross-user queries and keeps Cache-Control out of JSON error bodies', async () => {
+  const previousLx = global.lx
+  const alice = 'cache_list_alice'
+  const bob = 'cache_list_bob'
+  const aliceSession = 'cache-list-alice-session'
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-cache-list-scope-'))
+  closeDb()
+  initDatabase(':memory:')
+  global.lx = {
+    ...createMinimalLxFixture(false),
+    appPath: tempRoot,
+    dataPath: tempRoot,
+    userPath: tempRoot,
+    config: {
+      ...createMinimalLxFixture(false).config,
+      users: [
+        { name: alice, password: 'pw1', dataPath: alice },
+        { name: bob, password: 'pw2', dataPath: bob },
+      ],
+    },
+  } as typeof global.lx
+  await syncUsersToDatabase(global.lx.config.users)
+  userSessions.set(aliceSession, { username: alice, createdAt: Date.now() })
+  persistUserSession(aliceSession, alice)
+
+  const getCacheDir = spyOn(fileCache, 'getCacheDir').mockImplementation((user = '_open', isMusic = false) => {
+    const dir = path.join(tempRoot, isMusic ? 'music' : 'cache', user)
+    fs.mkdirSync(dir, { recursive: true })
+    return dir
+  })
+
+  try {
+    const router = createCacheRouter()
+
+    const crossUser = await router.handle(
+      new Request(`http://localhost/api/music/cache/list?user=${bob}`, {
+        headers: { cookie: `lx_user_session=${aliceSession}` },
+      }),
+    )
+    expect(crossUser.status).toBe(403)
+    expect(crossUser.headers.get('cache-control')).toBe('no-cache, no-store, must-revalidate')
+    const crossUserBody = (await crossUser.json()) as Record<string, unknown>
+    expect(crossUserBody.success).toBe(false)
+    expect('Cache-Control' in crossUserBody).toBe(false)
+
+    const unauthUser = await router.handle(new Request(`http://localhost/api/music/cache/list?user=${bob}`))
+    expect(unauthUser.status).toBe(401)
+    expect(unauthUser.headers.get('cache-control')).toBe('no-cache, no-store, must-revalidate')
+    const unauthBody = (await unauthUser.json()) as Record<string, unknown>
+    expect(unauthBody.success).toBe(false)
+    expect('Cache-Control' in unauthBody).toBe(false)
+
+    const publicFile = await router.handle(
+      new Request('http://localhost/api/music/cache/file/_open/song.mp3?folder=music'),
+    )
+    expect(publicFile.status).toBe(403)
+    expect(publicFile.headers.get('cache-control')).toBe('no-cache, no-store, must-revalidate')
+    const publicFileBody = (await publicFile.json()) as Record<string, unknown>
+    expect(publicFileBody.success).toBe(false)
+    expect('Cache-Control' in publicFileBody).toBe(false)
+  } finally {
+    getCacheDir.mockRestore()
+    userSessions.delete(aliceSession)
+    closeDb()
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+    global.lx = previousLx
+  }
+})

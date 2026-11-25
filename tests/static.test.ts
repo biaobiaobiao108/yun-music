@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createStaticRouter, isPathInside } from '@/server/routes/static'
+import { ADMIN_SESSION_COOKIE_NAME, createAdminSession } from '@/server/auth'
 import { Router } from '@/server/core'
 import { closeDb } from '@/database'
 
@@ -198,5 +199,26 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     const cacheStats = await rootRouter.handle(new Request('http://localhost:9527/api/music/cache/stats'))
     expect(cacheStats).not.toBeNull()
     expect(cacheStats.status).not.toBe(404)
+  })
+
+  test('authenticated admin session bypasses player auth redirect on static pages', async () => {
+    ;(global as any).lx.config['player.enableAuth'] = true
+    ;(global as any).lx.config['frontend.password'] = 'static-admin-pass'
+
+    const router = new Router()
+    router.mount('/', createStaticRouter())
+
+    const anonymous = await router.handle(new Request('http://localhost:9527/music/'))
+    expect(anonymous.status).toBe(302)
+    expect(anonymous.headers.get('Location')).toBe('/music/login')
+
+    const adminCookie = `${ADMIN_SESSION_COOKIE_NAME}=${createAdminSession()}`
+    const adminPage = await router.handle(
+      new Request('http://localhost:9527/music/', {
+        headers: { cookie: adminCookie },
+      }),
+    )
+    expect(adminPage.status).toBe(200)
+    expect(adminPage.headers.get('Content-Type')).toContain('text/html')
   })
 })

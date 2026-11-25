@@ -78,6 +78,11 @@ const resolveCacheTarget = (ctx: HttpContext, options: { publicWrite?: boolean }
   return { ok: true, username: verified }
 }
 
+const noStoreFail = (ctx: HttpContext, status: number, message: string): Response =>
+  ctx.json({ code: status, message, success: false }, status, {
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+  })
+
 const createCacheEventsStream = (
   username: string,
   request: Request,
@@ -623,9 +628,7 @@ export const createCacheRouter = (): Router => {
     const isPublic = !reqUsername || reqUsername === '_open' || reqUsername === 'default' || reqUsername === 'open'
 
     if (isPublic && !canReadPublicLocalMusic(ctx)) {
-      return ctx.fail(403, '您没有权限访问公共本地音乐，请联系管理员设置', {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      })
+      return noStoreFail(ctx, 403, '您没有权限访问公共本地音乐，请联系管理员设置')
     }
 
     if (!isPublic) {
@@ -969,16 +972,15 @@ export const createCacheRouter = (): Router => {
       username = verified
     } else if (!reqUsername || isPublicAlias) {
       if (!canReadPublicLocalMusic(ctx, verified, isAdmin)) {
-        return ctx.json({ success: false, message: '您没有权限查看此目录，请联系管理员设置' }, 403, {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        })
+        return noStoreFail(ctx, 403, '您没有权限查看此目录，请联系管理员设置')
       }
       username = '_open'
     } else {
       if (!verified) {
-        return ctx.fail(401, '登录状态已失效，请重新登录', {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-        })
+        return noStoreFail(ctx, 401, '登录状态已失效，请重新登录')
+      }
+      if (verified !== reqUsername) {
+        return noStoreFail(ctx, 403, '无权访问其他用户的本地音乐')
       }
       username = verified
     }
@@ -1013,9 +1015,7 @@ export const createCacheRouter = (): Router => {
     }
 
     if (username === '_open' && !canReadPublicLocalMusic(ctx, verified)) {
-      return ctx.fail(403, '您没有权限访问公共本地音乐，请联系管理员设置', {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      })
+      return noStoreFail(ctx, 403, '您没有权限访问公共本地音乐，请联系管理员设置')
     }
 
     const filename = ctx.query.get('filename')

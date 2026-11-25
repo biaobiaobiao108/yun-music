@@ -111,7 +111,9 @@ export function DashboardView() {
                 </div>
                 <div>
                   <dt>缓存限制</dt>
-                  <dd>{formatBytes(status?.cacheLimit)}</dd>
+                  <dd>
+                    {formatBytes(typeof status?.cacheLimit === 'number' ? status.cacheLimit * 1024 * 1024 : undefined)}
+                  </dd>
                 </div>
               </dl>
             </Panel>

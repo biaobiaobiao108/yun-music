@@ -57,6 +57,22 @@ const relayRedirectCache = new Map<string, RelayRedirectCacheEntry>()
 const RELAY_REDIRECT_CACHE_TTL_MS = 60_000
 const MAX_RELAY_REDIRECT_CACHE_ENTRIES = 256
 
+/** Record a resolved upstream redirect and evict oldest entries beyond the LRU cap. */
+const cacheRelayRedirect = (originalUrl: string, finalUrl: string): void => {
+  if (relayRedirectCache.has(originalUrl)) {
+    relayRedirectCache.delete(originalUrl)
+  }
+  relayRedirectCache.set(originalUrl, {
+    finalUrl,
+    expiresAt: Date.now() + RELAY_REDIRECT_CACHE_TTL_MS,
+  })
+  while (relayRedirectCache.size > MAX_RELAY_REDIRECT_CACHE_ENTRIES) {
+    const oldest = relayRedirectCache.keys().next().value
+    if (!oldest) break
+    relayRedirectCache.delete(oldest)
+  }
+}
+
 /** Own the slot through downstream consumption, including small prefetched responses. */
 const completeWhenConsumed = (
   stream: ReadableStream<Uint8Array>,
@@ -432,15 +448,7 @@ export const createDownloadProxyRouter = (): Router => {
                   proxyRes.destroy()
                   try {
                     const nextUrl = new URL(location, parsedUrl).href
-                    relayRedirectCache.set(urlStr, {
-                      finalUrl: nextUrl,
-                      expiresAt: Date.now() + RELAY_REDIRECT_CACHE_TTL_MS,
-                    })
-                    while (relayRedirectCache.size > MAX_RELAY_REDIRECT_CACHE_ENTRIES) {
-                      const oldest = relayRedirectCache.keys().next().value
-                      if (!oldest) break
-                      relayRedirectCache.delete(oldest)
-                    }
+                    cacheRelayRedirect(urlStr, nextUrl)
                     void doFetch(nextUrl, attempt + 1)
                   } catch {
                     relayRedirectCache.delete(urlStr)
@@ -511,10 +519,7 @@ export const createDownloadProxyRouter = (): Router => {
               }
 
               if (targetUrl !== urlStr && (proxyRes.statusCode === 200 || proxyRes.statusCode === 206)) {
-                relayRedirectCache.set(urlStr, {
-                  finalUrl: targetUrl,
-                  expiresAt: Date.now() + RELAY_REDIRECT_CACHE_TTL_MS,
-                })
+                cacheRelayRedirect(urlStr, targetUrl)
               }
 
               const headers: Record<string, string> = {

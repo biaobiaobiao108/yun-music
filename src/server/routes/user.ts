@@ -341,6 +341,7 @@ export const createUserRouter = (): Router => {
         await Promise.all(suspendedNames.map(name => downloadQueue.suspendUser(name)))
         const previousUser = { ...user }
         let migrationCompleted = false
+        let customSourceReloaded = false
         renameUserSpace(normalizedName)
         try {
           // Revoke before changing the users primary key. The SQLite session
@@ -357,6 +358,7 @@ export const createUserRouter = (): Router => {
           await saveUsers()
           try {
             await reloadUserCustomSources(normalizedName, normalizedNewName)
+            customSourceReloaded = true
           } catch (reloadError) {
             console.error('[User] 用户音源重新加载失败:', reloadError)
           }
@@ -375,6 +377,13 @@ export const createUserRouter = (): Router => {
             await saveUsers()
           } catch (rollbackError) {
             console.error('[User] 用户重命名配置回滚失败:', rollbackError)
+          }
+          if (customSourceReloaded) {
+            try {
+              await reloadUserCustomSources(normalizedNewName, normalizedName)
+            } catch (rollbackError) {
+              console.error('[User] 用户音源重命名回滚失败:', rollbackError)
+            }
           }
           return ctx.fail(500, toUserMessage(err, '数据迁移失败，请稍后重试'))
         } finally {
