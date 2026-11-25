@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Router } from '@/server/core'
 import { createTokenBucketLimiter } from '@/server/core/rateLimiter'
-import { createMusicRateLimitMiddleware, isMusicRateLimitExempt } from '@/server/routes/music'
+import { createMusicRateLimitMiddleware, isMusicRateLimitExempt } from '@/server/routes/musicRateLimit'
 
 describe('token bucket limiter', () => {
   test('allows a full burst, then reports how long to wait', () => {
