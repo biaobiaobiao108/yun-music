@@ -128,6 +128,7 @@ export function createPlayerHistoryController(
   let currentState: PlayerHistoryState | null = null
   let pendingDirection: PlayerHistoryDirection | null = null
   let controlsBound = false
+  let unbindPressFeedback: (() => void) | null = null
 
   function buildState(payload: PlayerHistoryPayload, index: number): PlayerHistoryState {
     return {
@@ -167,18 +168,31 @@ export function createPlayerHistoryController(
   function bindPressFeedback(): void {
     if (controlsBound) return
     controlsBound = true
+    const cleanups: Array<() => void> = []
 
     for (const id of ['player-history-back', 'player-history-forward']) {
       const button = documentRef.getElementById(id) as HTMLButtonElement | null
       if (!button) continue
-      const clearPressing = () => button.removeAttribute('data-pressing')
-      button.addEventListener('pointerdown', () => {
+      const onPointerDown = () => {
         if (!button.disabled) button.setAttribute('data-pressing', 'true')
-      })
+      }
+      const clearPressing = () => button.removeAttribute('data-pressing')
+      button.addEventListener('pointerdown', onPointerDown)
       button.addEventListener('pointerup', clearPressing)
       button.addEventListener('pointercancel', clearPressing)
       button.addEventListener('pointerleave', clearPressing)
       button.addEventListener('blur', clearPressing)
+      cleanups.push(() => {
+        button.removeEventListener('pointerdown', onPointerDown)
+        button.removeEventListener('pointerup', clearPressing)
+        button.removeEventListener('pointercancel', clearPressing)
+        button.removeEventListener('pointerleave', clearPressing)
+        button.removeEventListener('blur', clearPressing)
+      })
+    }
+    unbindPressFeedback = () => {
+      for (const cleanup of cleanups) cleanup()
+      controlsBound = false
     }
   }
 
@@ -280,6 +294,10 @@ export function createPlayerHistoryController(
     canGoBack: getCanGoBack,
     canGoForward: getCanGoForward,
     syncControls,
+    destroy: () => {
+      unbindPressFeedback?.()
+      unbindPressFeedback = null
+    },
   }
 }
 

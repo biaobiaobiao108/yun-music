@@ -86,7 +86,12 @@ export const createCacheMediaRouter = (): Router => {
     for (const targetUser of candidateUsernames) {
       for (const loc of locations) {
         for (const folder of roots) {
-          const dir = fileCache.getCacheDir(targetUser, folder === 'music', loc, false)
+          let dir: string
+          try {
+            dir = fileCache.getCacheDir(targetUser, folder === 'music', loc, false)
+          } catch {
+            return ctx.fail(400, '用户名不合法')
+          }
           const safeFilename = decodedFilename.replace(/\\/g, '/')
           let checkPath: string
           try {

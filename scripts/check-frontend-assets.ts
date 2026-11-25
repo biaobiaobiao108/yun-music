@@ -178,6 +178,16 @@ for (const file of ['public/music/index.html']) {
     }
   }
 }
+if (existsSync('public/music/js/chunks')) {
+  for (const chunkName of readdirSync('public/music/js/chunks')) {
+    if (!chunkName.endsWith('.js')) continue
+    const chunkPath = `public/music/js/chunks/${chunkName}`
+    const content = readFileSync(chunkPath, 'utf8')
+    for (const pattern of forbiddenPlayerSourceManagementPatterns) {
+      if (pattern.test(content)) deletedReferences.push(`${chunkPath} -> published player chunk contains ${pattern}`)
+    }
+  }
+}
 
 const trackedFiles = collectTrackedFiles()
 const generatedFiles = [
@@ -194,7 +204,9 @@ const generatedFiles = [
   'public/music/css/tailwind.generated.css',
 ]
 const trackedGeneratedFiles = generatedFiles.filter(file => trackedFiles.has(file))
-const trackedChunkFiles = [...trackedFiles].filter(file => file.startsWith('public/music/js/chunks/'))
+const trackedChunkFiles = [...trackedFiles].filter(
+  file => file.startsWith('public/music/js/chunks/') || file.startsWith('public/js/chunks/'),
+)
 const trackedHashedEntryFiles = [...trackedFiles].filter(file => /^public\/(?:music\/)?app-[a-z0-9]+\.js$/i.test(file))
 const trackedHashedLoginFiles = [...trackedFiles].filter(file => /^public\/music\/login-[a-z0-9]+\.js$/i.test(file))
 

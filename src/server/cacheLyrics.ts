@@ -463,7 +463,9 @@ export const saveLyricCache = (songInfo: any, lyricsObj: any, username?: string,
         console.warn(`[FileCache] Lyric cache index update failed: ${err?.message || err}`)
       }
     }
-    void checkAndCleanupCache(username)
+    void checkAndCleanupCache(username).catch(cleanupErr => {
+      console.warn('[FileCache] Cache cleanup failed:', cleanupErr)
+    })
     return true
   } catch (err: any) {
     console.error(`[FileCache] Lyric cache save failed: ${err.message}`)
@@ -481,6 +483,7 @@ export const ensureCachedLyrics = async (
   shouldCacheLyric: boolean,
   shouldEmbedLyric: boolean,
   signal?: AbortSignal,
+  location?: string,
 ) => {
   if (signal?.aborted) throw new Error('Aborted')
   if ((!shouldCacheLyric && !shouldEmbedLyric) || !_lyricFetcher || !fs.existsSync(audioPath)) return
@@ -489,11 +492,13 @@ export const ensureCachedLyrics = async (
   const id = normalizeSongId(songInfo)
   const resolvedQuality = quality || 'unknown'
   const relativeAudioPath = path
-    .relative(getCacheDir(normalizedUsername, folder === 'music'), audioPath)
+    .relative(getCacheDir(normalizedUsername, folder === 'music', location, false), audioPath)
     .replace(/\\/g, '/')
   const item =
-    indexManager.get(normalizedUsername, id, folder, resolvedQuality, true) ||
-    indexManager.getAll(normalizedUsername, folder).find(candidate => candidate.filename === relativeAudioPath)
+    indexManager.get(normalizedUsername, id, folder, resolvedQuality, true, location) ||
+    indexManager
+      .getAll(normalizedUsername, folder, location)
+      .find(candidate => candidate.filename === relativeAudioPath)
   const lyricPath = audioPath.substring(0, audioPath.length - path.extname(audioPath).length) + '.lrc'
   let hasCachedLyric = fs.existsSync(lyricPath)
   let hasEmbedLyric = item?.hasEmbedLyric === true

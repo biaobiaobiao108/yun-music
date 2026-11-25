@@ -452,7 +452,6 @@ export function AudioRuntime() {
       return
     if (state.queue.length <= 1) return
     const currentPlaybackKey = `${songKey(state.currentSong)}:${quality}`
-    if (prefetchTriggeredKey.current === currentPlaybackKey) return
     const priorityNextIndex = state.priorityNextSongKey
       ? state.queue.findIndex(song => songKey(song) === state.priorityNextSongKey)
       : -1
@@ -549,6 +548,7 @@ export function AudioRuntime() {
         const immediate = selectImmediatePlaybackSource(options?.immediateUrl, options?.immediateDownloadToken, cached)
         if (immediate && options?.song) {
           try {
+            const primedKey = songKey(options.song)
             audio.loop = false
             const targetUrl = buildPlaybackUrl(
               immediate.url,
@@ -557,6 +557,14 @@ export function AudioRuntime() {
               undefined,
               immediate.downloadToken,
             )
+            resolvedSongKey.current = primedKey
+            resolvedPlayback.current = {
+              songKey: primedKey,
+              quality,
+              url: immediate.url,
+              fromCache: Boolean(parseCachePlaybackUrl(immediate.url)),
+              sourceName: undefined,
+            }
             if (!isSameMediaSource(audio.currentSrc || audio.src, targetUrl)) audio.src = targetUrl
             const p = audio.play()
             if (p !== undefined) {
@@ -982,7 +990,7 @@ export function AudioRuntime() {
             const targetPlaybackUrl = buildPlaybackUrl(
               result.url,
               currentSong,
-              settings,
+              getSettings(),
               undefined,
               result.downloadToken,
             )
@@ -1192,7 +1200,13 @@ export function AudioRuntime() {
         setResolvedUrl(result.url)
         resolvedSongKey.current = songId
         audio.loop = false
-        const targetPlaybackUrl = buildPlaybackUrl(result.url, currentSong, settings, undefined, result.downloadToken)
+        const targetPlaybackUrl = buildPlaybackUrl(
+          result.url,
+          currentSong,
+          useSettingsStore.getState().settings,
+          undefined,
+          result.downloadToken,
+        )
         if (!isSameMediaSource(audio.currentSrc || audio.src, targetPlaybackUrl)) {
           audio.src = targetPlaybackUrl
         }
@@ -1278,19 +1292,7 @@ export function AudioRuntime() {
         }
       }
     }
-  }, [
-    notify,
-    notifyPlayback,
-    playbackTraceName,
-    quality,
-    setPlaying,
-    setResolvedUrl,
-    settings.enableAutoSwitchSource,
-    settings.enableCustomProxy,
-    settings.customProxyUrl,
-    songId,
-    userName,
-  ])
+  }, [notify, notifyPlayback, playbackTraceName, quality, setPlaying, setResolvedUrl, songId, userName])
 
   useEffect(() => {
     const audio = audioRef.current

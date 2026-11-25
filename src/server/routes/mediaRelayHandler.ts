@@ -206,6 +206,25 @@ export const handleDownloadProxy = (ctx: HttpContext): Response | Promise<Respon
             })
 
             if (isTaggingMode && (!rangeHeader || isFullRange)) {
+              if (proxyRes.statusCode === 206) {
+                const contentRange = String(proxyRes.headers['content-range'] || '')
+                const match = contentRange.match(/^bytes\s+0-(\d+)\/(\d+)$/i)
+                const endByte = match ? Number(match[1]) : -1
+                const totalBytes = match ? Number(match[2]) : -1
+                if (!match || totalBytes <= 0 || endByte !== totalBytes - 1) {
+                  proxyRes.destroy()
+                  if (taskId) {
+                    fileCache.setCacheProgress(taskId, {
+                      progress: 0,
+                      status: 'error',
+                      errorMsg: '远程服务器仅返回部分分片，无法完整处理标签',
+                      updatedAt: Date.now(),
+                    })
+                  }
+                  settleResponse(ctx.fail(502, '远程服务器仅返回部分分片，请重试'))
+                  return
+                }
+              }
               pipeTaggedDownload({
                 ctx,
                 proxyRes,

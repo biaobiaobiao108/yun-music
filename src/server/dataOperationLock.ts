@@ -3,7 +3,7 @@ type DataOperation = 'account-change' | 'backup'
 let activeOperation: DataOperation | null = null
 let apiRequests = 0
 let apiPaused = false
-let resolveDrain: (() => void) | undefined
+const drainResolvers = new Set<() => void>()
 
 export const beginDataRequest = (): boolean => {
   if (apiPaused) return false
@@ -12,18 +12,24 @@ export const beginDataRequest = (): boolean => {
 }
 
 export const endDataRequest = (): void => {
-  apiRequests--
-  if (apiRequests === 0) resolveDrain?.()
+  if (apiRequests > 0) apiRequests--
+  if (apiRequests === 0 && drainResolvers.size > 0) {
+    for (const resolve of drainResolvers) resolve()
+    drainResolvers.clear()
+  }
 }
 
 export const pauseDataRequests = async (): Promise<() => void> => {
   apiPaused = true
-  if (apiRequests > 0)
+  let resolver: (() => void) | undefined
+  if (apiRequests > 0) {
     await new Promise<void>(resolve => {
-      resolveDrain = resolve
+      resolver = resolve
+      drainResolvers.add(resolve)
     })
+  }
   return () => {
-    resolveDrain = undefined
+    if (resolver) drainResolvers.delete(resolver)
     apiPaused = false
   }
 }

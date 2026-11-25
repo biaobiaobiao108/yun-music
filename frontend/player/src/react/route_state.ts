@@ -63,10 +63,27 @@ export function emitPlayerNavigation(navigation: PlayerNavigation): void {
   routeWriter?.(navigation)
 }
 
+let historyHandler: { back: () => void; forward: () => void } | null = null
+
+export function connectHistoryNavigation(handler: { back: () => void; forward: () => void }): () => void {
+  historyHandler = handler
+  return () => {
+    if (historyHandler === handler) historyHandler = null
+  }
+}
+
 export function goBack(): void {
+  if (historyHandler) {
+    historyHandler.back()
+    return
+  }
   if (typeof window !== 'undefined') window.history.back()
 }
 
 export function goForward(): void {
+  if (historyHandler) {
+    historyHandler.forward()
+    return
+  }
   if (typeof window !== 'undefined') window.history.forward()
 }

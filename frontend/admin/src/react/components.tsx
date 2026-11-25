@@ -260,6 +260,22 @@ export function Modal({
       previousFocus.current = null
     }
   }, [open])
+  useEffect(() => {
+    const dialog = ref.current
+    return () => {
+      if (dialog?.open) dialog.close()
+      const focusTarget = previousFocus.current
+      if (
+        focusTarget?.isConnected &&
+        focusTarget !== document.body &&
+        !dialog?.contains(focusTarget) &&
+        !focusTarget.matches(':disabled')
+      ) {
+        focusTarget.focus()
+      }
+      previousFocus.current = null
+    }
+  }, [])
   return (
     <dialog
       ref={ref}

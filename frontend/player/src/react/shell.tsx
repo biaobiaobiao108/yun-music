@@ -50,6 +50,7 @@ import {
 } from './types'
 import { createPlayerHistoryController, type PlayerHistoryPayload } from './player_history'
 import {
+  connectHistoryNavigation,
   connectPlayerNavigation,
   getSidebarActiveTab,
   goBack,
@@ -1324,7 +1325,11 @@ export function PlayerShell() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      const editing = target?.matches('input, textarea, select, [contenteditable="true"]')
+      const editing = Boolean(
+        target?.closest(
+          'input, textarea, select, [contenteditable="true"], button, a, [role="button"], [role="tab"], [role="option"], summary',
+        ),
+      )
       if (event.key === 'Escape') {
         // Native dialogs own Escape. In particular, comments may be opened on
         // top of immersive lyrics and closing the comments dialog must not
@@ -1346,7 +1351,7 @@ export function PlayerShell() {
         }
         return
       }
-      if (drawer) return
+      if (dialog || drawer) return
       if (
         !keyboardShortcuts ||
         editing ||
@@ -1433,6 +1438,10 @@ export function PlayerShell() {
         }
 
     historyController.initialize(initialPayload)
+    const disconnectHistory = connectHistoryNavigation({
+      back: () => historyController.back(),
+      forward: () => historyController.forward(),
+    })
     setTabFromHistory(targetTab, initialDetail, targetListId)
     const disconnect = connectPlayerNavigation(navigation => {
       const detail = navigation.detail
@@ -1475,6 +1484,8 @@ export function PlayerShell() {
     window.addEventListener('hashchange', onPop)
     return () => {
       disconnect()
+      disconnectHistory()
+      historyController.destroy()
       window.removeEventListener('popstate', onPop)
       window.removeEventListener('hashchange', onPop)
     }

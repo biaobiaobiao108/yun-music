@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import crypto from 'node:crypto'
 import fs from 'fs'
 import path from 'path'
 
@@ -133,7 +134,7 @@ const saveConfigToFile = async () => {
       }
     }
     const nextHash = new Bun.CryptoHasher('md5').update(content).digest('hex')
-    const tempPath = `${configPath}.${process.pid}.${Date.now()}.tmp`
+    const tempPath = `${configPath}.${process.pid}.${Date.now()}.${crypto.randomBytes(6).toString('hex')}.tmp`
     try {
       fs.writeFileSync(tempPath, content, { encoding: 'utf8', mode: 0o600 })
       fs.renameSync(tempPath, configPath)
@@ -552,20 +553,21 @@ if (fs.existsSync(rootConfigPath)) {
         timer.unref?.()
       }
       if (configDebounceTimer) clearTimeout(configDebounceTimer)
+      let configReloadTail: Promise<void> = Promise.resolve()
       const reloadExternalConfig = () => {
-        const currentHash = getConfigHash(rootConfigPath)
-        if (!currentHash) return
-        // 如果内容未发生实质改变（如内部写配置触发的 fs.watch 事件），跳过热重载
-        if (currentHash === lastConfigHash) return
-        if (!beginDataRequest()) {
-          configDebounceTimer = setTimeout(reloadExternalConfig, 500)
-          return
-        }
-        lastConfigHash = currentHash
+        configReloadTail = configReloadTail.then(async () => {
+          const currentHash = getConfigHash(rootConfigPath)
+          if (!currentHash) return
+          // 如果内容未发生实质改变（如内部写配置触发的 fs.watch 事件），跳过热重载
+          if (currentHash === lastConfigHash) return
+          if (!beginDataRequest()) {
+            configDebounceTimer = setTimeout(reloadExternalConfig, 500)
+            return
+          }
+          lastConfigHash = currentHash
 
-        console.log('Detected external config.js change, hot-reloading...')
-        const previousConfig = { ...global.lx.config }
-        void (async () => {
+          console.log('Detected external config.js change, hot-reloading...')
+          const previousConfig = { ...global.lx.config }
           try {
             if (!margeConfig(rootConfigPath, true)) return
             applyEnvironmentConfig()
@@ -587,7 +589,7 @@ if (fs.existsSync(rootConfigPath)) {
           } finally {
             endDataRequest()
           }
-        })()
+        })
       }
       configDebounceTimer = setTimeout(reloadExternalConfig, 500)
     })

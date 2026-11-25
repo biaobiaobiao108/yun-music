@@ -326,6 +326,8 @@ const responseHeaderEntries = (headers: http.IncomingHttpHeaders): Headers => {
   return result
 }
 
+const MAX_REMOTE_REQUEST_BODY_BYTES = 16 * 1024 * 1024
+
 const bodyToBuffer = async (body: BodyInit | null | undefined): Promise<Buffer | undefined> => {
   if (body == null) return undefined
   if (typeof body === 'string') return Buffer.from(body)
@@ -336,12 +338,23 @@ const bodyToBuffer = async (body: BodyInit | null | undefined): Promise<Buffer |
   if (body instanceof ReadableStream) {
     const reader = body.getReader()
     const chunks: Uint8Array[] = []
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (value) chunks.push(value)
+    let totalBytes = 0
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) {
+          totalBytes += value.byteLength
+          if (totalBytes > MAX_REMOTE_REQUEST_BODY_BYTES) {
+            throw new Error('Remote request body exceeds maximum allowed size')
+          }
+          chunks.push(value)
+        }
+      }
+      return Buffer.concat(chunks)
+    } finally {
+      reader.releaseLock()
     }
-    return Buffer.concat(chunks)
   }
   throw new Error('Unsupported remote request body')
 }
@@ -601,7 +614,7 @@ export const fetchSafeRemote = async (
 
 /** Validate once and pin the connection to these addresses, keeping Host/TLS hostname intact. */
 export const assertSafeRemoteHttpUrl = async (rawUrl: string): Promise<SafeRemoteHttpUrl> => {
-  if (typeof rawUrl !== 'string' || rawUrl.length === 0 || rawUrl.length > 2048) {
+  if (typeof rawUrl !== 'string' || rawUrl.length === 0 || rawUrl.length > 4096) {
     throw new Error('Invalid remote URL')
   }
   let url: URL

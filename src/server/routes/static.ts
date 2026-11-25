@@ -163,8 +163,7 @@ export const createStaticRouter = (): Router => {
           : subPath.startsWith('/')
             ? subPath.slice(1)
             : subPath
-      const filePath = path.join(staticRoot, targetRel)
-      const res = await serveStaticFile(ctx, filePath)
+      const res = await serveStaticFile(ctx, targetRel)
       if (res) return res
     }
 
@@ -228,8 +227,7 @@ export const createStaticRouter = (): Router => {
         }
       }
 
-      const filePath = path.join(staticRoot, targetPath)
-      const res = await serveStaticFile(ctx, filePath)
+      const res = await serveStaticFile(ctx, targetPath)
       if (res) return res
     }
 
@@ -240,8 +238,8 @@ export const createStaticRouter = (): Router => {
     }
 
     // (C) 默认根静态文件回退 (例如 favicon.ico)
-    const generalFilePath = path.join(staticRoot, ctx.pathname.startsWith('/') ? ctx.pathname.slice(1) : ctx.pathname)
-    const res = await serveStaticFile(ctx, generalFilePath)
+    const generalRel = ctx.pathname.startsWith('/') ? ctx.pathname.slice(1) : ctx.pathname
+    const res = await serveStaticFile(ctx, generalRel)
     if (res) return res
 
     return ctx.fail(404, '资源不存在')

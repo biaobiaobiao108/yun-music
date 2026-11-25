@@ -78,6 +78,8 @@ export const createRootRouter = (): Router => {
 
   // 播放器接口鉴权要在业务路由和限流之前执行，避免未授权请求进入昂贵的业务处理。
   root.use('/api/music', playerApiAuthMiddleware)
+  root.use('/api/user', playerApiAuthMiddleware)
+  root.use('/api/custom-source/list', playerApiAuthMiddleware)
 
   // 1. Web 业务领域路由挂载
   root.mount('/', createAuthRouter())

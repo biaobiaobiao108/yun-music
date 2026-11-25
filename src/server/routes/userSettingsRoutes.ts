@@ -39,6 +39,10 @@ const resolveSettingsUsername = (ctx: HttpContext, write = false): string | Resp
   const isPublic = ['default', 'open', '_open'].includes(requested) || (!requested && !verified)
 
   if (isPublic) {
+    const canAccessOpen = isAdmin || !!verified || Boolean(global.lx.config['user.enablePublicNonAdminAccess'])
+    if (!canAccessOpen) {
+      return ctx.fail(401, '登录状态已失效，请重新登录')
+    }
     if (write && global.lx.config['user.enablePublicRestriction'] && !isAdmin) {
       return ctx.fail(403, '权限不足：公共用户保存设置受限，请先验证管理员身份')
     }
@@ -99,7 +103,7 @@ export const createUserSettingsRouter = (): Router => {
       if (!isSettingsRecord(parsedSettings)) return ctx.fail(400, '设置数据格式错误')
       let settings: Record<string, unknown> = parsedSettings
 
-      if (resolvedUsername === '_open' && global.lx.config['user.enablePublicRestriction']) {
+      if (resolvedUsername === '_open' && !verifyAdminAuth(ctx.request)) {
         const restrictedSettings: Record<string, unknown> = {}
         const allowedKeys = [
           'serverCacheLocation',

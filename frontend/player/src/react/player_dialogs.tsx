@@ -63,7 +63,11 @@ export function CommentsDialog({ open, onClose }: { open: boolean; onClose: () =
   const previous = useCommentStore(state => state.previous)
   useEffect(() => {
     if (open) void load(song, type, 1)
-  }, [load, open, song])
+    else void load(null)
+    return () => {
+      void load(null)
+    }
+  }, [load, open, song, type])
   return (
     <Modal
       open={open}

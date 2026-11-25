@@ -7,7 +7,7 @@ import path from 'path'
 import { COVER_CHECK_VERSION, downloadCoverImage, hasCachedCover, writeCoverCache } from './cacheCover'
 import { invalidateCacheListSync } from './cacheEvents'
 import { linkFileWithoutOverwrite } from './cacheFileMove'
-import { indexManager } from './cacheIndex'
+import { getCacheLocation, indexManager } from './cacheIndex'
 import type { CacheItem, DownloadProvenance } from './cacheIndex'
 import { checkCache } from './cacheLookup'
 import { ensureCachedLyrics, findCompanionLyricFile } from './cacheLyrics'
@@ -115,7 +115,8 @@ export const downloadAndCache = async (
   shouldEmbedLyric: boolean = true,
   provenance: DownloadProvenance = {},
 ) => {
-  const dir = ensureCacheDir(username, isOnlyDownload)
+  const downloadLocation = getCacheLocation()
+  const dir = getCacheDir(username, isOnlyDownload, downloadLocation, true)
   const baseName = getFileName(songInfo, quality, isOnlyDownload, username)
   // Use a unique staging path so a crash cannot leave a stale .tmp file that
   // blocks a later retry for the same song.
@@ -480,11 +481,17 @@ export const downloadAndCache = async (
             const finalBaseName = getFileName(songInfo, actualQuality, isOnlyDownload, username)
             const finalPath = path.join(dir, finalBaseName + ext)
             linkFileWithoutOverwrite(tempPath, finalPath, async err => {
+              let existingDestination = false
               if (err) {
-                releasePostProcess?.()
-                fs.unlink(tempPath, () => {})
-                fail(err)
-                return
+                if (err.code === 'EEXIST' && fs.existsSync(finalPath)) {
+                  existingDestination = true
+                  fs.unlink(tempPath, () => {})
+                } else {
+                  releasePostProcess?.()
+                  fs.unlink(tempPath, () => {})
+                  fail(err)
+                  return
+                }
               }
 
               // The audio file has been promoted to its final path. Metadata,
@@ -510,6 +517,7 @@ export const downloadAndCache = async (
                 const id = metadata.id || String(songInfo.id || songInfo.songmid)
                 const normalizedUsername = normalizeCacheUsername(username)
                 const folderType: 'cache' | 'music' = isOnlyDownload ? 'music' : 'cache'
+                const finalFileSize = existingDestination ? fs.statSync(finalPath).size : received
 
                 indexManager.update(
                   normalizedUsername,
@@ -530,7 +538,7 @@ export const downloadAndCache = async (
                     filename: finalBaseName + ext,
                     folder: folderType,
                     mtime: Date.now(),
-                    size: received,
+                    size: finalFileSize,
                     ext: ext.replace('.', ''),
                     hasCover: false,
                     hasLyric: false,
@@ -540,6 +548,7 @@ export const downloadAndCache = async (
                     bitDepth: inspection.bitDepth,
                   },
                   folderType,
+                  downloadLocation,
                 )
                 invalidateCacheListSync(normalizedUsername)
 
@@ -595,7 +604,7 @@ export const downloadAndCache = async (
                   taggedItem.coverCheckedSize = taggedStats.size
                   taggedItem.mtime = taggedStats.mtimeMs
                   taggedItem.size = taggedStats.size
-                  indexManager.update(normalizedUsername, taggedItem, folderType)
+                  indexManager.update(normalizedUsername, taggedItem, folderType, downloadLocation)
                 }
 
                 if (signal?.aborted) throw new Error('Aborted')
@@ -609,9 +618,10 @@ export const downloadAndCache = async (
                   shouldCacheLyric,
                   shouldEmbedLyric,
                   signal,
+                  downloadLocation,
                 )
                 const finalizedItem = indexManager
-                  .getAll(normalizedUsername, folderType)
+                  .getAll(normalizedUsername, folderType, downloadLocation)
                   .find(item => item.filename === finalBaseName + ext)
                 if (finalizedItem) reconcileCacheItemFromDisk(normalizedUsername, folderType, finalizedItem, finalPath)
                 invalidateCacheListSync(normalizedUsername)
@@ -644,7 +654,9 @@ export const downloadAndCache = async (
                 invalidateGlobalCacheStats()
                 settle(() => {
                   resolve()
-                  void checkAndCleanupCache(username)
+                  void checkAndCleanupCache(username).catch(cleanupErr => {
+                    console.warn('[FileCache] Cache cleanup failed:', cleanupErr)
+                  })
                 })
               }
             })

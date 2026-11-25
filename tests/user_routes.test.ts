@@ -645,4 +645,35 @@ describe('Deleted account credentials', () => {
       releaseUserSpace(renamed, true)
     }
   })
+
+  test('blocks anonymous reads/writes on _open settings when public non-admin access is disabled and allows admin full keys', async () => {
+    const router = createUserRouter()
+    global.lx.config['user.enablePublicNonAdminAccess'] = false
+    global.lx.config['user.enablePublicRestriction'] = false
+
+    const anonRead = await router.handle(new Request('http://localhost/api/user/settings'))
+    expect(anonRead.status).toBe(401)
+
+    const anonWrite = await router.handle(
+      new Request('http://localhost/api/user/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ theme: 'dark' }),
+      }),
+    )
+    expect(anonWrite.status).toBe(401)
+
+    const adminWrite = await router.handle(
+      new Request('http://localhost/api/user/settings?user=_open', {
+        method: 'POST',
+        headers: { ...adminHeaders, 'content-type': 'application/json' },
+        body: JSON.stringify({ customAdminKey: 'enabled' }),
+      }),
+    )
+    expect(adminWrite.status).toBe(200)
+    const adminRead = await router.handle(
+      new Request('http://localhost/api/user/settings?user=_open', { headers: adminHeaders }),
+    )
+    expect(await adminRead.json()).toEqual({ customAdminKey: 'enabled' })
+  })
 })

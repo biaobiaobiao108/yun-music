@@ -96,4 +96,16 @@ describe('Lyric Formatting & SongId Coercion', () => {
     expect(parsed.tlyric).toBe(rawLyricData.tlyric)
     expect(parsed.lxlyric).toBe(rawLyricData.lxlyric)
   })
+
+  it('buildLyrics preserves consecutive lines of tlyric without regex lastIndex skipping', () => {
+    const rawLyricData = {
+      lyric: '[00:01.00]Line 1\n[00:02.00]Line 2\n[00:03.00]Line 3\n[00:04.00]Line 4',
+      tlyric: '[00:01.00]第一行\n[00:02.00]第二行\n[00:03.00]第三行\n[00:04.00]第四行',
+      rlyric: '[00:01.00]yi\n[00:02.00]er\n[00:03.00]san\n[00:04.00]si',
+    }
+    const formatted = buildLyrics(rawLyricData, true, true, true)
+    const parsed = parseLyrics(formatted)
+    expect(parsed.tlyric).toBe(rawLyricData.tlyric)
+    expect(parsed.rlyric).toBe(rawLyricData.rlyric)
+  })
 })

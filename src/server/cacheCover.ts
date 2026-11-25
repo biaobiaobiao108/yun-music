@@ -3,7 +3,7 @@ import type { Stats } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { assertSafeRemoteHttpUrl, fetchSafeRemote, type SafeRemoteHttpUrl } from './networkSecurity'
-import { CACHE_ROOTS, getCacheLocations, indexManager } from './cacheIndex'
+import { CACHE_ROOTS, getCacheLocation, getCacheLocations, indexManager } from './cacheIndex'
 import type { CacheFolder, CacheItem } from './cacheIndex'
 import { detectImageMime, hasUsableRemoteCover, hasValidPictureData } from './cacheMetadata'
 import {
@@ -31,8 +31,14 @@ export const getCoverCacheUserDir = (baseDir: string, username: string, create: 
   return fullPath
 }
 
-export const getCoverCacheDir = (username: string, create = true) =>
-  getCoverCacheUserDir(getCoverCacheBaseDirs()[0], username, create)
+export const getCoverCacheDir = (username: string, create = true) => {
+  const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
+  const baseDir =
+    getCacheLocation() === CACHE_ROOTS.DATA
+      ? path.resolve(dataPath, 'cover_cache')
+      : path.resolve(getRootPath(), 'cover_cache')
+  return getCoverCacheUserDir(baseDir, username, create)
+}
 
 export const getCoverCacheUserDirs = (username: string, create = false): string[] =>
   getCoverCacheBaseDirs().map(baseDir => getCoverCacheUserDir(baseDir, username, create))

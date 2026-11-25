@@ -484,6 +484,8 @@ export const linkLocalFile = async (
 
   // Add back to index with new identity
   indexManager.update(normalizedUsername, item, folder, location)
+  invalidateCacheListSync(normalizedUsername)
+  invalidateGlobalCacheStats()
 
   // 3. Post-link processing: Update ID3 tags and cover
   await batchUpdateMetadata([newFilename], normalizedUsername, location, folder)

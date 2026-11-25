@@ -220,9 +220,15 @@ export const createAuthRouter = (): Router => {
   })
 
   router.post('/api/user/login', async ctx => {
+    let payload: { username?: string; password?: string }
+    try {
+      payload = await ctx.bodyJson<{ username?: string; password?: string }>(64 * 1024)
+    } catch {
+      return ctx.fail(400, '请求格式错误，请刷新页面后重试')
+    }
     try {
       const ip = ctx.remoteAddress || 'unknown'
-      const { username, password } = await ctx.bodyJson<{ username?: string; password?: string }>(64 * 1024)
+      const { username, password } = payload
       if (
         typeof username !== 'string' ||
         username.length > 128 ||
@@ -255,7 +261,7 @@ export const createAuthRouter = (): Router => {
       })
     } catch (error) {
       if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
-      return ctx.fail(400, '请求格式错误，请刷新页面后重试')
+      return ctx.fail(503, '登录服务暂时不可用，请稍后重试')
     }
   })
 
@@ -280,9 +286,15 @@ export const createAuthRouter = (): Router => {
   router.get('/api/music/auth/verify', ctx => ctx.json({ valid: checkPlayerAuthSession(ctx.cookies) }))
 
   router.post('/api/music/auth', async ctx => {
+    let payload: { password?: string }
+    try {
+      payload = await ctx.bodyJson<{ password?: string }>(64 * 1024)
+    } catch {
+      return ctx.fail(400, '请求格式错误，请刷新页面后重试')
+    }
     try {
       const ip = ctx.remoteAddress || 'unknown'
-      const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
+      const { password } = payload
       if (typeof password !== 'string' || password.length > 1024) {
         return ctx.fail(400, '密码格式错误')
       }
@@ -305,7 +317,7 @@ export const createAuthRouter = (): Router => {
       })
     } catch (error) {
       if (error instanceof PasswordHashCapacityError) return passwordCapacityResponse(ctx)
-      return ctx.fail(400, '请求格式错误，请刷新页面后重试')
+      return ctx.fail(503, '登录服务暂时不可用，请稍后重试')
     }
   })
 

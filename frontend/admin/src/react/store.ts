@@ -193,7 +193,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       if (sequence !== loadSequence) return
       if (isAbortError(error)) return
       const message = messageOf(error)
-      set({ error: message, ...(message.includes('登录') ? { authenticated: false } : {}) })
+      const isUnauthorized = error instanceof ApiRequestError && error.status === 401
+      set({ error: message, ...(isUnauthorized ? { authenticated: false } : {}) })
     } finally {
       if (sequence === loadSequence) {
         activeLoadController = null

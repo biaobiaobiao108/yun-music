@@ -46,19 +46,22 @@ const runCacheIndexSync = async (username?: string, roots: Array<'cache' | 'musi
         if (!pending) {
           const directoryPath = resolveCacheRelativePath(dir, relativeDirectory)
           pending = directoryPath
-            ? fs.promises.readdir(directoryPath, { withFileTypes: true }).then(entries => {
-                const names = new Map<string, string>()
-                for (const entry of entries) {
-                  if (
-                    entry.isFile() &&
-                    path.extname(entry.name).toLowerCase() === '.lrc' &&
-                    !names.has(entry.name.toLowerCase())
-                  ) {
-                    names.set(entry.name.toLowerCase(), entry.name)
+            ? fs.promises
+                .readdir(directoryPath, { withFileTypes: true })
+                .then(entries => {
+                  const names = new Map<string, string>()
+                  for (const entry of entries) {
+                    if (
+                      entry.isFile() &&
+                      path.extname(entry.name).toLowerCase() === '.lrc' &&
+                      !names.has(entry.name.toLowerCase())
+                    ) {
+                      names.set(entry.name.toLowerCase(), entry.name)
+                    }
                   }
-                }
-                return names
-              })
+                  return names
+                })
+                .catch(() => new Map<string, string>())
             : Promise.resolve(new Map<string, string>())
           lyricNamesByDirectory.set(relativeDirectory, pending)
         }
@@ -339,7 +342,7 @@ const runCacheIndexSync = async (username?: string, roots: Array<'cache' | 'musi
         // The SQLite-backed index does not persist the in-memory Map from
         // `load()`. Write each changed item explicitly so disk discovery
         // repairs lyric/cover flags in the actual database.
-        if (itemChanged && existing) {
+        if (itemChanged && existing && fs.existsSync(filePath)) {
           if (oldKey && oldKey !== compositeKey && originalItemId && originalItemQuality) {
             indexManager.remove(normalizedUsername, originalItemId, folder, originalItemQuality, location)
           }

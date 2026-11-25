@@ -160,6 +160,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     authStateRevision += 1
     invalidateRequestCache()
+    resetUserScopedStores()
     set({ playerAuthenticated: false })
   },
   userLogin: async (username, password) => {

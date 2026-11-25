@@ -146,6 +146,18 @@ export const moveUserCacheData = (oldUsername: string, newUsername: string): { m
     throw error
   }
 
+  for (const location of getCacheLocations()) {
+    for (const folder of ['cache', 'music'] as const) {
+      const items = indexManager.getAll(oldName, folder, location)
+      for (const item of items) {
+        indexManager.update(newName, item, folder, location)
+      }
+      if (items.length > 0) {
+        indexManager.clear(oldName, folder, location)
+      }
+    }
+  }
+
   invalidateCacheListSync(oldName)
   invalidateCacheListSync(newName)
   return { movedDirectories: completed.length }
@@ -287,10 +299,27 @@ export const clearLyricCache = (username?: string) => {
   return { deletedCount, freedSize }
 }
 
+const activeCacheCleanups = new Map<string, Promise<void>>()
+
 export const checkAndCleanupCache = async (username?: string) => {
   const config = (global as any).lx.config
   if (!config || !config['user.enableCacheSizeLimit']) return
   const normalizedUsername = normalizeCacheUsername(username)
+  const existing = activeCacheCleanups.get(normalizedUsername)
+  if (existing) return existing
+
+  const task = runCheckAndCleanupCache(normalizedUsername).finally(() => {
+    if (activeCacheCleanups.get(normalizedUsername) === task) {
+      activeCacheCleanups.delete(normalizedUsername)
+    }
+  })
+  activeCacheCleanups.set(normalizedUsername, task)
+  return task
+}
+
+const runCheckAndCleanupCache = async (normalizedUsername: string) => {
+  const config = (global as any).lx.config
+  if (!config || !config['user.enableCacheSizeLimit']) return
   scheduleCacheIndexSync(normalizedUsername)
 
   type CleanupCandidate = {

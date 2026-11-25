@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import type http from 'node:http'
 import type { HttpContext } from '../core'
 import { getBuiltinSource } from '@/modules/utils/musicSdk'
+import { buildLyrics } from '@/utils/lrcTool'
 import * as fileCache from '../fileCache'
 import { getMusicTagNative } from '../musicTagNative'
 import { createTempAudioPath, MAX_RELAY_AUDIO_BYTES } from '../services/mediaRelayProtocol'
@@ -184,8 +185,11 @@ export const pipeTaggedDownload = ({
         ctx.request.signal.throwIfAborted()
         const lyricApi = lyricSource ? getBuiltinSource(lyricSource) : undefined
         if (embedLyric && lyricSongmid && lyricApi?.getLyric) {
+          const normalizedLyricSongmid = lyricSongmid.startsWith(`${lyricSource}_`)
+            ? lyricSongmid.slice(lyricSource.length + 1)
+            : lyricSongmid
           const lyricReqObj = lyricApi.getLyric({
-            songmid: lyricSongmid,
+            songmid: normalizedLyricSongmid,
             name: songName,
             singer: artist,
             hash: lyricHash,
@@ -196,7 +200,7 @@ export const pipeTaggedDownload = ({
           try {
             if (ctx.request.signal.aborted) abortLyric()
             const lyricResult = await lyricReqObj.promise
-            lyricText = lyricResult?.lyric || lyricResult?.lrc || ''
+            lyricText = (lyricResult ? buildLyrics(lyricResult) : '') || lyricResult?.lyric || lyricResult?.lrc || ''
           } catch {
           } finally {
             ctx.request.signal.removeEventListener('abort', abortLyric)
@@ -246,7 +250,7 @@ export const pipeTaggedDownload = ({
           settleTaggedResponse(ctx.fail(502, '下载内容无效，请重试'))
         } else {
           finishProgress()
-          if (!headers['Content-Length']) headers['Content-Length'] = fs.statSync(tempPath).size.toString()
+          headers['Content-Length'] = fs.statSync(tempPath).size.toString()
           delete headers['Content-Range']
           delete headers['Accept-Ranges']
           settleTaggedResponse(createTempFileResponse(tempPath, headers), false, true)

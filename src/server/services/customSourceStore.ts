@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getUserSourceDir } from '@/user/sourceStorage'
@@ -30,7 +31,7 @@ export async function withSourceMutationLocks<T>(owners: string[], operation: ()
 }
 
 export function writeTextFileAtomic(filePath: string, content: string): void {
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.${crypto.randomBytes(6).toString('hex')}.tmp`
   try {
     fs.writeFileSync(tempPath, content, 'utf-8')
     fs.renameSync(tempPath, filePath)

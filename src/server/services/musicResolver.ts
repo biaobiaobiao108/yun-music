@@ -60,7 +60,7 @@ export const normalizeSongInfo = (songInfo: any) => {
   // 4. 针对各平台 SDK 所需的特定字段进行补全
   switch (songInfo.source) {
     case 'wy': // 网易
-      if (!songInfo.id && meta.songId) songInfo.id = Number(meta.songId)
+      if (!songInfo.id && meta.songId) songInfo.id = String(meta.songId)
       if (!songInfo.songmid && songInfo.id) songInfo.songmid = String(songInfo.id)
       break
 

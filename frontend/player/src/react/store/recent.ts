@@ -234,6 +234,8 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
   }
 }
 
+let historyPollIntervalId: number | null = null
+
 function installHistoryListeners(): void {
   if (listenersInstalled || typeof window === 'undefined') return
   listenersInstalled = true
@@ -256,7 +258,8 @@ function installHistoryListeners(): void {
       }
     }
   })
-  window.setInterval(refresh, 30000)
+  if (historyPollIntervalId !== null) window.clearInterval(historyPollIntervalId)
+  historyPollIntervalId = window.setInterval(refresh, 30000)
 }
 
 export function appendPlayHistory(song: Song, quality?: string): RecentSong[] {

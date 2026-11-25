@@ -221,4 +221,18 @@ describe('Static Routing & Frontend Serving (routes/static.ts)', () => {
     expect(adminPage.status).toBe(200)
     expect(adminPage.headers.get('Content-Type')).toContain('text/html')
   })
+
+  test('serves static assets when staticPath is configured as a relative path', async () => {
+    const previousStaticPath = (global as any).lx.staticPath
+    ;(global as any).lx.staticPath = 'public'
+    try {
+      const router = new Router()
+      router.mount('/', createStaticRouter())
+      const res = await router.handle(new Request('http://localhost:9527/music/manifest.json'))
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Content-Type')).toContain('json')
+    } finally {
+      ;(global as any).lx.staticPath = previousStaticPath
+    }
+  })
 })

@@ -1,4 +1,4 @@
-const timeFieldExp = /^(?:\[[\d:.]+\])+/g
+const timeFieldExp = /^(?:\[[\d:.]+\])+/
 const timeExp = /\d{1,3}(:\d{1,3}){0,2}(?:\.\d{1,3})?/g
 const formatTimeLabel = (label: string) => {
   const parts = label.split(':')

@@ -487,7 +487,12 @@ export async function handleList(ctx: HttpContext, username: string): Promise<Re
   })
 
   // ===== 自定义合并后的排序逻辑 =====
-  let targetOwner = username && username !== 'default' ? assertSafePathSegment(username, 'username') : 'open'
+  let targetOwner: string
+  try {
+    targetOwner = username && username !== 'default' ? assertSafePathSegment(username, 'username') : 'open'
+  } catch {
+    return ctx.fail(400, '用户名不合法')
+  }
   let orderPath = path.join(getSourceDir(targetOwner), 'order.json')
   let order: string[] = []
 
