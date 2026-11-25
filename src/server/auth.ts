@@ -366,3 +366,12 @@ export const verifyAdminAuth = (source: HeaderSource): boolean => {
     return false
   return checkAdminSession(source)
 }
+
+/**
+ * 统一校验播放器访问权限：未开启访问密码、持有有效播放器会话或持有管理员会话均可放行。
+ * 播放器静态页（routes/static.ts）与播放器 API 中间件（routes/index.ts）共用此策略。
+ */
+export const canAccessPlayer = (source: HeaderSource, cookies: Record<string, string>): boolean => {
+  if (!global.lx?.config?.['player.enableAuth']) return true
+  return checkPlayerAuthSession(cookies) || verifyAdminAuth(source)
+}

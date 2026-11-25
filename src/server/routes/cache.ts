@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { Router, type HttpContext } from '../core'
+import { NO_STORE_HEADERS, Router, type HttpContext } from '../core'
 import { createDownloadProxyRouter, isOpaqueBrowserProgressId } from './mediaRelay'
 import { getMusicTagNative } from '../musicTagNative'
 import { toUserMessage } from '../core/context'
@@ -79,9 +79,7 @@ const resolveCacheTarget = (ctx: HttpContext, options: { publicWrite?: boolean }
 }
 
 const noStoreFail = (ctx: HttpContext, status: number, message: string): Response =>
-  ctx.json({ code: status, message, success: false }, status, {
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-  })
+  ctx.fail(status, message, undefined, NO_STORE_HEADERS)
 
 const createCacheEventsStream = (
   username: string,

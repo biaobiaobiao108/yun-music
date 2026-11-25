@@ -22,6 +22,22 @@ export const parseCacheSizeLimitMb = (value: unknown, fallback = 2000): number =
 }
 
 /**
+ * 解析并校验 TCP 监听端口号（1..65535），拒绝越界或带尾随字符的值。
+ */
+export const parseListenPort = (value: unknown): number | undefined => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!/^\d+$/.test(trimmed)) return undefined
+    const parsed = Number.parseInt(trimmed, 10)
+    return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 65535 ? parsed : undefined
+  }
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535) {
+    return value
+  }
+  return undefined
+}
+
+/**
  * 纯净解析配置文件（.js 或 .json），避免通过 require() 加载导致 bun --watch 追踪该文件。
  * 当用户在后台保存配置时，写盘不会误触发 bun --watch 导致服务意外重启或中断正在传输的响应。
  */

@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { Router, type HttpContext } from '../core'
-import { checkPlayerAuthSession, verifyAdminAuth } from '../auth'
+import { canAccessPlayer } from '../auth'
 import { resolveInsideAsync } from '@/utils/pathSecurity'
 
 /** 防目录穿越检查：确保目标路径在安全根目录内 */
@@ -206,10 +206,8 @@ export const createStaticRouter = (): Router => {
         isLegacyPlayerAsset
 
       // 播放器鉴权检查
-      if (!isLoginPage && !isPublicAsset && config['player.enableAuth']) {
-        if (!checkPlayerAuthSession(ctx.cookies) && !verifyAdminAuth(ctx.request)) {
-          return ctx.redirect(`${normalizedPrefix}/login`, 302)
-        }
+      if (!isLoginPage && !isPublicAsset && !canAccessPlayer(ctx.request, ctx.cookies)) {
+        return ctx.redirect(`${normalizedPrefix}/login`, 302)
       }
 
       if (ctx.pathname === activePrefix && activePrefix !== '/') {

@@ -13,7 +13,7 @@ import { ENV_PARAMS, File } from './constants'
 import { checkAndCreateDirSync } from './utils'
 import { assertSafePathSegment } from './utils/pathSecurity'
 import { isValidHttpHeaderName, normalizeTrustedProxyAddresses } from './server/core/context'
-import { parseCacheSizeLimitMb, parseConfigFile } from './utils/configLoader'
+import { parseCacheSizeLimitMb, parseConfigFile, parseListenPort } from './utils/configLoader'
 import { hashPassword, isPasswordHash } from './utils/passwordHash'
 import { revokeSessionsForConfigChange } from './server/auth'
 import { beginDataRequest, endDataRequest } from './server/dataOperationLock'
@@ -271,8 +271,8 @@ const applyEnvironmentConfig = () => {
     global.lx.config['user.enableRoot'] = envParams.USER_ENABLE_ROOT === 'true'
   }
   if (envParams.PORT) {
-    const port = parseInt(envParams.PORT, 10)
-    if (!isNaN(port) && port > 0) global.lx.config.port = port
+    const port = parseListenPort(envParams.PORT)
+    if (port !== undefined) global.lx.config.port = port
   }
   if (envParams.BIND_IP) {
     global.lx.config.bindIP = envParams.BIND_IP

@@ -7,7 +7,7 @@ import {
   apiNoStoreMiddleware,
   type Middleware,
 } from '../core'
-import { verifyAdminAuth, checkPlayerAuthSession } from '../auth'
+import { canAccessPlayer } from '../auth'
 import { createAuthRouter } from './auth'
 import { createSystemRouter } from './system'
 import { createUserRouter } from './user'
@@ -33,10 +33,8 @@ const PLAYER_AUTH_EXEMPT_PATHS = new Set([
  * 管理员会话 Cookie 始终放行。
  */
 const playerApiAuthMiddleware: Middleware = async (ctx, next) => {
-  if (!global.lx?.config?.['player.enableAuth']) return next()
   if (PLAYER_AUTH_EXEMPT_PATHS.has(ctx.pathname)) return next()
-  if (checkPlayerAuthSession(ctx.cookies)) return next()
-  if (verifyAdminAuth(ctx.request)) return next()
+  if (canAccessPlayer(ctx.request, ctx.cookies)) return next()
   return ctx.fail(401, '播放器登录状态已失效，请重新登录')
 }
 

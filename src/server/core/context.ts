@@ -5,6 +5,10 @@ export interface ContextOptions {
   remoteAddress?: string
 }
 
+export const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-cache, no-store, must-revalidate',
+} as const
+
 const firstHeaderValue = (value: string | null): string | null => {
   const first = value?.split(',')[0]?.trim()
   return first || null
@@ -387,8 +391,8 @@ export class HttpContext {
    * 形状固定为 { code, message, success: false }：code 与 HTTP 状态码一致，
    * message 为可直接展示给用户的中文文案。
    */
-  fail(status: number, message: string, extra?: Record<string, unknown>): Response {
-    return this.json({ code: status, message, success: false, ...extra }, status)
+  fail(status: number, message: string, extra?: Record<string, unknown>, headers?: HeadersInit): Response {
+    return this.json({ code: status, message, success: false, ...extra }, status, headers)
   }
 
   /** 构造文本响应 */
