@@ -27,7 +27,8 @@ const testUserDir = path.join(testDataDir, 'users')
   },
 }
 
-const { createSystemRouter, reloadServerData } = await import('@/server/routes/system')
+const { createSystemRouter } = await import('@/server/routes/system')
+const { reloadServerData } = await import('@/server/routes/systemConfig')
 
 describe('System Routes (routes/system.ts)', () => {
   beforeEach(() => {
