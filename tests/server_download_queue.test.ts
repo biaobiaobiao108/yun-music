@@ -396,6 +396,46 @@ for (const cancellationPhase of ['resolver', 'download'] as const) {
   })
 }
 
+test('passes the task abort signal through the resolver so pausing cancels music resolution', async () => {
+  const previousLx = global.lx
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lx-download-resolver-abort-'))
+  const checkCache = spyOn(fileCache, 'checkCache').mockReturnValue({ exists: false } as any)
+  const username = 'resolver-abort-user'
+  let resolverSignal: AbortSignal | undefined
+  let resolverEntered!: () => void
+  const entered = new Promise<void>(resolve => {
+    resolverEntered = resolve
+  })
+
+  try {
+    global.lx = { dataPath: root, config: {} } as typeof global.lx
+    initialize(async (_task, signal) => {
+      resolverSignal = signal
+      resolverEntered()
+      await new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+      })
+      return { url: 'https://example.com/song' }
+    })
+    enqueue(username, [{ id: 'abort-resolver', songInfo: { id: 'abort-resolver' }, quality: 'flac' }])
+    await entered
+    pause(username)
+
+    expect(resolverSignal?.aborted).toBe(true)
+    const deadline = Date.now() + 3000
+    while (list(username)[0]?.status !== 'paused' && Date.now() < deadline) await Bun.sleep(10)
+    expect(list(username)[0]?.status).toBe('paused')
+  } finally {
+    await suspendUser(username)
+    await removeUser(username)
+    releaseUser(username)
+    await Bun.sleep(220)
+    checkCache.mockRestore()
+    global.lx = previousLx
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 describe('Server download queue retention', () => {
   test('caps terminal history per user while retaining active and resumable tasks', () => {
     const history = Array.from({ length: 5 }, (_, index) => makeTask('user-a', `finished-${index}`, 'finished', index))

@@ -101,7 +101,7 @@ const runTask = async (task: ServerDownloadTask) => {
             downloadSource: task.downloadSource,
             sourceName: task.sourceName,
           }
-        : await resolver(task)
+        : await resolver(task, controller.signal)
     if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
     if (!resolved || (!resolved.url && !hasReusableCache)) throw new Error('无法解析下载地址')
 
@@ -143,7 +143,7 @@ const runTask = async (task: ServerDownloadTask) => {
       console.warn(
         `[ServerDownloadQueue] Local cache or supplied URL failed for ${task.songKey}; refreshing source once`,
       )
-      resolved = await resolver(task)
+      resolved = await resolver(task, controller.signal)
       if (markDownloadTaskPausedIfAborted(task, controller.signal.aborted)) return
       if (!resolved?.url) throw firstError
       await downloadResolvedSong(resolved)

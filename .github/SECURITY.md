@@ -7,15 +7,15 @@
 
 | 版本 | 是否支持安全更新 |
 | :--- | :--------------- |
-| v1.x（当前最新已发布版本线，v1.9.0） | ✅ |
+| v2.x（当前版本线） | ✅ |
 | 更早主版本 | ❌ |
 
 ## 漏洞报告 (Reporting a Vulnerability)
 
 **发现严重的安全漏洞时，请不要公开提交 Issue！**
 
-请直接发送邮件与我们取得联系：
-📧 **[xcq0607@gmail.com](mailto:xcq0607@gmail.com)**
+当前仓库未启用 GitHub 私密漏洞报告。请先通过维护者的 GitHub 主页确认联系方式，再私下报告：
+**[github.com/biaobiaobiao108](https://github.com/biaobiaobiao108)**
 
 报告中请尽量包含以下信息：
 

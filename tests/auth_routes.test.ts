@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, afterAll } from 'bun:tes
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { closeDb, getDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user/data'
 import { hashPassword } from '@/utils/passwordHash'
@@ -155,6 +156,37 @@ describe('Web Cookie Authentication', () => {
 
     expect(admin.status).toBe(200)
     expect(player.status).toBe(200)
+  })
+
+  test('admin, player and user login reject empty passwords before hash verification', async () => {
+    const lxGlobal = (global as any).lx
+    const salt = '0123456789abcdef0123456789abcdef'
+    const digest = crypto.scryptSync('', salt, 64).toString('hex')
+    const emptyPasswordHash = `scrypt$${salt}$${digest}`
+    lxGlobal.config['frontend.passwordHash'] = emptyPasswordHash
+    lxGlobal.config['player.passwordHash'] = emptyPasswordHash
+    lxGlobal.config.users = [{ name: 'empty_password_user', passwordHash: emptyPasswordHash }]
+    delete lxGlobal.config['frontend.password']
+    delete lxGlobal.config['player.password']
+    await syncUsersToDatabase(lxGlobal.config.users)
+    const router = createAuthRouter()
+    const routes = [
+      { path: '/api/login', body: { password: '' } },
+      { path: '/api/user/login', body: { username: 'empty_password_user', password: '' } },
+      { path: '/api/music/auth', body: { password: '' } },
+    ]
+
+    for (const route of routes) {
+      const response = await router.handle(
+        new Request(`http://localhost${route.path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(route.body),
+        }),
+        { remoteAddress: '192.0.2.45' },
+      )
+      expect(response.status).toBe(400)
+    }
   })
 
   test('password calculation overload is bounded across IPs and reports 503', async () => {

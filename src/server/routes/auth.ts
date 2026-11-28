@@ -151,7 +151,7 @@ const handleAdminLogin = async (ctx: HttpContext): Promise<Response> => {
   try {
     const ip = ctx.remoteAddress || 'unknown'
     const { password } = await ctx.bodyJson<{ password?: string }>(64 * 1024)
-    if (typeof password !== 'string' || password.length > 1024) {
+    if (typeof password !== 'string' || password.length === 0 || password.length > 1024) {
       return ctx.fail(400, '密码格式错误')
     }
     if (!reserveLoginAttempt(ip)) return loginRateLimitedResponse(ctx)
@@ -233,6 +233,7 @@ export const createAuthRouter = (): Router => {
         typeof username !== 'string' ||
         username.length > 128 ||
         typeof password !== 'string' ||
+        password.length === 0 ||
         password.length > 1024
       ) {
         return ctx.fail(400, '用户名或密码格式错误')
@@ -295,7 +296,7 @@ export const createAuthRouter = (): Router => {
     try {
       const ip = ctx.remoteAddress || 'unknown'
       const { password } = payload
-      if (typeof password !== 'string' || password.length > 1024) {
+      if (typeof password !== 'string' || password.length === 0 || password.length > 1024) {
         return ctx.fail(400, '密码格式错误')
       }
       if (!reserveLoginAttempt(ip, 'player')) return loginRateLimitedResponse(ctx)

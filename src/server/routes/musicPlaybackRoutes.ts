@@ -9,34 +9,15 @@ import { canReadPublicLocalMusic } from '../localMusicAccess'
 import { issueDownloadToken } from '../downloadToken'
 import { assertSafeRemoteHttpUrl } from '../networkSecurity'
 import { formatBytes, getAudioRemoteSize } from '../services/musicAudioProbe'
-import { handleMusicProgress, sendMusicProgress } from './musicProgress'
 import { MAX_MUSIC_JSON_BODY_BYTES } from './musicRouteShared'
 
 export const createMusicPlaybackRouter = (): Router => {
   const router = new Router()
 
-  // 7. 音乐解析进度 SSE 端点 (无需登录, 用 reqId 区分)
-  router.get('/api/music/progress', handleMusicProgress)
-
-  // 8. 音乐播放 URL 解析 API
+  // 7. 音乐播放 URL 解析 API
   router.post('/api/music/url', async ctx => {
     const urlStartedAt = performance.now()
     const verifiedUsername = verifyUserAuth(ctx) || 'open'
-
-    const rawReqId = ctx.headers.get('x-req-id')?.trim() || ''
-    const reqId = /^[A-Za-z0-9_-]{8,128}$/.test(rawReqId) ? rawReqId : undefined
-
-    let sseActive = true
-    const pushProgress = async (attempt: any, retries = 2): Promise<void> => {
-      if (!reqId || !sseActive) return
-      if (sendMusicProgress(reqId, attempt)) return
-      if (retries > 0) {
-        await new Promise(r => setTimeout(r, 100))
-        await pushProgress(attempt, retries - 1)
-      } else {
-        sseActive = false
-      }
-    }
 
     try {
       let { songInfo, quality, enableAutoSwitchApiSource } = await ctx.bodyJson<{
@@ -97,18 +78,15 @@ export const createMusicPlaybackRouter = (): Router => {
 
       if (isSourceSupported(source, verifiedUsername)) {
         try {
-          console.log(
-            `[MusicUrl] Using custom source for: ${source} (ReqId: ${reqId || 'None'}, User: ${verifiedUsername})`,
-          )
+          console.log(`[MusicUrl] Using custom source for: ${source} (User: ${verifiedUsername})`)
           const userApiResult = await callUserApiGetMusicUrl(
             source,
             songInfo,
             quality || '128k',
             verifiedUsername,
-            attempt => {
-              void pushProgress(attempt)
-            },
+            undefined,
             enableAutoSwitchApiSource !== false,
+            ctx.request.signal,
           )
           result = userApiResult
           attempts = userApiResult.attempts || []
@@ -117,12 +95,6 @@ export const createMusicPlaybackRouter = (): Router => {
           customSourceError = userApiError.message
           attempts = userApiError.attempts || []
         }
-      } else {
-        void pushProgress({
-          name: '系统',
-          status: 'fail',
-          message: `未找到支持 ${source} 平台的自定义源，请联系管理员配置或启用对应音源`,
-        })
       }
 
       if (!result) {
@@ -169,13 +141,14 @@ export const createMusicPlaybackRouter = (): Router => {
         'Server-Timing': `cache;dur=${cacheDurationMs.toFixed(1)}, resolve;dur=${(performance.now() - resolveStartedAt).toFixed(1)}, total;dur=${(performance.now() - urlStartedAt).toFixed(1)}`,
       })
     } catch (err: any) {
+      if (ctx.request.signal.aborted || err?.name === 'AbortError') return new Response(null, { status: 499 })
       console.error('[MusicUrl] Error:', err.message)
       const status = err.code === 422 ? 422 : 500
       return ctx.fail(status, toUserMessage(err, '解析歌曲失败，请稍后重试'), { attempts: err.attempts })
     }
   })
 
-  // 9. 音质真实文件大小 API
+  // 8. 音质真实文件大小 API
   router.post('/api/music/quality/size', async ctx => {
     const verifiedUsername = verifyUserAuth(ctx) || 'open'
 
@@ -186,7 +159,7 @@ export const createMusicPlaybackRouter = (): Router => {
         throw new Error('Invalid quality size request')
       }
 
-      const result = await resolveServerSong(songInfo, quality, verifiedUsername, false)
+      const result = await resolveServerSong(songInfo, quality, verifiedUsername, false, ctx.request.signal)
       const bytes = await getAudioRemoteSize(result.url)
       if (!bytes) throw new Error('无法读取真实文件大小')
 
@@ -200,6 +173,7 @@ export const createMusicPlaybackRouter = (): Router => {
         sourceName: result.sourceName,
       })
     } catch (err: any) {
+      if (ctx.request.signal.aborted || err?.name === 'AbortError') return new Response(null, { status: 499 })
       console.error('[QualitySize] Error:', err.message)
       return ctx.fail(500, toUserMessage(err, '服务器内部错误，请稍后重试'))
     }

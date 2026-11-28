@@ -5,7 +5,7 @@ import * as path from 'node:path'
 import * as vm from 'node:vm'
 import { extractMetadata, type UserApiInfo } from './metadata'
 import { createLxRequest, decontextify } from './request'
-import { loadedApis } from './registry'
+import { getApiKey, loadedApis } from './registry'
 
 const USER_API_SYNC_TIMEOUT_MS = 5_000
 const USER_API_REQUEST_TIMEOUT_MS = 60_000
@@ -348,11 +348,13 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
       info: { ...fullApiInfo, sources: registeredSources },
       handlers: eventHandlers,
       dispose,
-      callRequest: async (action: string, source: string, info: any) => {
+      callRequest: async (action: string, source: string, info: any, signal?: AbortSignal) => {
         const scopedAborts = new Set<() => void>()
         let abortRequestsStartedByCall: (() => void) | undefined
+        let removeAbortListener: (() => void) | undefined
         try {
           if (disposed) throw new Error(`源 ${fullApiInfo.name} 已卸载`)
+          if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
           const handler = eventHandlers.get('request')
           if (!handler) throw new Error(`源 ${fullApiInfo.name} 未注册 request 处理器`)
 
@@ -393,7 +395,7 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
 
           let requestTimeout: ReturnType<typeof setTimeout> | undefined
           try {
-            const result = await Promise.race([
+            const pendingRequests: Promise<unknown>[] = [
               Promise.resolve(handlerResult),
               new Promise<never>((_, reject) => {
                 requestTimeout = setTimeout(() => {
@@ -402,12 +404,27 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
                 }, USER_API_REQUEST_TIMEOUT_MS)
                 requestTimeout.unref?.()
               }),
-            ])
+            ]
+            if (signal) {
+              pendingRequests.push(
+                new Promise<never>((_, reject) => {
+                  const onAbort = () => {
+                    abortRequestsStartedByCall?.()
+                    reject(new DOMException('Aborted', 'AbortError'))
+                  }
+                  signal.addEventListener('abort', onAbort, { once: true })
+                  removeAbortListener = () => signal.removeEventListener('abort', onAbort)
+                }),
+              )
+            }
+            const result = await Promise.race(pendingRequests)
             return decontextify(result)
           } finally {
             if (requestTimeout) clearTimeout(requestTimeout)
+            removeAbortListener?.()
           }
         } catch (e: any) {
+          if (e?.name === 'AbortError') throw e
           if (/Script execution timed out after 5000ms/.test(String(e?.message || ''))) {
             abortRequestsStartedByCall?.()
             throw new Error('自定义源同步处理超时')
@@ -419,7 +436,7 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
     }
 
     if (apiInfo.persist !== false) {
-      loadedApis.set(`${fullApiInfo.owner}_${apiInfo.id}`, apiInstance)
+      loadedApis.set(getApiKey(fullApiInfo.owner, apiInfo.id), apiInstance)
     }
     console.log(`[UserApi] ✓ 成功加载: ${fullApiInfo.name} v${fullApiInfo.version} (Owner: ${fullApiInfo.owner})`)
     console.log(`[UserApi]   支持源: ${Object.keys(registeredSources).join(', ')}`)

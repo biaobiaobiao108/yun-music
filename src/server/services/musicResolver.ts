@@ -194,7 +194,9 @@ export const resolveServerSong = async (
   requestedQuality: string,
   username: string,
   allowQualityFallback: boolean,
+  signal?: AbortSignal,
 ): Promise<ServerSongResolveResult> => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const originalSong = normalizeSongInfo({ ...rawSongInfo })
   if (!originalSong?.source) throw new Error('Missing song source')
   if (isRetiredOnlineSource(originalSong.source)) {
@@ -206,12 +208,13 @@ export const resolveServerSong = async (
 
   const tryCandidates = async (quality: string, rawCandidates: any[]) => {
     for (const rawCandidate of rawCandidates) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
       const candidate = normalizeSongInfo({ ...rawCandidate })
       const source = candidate?.source
       if (!source || !isSourceSupported(source, username)) continue
 
       try {
-        const result = await callUserApiGetMusicUrl(source, candidate, quality, username, undefined, true)
+        const result = await callUserApiGetMusicUrl(source, candidate, quality, username, undefined, true, signal)
         if (!result?.url) throw new Error('audio source returned no URL')
         return {
           url: result.url,
@@ -222,6 +225,7 @@ export const resolveServerSong = async (
           sourceName: result.sourceName,
         }
       } catch (err: any) {
+        if (signal?.aborted || err?.name === 'AbortError') throw err
         errors.push(`${source}/${quality}: ${err?.message || 'resolve failed'}`)
       }
     }
@@ -231,7 +235,9 @@ export const resolveServerSong = async (
   const originalResult = await tryCandidates(requestedQuality, [originalSong])
   if (originalResult) return originalResult
 
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const matches = await findServerSourceMatches(originalSong, username)
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const switchedResult = await tryCandidates(requestedQuality, matches)
   if (switchedResult) return switchedResult
 

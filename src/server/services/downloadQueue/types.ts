@@ -53,7 +53,7 @@ export interface ResolveResult {
   sourceName?: string
 }
 
-export type DownloadResolver = (task: ServerDownloadTask) => Promise<ResolveResult>
+export type DownloadResolver = (task: ServerDownloadTask, signal: AbortSignal) => Promise<ResolveResult>
 
 export const DEFAULT_CONCURRENT = 3
 export const MAX_CONCURRENT_PER_USER = 5

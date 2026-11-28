@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { assertSafePathSegment, resolveInside } from '@/utils/pathSecurity'
 import { extractMetadata, type UserApiInfo } from './metadata'
-import { apiStatus, loadedApis } from './registry'
+import { apiStatus, getApiKey, loadedApis } from './registry'
 import { loadUserApi } from './runtime'
 
 function writeJsonFileAtomic(filePath: string, value: unknown): void {
@@ -48,7 +48,7 @@ async function loadSourcesFromDir(dirPath: string, owner: string, stats: { loade
     for (const source of sources) {
       if (!source.enabled) {
         console.log(`[UserApi] [${owner}] 跳过已禁用: ${source.name}`)
-        apiStatus.delete(`${owner}_${source.id}`)
+        apiStatus.delete(getApiKey(owner, source.id))
         continue
       }
 
@@ -84,7 +84,7 @@ async function loadSourcesFromDir(dirPath: string, owner: string, stats: { loade
 
         if (result.success) {
           stats.loadedCount++
-          apiStatus.set(`${owner}_${source.id}`, { status: 'success' })
+          apiStatus.set(getApiKey(owner, source.id), { status: 'success' })
 
           // [Self-Healing] 检查并修复 supportedSources
           const runtimeSources = Object.keys(result.apiInstance.info.sources).sort()
@@ -104,11 +104,11 @@ async function loadSourcesFromDir(dirPath: string, owner: string, stats: { loade
           }
         } else {
           console.error(`[UserApi] [${owner}] 加载 ${metadata.name || source.name} 失败: ${result.error}`)
-          apiStatus.set(`${owner}_${source.id}`, { status: 'failed', error: result.error })
+          apiStatus.set(getApiKey(owner, source.id), { status: 'failed', error: result.error })
         }
       } catch (error: any) {
         console.error(`[UserApi] [${owner}] 加载 ${source.name} 失败:`, error.message)
-        apiStatus.set(`${owner}_${source.id}`, { status: 'failed', error: error.message })
+        apiStatus.set(getApiKey(owner, source.id), { status: 'failed', error: error.message })
       }
     }
 
@@ -251,8 +251,9 @@ async function initUserApisInternal(targetUser?: string) {
     // 清理该用户的旧源和状态
     await disposeLoadedApis(targetUser)
     await clearReloadRelatedCaches(targetUser)
+    const statusPrefix = getApiKey(targetUser, '')
     for (const key of apiStatus.keys()) {
-      if (key.startsWith(`${targetUser}_`)) {
+      if (key.startsWith(statusPrefix)) {
         apiStatus.delete(key)
       }
     }
@@ -311,8 +312,9 @@ export function initUserApis(targetUser?: string) {
 export const reloadUserCustomSources = async (oldOwner: string, newOwner?: string): Promise<void> => {
   await disposeLoadedApis(oldOwner)
   await clearReloadRelatedCaches(oldOwner)
+  const statusPrefix = getApiKey(oldOwner, '')
   for (const key of apiStatus.keys()) {
-    if (key.startsWith(`${oldOwner}_`)) apiStatus.delete(key)
+    if (key.startsWith(statusPrefix)) apiStatus.delete(key)
   }
   if (newOwner) await initUserApis(newOwner)
 }

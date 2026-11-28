@@ -202,11 +202,16 @@ export async function callUserApiGetMusicUrl(
           `[UserApi] 尝试 ${api.info.name} 获取 ${source} 音乐链接 (第 ${i + 1}/${maxRetries} 次, Owner: ${api.info.owner})`,
         )
 
-        const url = await api.callRequest('musicUrl', source, {
-          musicInfo: normalizedSongInfo,
-          quality: quality,
-          type: quality,
-        })
+        const url = await api.callRequest(
+          'musicUrl',
+          source,
+          {
+            musicInfo: normalizedSongInfo,
+            quality: quality,
+            type: quality,
+          },
+          signal,
+        )
 
         console.log(`[UserApi] ✓ ${api.info.name} 成功返回链接 (Owner: ${api.info.owner})`)
         const att = { name: api.info.name, status: 'success', message: `第 ${i + 1} 次尝试成功` }
@@ -238,11 +243,16 @@ export async function callUserApiGetMusicUrl(
       try {
         console.log(`[UserApi] 尝试 ${api.info.name} 获取 ${source} 音乐链接 (Owner: ${api.info.owner})`)
 
-        const url = await api.callRequest('musicUrl', source, {
-          musicInfo: normalizedSongInfo,
-          quality: quality,
-          type: quality,
-        })
+        const url = await api.callRequest(
+          'musicUrl',
+          source,
+          {
+            musicInfo: normalizedSongInfo,
+            quality: quality,
+            type: quality,
+          },
+          signal,
+        )
 
         console.log(`[UserApi] ✓ ${api.info.name} 成功返回链接 (Owner: ${api.info.owner})`)
         const att = { name: api.info.name, status: 'success' }

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { closeDb } from '@/database'
 
 const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-auth-test-'))
@@ -15,7 +16,7 @@ const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yun-yin-auth-test-'))
   },
 }
 
-const { verifyAdminAuth, createAdminSession, getCookieValue, ADMIN_SESSION_COOKIE_NAME } =
+const { verifyAdminAuth, verifyConfiguredPassword, createAdminSession, getCookieValue, ADMIN_SESSION_COOKIE_NAME } =
   await import('../src/server/auth')
 
 describe('Admin Authentication Security (verifyAdminAuth)', () => {
@@ -60,6 +61,14 @@ describe('Admin Authentication Security (verifyAdminAuth)', () => {
       headers: {},
     } as any
     expect(verifyAdminAuth(mockReq2)).toBe(false)
+  })
+
+  it('rejects an empty supplied password even if the stored hash was created from an empty value', async () => {
+    const salt = '0123456789abcdef0123456789abcdef'
+    const digest = crypto.scryptSync('', salt, 64).toString('hex')
+    const emptyPasswordHash = `scrypt$${salt}$${digest}`
+
+    expect(await verifyConfiguredPassword('', emptyPasswordHash, '')).toBe(false)
   })
 
   it('should reject query-string and legacy header authentication', () => {

@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import crypto from 'node:crypto'
 import {
   hashPassword,
   isPasswordHash,
@@ -32,4 +33,13 @@ test('scrypt work has a process-wide concurrency and queue bound', async () => {
   expect(rejected).toHaveLength(1)
   expect(rejected[0]?.status === 'rejected' && rejected[0].reason).toBeInstanceOf(PasswordHashCapacityError)
   expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(jobCount - 1)
+})
+
+test('never accepts an empty password even when its scrypt hash is valid', async () => {
+  const salt = '0123456789abcdef0123456789abcdef'
+  const digest = crypto.scryptSync('', salt, 64).toString('hex')
+  const emptyPasswordHash = `scrypt$${salt}$${digest}`
+
+  expect(isPasswordHash(emptyPasswordHash)).toBe(true)
+  expect(await verifyPasswordHash(emptyPasswordHash, '')).toBe(false)
 })

@@ -8,6 +8,8 @@ import { ADMIN_SESSION_COOKIE_NAME, createAdminSession, USER_SESSION_COOKIE_NAME
 import { userSessions } from '@/server/routes/auth'
 import { createCustomSourceRouter } from '@/server/routes/customSource'
 import * as networkSecurity from '@/server/networkSecurity'
+import { apiStatus, getApiKey, loadedApis } from '@/server/services/customSources/registry'
+import { disposeLoadedApis, getApiStatus, getLoadedApis, loadUserApi } from '@/server/userApi'
 import { closeDb, getDb, initDatabase } from '@/database'
 import { syncUsersToDatabase } from '@/user'
 
@@ -45,6 +47,44 @@ describe('Custom Source Security and Isolation', () => {
     try {
       fs.rmSync(tempRoot, { recursive: true, force: true })
     } catch {}
+  })
+
+  test('custom source keys remain isolated when owner and source boundaries overlap', async () => {
+    await disposeLoadedApis()
+    apiStatus.clear()
+    const makeSource = (id: string, name: string, owner: string) => ({
+      id,
+      name,
+      description: '',
+      version: 1,
+      author: '',
+      homepage: '',
+      script: `/*! @name ${name} */\nlx.on('request', () => 'https://example.test/audio')\nlx.send('inited', { sources: { test: {} } })`,
+      sources: {},
+      enabled: true,
+      owner,
+    })
+
+    try {
+      const first = makeSource('b_c.js', 'First Source', 'a')
+      const second = makeSource('c.js', 'Second Source', 'a_b')
+      expect((await loadUserApi(first)).success).toBe(true)
+      expect((await loadUserApi(second)).success).toBe(true)
+      expect(loadedApis.size).toBe(2)
+      expect(getLoadedApis()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'b_c.js', owner: 'a' }),
+          expect.objectContaining({ id: 'c.js', owner: 'a_b' }),
+        ]),
+      )
+      apiStatus.set(getApiKey('a', 'b_c.js'), { status: 'success' })
+      apiStatus.set(getApiKey('a_b', 'c.js'), { status: 'success' })
+      expect(getApiStatus('a', 'b_c.js')?.status).toBe('success')
+      expect(getApiStatus('a_b', 'c.js')?.status).toBe('success')
+    } finally {
+      await disposeLoadedApis()
+      apiStatus.clear()
+    }
   })
 
   test('custom source mutations require admin and admin reorder does not tamper with public metadata', async () => {
@@ -557,6 +597,38 @@ describe('Custom Source Security and Isolation', () => {
     } finally {
       remoteFetch.mockRestore()
       lookup.mockRestore()
+    }
+  })
+
+  test('custom source requests reject when the caller aborts its signal', async () => {
+    const { loadUserApi } = await import('@/server/userApi')
+    const { success, apiInstance } = await loadUserApi({
+      id: 'test_abort_source.js',
+      name: 'Test Abort Source',
+      description: 'Testing request cancellation',
+      version: 1,
+      author: 'Tester',
+      homepage: '',
+      script: `
+        lx.on('request', () => new Promise(resolve => setTimeout(() => resolve('late'), 1000)))
+        lx.send('inited', { status: true, sources: {} })
+      `,
+      sources: {},
+      enabled: true,
+      owner: 'open',
+      persist: false,
+    })
+
+    expect(success).toBe(true)
+    try {
+      const controller = new AbortController()
+      const startedAt = Date.now()
+      const pending = apiInstance.callRequest('test', 'test_src', {}, controller.signal)
+      setTimeout(() => controller.abort(), 10)
+      await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+      expect(Date.now() - startedAt).toBeLessThan(500)
+    } finally {
+      await apiInstance.dispose()
     }
   })
 

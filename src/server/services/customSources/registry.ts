@@ -4,8 +4,10 @@ import type { UserApiInfo } from './metadata'
 export const loadedApis = new Map<string, any>()
 export const apiStatus = new Map<string, { status: 'success' | 'failed'; error?: string }>()
 
+export const getApiKey = (owner: string, id: string): string => `${owner.length}:${owner}${id}`
+
 export function getApiStatus(owner: string, id: string) {
-  return apiStatus.get(`${owner}_${id}`)
+  return apiStatus.get(getApiKey(owner, id))
 }
 
 export function getLoadedApis(): Array<UserApiInfo & Record<string, unknown>> {

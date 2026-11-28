@@ -1,5 +1,6 @@
 import { assertSafeRemoteHttpUrl, fetchSafeRemote } from '../../networkSecurity'
 import { acquireBufferedRequestBudget } from '../../resourceBudget'
+import { getApiKey } from './registry'
 export function decontextify(obj: any, seen = new WeakMap<object, any>()): any {
   if (obj === null || obj === undefined) return obj
 
@@ -123,7 +124,7 @@ const normalizeUserApiTimerDelay = (delay: unknown, fallback = 0): number => {
 const apiStatus = new Map<string, { status: 'success' | 'failed'; error?: string }>()
 
 export function getApiStatus(owner: string, id: string) {
-  return apiStatus.get(`${owner}_${id}`)
+  return apiStatus.get(getApiKey(owner, id))
 }
 
 // 从脚本注释中提取元数据

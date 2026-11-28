@@ -47,6 +47,7 @@ export const verifyConfiguredPassword = async (
   passwordHash: unknown,
   legacyPassword: unknown,
 ): Promise<boolean> => {
+  if (typeof password !== 'string' || password.length === 0) return false
   if (isPasswordHash(passwordHash)) return verifyPasswordHash(passwordHash, password)
   return safeStringEqual(password, legacyPassword)
 }

@@ -66,7 +66,8 @@ export const isPasswordHash = (value: unknown): value is string =>
   typeof value === 'string' && PASSWORD_HASH_PATTERN.test(value)
 
 export const verifyPasswordHash = async (passwordHash: string | undefined, password: unknown): Promise<boolean> => {
-  if (!isPasswordHash(passwordHash) || typeof password !== 'string' || password.length > 1024) return false
+  if (!isPasswordHash(passwordHash) || typeof password !== 'string' || password.length === 0 || password.length > 1024)
+    return false
   const [, salt, expectedHex] = passwordHash.split('$')
   try {
     const actual = await runScrypt(password, salt)

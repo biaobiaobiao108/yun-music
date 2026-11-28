@@ -137,10 +137,10 @@ export const initMusicServices = async (): Promise<void> => {
   }
 
   // 5. 绑定服务端后台下载队列解析器
-  serverDownloadQueue.initialize(async task => {
+  serverDownloadQueue.initialize(async (task, signal) => {
     const songInfo = normalizeSongInfo(task.songInfo)
     const apiUsername = task.username === '_open' ? 'open' : task.username
-    const resolved = await resolveServerSong(songInfo, task.requestedQuality, apiUsername, true)
+    const resolved = await resolveServerSong(songInfo, task.requestedQuality, apiUsername, true, signal)
     return {
       url: resolved.url,
       quality: resolved.quality,
