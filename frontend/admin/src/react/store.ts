@@ -51,14 +51,10 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : '操作失败，请稍后重试'
 }
 
+import { isAbortError } from '../../../shared/src/http'
+
 let loadSequence = 0
 let activeLoadController: AbortController | null = null
-
-function isAbortError(error: unknown): boolean {
-  return Boolean(
-    error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError',
-  )
-}
 
 export const useAdminStore = create<AdminState>((set, get) => ({
   authenticated: false,

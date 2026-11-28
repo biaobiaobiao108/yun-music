@@ -235,6 +235,7 @@ async function hydratePlayHistory(setItems: (items: RecentSong[]) => void): Prom
 }
 
 let historyPollIntervalId: number | null = null
+let removeHistoryListeners: (() => void) | null = null
 
 function installHistoryListeners(): void {
   if (listenersInstalled || typeof window === 'undefined') return
@@ -243,9 +244,7 @@ function installHistoryListeners(): void {
     if (!isAccountSession() || document.visibilityState === 'hidden') return
     void useRecentStore.getState().hydrate()
   }
-  window.addEventListener('online', refresh)
-  document.addEventListener('visibilitychange', refresh)
-  window.addEventListener('storage', event => {
+  const onStorage = (event: StorageEvent) => {
     if (!isAccountSession()) return
     if (event.key?.startsWith(eventPrefix())) scheduleHistorySync()
     if (event.key === snapshotKey() && event.newValue) {
@@ -257,9 +256,22 @@ function installHistoryListeners(): void {
         console.warn('[Recent] 同步其他标签页失败：', error)
       }
     }
-  })
+  }
+  window.addEventListener('online', refresh)
+  document.addEventListener('visibilitychange', refresh)
+  window.addEventListener('storage', onStorage)
   if (historyPollIntervalId !== null) window.clearInterval(historyPollIntervalId)
   historyPollIntervalId = window.setInterval(refresh, 30000)
+  removeHistoryListeners = () => {
+    window.removeEventListener('online', refresh)
+    document.removeEventListener('visibilitychange', refresh)
+    window.removeEventListener('storage', onStorage)
+    if (historyPollIntervalId !== null) {
+      window.clearInterval(historyPollIntervalId)
+      historyPollIntervalId = null
+    }
+    listenersInstalled = false
+  }
 }
 
 export function appendPlayHistory(song: Song, quality?: string): RecentSong[] {
@@ -319,6 +331,8 @@ export const useRecentStore = create<RecentState>((set, get) => ({
     historySyncPromise = null
     if (historySyncTimer) clearTimeout(historySyncTimer)
     historySyncTimer = null
+    removeHistoryListeners?.()
+    removeHistoryListeners = null
     set({ items: [] })
   },
 }))

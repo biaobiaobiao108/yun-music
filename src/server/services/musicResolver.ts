@@ -15,67 +15,9 @@ export interface ServerSongResolveResult {
   sourceName?: string
 }
 
-/**
- * 规范化歌曲信息，确保收藏列表中的 meta 属性在根节点也可用
- */
-export const normalizeSongInfo = (songInfo: any) => {
-  if (!songInfo) return songInfo
-  const meta = songInfo.meta || {}
+import { normalizeSongInfo } from './songInfo'
 
-  // 1. 处理音质信息 (types / _types)
-  if (!songInfo.types && meta) {
-    songInfo.types = meta.qualitys || meta.types
-  }
-  if (!songInfo._types && meta) {
-    songInfo._types = meta._qualitys || meta._types
-  }
-
-  // 2. 处理基础字段备用根节点映射
-  if (!songInfo.albumName && meta.albumName) songInfo.albumName = meta.albumName
-  if (!songInfo.albumId && meta.albumId) songInfo.albumId = meta.albumId
-  if (!songInfo.img && meta.picUrl) songInfo.img = meta.picUrl
-  if (!songInfo.name && meta.name) songInfo.name = meta.name
-  if (!songInfo.singer && meta.singer) songInfo.singer = meta.singer
-  if (!songInfo.source && meta.source) songInfo.source = meta.source
-  if (!songInfo.interval && meta.interval) songInfo.interval = meta.interval
-
-  // 3. 处理通用 ID 转换 (id -> songmid)
-  if (!songInfo.songmid) {
-    if (meta.songId) {
-      songInfo.songmid = String(meta.songId)
-    } else if (songInfo.id) {
-      const rawId = String(songInfo.id)
-      const sourcePrefix = `${songInfo.source}_`
-      if (rawId.startsWith(sourcePrefix)) {
-        songInfo.songmid = rawId.slice(sourcePrefix.length)
-      } else {
-        songInfo.songmid = rawId
-      }
-    }
-  }
-  if (songInfo.songmid != null) {
-    songInfo.songmid = String(songInfo.songmid)
-  }
-
-  // 4. 针对各平台 SDK 所需的特定字段进行补全
-  switch (songInfo.source) {
-    case 'wy': // 网易
-      if (!songInfo.id && meta.songId) songInfo.id = String(meta.songId)
-      if (!songInfo.songmid && songInfo.id) songInfo.songmid = String(songInfo.id)
-      break
-
-    case 'tx': // 腾讯
-      if (!songInfo.strMediaMid && meta.strMediaMid) songInfo.strMediaMid = meta.strMediaMid
-      if (!songInfo.albumMid && meta.albumMid) songInfo.albumMid = meta.albumMid
-      const metaSongId = String(meta.songId || '')
-      if (/^\d+$/.test(metaSongId)) {
-        songInfo.songId = metaSongId
-      }
-      break
-  }
-
-  return songInfo
-}
+export { normalizeSongInfo }
 
 const AUTO_SOURCE_ORDER = ['wy', 'tx'] as const
 const SOURCE_MATCH_CACHE_TTL = 60_000

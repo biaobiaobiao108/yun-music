@@ -228,10 +228,10 @@ export class HttpContext {
     if (this._cookies) return this._cookies
     const cookieHeader = this.headers.get('cookie')
     if (!cookieHeader) {
-      this._cookies = {}
+      this._cookies = Object.create(null) as Record<string, string>
       return this._cookies
     }
-    const parsed: Record<string, string> = {}
+    const parsed = Object.create(null) as Record<string, string>
     for (const item of cookieHeader.split(';')) {
       const [key, ...rest] = item.trim().split('=')
       if (key) {

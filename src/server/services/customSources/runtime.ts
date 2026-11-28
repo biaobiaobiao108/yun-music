@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -35,6 +36,7 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
   const timeoutHandles = new Set<ReturnType<typeof setTimeout>>()
   const intervalHandles = new Set<ReturnType<typeof setInterval>>()
   const pendingRequestAborts = new Set<() => void>()
+  const callRequestAbortsStorage = new AsyncLocalStorage<Set<() => void>>()
   let registeredSources: any = {}
   let disposed = false
   let vmContext: vm.Context | null = null
@@ -43,6 +45,10 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
 
   const invokeSandboxCallback = (handler: Function, args: any[] = []): unknown => {
     if (!vmContext || !callbackScript || !sandbox) return undefined
+    const hasPrevHandler = Object.prototype.hasOwnProperty.call(sandbox, '__lxCallbackHandler')
+    const prevHandler = sandbox.__lxCallbackHandler
+    const hasPrevArgs = Object.prototype.hasOwnProperty.call(sandbox, '__lxCallbackArgs')
+    const prevArgs = sandbox.__lxCallbackArgs
     sandbox.__lxCallbackHandler = handler
     sandbox.__lxCallbackArgs = args
     try {
@@ -51,8 +57,10 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
         displayErrors: true,
       })
     } finally {
-      delete sandbox.__lxCallbackHandler
-      delete sandbox.__lxCallbackArgs
+      if (hasPrevHandler) sandbox.__lxCallbackHandler = prevHandler
+      else delete sandbox.__lxCallbackHandler
+      if (hasPrevArgs) sandbox.__lxCallbackArgs = prevArgs
+      else delete sandbox.__lxCallbackArgs
     }
   }
 
@@ -222,7 +230,12 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
       registerCleanup,
       abort => {
         pendingRequestAborts.add(abort)
-        return () => pendingRequestAborts.delete(abort)
+        const scopedAborts = callRequestAbortsStorage.getStore()
+        scopedAborts?.add(abort)
+        return () => {
+          pendingRequestAborts.delete(abort)
+          scopedAborts?.delete(abort)
+        }
       },
       invokeSandboxCallback,
       () => disposed,
@@ -336,16 +349,15 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
       handlers: eventHandlers,
       dispose,
       callRequest: async (action: string, source: string, info: any) => {
+        const scopedAborts = new Set<() => void>()
         let abortRequestsStartedByCall: (() => void) | undefined
         try {
           if (disposed) throw new Error(`源 ${fullApiInfo.name} 已卸载`)
           const handler = eventHandlers.get('request')
           if (!handler) throw new Error(`源 ${fullApiInfo.name} 未注册 request 处理器`)
 
-          const requestsBeforeCall = new Set(pendingRequestAborts)
           abortRequestsStartedByCall = () => {
-            for (const abort of pendingRequestAborts) {
-              if (requestsBeforeCall.has(abort)) continue
+            for (const abort of scopedAborts) {
               try {
                 abort()
               } catch {}
@@ -359,18 +371,25 @@ export async function loadUserApi(apiInfo: UserApiInfo): Promise<any> {
           // Run the synchronous part inside vm's interruptible
           // execution path; direct host calls would allow an
           // uploaded source to block the entire Bun event loop.
-          sandbox.__lxRequestHandler = handler
-          sandbox.__lxRequestInput = inputData
-          let handlerResult: unknown
-          try {
-            handlerResult = requestScript.runInContext(activeVmContext, {
-              timeout: USER_API_SYNC_TIMEOUT_MS,
-              displayErrors: true,
-            })
-          } finally {
-            delete sandbox.__lxRequestHandler
-            delete sandbox.__lxRequestInput
-          }
+          const handlerResult = callRequestAbortsStorage.run(scopedAborts, () => {
+            const hasPrevHandler = Object.prototype.hasOwnProperty.call(sandbox, '__lxRequestHandler')
+            const prevHandler = sandbox.__lxRequestHandler
+            const hasPrevInput = Object.prototype.hasOwnProperty.call(sandbox, '__lxRequestInput')
+            const prevInput = sandbox.__lxRequestInput
+            sandbox.__lxRequestHandler = handler
+            sandbox.__lxRequestInput = inputData
+            try {
+              return requestScript.runInContext(activeVmContext, {
+                timeout: USER_API_SYNC_TIMEOUT_MS,
+                displayErrors: true,
+              })
+            } finally {
+              if (hasPrevHandler) sandbox.__lxRequestHandler = prevHandler
+              else delete sandbox.__lxRequestHandler
+              if (hasPrevInput) sandbox.__lxRequestInput = prevInput
+              else delete sandbox.__lxRequestInput
+            }
+          })
 
           let requestTimeout: ReturnType<typeof setTimeout> | undefined
           try {

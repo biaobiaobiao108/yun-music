@@ -1,18 +1,5 @@
 import { httpFetch } from '../../request'
-// import getMusicInfo from './musicInfo'
-
-const decodeName = (str: any = '') => {
-  if (!str) return ''
-  return str
-    .replace(/&#(\d+);/g, (match: any, dec: any) => {
-      return String.fromCharCode(dec)
-    })
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-}
+import { decodeName } from '../../index'
 
 const b64DecodeUnicode = (str: any) => {
   return Buffer.from(str, 'base64').toString('utf8')
@@ -36,7 +23,7 @@ export default {
       if (body.code != 0 || !body.lyric) return Promise.reject(new Error('Get lyric failed'))
       return {
         lyric: decodeName(b64DecodeUnicode(body.lyric)),
-        tlyric: decodeName(b64DecodeUnicode(body.trans)),
+        tlyric: body.trans ? decodeName(b64DecodeUnicode(body.trans)) : '',
       }
     })
     return requestObj

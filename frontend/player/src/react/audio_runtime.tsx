@@ -253,7 +253,10 @@ export function AudioRuntime() {
   const setQuality = usePlaybackStore(state => state.setQuality)
   const recordRecent = useRecentStore(state => state.record)
   const enqueueCache = useCacheStore(state => state.enqueue)
-  const settings = useSettingsStore(state => state.settings)
+  const keepScreenAwake = useSettingsStore(state => Boolean(state.settings.keepScreenAwake))
+  const enableCrossfade = useSettingsStore(state => Boolean(state.settings.enableCrossfade))
+  const enablePreloader = useSettingsStore(state => Boolean(state.settings.enablePreloader))
+  const enableAutoSwitchSource = useSettingsStore(state => state.settings.enableAutoSwitchSource !== false)
   const userName = useAuthStore(state => state.userName)
   const [resolvedError, setResolvedError] = useState('')
   const notify = usePlayerUiStore(state => state.notify)
@@ -382,6 +385,8 @@ export function AudioRuntime() {
     return confirmedAudioPosition.current
   }
 
+  useEffect(() => () => cancelVolumeAnimation(), [])
+
   useEffect(() => {
     recoveryAttempts.current.clear()
     cacheQueued.current.clear()
@@ -391,7 +396,7 @@ export function AudioRuntime() {
   }, [userName])
 
   useEffect(() => {
-    if (!settings.keepScreenAwake || !isPlaying) return
+    if (!keepScreenAwake || !isPlaying) return
     let disposed = false
     let requesting = false
     let sentinel: ScreenWakeLockSentinel | null = null
@@ -437,13 +442,13 @@ export function AudioRuntime() {
       document.removeEventListener('visibilitychange', onVisibilityChange)
       release()
     }
-  }, [isPlaying, settings.keepScreenAwake])
+  }, [isPlaying, keepScreenAwake])
 
   const prefetchNext = () => {
     const state = usePlaybackStore.getState()
     const duration = state.duration
     if (
-      !settings.enablePreloader ||
+      !enablePreloader ||
       !state.currentSong ||
       !Number.isFinite(duration) ||
       duration <= 0 ||
@@ -489,7 +494,7 @@ export function AudioRuntime() {
       prefetchIdleHandle.current = null
       const controller = new AbortController()
       prefetchController.current = controller
-      void requestSongUrl(nextSong, quality, settings.enableAutoSwitchSource !== false, controller.signal, 'low')
+      void requestSongUrl(nextSong, quality, enableAutoSwitchSource, controller.signal, 'low')
         .catch(() => undefined)
         .finally(() => {
           if (prefetchController.current === controller) prefetchController.current = null
@@ -638,12 +643,13 @@ export function AudioRuntime() {
         audio.pause()
         return
       }
-      if (currentSong) syncMediaSessionMetadata(currentSong)
+      const activeSong = state.currentSong
+      if (activeSong) syncMediaSessionMetadata(activeSong)
       setMediaSessionPlaybackState('playing')
       emitPlaybackService({ type: 'play' })
-      if (currentSong) {
+      if (activeSong) {
         const playback = resolvedPlayback.current?.songKey === songId ? resolvedPlayback.current : null
-        const playbackUrl = playback?.url || currentSong.url || ''
+        const playbackUrl = playback?.url || activeSong.url || ''
         const cacheReference = parseCachePlaybackUrl(playbackUrl)
         if (cacheReference) {
           void playerApi
@@ -674,20 +680,21 @@ export function AudioRuntime() {
         }
       }
       const historyKey = `${songId}:${quality}`
-      if (currentSong && historyRecordedKey.current !== historyKey) {
+      if (activeSong && historyRecordedKey.current !== historyKey) {
         historyRecordedKey.current = historyKey
-        recordRecent(currentSong, quality)
+        recordRecent(activeSong, quality)
       }
     }
     const onPlaying = () => {
       if (resolvedSongKey.current !== songId) return
       const state = usePlaybackStore.getState()
-      if (audio.paused || !state.isPlaying || !state.currentSong || songKey(state.currentSong) !== songId) return
-      if (getSettings().enableServerCache && currentSong) {
-        const cacheKey = `${songKey(currentSong)}:${quality}`
+      const activeSong = state.currentSong
+      if (audio.paused || !state.isPlaying || !activeSong || songKey(activeSong) !== songId) return
+      if (getSettings().enableServerCache) {
+        const cacheKey = `${songKey(activeSong)}:${quality}`
         const playback = resolvedPlayback.current
         const cacheUrl =
-          playback?.songKey === songKey(currentSong) &&
+          playback?.songKey === songKey(activeSong) &&
           playback.quality === quality &&
           playback.url &&
           !playback.fromCache
@@ -697,7 +704,7 @@ export function AudioRuntime() {
           cacheQueued.current.add(cacheKey)
           // Reuse the URL that started playback. Resolving the source again
           // here would consume a second custom-source quota for the same song.
-          void enqueueCache(currentSong, quality, cacheUrl, {
+          void enqueueCache(activeSong, quality, cacheUrl, {
             cacheLyric: getSettings().enableServerLyricCache !== false,
             embedLyric: getSettings().embedLyricToFile !== false,
           }).catch(() => cacheQueued.current.delete(cacheKey))
@@ -930,7 +937,8 @@ export function AudioRuntime() {
       }
     }
     const reportPlaybackError = () => {
-      if (getSettings().enableAutoDegradeQuality && currentSong && !currentSong.url) {
+      const activeSong = usePlaybackStore.getState().currentSong
+      if (getSettings().enableAutoDegradeQuality && activeSong && !activeSong.url) {
         const currentQualityIndex = QUALITY_FALLBACKS.indexOf(quality)
         const nextQuality = currentQualityIndex >= 0 ? QUALITY_FALLBACKS[currentQualityIndex + 1] : undefined
         const attemptKey = `${songId}:${quality}`
@@ -953,7 +961,6 @@ export function AudioRuntime() {
       const activePlayback = resolvedPlayback.current
       const refreshKey = `url-refresh:${songId}:${quality}`
       if (
-        currentSong &&
         activePlayback?.songKey === songId &&
         activePlayback.quality === quality &&
         !activePlayback.fromCache &&
@@ -961,13 +968,13 @@ export function AudioRuntime() {
         !recoveryAttempts.current.has(refreshKey)
       ) {
         recoveryAttempts.current.add(refreshKey)
-        prefetchedUrls.delete(songUrlCacheKey(currentSong, quality))
+        prefetchedUrls.delete(songUrlCacheKey(selected, quality))
         retryController?.abort()
         retryController = new AbortController()
         const signal = retryController.signal
         setResolvedError('')
         notifyPlayback('刷新播放链接')
-        void requestSongUrl(currentSong, quality, getSettings().enableAutoSwitchSource !== false, signal, 'high', true)
+        void requestSongUrl(selected, quality, getSettings().enableAutoSwitchSource !== false, signal, 'high', true)
           .then(async result => {
             const state = usePlaybackStore.getState()
             if (
@@ -989,7 +996,7 @@ export function AudioRuntime() {
             setResolvedUrl(result.url)
             const targetPlaybackUrl = buildPlaybackUrl(
               result.url,
-              currentSong,
+              state.currentSong,
               getSettings(),
               undefined,
               result.downloadToken,
@@ -1076,7 +1083,7 @@ export function AudioRuntime() {
   }, [isPlaying, songId])
 
   useEffect(() => {
-    if (settings.enableCrossfade || (!crossfadeTransition.current && !naturalFadeKey.current)) return
+    if (enableCrossfade || (!crossfadeTransition.current && !naturalFadeKey.current)) return
     cancelVolumeAnimation()
     naturalFadeKey.current = ''
     naturalFadeNextSongKey.current = ''
@@ -1091,7 +1098,7 @@ export function AudioRuntime() {
       audio.removeAttribute('src')
       audio.load()
     }
-  }, [settings.enableCrossfade])
+  }, [enableCrossfade])
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -1136,7 +1143,7 @@ export function AudioRuntime() {
         const prefetchKey = songUrlCacheKey(currentSong, quality)
         const result = hasStoredCacheUrl
           ? { url: storedCacheUrl, fromCache: true, sourceName: '本地缓存' }
-          : await requestSongUrl(currentSong, quality, settings.enableAutoSwitchSource !== false, controller.signal)
+          : await requestSongUrl(currentSong, quality, enableAutoSwitchSource, controller.signal)
         if (cancelled || controller.signal.aborted || !isCurrentSelection()) return
         const transition = crossfadeTransition.current
         const crossfadeEnabled = Boolean(useSettingsStore.getState().settings.enableCrossfade)
@@ -1189,7 +1196,6 @@ export function AudioRuntime() {
           naturalFadeNextSongKey.current = ''
         }
         syncAudioVolume()
-        prefetchedUrls.delete(prefetchKey)
         resolvedPlayback.current = {
           songKey: songId,
           quality,
@@ -1285,7 +1291,9 @@ export function AudioRuntime() {
         crossfadeIncoming.current = false
         fadeFactor.current = 1
         syncAudioVolume()
-        audio.pause()
+        if (resolvedSongKey.current !== selectedSongKey) {
+          audio.pause()
+        }
         if (!selectedSongKey || !state.isPlaying) {
           audio.removeAttribute('src')
           audio.load()

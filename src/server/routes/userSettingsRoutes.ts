@@ -140,8 +140,12 @@ export const createUserSettingsRouter = (): Router => {
         Date.now(),
       ])
       return ctx.json({ success: true })
-    } catch {
-      return ctx.fail(400, '请求数据格式错误')
+    } catch (error) {
+      if (error instanceof Error && (error.message === 'Invalid JSON body' || error.message.includes('Body'))) {
+        return ctx.fail(400, '请求数据格式错误')
+      }
+      console.error('[User] 保存用户设置失败:', error)
+      return ctx.fail(500, '保存设置失败')
     }
   })
 
@@ -185,8 +189,12 @@ export const createUserSettingsRouter = (): Router => {
         Date.now(),
       ])
       return ctx.json({ success: true })
-    } catch {
-      return ctx.fail(400, '请求数据格式错误')
+    } catch (error) {
+      if (error instanceof Error && (error.message === 'Invalid JSON body' || error.message.includes('Body'))) {
+        return ctx.fail(400, '请求数据格式错误')
+      }
+      console.error('[User] 保存音效配置失败:', error)
+      return ctx.fail(500, '保存音效配置失败')
     }
   })
 

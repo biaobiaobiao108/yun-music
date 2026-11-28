@@ -15,6 +15,14 @@ function hasChinese(text: string): boolean {
   return /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(text)
 }
 
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : Boolean(
+        error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError',
+      )
+}
+
 export function resolveApiError(status: number, rawBody: string): string {
   const body = rawBody.trim()
   if (body) {

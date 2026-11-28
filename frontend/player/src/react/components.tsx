@@ -342,13 +342,14 @@ export const SongRow = memo(function SongRow({
 }) {
   const playSong = usePlaybackStore(state => state.playSong)
   const enqueue = usePlaybackStore(state => state.enqueue)
-  const currentSong = usePlaybackStore(state => state.currentSong)
-  const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const isCurrent = usePlaybackStore(state => Boolean(state.currentSong && sameSong(state.currentSong, song)))
+  const isPlaying = usePlaybackStore(state =>
+    Boolean(state.isPlaying && state.currentSong && sameSong(state.currentSong, song)),
+  )
   const addSong = useLibraryStore(state => state.addSong)
   const removeSong = useLibraryStore(state => state.removeSong)
   const isLoved = useLibraryStore(state => isSongInLoveList(state, song))
   const notify = usePlayerUiStore(state => state.notify)
-  const isCurrent = Boolean(currentSong && sameSong(currentSong, song))
   const toggleFavorite = () => {
     const operation = isLoved ? removeSong('love', song) : addSong('love', song)
     void operation

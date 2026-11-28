@@ -536,7 +536,9 @@ export const ensureCachedLyrics = async (
     ) {
       item.hasLyric = hasCachedLyric
       item.lyricFilename = hasCachedLyric
-        ? path.relative(getCacheDir(normalizedUsername, folder === 'music'), lyricPath).replace(/\\/g, '/')
+        ? path
+            .relative(getCacheDir(normalizedUsername, folder === 'music', location, false), lyricPath)
+            .replace(/\\/g, '/')
         : undefined
       item.lyricSize = hasCachedLyric
         ? (() => {
@@ -552,7 +554,7 @@ export const ensureCachedLyrics = async (
       item.metadataWritable = metadataWritable
       item.metadataError = metadataError
       item.embedLyricError = embedLyricError
-      indexManager.update(normalizedUsername, item, folder)
+      indexManager.update(normalizedUsername, item, folder, location)
     }
     return
   }
@@ -584,12 +586,12 @@ export const ensureCachedLyrics = async (
       }
     }
 
-    const finalItem = indexManager.get(normalizedUsername, id, folder, resolvedQuality, true) || item
+    const finalItem = indexManager.get(normalizedUsername, id, folder, resolvedQuality, true, location) || item
     if (finalItem) {
       if (shouldCacheLyric && hasCachedLyric) {
         finalItem.hasLyric = true
         finalItem.lyricFilename = path
-          .relative(getCacheDir(normalizedUsername, folder === 'music'), lyricPath)
+          .relative(getCacheDir(normalizedUsername, folder === 'music', location, false), lyricPath)
           .replace(/\\/g, '/')
         try {
           finalItem.lyricSize = fs.statSync(lyricPath).size
@@ -604,7 +606,7 @@ export const ensureCachedLyrics = async (
         finalItem.metadataError = metadataError
         finalItem.embedLyricError = embedLyricError
       }
-      indexManager.update(normalizedUsername, finalItem, folder)
+      indexManager.update(normalizedUsername, finalItem, folder, location)
     }
   } catch (err: any) {
     console.warn(`[FileCache] Failed to ensure lyrics for ${path.basename(audioPath)}: ${err?.message || err}`)

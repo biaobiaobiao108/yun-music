@@ -145,9 +145,6 @@ export const clearLoginFailures = (address: string, domain: LoginDomain = 'admin
   } catch {}
 }
 
-const playerSessions = new Map<string, { createdAt: number }>()
-const adminSessions = new Map<string, number>()
-const MAX_SESSIONS = 10_000
 const MAX_PERSISTED_PLAYER_SESSIONS = 128
 const MAX_PERSISTED_ADMIN_SESSIONS = 16
 const MAX_USER_SESSIONS_PER_ACCOUNT = 16
@@ -177,19 +174,13 @@ const prunePersistedSessions = (now = Date.now()): void => {
 
 let lastPlayerSessionPruneAt = 0
 const prunePlayerSessions = (now = Date.now(), force = false): void => {
-  const shouldPrune = force || now - lastPlayerSessionPruneAt >= SESSION_PRUNE_INTERVAL_MS
-  if (shouldPrune) {
+  if (force || now - lastPlayerSessionPruneAt >= SESSION_PRUNE_INTERVAL_MS) {
     lastPlayerSessionPruneAt = now
-    for (const [sessionId, session] of playerSessions) {
-      if (now - session.createdAt > PLAYER_SESSION_TTL) playerSessions.delete(sessionId)
-    }
     prunePersistedSessions(now)
   }
-  while (playerSessions.size > MAX_SESSIONS) playerSessions.delete(playerSessions.keys().next().value!)
 }
 
 export const clearPlayerSessionCache = (): void => {
-  playerSessions.clear()
   lastPlayerSessionPruneAt = 0
 }
 
@@ -202,7 +193,6 @@ export const createPlayerSession = (): string => {
   prunePlayerSessions()
   const sessionId = crypto.randomBytes(32).toString('hex')
   const createdAt = Date.now()
-  playerSessions.set(sessionId, { createdAt })
   const db = getDb()
   db.run('INSERT OR REPLACE INTO player_sessions (session_hash, created_at) VALUES (?, ?)', [
     hashSession(sessionId),
@@ -219,7 +209,6 @@ export const createPlayerSession = (): string => {
 }
 
 export const removePlayerSession = (sessionId: string): void => {
-  playerSessions.delete(sessionId)
   getDb().run('DELETE FROM player_sessions WHERE session_hash = ?', [hashSession(sessionId)])
 }
 
@@ -236,17 +225,14 @@ export const checkPlayerAuthSession = (cookies: Record<string, string>): boolean
       .query<{ created_at: number }, [string]>('SELECT created_at FROM player_sessions WHERE session_hash = ?')
       .get(hashSession(sessionId))
     if (!persisted || now - persisted.created_at > PLAYER_SESSION_TTL) {
-      playerSessions.delete(sessionId)
       try {
         getDb().run('DELETE FROM player_sessions WHERE session_hash = ?', [hashSession(sessionId)])
       } catch {}
       return false
     }
-    playerSessions.set(sessionId, { createdAt: persisted.created_at })
     return true
   } catch {
     // Authentication fails closed when the shared session store is unavailable.
-    playerSessions.delete(sessionId)
     return false
   }
 }
@@ -255,14 +241,10 @@ let lastAdminSessionPruneAt = 0
 const pruneAdminSessions = (now = Date.now()): void => {
   if (now - lastAdminSessionPruneAt >= SESSION_PRUNE_INTERVAL_MS) {
     lastAdminSessionPruneAt = now
-    for (const [sessionId, expiresAt] of adminSessions) {
-      if (expiresAt <= now) adminSessions.delete(sessionId)
-    }
     try {
       getDb().run('DELETE FROM admin_sessions WHERE expires_at <= ?', [now])
     } catch {}
   }
-  while (adminSessions.size > MAX_SESSIONS) adminSessions.delete(adminSessions.keys().next().value!)
 }
 
 export const createAdminSession = (): string => {
@@ -286,7 +268,6 @@ export const createAdminSession = (): string => {
     console.error('[Auth] 管理员会话持久化失败:', error instanceof Error ? error.message : 'unknown error')
     throw new AdminSessionPersistenceError(error)
   }
-  adminSessions.set(sessionId, expiresAt)
   return sessionId
 }
 
@@ -303,12 +284,10 @@ export const trimUserSessionRows = (username: string): void => {
 }
 
 export const removeAdminSession = (sessionId: string): void => {
-  adminSessions.delete(sessionId)
   getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)])
 }
 
 export const revokeAllAdminSessions = (): void => {
-  adminSessions.clear()
   lastAdminSessionPruneAt = 0
   getDb().run('DELETE FROM admin_sessions')
 }
@@ -346,17 +325,14 @@ export const checkAdminSession = (source: HeaderSource): boolean => {
       .get(hashSession(sessionId))
     const expiresAt = Number(persisted?.expires_at || 0)
     if (!persisted || expiresAt <= Date.now()) {
-      adminSessions.delete(sessionId)
       try {
         getDb().run('DELETE FROM admin_sessions WHERE session_hash = ?', [hashSession(sessionId)])
       } catch {}
       return false
     }
-    adminSessions.set(sessionId, expiresAt)
     return true
   } catch {
     // Authentication fails closed when the shared session store is unavailable.
-    adminSessions.delete(sessionId)
     return false
   }
 }

@@ -339,13 +339,14 @@ export const promoteCachedSongToMusic = async (
     return { successCount: 1, failCount: 0, moved: [] }
   const sourceUsername = result.foundIn || normalizedTarget
   if (sourceUsername === normalizedTarget) {
-    return switchFolder([result.filename], normalizedTarget, 'music')
+    return switchFolder([result.filename], normalizedTarget, 'music', result.location)
   }
   return promoteCacheFile(
     result.filename,
     sourceUsername,
     normalizedTarget,
     result.folder === 'music' ? 'music' : 'cache',
+    result.location,
   )
 }
 

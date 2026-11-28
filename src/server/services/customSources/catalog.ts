@@ -2,7 +2,81 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { isRetiredOnlineSource, UnsupportedSourceError } from '@/common/musicSources'
 import { assertSafePathSegment, resolveInside } from '@/utils/pathSecurity'
+import { normalizeSongInfo } from '../songInfo'
 import { loadedApis } from './registry'
+
+const jsonFileCache = new Map<string, { mtimeMs: number; value: unknown }>()
+const MAX_JSON_FILE_CACHE_ENTRIES = 256
+
+const readCachedJsonFile = <T>(filePath: string, fallback: T): T => {
+  try {
+    const stat = fs.statSync(filePath, { throwIfNoEntry: false })
+    if (!stat) {
+      jsonFileCache.delete(filePath)
+      return fallback
+    }
+    const cached = jsonFileCache.get(filePath)
+    if (cached && cached.mtimeMs === stat.mtimeMs) {
+      return cached.value as T
+    }
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T
+    if (jsonFileCache.size >= MAX_JSON_FILE_CACHE_ENTRIES) {
+      jsonFileCache.delete(jsonFileCache.keys().next().value!)
+    }
+    jsonFileCache.set(filePath, { mtimeMs: stat.mtimeMs, value: parsed })
+    return parsed
+  } catch {
+    return fallback
+  }
+}
+
+const getSourceRoot = (): string => {
+  const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
+  return path.join(dataPath, 'users', 'source')
+}
+
+const readUserSourceOverrides = (
+  sourceRoot: string,
+  clientUsername?: string,
+): { userStates: Record<string, any>; userApiIds: Set<string> } => {
+  const userStates: Record<string, any> = {}
+  const userApiIds = new Set<string>()
+  if (!clientUsername || clientUsername === 'default') {
+    return { userStates, userApiIds }
+  }
+  const userPath = resolveInside(sourceRoot, clientUsername)
+  Object.assign(userStates, readCachedJsonFile<Record<string, any>>(path.join(userPath, 'states.json'), {}))
+  const userSources = readCachedJsonFile<Array<{ id?: string }>>(path.join(userPath, 'sources.json'), [])
+  if (Array.isArray(userSources)) {
+    for (const s of userSources) {
+      if (s?.id) userApiIds.add(s.id)
+    }
+  }
+  return { userStates, userApiIds }
+}
+
+const sleepWithSignal = (ms: number, signal?: AbortSignal): Promise<void> => {
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException('Aborted', 'AbortError'))
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+const isNonRetryableCustomSourceError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return message.includes('已卸载') || message.includes('未注册 request 处理器')
+}
+
 export async function callUserApiGetMusicUrl(
   source: string,
   songInfo: any,
@@ -10,79 +84,28 @@ export async function callUserApiGetMusicUrl(
   clientUsername?: string,
   onProgress?: (attempt: any) => Promise<void> | void,
   enableAutoSwitchApiSource?: boolean,
+  signal?: AbortSignal,
 ): Promise<{ url: string; type: string; sourceName?: string; attempts?: any[] }> {
   if (isRetiredOnlineSource(source)) {
     throw new UnsupportedSourceError(source)
   }
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError')
+  }
   if (clientUsername && clientUsername !== 'default' && clientUsername !== 'open' && clientUsername !== '_open') {
     clientUsername = assertSafePathSegment(clientUsername, 'username')
   }
-  // 标准化 songInfo 格式：将 meta 中的字段提升到顶层
-  const normalizedSongInfo = { ...songInfo }
-  if (songInfo.meta) {
-    // 将 meta 中的所有字段展开到顶层
+  // 标准化 songInfo 格式：复用共享字段映射并保留自定义源脚本可能读取的附加字段
+  const normalizedSongInfo = normalizeSongInfo({ ...songInfo })
+  if (songInfo?.meta) {
     Object.assign(normalizedSongInfo, songInfo.meta)
-
-    // ========== 通用字段映射 ==========
-    // songId -> songmid (通用)
-    if (songInfo.meta.songId && !normalizedSongInfo.songmid) {
-      normalizedSongInfo.songmid = songInfo.meta.songId
-    }
-
-    // 图片字段统一
-    if (songInfo.meta.picUrl && !normalizedSongInfo.img) {
-      normalizedSongInfo.img = songInfo.meta.picUrl
-    }
-
-    // 音质信息
-    if (songInfo.meta.qualitys && !normalizedSongInfo.types) {
-      normalizedSongInfo.types = songInfo.meta.qualitys
-    }
-    if (songInfo.meta._qualitys && !normalizedSongInfo._types) {
-      normalizedSongInfo._types = songInfo.meta._qualitys
-    }
-
-    // ========== 各平台特有字段 ==========
-    if (songInfo.meta.albumId && !normalizedSongInfo.albumId) {
-      normalizedSongInfo.albumId = songInfo.meta.albumId
-    }
-
-    // QQ音乐 (tx): strMediaMid, albumMid
-    if (songInfo.meta.strMediaMid && !normalizedSongInfo.strMediaMid) {
-      normalizedSongInfo.strMediaMid = songInfo.meta.strMediaMid
-    }
-    if (songInfo.meta.albumMid && !normalizedSongInfo.albumMid) {
-      normalizedSongInfo.albumMid = songInfo.meta.albumMid
-    }
-
-    // 不再删除 meta 对象，以免有些严谨的脚本报错（许多脚本会读取 info.meta）
-    // delete normalizedSongInfo.meta
+    normalizeSongInfo(normalizedSongInfo)
   }
 
-  // ========== 顶层字段兜底映射 ==========
-  if (!normalizedSongInfo.hash && songInfo.hash) {
-    normalizedSongInfo.hash = songInfo.hash
-  }
-  if (!normalizedSongInfo.copyrightId && songInfo.copyrightId) {
-    normalizedSongInfo.copyrightId = songInfo.copyrightId
-  }
-  if (!normalizedSongInfo.strMediaMid && songInfo.strMediaMid) {
-    normalizedSongInfo.strMediaMid = songInfo.strMediaMid
-  }
-  if (!normalizedSongInfo.albumMid && songInfo.albumMid) {
-    normalizedSongInfo.albumMid = songInfo.albumMid
-  }
-  if (!normalizedSongInfo.albumId && songInfo.albumId) {
-    normalizedSongInfo.albumId = songInfo.albumId
-  }
-  if (!normalizedSongInfo.lrcUrl && songInfo.lrcUrl) {
-    normalizedSongInfo.lrcUrl = songInfo.lrcUrl
-  }
-  if (!normalizedSongInfo.mrcUrl && songInfo.mrcUrl) {
-    normalizedSongInfo.mrcUrl = songInfo.mrcUrl
-  }
-  if (!normalizedSongInfo.trcUrl && songInfo.trcUrl) {
-    normalizedSongInfo.trcUrl = songInfo.trcUrl
+  for (const field of ['hash', 'copyrightId', 'strMediaMid', 'albumMid', 'albumId', 'lrcUrl', 'mrcUrl', 'trcUrl']) {
+    if (!normalizedSongInfo[field] && songInfo?.[field]) {
+      normalizedSongInfo[field] = songInfo[field]
+    }
   }
   if (typeof normalizedSongInfo.hash === 'string' && !normalizedSongInfo.hash) {
     delete normalizedSongInfo.hash
@@ -90,37 +113,15 @@ export async function callUserApiGetMusicUrl(
 
   let supportedCount = 0
   let lastError: Error | null = null
-  const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
-  const sourceRoot = path.join(dataPath, 'users', 'source')
+  const sourceRoot = getSourceRoot()
 
   // 查找支持该 source 的 API
   // 收集所有支持该 source 的 API，并根据权限过滤
   let candidates: any[] = []
-  const userApiIds = new Set<string>()
-
-  // 读取当前用户的公开源状态覆盖（启用/禁用）以及私有源 ID 集合
-  let userStates: Record<string, any> = {}
-  if (clientUsername && clientUsername !== 'default') {
-    const userPath = resolveInside(sourceRoot, clientUsername)
-    const statesPath = path.join(userPath, 'states.json')
-    const metaPath = path.join(userPath, 'sources.json')
-
-    if (fs.existsSync(statesPath)) {
-      try {
-        userStates = JSON.parse(fs.readFileSync(statesPath, 'utf-8'))
-      } catch (e) {}
-    }
-    // 预收集私有源 ID（用于屏蔽同名公开源）
-    if (fs.existsSync(metaPath)) {
-      try {
-        const userSources = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-        for (const s of userSources) userApiIds.add(s.id)
-      } catch (e) {}
-    }
-  }
+  const { userStates, userApiIds } = readUserSourceOverrides(sourceRoot, clientUsername)
 
   // 按 loadedApis 收集所有可用候选源（权限过滤，不强制任何顺序）
-  for (const [apiId, api] of loadedApis) {
+  for (const [, api] of loadedApis) {
     if (!api.info.sources || !api.info.sources[source]) continue
 
     if (api.info.owner === 'open') {
@@ -141,11 +142,8 @@ export async function callUserApiGetMusicUrl(
     }
   }
 
-  // === 实时按 order.json 对候选列表排序 ===
-  // 不依赖 loadedApis 的 Map 插入顺序（部分 reload 后顺序会乱），
-  // 每次解析都直接读 order.json，无需重启服务器即可生效
+  // === 按 order.json 对候选列表排序（基于 mtime 缓存） ===
   if (candidates.length > 1) {
-    const dataPath = global.lx?.dataPath || process.env.DATA_PATH || path.join(process.cwd(), 'data')
     let orderData: string[] = []
 
     // 优先读用户自己的排序（admin/order.json），再回退到公开源排序（_open/order.json）
@@ -155,11 +153,10 @@ export async function callUserApiGetMusicUrl(
         : [resolveInside(sourceRoot, '_open', 'order.json')]
 
     for (const orderPath of orderCandidates) {
-      if (fs.existsSync(orderPath)) {
-        try {
-          orderData = JSON.parse(fs.readFileSync(orderPath, 'utf-8'))
-          if (orderData.length > 0) break
-        } catch (e) {}
+      const parsed = readCachedJsonFile<string[]>(orderPath, [])
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        orderData = parsed
+        break
       }
     }
 
@@ -197,6 +194,9 @@ export async function callUserApiGetMusicUrl(
     const maxRetries = 3
 
     for (let i = 0; i < maxRetries; i++) {
+      if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError')
+      }
       try {
         console.log(
           `[UserApi] 尝试 ${api.info.name} 获取 ${source} 音乐链接 (第 ${i + 1}/${maxRetries} 次, Owner: ${api.info.owner})`,
@@ -223,15 +223,18 @@ export async function callUserApiGetMusicUrl(
         }
         attempts.push(att)
         if (onProgress) await onProgress(att)
-        // 如果不是最后一次尝试，等待一小会儿
+        if (isNonRetryableCustomSourceError(error)) break
         if (i < maxRetries - 1) {
-          await new Promise(r => setTimeout(r, 1000))
+          await sleepWithSignal(1000, signal)
         }
       }
     }
   } else {
     // 多个源，轮流尝试
     for (const api of candidates) {
+      if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError')
+      }
       try {
         console.log(`[UserApi] 尝试 ${api.info.name} 获取 ${source} 音乐链接 (Owner: ${api.info.owner})`)
 
@@ -271,13 +274,28 @@ export function isSourceSupported(source: string, clientUsername?: string): bool
   // Retired built-in IDs are never reactivated through userApi. Custom APIs
   // must use their own ID so historical data cannot silently switch source.
   if (isRetiredOnlineSource(source)) return false
-  for (const [apiId, api] of loadedApis) {
-    if (!api.info.enabled || !api.info.sources || !api.info.sources[source]) {
+  const safeUsername =
+    clientUsername && clientUsername !== 'default' && clientUsername !== 'open' && clientUsername !== '_open'
+      ? assertSafePathSegment(clientUsername, 'username')
+      : clientUsername
+  const { userStates, userApiIds } = readUserSourceOverrides(getSourceRoot(), safeUsername)
+  for (const [, api] of loadedApis) {
+    if (!api.info.sources || !api.info.sources[source]) {
       continue
     }
 
-    // 权限检查
-    if (api.info.owner === 'open' || (clientUsername && api.info.owner === clientUsername)) {
+    if (api.info.owner === 'open') {
+      let isEnabled = api.info.enabled
+      if (safeUsername && safeUsername !== 'default' && userStates[api.info.id]) {
+        if (typeof userStates[api.info.id].enabled === 'boolean') {
+          isEnabled = userStates[api.info.id].enabled
+        }
+      }
+      if (!isEnabled || userApiIds.has(api.info.id)) continue
+      return true
+    }
+
+    if (safeUsername && api.info.owner === safeUsername && api.info.enabled) {
       return true
     }
   }

@@ -41,10 +41,11 @@ function ArtworkCard({
         : songTitle(song)
   const subtitle =
     kind === 'artist' ? String(song.songCount ?? song.count ?? '') : String(song.singer || song.artist || '专辑')
-  const currentSong = usePlaybackStore(state => state.currentSong)
-  const isPlaying = usePlaybackStore(state => state.isPlaying)
+  const isCurrent = usePlaybackStore(state => Boolean(state.currentSong && sameSong(state.currentSong, song)))
+  const isPlaying = usePlaybackStore(state =>
+    Boolean(state.isPlaying && state.currentSong && sameSong(state.currentSong, song)),
+  )
   const togglePlayback = usePlaybackStore(state => state.toggle)
-  const isCurrent = Boolean(currentSong && sameSong(currentSong, song))
 
   const handleCardClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.currentTarget.blur()

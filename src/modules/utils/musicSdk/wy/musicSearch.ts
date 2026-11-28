@@ -1,15 +1,10 @@
-// import { httpFetch } from '../../request'
-// import { weapi } from './utils/crypto'
 import { formatPlayTime } from '../../index'
-// import musicDetailApi from './musicDetail'
+import { formatSingerName } from '../utils'
 import { eapiRequest } from './utils/index'
 import { buildQualitys } from './quality'
 
 export default {
   limit: 30,
-  total: 0,
-  page: 0,
-  allPage: 1,
   musicSearch(str: any, page: any, limit: any, signal?: AbortSignal): Promise<any> {
     // const searchRequest = eapiRequest('/api/cloudsearch/pc', {
     //   s: str,
@@ -33,59 +28,51 @@ export default {
     )
     return searchRequest.promise.then(({ body }: any) => body)
   },
-  getSinger(singers: any) {
-    let arr: any[] = []
-    singers.forEach((singer: any) => {
-      arr.push(singer.name)
-    })
-    return arr.join('、')
-  },
   handleResult(rawList: any) {
-    // console.log(rawList)
-    if (!rawList) return []
-    return rawList.map((item: any) => {
-      item = item.baseInfo.simpleSongData
+    if (!Array.isArray(rawList)) return []
+    const list: any[] = []
+    for (const rawItem of rawList) {
+      const item = rawItem?.baseInfo?.simpleSongData
+      if (!item) continue
       const { types, _types } = buildQualitys(item, item.privilege)
 
-      return {
-        singer: this.getSinger(item.ar),
+      list.push({
+        singer: formatSingerName(item.ar, 'name'),
         name: item.name,
-        albumName: item.al.name,
-        albumId: item.al.id,
+        albumName: item.al?.name || '',
+        albumId: item.al?.id || '',
         source: 'wy',
-        interval: formatPlayTime(item.dt / 1000),
+        interval: formatPlayTime((item.dt || 0) / 1000),
         songmid: item.id,
-        img: item.al.picUrl,
+        img: item.al?.picUrl || '',
         lrc: null,
         types,
         _types,
         typeUrl: {},
-      }
-    })
+      })
+    }
+    return list
   },
   search(str: any, page: any = 1, limit: any, signal?: AbortSignal, retryNum: any = 0): Promise<any> {
+    if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
     if (++retryNum > 3) return Promise.reject(new Error('try max num'))
-    if (limit == null) limit = this.limit
-    return this.musicSearch(str, page, limit, signal).then((result: any) => {
-      // console.log(result)
-      if (!result || result.code !== 200) return this.search(str, page, limit, signal, retryNum)
-      let list = this.handleResult(result.data.resources || [])
-      // console.log(list)
-
-      if (list == null) return this.search(str, page, limit, signal, retryNum)
-
-      this.total = result.data.totalCount || 0
-      this.page = page
-      this.allPage = Math.ceil(this.total / this.limit)
+    const effectiveLimit = limit ?? this.limit
+    return this.musicSearch(str, page, effectiveLimit, signal).then((result: any) => {
+      if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+      if (!result || result.code !== 200 || !result.data) {
+        return this.search(str, page, effectiveLimit, signal, retryNum)
+      }
+      const list = this.handleResult(result.data.resources || [])
+      const total = result.data.totalCount || 0
+      const allPage = Math.ceil(total / effectiveLimit)
 
       return {
         list,
-        allPage: this.allPage,
-        limit: this.limit,
-        total: this.total,
+        allPage,
+        limit: effectiveLimit,
+        total,
         source: 'wy',
       }
-      // return result.data
     })
   },
 }

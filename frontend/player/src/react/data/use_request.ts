@@ -17,6 +17,8 @@ export function useRequestResource<T>(
 ): RequestResourceState<T> & { reload: () => Promise<void>; cancel: () => void } {
   const enabled = options.enabled ?? true
   const controllerRef = useRef<AbortController | null>(null)
+  const loaderRef = useRef(loader)
+  loaderRef.current = loader
   const initialDataRef = useRef(options.initialData)
   const initialData = initialDataRef.current
   const [state, setState] = useState<RequestResourceState<T>>({
@@ -33,7 +35,7 @@ export function useRequestResource<T>(
       controllerRef.current = controller
       setState(current => ({ ...current, loading: true, refreshing: current.data !== initialData, error: '' }))
       try {
-        const data = await loader(controller.signal, { force })
+        const data = await loaderRef.current(controller.signal, { force })
         if (!controller.signal.aborted) setState({ data, loading: false, refreshing: false, error: '' })
       } catch (error) {
         if (!controller.signal.aborted && !isAbortError(error))
@@ -47,7 +49,7 @@ export function useRequestResource<T>(
         if (controllerRef.current === controller) controllerRef.current = null
       }
     },
-    [initialData, loader],
+    [initialData],
   )
 
   useEffect(() => {

@@ -19,14 +19,24 @@ export const endDataRequest = (): void => {
   }
 }
 
-export const pauseDataRequests = async (): Promise<() => void> => {
+export const pauseDataRequests = async (timeoutMs = 15_000): Promise<() => void> => {
   apiPaused = true
   let resolver: (() => void) | undefined
   if (apiRequests > 0) {
-    await new Promise<void>(resolve => {
-      resolver = resolve
-      drainResolvers.add(resolve)
-    })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await new Promise<void>((resolve, reject) => {
+        resolver = resolve
+        drainResolvers.add(resolve)
+        timer = setTimeout(() => {
+          drainResolvers.delete(resolve)
+          apiPaused = false
+          reject(new Error('等待进行中的请求超时，请稍后重试'))
+        }, timeoutMs)
+      })
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
   }
   return () => {
     if (resolver) drainResolvers.delete(resolver)

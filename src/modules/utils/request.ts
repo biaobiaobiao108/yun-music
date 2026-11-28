@@ -164,6 +164,26 @@ const readResponseBody = async (response: Response, maxBytes: number): Promise<B
   return Buffer.concat(chunks)
 }
 
+const socksAgentCache = new Map<string, any>()
+const MAX_SOCKS_AGENT_CACHE = 8
+
+const getCachedSocksAgent = async (proxyAddress: string) => {
+  const cached = socksAgentCache.get(proxyAddress)
+  if (cached) return cached
+  const { SocksProxyAgent } = await import('socks-proxy-agent')
+  const agent = new SocksProxyAgent(proxyAddress)
+  if (socksAgentCache.size >= MAX_SOCKS_AGENT_CACHE) {
+    const oldestKey = socksAgentCache.keys().next().value
+    if (oldestKey !== undefined) {
+      const oldest = socksAgentCache.get(oldestKey)
+      socksAgentCache.delete(oldestKey)
+      oldest?.destroy?.()
+    }
+  }
+  socksAgentCache.set(proxyAddress, agent)
+  return agent
+}
+
 const requestThroughSocks = async (
   url: string,
   options: RequestInit,
@@ -171,9 +191,8 @@ const requestThroughSocks = async (
   controller: AbortController,
   maxBytes: number,
 ): Promise<FetchResponse> => {
-  const { SocksProxyAgent } = await import('socks-proxy-agent')
   const target = new URL(url)
-  const agent = new SocksProxyAgent(proxyAddress)
+  const agent = await getCachedSocksAgent(proxyAddress)
   const requestModule = target.protocol === 'https:' ? httpsModule : httpModule
   const headers: Record<string, string> = {}
   new Headers(options.headers).forEach((value, key) => {
@@ -441,7 +460,10 @@ export const httpFetch = <T = any>(url: string, options: HttpOptions = { method:
   const requestObj = buildHttpPromise<T>(url, options)
   requestObj.promise = requestObj.promise.catch((err: any) => {
     if (err?.message === 'socket hang up') return Promise.reject(new Error(requestMsg.unachievable))
-    if (err?.name === 'AbortError') return Promise.reject(new Error(requestMsg.timeout))
+    if (err?.name === 'AbortError') {
+      if (options.signal?.aborted) return Promise.reject(err)
+      return Promise.reject(new Error(requestMsg.timeout))
+    }
     switch (err?.code) {
       case 'ETIMEDOUT':
       case 'ESOCKETTIMEDOUT':

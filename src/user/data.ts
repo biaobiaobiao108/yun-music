@@ -217,7 +217,9 @@ export const initializeUsersFromDatabase = async (bootstrapUsers: LX.Config['use
     publishPreparedUsers(prepared.preparedUsers)
     return
   }
-  db.run("INSERT OR REPLACE INTO system_info (key, value) VALUES ('users_initialized', '1')")
+  if (!initialized) {
+    db.run("INSERT OR REPLACE INTO system_info (key, value) VALUES ('users_initialized', '1')")
+  }
   applyUsersFromDatabase(rows, bootstrapUsers)
 }
 

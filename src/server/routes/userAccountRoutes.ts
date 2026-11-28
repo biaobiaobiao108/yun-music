@@ -148,7 +148,8 @@ export const createUserAccountRouter = (): Router => {
         throw error
       }
       return ctx.json({ success: true })
-    } catch {
+    } catch (error) {
+      console.error('[User] 创建用户失败:', error)
       return ctx.fail(500, '服务器内部错误，请稍后重试')
     } finally {
       if (dataLockAcquired) {
@@ -272,7 +273,8 @@ export const createUserAccountRouter = (): Router => {
           throw error
         }
       }
-    } catch {
+    } catch (error) {
+      console.error('[User] 更新用户失败:', error)
       return ctx.fail(500, '服务器内部错误，请稍后重试')
     } finally {
       for (const name of suspendedNames) downloadQueue.releaseUser(name)
@@ -405,7 +407,8 @@ export const createUserAccountRouter = (): Router => {
         ...(body.deleteData ? {} : { dataPreserved: deletedUsers.map(user => user.name) }),
         ...(cleanupWarnings.length > 0 ? { cleanupWarnings } : {}),
       })
-    } catch {
+    } catch (error) {
+      console.error('[User] 删除用户失败:', error)
       return ctx.fail(500, '服务器内部错误，请稍后重试')
     } finally {
       for (const name of suspendedNames) downloadQueue.releaseUser(name)

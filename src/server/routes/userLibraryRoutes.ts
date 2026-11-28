@@ -251,16 +251,20 @@ export const createUserLibraryRouter = (): Router => {
         )
         let changed = false
         let orderTime = now
-        for (const event of events) {
-          if (!insert.run(username, event.id, now).changes) continue
-          if (!changed)
-            history = history.map(song => ({ ...song, playedAt: Math.min(now, Number(song.playedAt || 0)) }))
-          const song = { ...event.song, playedAt: ++orderTime }
-          history = [song, ...history.filter(item => playHistorySongKey(item) !== playHistorySongKey(song))].slice(
-            0,
-            MAX_PLAY_HISTORY_ITEMS,
-          )
-          changed = true
+        try {
+          for (const event of events) {
+            if (!insert.run(username, event.id, now).changes) continue
+            if (!changed)
+              history = history.map(song => ({ ...song, playedAt: Math.min(now, Number(song.playedAt || 0)) }))
+            const song = { ...event.song, playedAt: ++orderTime }
+            history = [song, ...history.filter(item => playHistorySongKey(item) !== playHistorySongKey(song))].slice(
+              0,
+              MAX_PLAY_HISTORY_ITEMS,
+            )
+            changed = true
+          }
+        } finally {
+          insert.finalize()
         }
         let revision = previous?.updated_at ?? 0
         if (changed) {

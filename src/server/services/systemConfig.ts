@@ -185,12 +185,16 @@ export const applyValidatedConfig = async (
     if (restored['proxy.trustedAddresses'] !== undefined) {
       config['proxy.trustedAddresses'] = normalizeTrustedProxyAddresses(restored['proxy.trustedAddresses'])
     }
-  } catch {}
+  } catch (error) {
+    console.warn('[SystemConfig] 忽略无效的 proxy.trustedAddresses 配置:', error)
+  }
   try {
     if (restored['proxy.all.address'] !== undefined && !process.env.PROXY_ALL_ADDRESS) {
       config['proxy.all.address'] = normalizeProxyAddress(restored['proxy.all.address'])
     }
-  } catch {}
+  } catch (error) {
+    console.warn('[SystemConfig] 忽略无效的 proxy.all.address 配置:', error)
+  }
   if (typeof restored['admin.path'] === 'string' || typeof restored['player.path'] === 'string') {
     const normalizedAdmin =
       typeof restored['admin.path'] === 'string'

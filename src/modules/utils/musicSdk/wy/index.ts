@@ -28,7 +28,7 @@ const wy: MusicPlatform = {
   },
   getPic(songInfo: MusicSong) {
     const requestObj = getMusicInfo(songInfo.songmid)
-    return requestObj.promise.then((info: any) => info.al.picUrl)
+    return requestObj.promise.then((info: any) => info?.al?.picUrl || null)
   },
   getMusicDetailPageUrl(songInfo: MusicSong) {
     return `https://music.163.com/#/song?id=${songInfo.songmid}`

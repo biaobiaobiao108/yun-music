@@ -621,7 +621,9 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
   const loading = useLyricStore(state => state.loading)
   const error = useLyricStore(state => state.error)
   const load = useLyricStore(state => state.load)
-  const settings = useSettingsStore(state => state.settings)
+  const lyricFontSize = useSettingsStore(state => state.settings.lyricFontSize)
+  const showLyricTranslation = useSettingsStore(state => Boolean(state.settings.showLyricTranslation))
+  const showLyricRoma = useSettingsStore(state => Boolean(state.settings.showLyricRoma))
   const notify = usePlayerUiStore(state => state.notify)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const fullscreenOwned = useRef(false)
@@ -826,7 +828,7 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
     [onFooterHostChange],
   )
   const lyricStyle = {
-    '--react-lyric-size': `${Math.max(0.9, Number(settings.lyricFontSize || 1.25))}rem`,
+    '--react-lyric-size': `${Math.max(0.9, Number(lyricFontSize || 1.25))}rem`,
   } as CSSProperties
   const title = songTitle(song)
   const immersiveStyle = {
@@ -883,8 +885,8 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
             lines={lines}
             loading={loading}
             error={error}
-            showTranslation={Boolean(settings.showLyricTranslation)}
-            showRoma={Boolean(settings.showLyricRoma)}
+            showTranslation={showLyricTranslation}
+            showRoma={showLyricRoma}
             seek={seek}
           />
         ) : (
@@ -892,8 +894,8 @@ export function ImmersiveLyricsView({ open, footerHost, onFooterHostChange, onCl
             lines={lines}
             loading={loading}
             error={error}
-            showTranslation={Boolean(settings.showLyricTranslation)}
-            showRoma={Boolean(settings.showLyricRoma)}
+            showTranslation={showLyricTranslation}
+            showRoma={showLyricRoma}
             seek={seek}
           />
         )}

@@ -70,16 +70,12 @@ function notifyUnauthorized(input: RequestInfo | URL): void {
   }
 }
 
+import { isAbortError } from '../../../../shared/src/http'
+
+export { isAbortError }
+
 function abortError(): DOMException {
   return new DOMException('The operation was aborted.', 'AbortError')
-}
-
-export function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException
-    ? error.name === 'AbortError'
-    : Boolean(
-        error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError',
-      )
 }
 
 function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {

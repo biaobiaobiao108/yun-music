@@ -273,9 +273,12 @@ export function createLxRequest(
           maxBytes: budgetLease.maxBytes,
           budgetLease,
         })
-        if (timer) clearTimeout(timer)
 
         const rawBuffer = Buffer.from(await resp.arrayBuffer())
+        if (timer) {
+          clearTimeout(timer)
+          timer = null
+        }
 
         completed = true
 

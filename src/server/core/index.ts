@@ -5,6 +5,22 @@ import { memoryCacheBudgets } from '../resourceBudget'
 export * from './context'
 export * from './router'
 
+/** 原地更新响应头（若响应头为只读，则回退为新建 Response 包装） */
+const withUpdatedHeaders = (response: Response, mutate: (headers: Headers) => void): Response => {
+  try {
+    mutate(response.headers)
+    return response
+  } catch {
+    const headers = new Headers(response.headers)
+    mutate(headers)
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
+  }
+}
+
 /** 默认同源策略与跨域预检中间件 */
 export const corsMiddleware: Middleware = async (ctx, next) => {
   const origin = ctx.headers.get('origin')
@@ -30,16 +46,10 @@ export const corsMiddleware: Middleware = async (ctx, next) => {
     return response
   }
 
-  const headers = new Headers(response.headers)
-  if (origin) {
+  if (!origin) return response
+  return withUpdatedHeaders(response, headers => {
     headers.set('Access-Control-Allow-Origin', origin)
     withVary(headers, 'Origin')
-  }
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
   })
 }
 
@@ -48,41 +58,36 @@ export const securityHeadersMiddleware: Middleware = async (ctx, next) => {
   const response = await next()
   if (!(response instanceof Response)) return response
 
-  const headers = new Headers(response.headers)
-  headers.set('X-Request-ID', ctx.requestId)
-  headers.set('X-Content-Type-Options', headers.get('X-Content-Type-Options') || 'nosniff')
-  headers.set('Referrer-Policy', headers.get('Referrer-Policy') || 'strict-origin-when-cross-origin')
-  headers.set('Permissions-Policy', headers.get('Permissions-Policy') || 'camera=(), microphone=(), geolocation=()')
-  headers.set('X-Frame-Options', headers.get('X-Frame-Options') || 'DENY')
-  // Only meaningful over TLS; behind a plain-HTTP reverse proxy the browser
-  // must not be told to force HTTPS on this host.
-  if (ctx.isSecure) {
+  return withUpdatedHeaders(response, headers => {
+    headers.set('X-Request-ID', ctx.requestId)
+    headers.set('X-Content-Type-Options', headers.get('X-Content-Type-Options') || 'nosniff')
+    headers.set('Referrer-Policy', headers.get('Referrer-Policy') || 'strict-origin-when-cross-origin')
+    headers.set('Permissions-Policy', headers.get('Permissions-Policy') || 'camera=(), microphone=(), geolocation=()')
+    headers.set('X-Frame-Options', headers.get('X-Frame-Options') || 'DENY')
+    // Only meaningful over TLS; behind a plain-HTTP reverse proxy the browser
+    // must not be told to force HTTPS on this host.
+    if (ctx.isSecure) {
+      headers.set(
+        'Strict-Transport-Security',
+        headers.get('Strict-Transport-Security') || 'max-age=31536000; includeSubDomains',
+      )
+    }
     headers.set(
-      'Strict-Transport-Security',
-      headers.get('Strict-Transport-Security') || 'max-age=31536000; includeSubDomains',
+      'Content-Security-Policy',
+      headers.get('Content-Security-Policy') ||
+        [
+          "default-src 'self'",
+          "base-uri 'self'",
+          "object-src 'none'",
+          "frame-ancestors 'none'",
+          "form-action 'self'",
+          "img-src 'self' data: blob: https:",
+          "media-src 'self' blob: https:",
+          "connect-src 'self' https: wss:",
+          "style-src 'self' 'unsafe-inline'",
+          "script-src 'self'",
+        ].join('; '),
     )
-  }
-  headers.set(
-    'Content-Security-Policy',
-    headers.get('Content-Security-Policy') ||
-      [
-        "default-src 'self'",
-        "base-uri 'self'",
-        "object-src 'none'",
-        "frame-ancestors 'none'",
-        "form-action 'self'",
-        "img-src 'self' data: blob: https:",
-        "media-src 'self' blob: https:",
-        "connect-src 'self' https: wss:",
-        "style-src 'self' 'unsafe-inline'",
-        "script-src 'self'",
-      ].join('; '),
-  )
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
   })
 }
 
@@ -100,12 +105,8 @@ export const apiNoStoreMiddleware: Middleware = async (ctx, next) => {
   const response = await next()
   if (!(response instanceof Response) || !ctx.pathname.startsWith('/api/')) return response
   if (response.headers.has('cache-control')) return response
-  const headers = new Headers(response.headers)
-  headers.set('Cache-Control', 'private, no-store')
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
+  return withUpdatedHeaders(response, headers => {
+    headers.set('Cache-Control', 'private, no-store')
   })
 }
 

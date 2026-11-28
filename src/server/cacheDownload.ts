@@ -584,7 +584,14 @@ export const downloadAndCache = async (
                   )
                 }
                 imageBuffer = undefined
-                const taggedItem = indexManager.get(normalizedUsername, id, folderType, actualQuality)
+                const taggedItem = indexManager.get(
+                  normalizedUsername,
+                  id,
+                  folderType,
+                  actualQuality,
+                  true,
+                  downloadLocation,
+                )
                 if (taggedItem) {
                   taggedItem.coverType = finalHasEmbeddedCover
                     ? 'embedded'
@@ -623,7 +630,15 @@ export const downloadAndCache = async (
                 const finalizedItem = indexManager
                   .getAll(normalizedUsername, folderType, downloadLocation)
                   .find(item => item.filename === finalBaseName + ext)
-                if (finalizedItem) reconcileCacheItemFromDisk(normalizedUsername, folderType, finalizedItem, finalPath)
+                if (finalizedItem)
+                  reconcileCacheItemFromDisk(
+                    normalizedUsername,
+                    folderType,
+                    finalizedItem,
+                    finalPath,
+                    undefined,
+                    downloadLocation,
+                  )
                 invalidateCacheListSync(normalizedUsername)
               } catch (postProcessError: any) {
                 if (!signal?.aborted) {

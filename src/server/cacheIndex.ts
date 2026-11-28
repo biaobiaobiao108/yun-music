@@ -130,40 +130,43 @@ class CacheIndexManager {
     const pageSize = 100
     const scope = 'folder = ? AND user_name IN (SELECT value FROM json_each(?))'
     const scopeParams = [request.folder, JSON.stringify(usernames)]
-    const totals = db
-      .query<{ total: number; size: number }, string[]>(
-        `SELECT COUNT(*) AS total, COALESCE(SUM(audio_size), 0) AS size FROM cache_index WHERE ${scope}`,
-      )
-      .get(...scopeParams)!
-    const condition = request.query
-      ? ` AND (instr(name_key, ?) OR instr(singer_key, ?) OR
+    const { totals, filtered, page, rows } = db.transaction(() => {
+      const totals = db
+        .query<{ total: number; size: number }, string[]>(
+          `SELECT COUNT(*) AS total, COALESCE(SUM(audio_size), 0) AS size FROM cache_index WHERE ${scope}`,
+        )
+        .get(...scopeParams)!
+      const condition = request.query
+        ? ` AND (instr(name_key, ?) OR instr(singer_key, ?) OR
           instr(lower(json_extract(data, '$.filename')), ?) OR instr(lower(json_extract(data, '$.source')), ?))`
-      : ''
-    const needle = request.query.toLowerCase()
-    const filters = [...scopeParams, ...(request.query ? [needle, needle, needle, needle] : [])]
-    const where = `${scope} AND json_valid(data)${condition}`
-    const filtered = request.query
-      ? db
-          .query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM cache_index WHERE ${where}`)
-          .get(...filters)!.count
-      : totals.total
-    const page = Math.min(request.page, Math.max(0, Math.ceil(filtered / pageSize) - 1))
-    const orders = new Map([
-      ['name-asc', 'name_key ASC, '],
-      ['name-desc', 'name_key DESC, '],
-      ['size-desc', 'audio_size DESC, '],
-      ['time-desc', "json_extract(data, '$.mtime') DESC, "],
-    ])
-    const order = orders.get(request.sort) ?? ''
-    const rows = db
-      .query<{ data: string; lyric_size: number; location: string; user_name: string }, Array<string | number>>(
-        `
+        : ''
+      const needle = request.query.toLowerCase()
+      const filters = [...scopeParams, ...(request.query ? [needle, needle, needle, needle] : [])]
+      const where = `${scope} AND json_valid(data)${condition}`
+      const filtered = request.query
+        ? db
+            .query<{ count: number }, string[]>(`SELECT COUNT(*) AS count FROM cache_index WHERE ${where}`)
+            .get(...filters)!.count
+        : totals.total
+      const page = Math.min(request.page, Math.max(0, Math.ceil(filtered / pageSize) - 1))
+      const orders = new Map([
+        ['name-asc', 'name_key ASC, '],
+        ['name-desc', 'name_key DESC, '],
+        ['size-desc', 'audio_size DESC, '],
+        ['time-desc', "json_extract(data, '$.mtime') DESC, "],
+      ])
+      const order = orders.get(request.sort) ?? ''
+      const rows = db
+        .query<{ data: string; lyric_size: number; location: string; user_name: string }, Array<string | number>>(
+          `
       SELECT data, lyric_size, location, user_name FROM cache_index WHERE ${where}
       ORDER BY ${order} user_name, location = ? DESC, location, song_id, quality
       LIMIT ? OFFSET ?
     `,
-      )
-      .all(...filters, currentCacheLocation, pageSize, page * pageSize)
+        )
+        .all(...filters, currentCacheLocation, pageSize, page * pageSize)
+      return { totals, filtered, page, rows }
+    })()
     const data = rows.flatMap(row => {
       const item = this.parseItem(row.data, row.lyric_size)
       return item
@@ -201,16 +204,30 @@ class CacheIndexManager {
       this.listCache.clear()
       return
     }
-    const matches = (key: string) => {
+    if (username && folder && location) {
+      this.listCache.delete(this.listCacheKey(username, folder, location))
+    } else {
+      for (const key of this.listCache.keys()) {
+        const [keyLocation, keyUsername, keyFolder] = key.split('\u0000')
+        if (
+          (!location || keyLocation === location) &&
+          (!username || keyUsername === username) &&
+          (!folder || keyFolder === folder)
+        ) {
+          this.listCache.delete(key)
+        }
+      }
+    }
+    for (const key of this.itemCache.keys()) {
       const [keyLocation, keyUsername, keyFolder] = key.split('\u0000')
-      return (
+      if (
         (!location || keyLocation === location) &&
         (!username || keyUsername === username) &&
         (!folder || keyFolder === folder)
-      )
+      ) {
+        this.itemCache.delete(key)
+      }
     }
-    for (const key of this.itemCache.keys()) if (matches(key)) this.itemCache.delete(key)
-    for (const key of this.listCache.keys()) if (matches(key)) this.listCache.delete(key)
   }
 
   private cacheItem(
